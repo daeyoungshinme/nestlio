@@ -1,0 +1,31 @@
+from decimal import Decimal
+from unittest.mock import patch
+
+
+def test_get_settings_reflects_config(client):
+    resp = client.get("/api/v1/settings")
+    assert resp.status_code == 200
+    body = resp.json()
+    assert "google_connected" in body
+    assert "budget_warn_pct" in body
+
+
+def test_set_emergency_fund(client):
+    resp = client.put("/api/v1/settings/emergency-fund", json={"balance": "3000000"})
+    assert resp.status_code == 200
+    assert Decimal(resp.json()["emergency_fund_balance"]) == Decimal("3000000")
+
+
+def test_test_weekly_email_without_google_returns_409(client):
+    # data/token.json이 없는 (Google 미연결) 상태를 가정 - GoogleNotConnectedError -> 409
+    resp = client.post("/api/v1/settings/test-weekly-email")
+    assert resp.status_code == 409
+
+
+@patch("app.services.notification_service.gmail_service.send_email")
+@patch("app.routers.settings.is_connected", return_value=True)
+def test_test_weekly_email_sends_when_connected(mock_is_connected, mock_send_email, client):
+    resp = client.post("/api/v1/settings/test-weekly-email")
+    assert resp.status_code == 200
+    assert resp.json()["sent"] is True
+    mock_send_email.assert_called_once()

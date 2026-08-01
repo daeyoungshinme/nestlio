@@ -1,0 +1,554 @@
+import { useMemo, useState } from "react";
+import { Link } from "react-router-dom";
+import { useMutation, useQuery, useQueryClient, keepPreviousData } from "@tanstack/react-query";
+import { CalendarDays, Download, MoreHorizontal, Plus, Tag, Upload } from "lucide-react";
+import ConfirmModal from "@/components/common/ConfirmModal";
+import EmptyState from "@/components/common/EmptyState";
+import Modal from "@/components/common/Modal";
+import MonthPicker, { currentYearMonth } from "@/components/common/MonthPicker";
+import SkeletonCard from "@/components/common/SkeletonCard";
+import Button from "@/components/common/Button";
+import MonthCalendarGrid from "@/components/transactions/MonthCalendarGrid";
+import LedgerDayCell from "@/components/transactions/LedgerDayCell";
+import LedgerDayModal from "@/components/transactions/LedgerDayModal";
+import TransactionForm from "@/components/transactions/TransactionForm";
+import TransactionListItem from "@/components/transactions/TransactionListItem";
+import ExpenseCategoryGroups from "@/components/transactions/ExpenseCategoryGroups";
+import EventForm, { emptyEventFormValues, eventToFormValues } from "@/components/transactions/EventForm";
+import { fetchCategories } from "@/api/categories";
+import { fetchAccounts } from "@/api/accounts";
+import {
+  createTransaction,
+  deleteTransaction,
+  exportTransactionsCsvUrl,
+  fetchCategoryBreakdown,
+  fetchTransactions,
+  updateTransaction,
+} from "@/api/transactions";
+import { createEvent, deleteEvent, fetchEvents, updateEvent } from "@/api/events";
+import { QUERY_KEYS } from "@/constants/queryKeys";
+import { SELECT_SM } from "@/constants/inputStyles";
+import { TOUCH_TARGET_COMPACT_MOBILE_ONLY } from "@/constants/uiSizes";
+import { formatKrw } from "@/utils/format";
+import { extractErrorMessage } from "@/utils/error";
+import { toast } from "@/utils/toast";
+import type { CategoryOut, EventOut, RecurringOut, TransactionOut } from "@/types";
+
+function monthBounds(yearMonth: string): { date_from: string; date_to: string } {
+  const [y, m] = yearMonth.split("-").map(Number);
+  const lastDay = new Date(y, m, 0).getDate();
+  return { date_from: `${yearMonth}-01`, date_to: `${yearMonth}-${String(lastDay).padStart(2, "0")}` };
+}
+
+function todayIso(): string {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+function defaultDateHint(yearMonth: string): string {
+  return yearMonth === currentYearMonth() ? todayIso() : `${yearMonth}-01`;
+}
+
+function occurrenceDate(iso: string): string {
+  return iso.split("T")[0];
+}
+
+type TopFilter = "all" | "income" | "expense";
+
+const TOP_FILTER_OPTIONS: { value: TopFilter; label: string }[] = [
+  { value: "all", label: "전체" },
+  { value: "income", label: "수입" },
+  { value: "expense", label: "지출" },
+];
+
+type ExpenseTypeFilter = "all" | "fixed" | "variable" | "irregular";
+
+const EXPENSE_TYPE_FILTER_OPTIONS: { value: ExpenseTypeFilter; label: string }[] = [
+  { value: "all", label: "전체" },
+  { value: "fixed", label: "고정지출" },
+  { value: "variable", label: "변동지출" },
+  { value: "irregular", label: "비정기지출" },
+];
+
+function matchesFilter(
+  tx: TransactionOut,
+  topFilter: TopFilter,
+  categoryFilter: number | "all",
+  expenseTypeFilter: ExpenseTypeFilter,
+): boolean {
+  if (topFilter !== "all" && tx.type !== topFilter) return false;
+  if (topFilter !== "all" && categoryFilter !== "all" && tx.category.id !== categoryFilter) return false;
+  if (topFilter === "expense" && expenseTypeFilter !== "all" && tx.category.type !== expenseTypeFilter) return false;
+  return true;
+}
+
+export default function TransactionsPage() {
+  const [yearMonth, setYearMonth] = useState(currentYearMonth());
+  const [topFilter, setTopFilter] = useState<TopFilter>("all");
+  const [categoryFilter, setCategoryFilter] = useState<number | "all">("all");
+  const [expenseTypeFilter, setExpenseTypeFilter] = useState<ExpenseTypeFilter>("all");
+  const [selectedDate, setSelectedDate] = useState<string | null>(null);
+  const [formTarget, setFormTarget] = useState<"new" | TransactionOut | null>(null);
+  const [createDate, setCreateDate] = useState(todayIso());
+  const [deleteTarget, setDeleteTarget] = useState<TransactionOut | null>(null);
+  const [eventFormTarget, setEventFormTarget] = useState<"new" | EventOut | null>(null);
+  const [eventCreateDate, setEventCreateDate] = useState(todayIso());
+  const [eventDeleteTarget, setEventDeleteTarget] = useState<EventOut | null>(null);
+  const [showMoreMenu, setShowMoreMenu] = useState(false);
+  const queryClient = useQueryClient();
+
+  const { date_from, date_to } = monthBounds(yearMonth);
+
+  const { data: categories } = useQuery({ queryKey: QUERY_KEYS.categories(), queryFn: () => fetchCategories() });
+  const { data: accounts } = useQuery({ queryKey: QUERY_KEYS.accounts, queryFn: fetchAccounts });
+  const { data, isLoading } = useQuery({
+    queryKey: QUERY_KEYS.transactions({ date_from, date_to }),
+    queryFn: () => fetchTransactions({ date_from, date_to }),
+    placeholderData: keepPreviousData,
+  });
+  const showExpenseGroups = topFilter === "expense" && categoryFilter === "all";
+  const { data: breakdown, isLoading: breakdownLoading } = useQuery({
+    queryKey: QUERY_KEYS.categoryBreakdown({ date_from, date_to, type: "expense" }),
+    queryFn: () => fetchCategoryBreakdown({ date_from, date_to, type: "expense" }),
+    placeholderData: keepPreviousData,
+    enabled: showExpenseGroups,
+  });
+  const { data: eventData, isLoading: eventsLoading } = useQuery({
+    queryKey: QUERY_KEYS.events(date_from, date_to),
+    queryFn: () => fetchEvents(date_from, date_to),
+    placeholderData: keepPreviousData,
+  });
+
+  const transactionsByDate = useMemo(() => {
+    const map = new Map<string, TransactionOut[]>();
+    for (const tx of data?.items ?? []) {
+      const list = map.get(tx.transaction_date) ?? [];
+      list.push(tx);
+      map.set(tx.transaction_date, list);
+    }
+    return map;
+  }, [data]);
+
+  const filteredTransactions = useMemo(() => {
+    return (data?.items ?? [])
+      .filter((tx) => matchesFilter(tx, topFilter, categoryFilter, expenseTypeFilter))
+      .slice()
+      .sort((a, b) => b.transaction_date.localeCompare(a.transaction_date) || b.id - a.id);
+  }, [data, topFilter, categoryFilter, expenseTypeFilter]);
+
+  const transactionsByCategory = useMemo(() => {
+    const map = new Map<number, TransactionOut[]>();
+    for (const tx of filteredTransactions) {
+      const list = map.get(tx.category.id) ?? [];
+      list.push(tx);
+      map.set(tx.category.id, list);
+    }
+    return map;
+  }, [filteredTransactions]);
+
+  const categoryOptions = useMemo(() => {
+    if (topFilter === "all") return [];
+    const byId = new Map<number, CategoryOut>();
+    for (const tx of data?.items ?? []) {
+      if (tx.type === topFilter) byId.set(tx.category.id, tx.category);
+    }
+    const options = Array.from(byId.values());
+    const scoped =
+      topFilter === "expense" && expenseTypeFilter !== "all"
+        ? options.filter((c) => c.type === expenseTypeFilter)
+        : options;
+    return scoped.sort((a, b) => a.sort_order - b.sort_order);
+  }, [data, topFilter, expenseTypeFilter]);
+
+  const expenseGroups = useMemo(() => {
+    if (!breakdown) return breakdown;
+    return expenseTypeFilter === "all" ? breakdown : breakdown.filter((g) => g.type === expenseTypeFilter);
+  }, [breakdown, expenseTypeFilter]);
+
+  const eventsByDate = useMemo(() => {
+    const map = new Map<string, EventOut[]>();
+    for (const item of eventData?.items ?? []) {
+      const date = occurrenceDate(item.occurrence_start);
+      const list = map.get(date) ?? [];
+      list.push(item);
+      map.set(date, list);
+    }
+    return map;
+  }, [eventData]);
+
+  const recurringDueByDate = useMemo(() => {
+    const map = new Map<string, RecurringOut[]>();
+    for (const item of eventData?.recurring_due ?? []) {
+      const list = map.get(item.next_due_date) ?? [];
+      list.push(item);
+      map.set(item.next_due_date, list);
+    }
+    return map;
+  }, [eventData]);
+
+  const invalidateAll = () => {
+    void queryClient.invalidateQueries({ queryKey: ["transactions"] });
+    void queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+    void queryClient.invalidateQueries({ queryKey: ["category-breakdown"] });
+  };
+
+  const invalidateEvents = () => void queryClient.invalidateQueries({ queryKey: ["events"] });
+
+  const createMutation = useMutation({
+    mutationFn: createTransaction,
+    onSuccess: () => {
+      invalidateAll();
+      setFormTarget(null);
+      toast("거래를 추가했습니다.", "success");
+    },
+    onError: (err) => toast(extractErrorMessage(err), "error"),
+  });
+
+  const updateMutation = useMutation({
+    mutationFn: ({ id, payload }: { id: number; payload: Parameters<typeof updateTransaction>[1] }) =>
+      updateTransaction(id, payload),
+    onSuccess: () => {
+      invalidateAll();
+      setFormTarget(null);
+      toast("거래를 수정했습니다.", "success");
+    },
+    onError: (err) => toast(extractErrorMessage(err), "error"),
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: deleteTransaction,
+    onSuccess: () => {
+      invalidateAll();
+      setDeleteTarget(null);
+      toast("거래를 삭제했습니다.", "success");
+    },
+    onError: (err) => toast(extractErrorMessage(err), "error"),
+  });
+
+  const createEventMutation = useMutation({
+    mutationFn: createEvent,
+    onSuccess: () => {
+      invalidateEvents();
+      setEventFormTarget(null);
+      toast("일정을 등록했습니다.", "success");
+    },
+    onError: (err) => toast(extractErrorMessage(err), "error"),
+  });
+
+  const updateEventMutation = useMutation({
+    mutationFn: ({ id, payload }: { id: number; payload: Parameters<typeof updateEvent>[1] }) =>
+      updateEvent(id, payload),
+    onSuccess: () => {
+      invalidateEvents();
+      setEventFormTarget(null);
+      toast("일정을 수정했습니다.", "success");
+    },
+    onError: (err) => toast(extractErrorMessage(err), "error"),
+  });
+
+  const deleteEventMutation = useMutation({
+    mutationFn: deleteEvent,
+    onSuccess: () => {
+      invalidateEvents();
+      setEventDeleteTarget(null);
+      toast("일정을 삭제했습니다.", "success");
+    },
+    onError: (err) => toast(extractErrorMessage(err), "error"),
+  });
+
+  const openCreate = (dateHint?: string) => {
+    setSelectedDate(null);
+    setCreateDate(dateHint ?? defaultDateHint(yearMonth));
+    setFormTarget("new");
+  };
+
+  const openEdit = (tx: TransactionOut) => {
+    setSelectedDate(null);
+    setFormTarget(tx);
+  };
+
+  const openCreateEvent = (dateHint?: string) => {
+    setSelectedDate(null);
+    setEventCreateDate(dateHint ?? defaultDateHint(yearMonth));
+    setEventFormTarget("new");
+  };
+
+  const openEditEvent = (event: EventOut) => {
+    setSelectedDate(null);
+    setEventFormTarget(event);
+  };
+
+  if (!categories || !accounts) {
+    return <SkeletonCard rows={5} />;
+  }
+
+  const isSaving = createMutation.isPending || updateMutation.isPending;
+  const isSavingEvent = createEventMutation.isPending || updateEventMutation.isPending;
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between flex-wrap gap-3">
+        <h1 className="text-xl font-bold text-gray-900 dark:text-gray-50">가계부</h1>
+        <div className="flex gap-2">
+          <button
+            onClick={() => setShowMoreMenu(true)}
+            className="p-2 text-gray-500 dark:text-gray-400 border border-gray-200 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+            aria-label="더보기"
+          >
+            <MoreHorizontal size={18} />
+          </button>
+          <Button size="sm" icon={<Plus size={14} />} onClick={() => openCreate()}>
+            거래 추가
+          </Button>
+        </div>
+      </div>
+
+      <MonthPicker yearMonth={yearMonth} onChange={setYearMonth} />
+
+      {data && (
+        <div className="flex justify-end">
+          <p className="text-sm text-gray-500 dark:text-gray-400">
+            합계: 수입 {formatKrw(data.totals.income)} · 지출 {formatKrw(data.totals.expense)}
+          </p>
+        </div>
+      )}
+
+      {isLoading || eventsLoading || !data || !eventData ? (
+        <SkeletonCard rows={4} />
+      ) : (
+        <MonthCalendarGrid
+          yearMonth={yearMonth}
+          renderCell={(cell) => (
+            <LedgerDayCell
+              date={cell.date}
+              day={cell.day}
+              inCurrentMonth={cell.inCurrentMonth}
+              isToday={cell.isToday}
+              transactions={transactionsByDate.get(cell.date) ?? []}
+              events={eventsByDate.get(cell.date) ?? []}
+              recurringDue={recurringDueByDate.get(cell.date) ?? []}
+              onSelect={setSelectedDate}
+            />
+          )}
+        />
+      )}
+
+      <div className="flex items-center gap-2">
+        <div className="flex gap-1 bg-gray-100 dark:bg-gray-800 rounded-lg p-1 flex-1">
+          {TOP_FILTER_OPTIONS.map((opt) => (
+            <button
+              key={opt.value}
+              type="button"
+              onClick={() => {
+                setTopFilter(opt.value);
+                setCategoryFilter("all");
+                setExpenseTypeFilter("all");
+              }}
+              className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
+                topFilter === opt.value
+                  ? "bg-white dark:bg-gray-700 shadow text-gray-900 dark:text-gray-50"
+                  : "text-gray-500 dark:text-gray-400"
+              }`}
+            >
+              {opt.label}
+            </button>
+          ))}
+        </div>
+        <Link
+          to="/categories"
+          className={`shrink-0 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 border border-gray-200 dark:border-gray-700 rounded-lg ${TOUCH_TARGET_COMPACT_MOBILE_ONLY}`}
+          aria-label="카테고리 관리"
+          title="카테고리 관리"
+        >
+          <Tag size={16} aria-hidden="true" />
+        </Link>
+      </div>
+
+      {topFilter === "expense" && (
+        <div className="flex gap-1 bg-gray-100 dark:bg-gray-800 rounded-lg p-1">
+          {EXPENSE_TYPE_FILTER_OPTIONS.map((opt) => (
+            <button
+              key={opt.value}
+              type="button"
+              onClick={() => {
+                setExpenseTypeFilter(opt.value);
+                setCategoryFilter("all");
+              }}
+              className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
+                expenseTypeFilter === opt.value
+                  ? "bg-white dark:bg-gray-700 shadow text-gray-900 dark:text-gray-50"
+                  : "text-gray-500 dark:text-gray-400"
+              }`}
+            >
+              {opt.label}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {topFilter !== "all" && (
+        <select
+          value={categoryFilter === "all" ? "all" : String(categoryFilter)}
+          onChange={(e) => setCategoryFilter(e.target.value === "all" ? "all" : Number(e.target.value))}
+          className={SELECT_SM}
+          aria-label="카테고리 필터"
+        >
+          <option value="all">전체</option>
+          {categoryOptions.map((c) => (
+            <option key={c.id} value={c.id}>
+              {c.name}
+            </option>
+          ))}
+        </select>
+      )}
+
+      {showExpenseGroups ? (
+        breakdownLoading || !expenseGroups ? (
+          <SkeletonCard rows={3} />
+        ) : (
+          <ExpenseCategoryGroups
+            groups={expenseGroups}
+            transactionsByCategory={transactionsByCategory}
+            totalExpense={data?.totals.expense ?? "0"}
+            onEdit={openEdit}
+            onDelete={setDeleteTarget}
+          />
+        )
+      ) : filteredTransactions.length === 0 ? (
+        <EmptyState title="해당 조건의 거래가 없어요" compact />
+      ) : (
+        <div className="space-y-2">
+          {filteredTransactions.map((tx) => (
+            <TransactionListItem key={tx.id} tx={tx} onEdit={openEdit} onDelete={setDeleteTarget} showDate />
+          ))}
+        </div>
+      )}
+
+      {selectedDate && (
+        <LedgerDayModal
+          date={selectedDate}
+          transactions={transactionsByDate.get(selectedDate) ?? []}
+          events={eventsByDate.get(selectedDate) ?? []}
+          recurringDue={recurringDueByDate.get(selectedDate) ?? []}
+          onClose={() => setSelectedDate(null)}
+          onAddTransaction={() => openCreate(selectedDate)}
+          onEditTransaction={openEdit}
+          onDeleteTransaction={(tx) => {
+            setSelectedDate(null);
+            setDeleteTarget(tx);
+          }}
+          onAddEvent={() => openCreateEvent(selectedDate)}
+          onEditEvent={openEditEvent}
+          onDeleteEvent={(event) => {
+            setSelectedDate(null);
+            setEventDeleteTarget(event);
+          }}
+        />
+      )}
+
+      {formTarget && (
+        <Modal onClose={() => setFormTarget(null)} title={formTarget === "new" ? "거래 추가" : "거래 수정"}>
+          <div className="p-6 overflow-y-auto">
+            <TransactionForm
+              categories={categories}
+              accounts={accounts}
+              layout="stack"
+              submitLabel={formTarget === "new" ? "추가" : "저장"}
+              submitting={isSaving}
+              initialValues={
+                formTarget === "new"
+                  ? { transaction_date: createDate }
+                  : {
+                      amount: formTarget.amount,
+                      type: formTarget.type,
+                      category_id: String(formTarget.category.id),
+                      transaction_date: formTarget.transaction_date,
+                      description: formTarget.description ?? "",
+                      payment_method: formTarget.payment_method ?? "",
+                      account_id: formTarget.account ? String(formTarget.account.id) : "",
+                    }
+              }
+              onSubmit={(payload) =>
+                formTarget === "new"
+                  ? createMutation.mutate(payload)
+                  : updateMutation.mutate({ id: formTarget.id, payload })
+              }
+            />
+          </div>
+        </Modal>
+      )}
+
+      {eventFormTarget && (
+        <Modal onClose={() => setEventFormTarget(null)} title={eventFormTarget === "new" ? "새 일정" : "일정 수정"}>
+          <div className="p-6 overflow-y-auto">
+            <EventForm
+              initialValues={
+                eventFormTarget === "new" ? emptyEventFormValues(eventCreateDate) : eventToFormValues(eventFormTarget)
+              }
+              submitLabel={eventFormTarget === "new" ? "추가" : "저장"}
+              submitting={isSavingEvent}
+              onSubmit={(payload) =>
+                eventFormTarget === "new"
+                  ? createEventMutation.mutate(payload)
+                  : updateEventMutation.mutate({ id: eventFormTarget.id, payload })
+              }
+            />
+          </div>
+        </Modal>
+      )}
+
+      {deleteTarget && (
+        <ConfirmModal
+          message="이 거래를 삭제할까요? 되돌릴 수 없습니다."
+          onConfirm={() => deleteMutation.mutate(deleteTarget.id)}
+          onCancel={() => setDeleteTarget(null)}
+        />
+      )}
+
+      {eventDeleteTarget && (
+        <ConfirmModal
+          message={`"${eventDeleteTarget.title}" 일정을 삭제할까요?`}
+          onConfirm={() => deleteEventMutation.mutate(eventDeleteTarget.id)}
+          onCancel={() => setEventDeleteTarget(null)}
+        />
+      )}
+
+      {showMoreMenu && (
+        <Modal onClose={() => setShowMoreMenu(false)} title="더보기" size="sm" closeOnBackdrop>
+          <div className="p-2 pb-[calc(0.5rem+env(safe-area-inset-bottom))]">
+            <button
+              onClick={() => {
+                setShowMoreMenu(false);
+                openCreateEvent();
+              }}
+              className="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+            >
+              <CalendarDays size={18} aria-hidden="true" /> 새 일정
+            </button>
+            <a
+              href={exportTransactionsCsvUrl({ date_from, date_to })}
+              onClick={() => setShowMoreMenu(false)}
+              className="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+            >
+              <Download size={18} aria-hidden="true" /> CSV 내보내기
+            </a>
+            <Link
+              to="/transactions/import"
+              onClick={() => setShowMoreMenu(false)}
+              className="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+            >
+              <Upload size={18} aria-hidden="true" /> CSV 가져오기
+            </Link>
+            <Link
+              to="/categories"
+              onClick={() => setShowMoreMenu(false)}
+              className="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+            >
+              <Tag size={18} aria-hidden="true" /> 카테고리 관리
+            </Link>
+          </div>
+        </Modal>
+      )}
+    </div>
+  );
+}

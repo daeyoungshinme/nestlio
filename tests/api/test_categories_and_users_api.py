@@ -1,0 +1,71 @@
+def test_list_categories(client):
+    resp = client.get("/api/v1/categories")
+    assert resp.status_code == 200
+    names = {c["name"] for c in resp.json()}
+    assert {"식비", "주거비"} <= names
+
+
+def test_create_category(client):
+    resp = client.post(
+        "/api/v1/categories", json={"name": "경조사비", "kind": "expense", "type": "irregular", "color": "#e11d48"}
+    )
+    assert resp.status_code == 201
+    body = resp.json()
+    assert body["name"] == "경조사비"
+    assert body["type"] == "irregular"
+
+    list_resp = client.get("/api/v1/categories")
+    names = {c["name"] for c in list_resp.json()}
+    assert "경조사비" in names
+
+
+def test_update_category(client):
+    create_resp = client.post(
+        "/api/v1/categories", json={"name": "휴가비", "kind": "expense", "type": "irregular", "color": "#f43f5e"}
+    )
+    category_id = create_resp.json()["id"]
+
+    resp = client.put(
+        f"/api/v1/categories/{category_id}",
+        json={"name": "여행비", "kind": "expense", "type": "irregular", "color": "#fb7185"},
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["name"] == "여행비"
+    assert body["color"] == "#fb7185"
+
+
+def test_update_category_not_found(client):
+    resp = client.put(
+        "/api/v1/categories/999999",
+        json={"name": "존재안함", "kind": "expense", "type": "irregular", "color": "#000000"},
+    )
+    assert resp.status_code == 404
+
+
+def test_deactivate_category_excludes_it_from_list(client):
+    create_resp = client.post(
+        "/api/v1/categories", json={"name": "명절비", "kind": "expense", "type": "irregular", "color": "#e11d48"}
+    )
+    category_id = create_resp.json()["id"]
+
+    resp = client.post(f"/api/v1/categories/{category_id}/deactivate")
+    assert resp.status_code == 204
+
+    list_resp = client.get("/api/v1/categories")
+    assert all(c["id"] != category_id for c in list_resp.json())
+
+
+def test_get_current_user_profile(client, seeded_db):
+    user = seeded_db["user"]
+    resp = client.get("/api/v1/users/me")
+    assert resp.status_code == 200
+    assert resp.json()["email"] == user.email
+
+
+def test_list_users(client, seeded_db):
+    user = seeded_db["user"]
+    resp = client.get("/api/v1/users")
+    assert resp.status_code == 200
+    emails = {u["email"] for u in resp.json()}
+    assert user.email in emails
