@@ -210,6 +210,43 @@ def test_split_item_then_editing_one_month_does_not_affect_others(seeded_db):
     assert third.amount == Decimal("999999")
 
 
+def test_category_tagged_item_is_included_in_list_and_section_summary(seeded_db):
+    """A category-tagged plan item (what used to be a budget_service-only row) must show up in the
+    same list as free-text items and count toward the section's planned total."""
+    db, user, food = seeded_db["db"], seeded_db["user"], seeded_db["food"]
+    ym = "2026-07"
+    cashflow_plan_service.upsert_item(
+        db, None, food.type, None, food.name, Decimal("300000"), 0, ym, user.id, category_id=food.id
+    )
+
+    items = cashflow_plan_service.list_items(db, ym)
+    assert len(items) == 1
+    assert items[0].category_id == food.id
+
+    summary = cashflow_plan_service.compute_summary(items)
+    assert summary["variable"]["planned"] == Decimal("300000")
+
+
+def test_copy_from_previous_month_dedups_category_tagged_items_by_category_not_name(seeded_db):
+    """Two category-tagged items with different names but the same category should only copy once,
+    unlike free-text items which dedup by name."""
+    db, user, food = seeded_db["db"], seeded_db["user"], seeded_db["food"]
+    cashflow_plan_service.upsert_item(
+        db, None, food.type, None, "외식", Decimal("70000"), 0, "2026-07", user.id, category_id=food.id
+    )
+    # already present in August under a different name but same category - should NOT be duplicated
+    cashflow_plan_service.upsert_item(
+        db, None, food.type, None, "식비", Decimal("90000"), 0, "2026-08", user.id, category_id=food.id
+    )
+
+    copied = cashflow_plan_service.copy_from_previous_month(db, "2026-08", user.id)
+
+    august_items = cashflow_plan_service.list_items(db, "2026-08")
+    assert copied == 0
+    assert len(august_items) == 1
+    assert august_items[0].amount == Decimal("90000")  # untouched
+
+
 def test_section_summary_status_income_direction_is_inverted():
     from app.models.cashflow_plan_item import CashflowPlanItem
 

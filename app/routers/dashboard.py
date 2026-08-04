@@ -1,4 +1,5 @@
 from datetime import date
+from decimal import Decimal
 from typing import Literal
 
 from fastapi import APIRouter, Depends
@@ -8,7 +9,7 @@ from app.database import get_db
 from app.dependencies import get_current_user
 from app.models.user import User
 from app.schemas.dashboard import DashboardOut, MonthlyRetrospectiveOut
-from app.services import coaching_engine, transaction_service
+from app.services import challenge_service, coaching_engine, goal_service, transaction_service
 from app.utils.dates import month_bounds, shift_month, week_bounds, year_month_str
 
 router = APIRouter(prefix="/dashboard", tags=["dashboard"])
@@ -35,6 +36,15 @@ def dashboard(
     current_ym = year_month_str(today)
     insights = coaching_engine.compute_insights(db, current_ym)
 
+    goals = goal_service.list_goals(db)
+    target_monthly = sum((g.monthly_saving_amount for g in goals), Decimal("0"))
+    streak = coaching_engine.savings_streak_months(trend, target_monthly)
+
+    challenges = challenge_service.list_challenges(db)
+    active_challenge = next(
+        (c for c in challenges if challenge_service.effective_status(c, today) == "active"), None
+    )
+
     return {
         "period": period,
         "start": start,
@@ -45,6 +55,8 @@ def dashboard(
         "trend": trend,
         "insights": insights,
         "current_ym": current_ym,
+        "savings_streak_months": streak,
+        "active_challenge": challenge_service.to_out(active_challenge, today) if active_challenge else None,
     }
 
 

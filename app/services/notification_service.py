@@ -1,3 +1,4 @@
+import logging
 import uuid
 from datetime import date, datetime, timedelta
 
@@ -13,7 +14,10 @@ from app.services import (
     goal_service,
     transaction_service,
 )
+from app.services.google_auth import is_connected
 from app.utils.dates import month_bounds, week_bounds, year_month_str
+
+logger = logging.getLogger(__name__)
 
 # progress-percent thresholds that trigger a "milestone reached" celebration email, ascending
 GOAL_MILESTONES = (25, 50, 75, 100)
@@ -88,8 +92,9 @@ def send_weekly_summary(db: Session, today: date | None = None, force: bool = Fa
     totals = transaction_service.period_totals(db, start, end)
     breakdown = transaction_service.category_breakdown(db, start, end, "expense")
     body = _format_summary("주간 가계부 요약", start, end, totals, breakdown)
-    gmail_service.send_email(f"[Nestlio] 주간 요약 ({start} ~ {end})", body)
-    _log_sent(db, "email_weekly", period_key)
+    if is_connected():
+        gmail_service.send_email(f"[Nestlio] 주간 요약 ({start} ~ {end})", body)
+    _log_sent(db, "email_weekly", period_key, detail=body[:500])
     return True
 
 
@@ -109,8 +114,9 @@ def send_monthly_summary(db: Session, today: date | None = None, force: bool = F
         body += "\n\n자산증식 코칭:\n"
         body += "\n".join(f"  - [{i.severity}] {i.message}" for i in insights)
 
-    gmail_service.send_email(f"[Nestlio] {period_key} 월간 요약", body)
-    _log_sent(db, "email_monthly", period_key)
+    if is_connected():
+        gmail_service.send_email(f"[Nestlio] {period_key} 월간 요약", body)
+    _log_sent(db, "email_monthly", period_key, detail=body[:500])
     return True
 
 
@@ -129,7 +135,8 @@ def _send_threshold_alert(db: Session, row: dict, year_month: str) -> bool:
         f"예산: {row['budget']:,.0f}원\n"
         f"실제 지출: {row['actual']:,.0f}원 ({row['pct']:.0f}%)"
     )
-    gmail_service.send_email(f"[Nestlio] 예산 {level} - {row['name']}", body)
+    if is_connected():
+        gmail_service.send_email(f"[Nestlio] 예산 {level} - {row['name']}", body)
     _log_sent(db, "threshold_alert", period_key, related_id=category_id, detail=body[:200])
     return True
 
@@ -165,7 +172,8 @@ def _celebrate_goal_milestone(db: Session, goal) -> bool:
         f"{congrats}\n\n"
         f"현재 저축액: {goal.current_amount:,.0f}원 / 목표 {goal.required_amount:,.0f}원"
     )
-    gmail_service.send_email(f"[Nestlio] 우리 부부 목표 달성 축하 - {goal.name} {milestone}%", body)
+    if is_connected():
+        gmail_service.send_email(f"[Nestlio] 우리 부부 목표 달성 축하 - {goal.name} {milestone}%", body)
     _log_sent(db, "goal_milestone", period_key, related_id=goal_id, related_type="goal", detail=body[:200])
     return True
 
@@ -188,7 +196,8 @@ def check_and_celebrate_challenge(db: Session, challenge_id: int) -> bool:
         f"목표 {challenge.target_amount:,.0f}원을 두 분이 함께 달성했어요!\n\n"
         f"현재: {challenge.current_amount:,.0f}원 / 목표 {challenge.target_amount:,.0f}원"
     )
-    gmail_service.send_email(f"[Nestlio] 챌린지 성공 - {challenge.title}", body)
+    if is_connected():
+        gmail_service.send_email(f"[Nestlio] 챌린지 성공 - {challenge.title}", body)
     _log_sent(db, "challenge_success", period_key, related_id=challenge_id, related_type="challenge", detail=body[:200])
     return True
 
@@ -196,8 +205,11 @@ def check_and_celebrate_challenge(db: Session, challenge_id: int) -> bool:
 def check_all_goal_milestones(db: Session) -> int:
     sent = 0
     for goal in goal_service.list_goals(db):
-        if _celebrate_goal_milestone(db, goal):
-            sent += 1
+        try:
+            if _celebrate_goal_milestone(db, goal):
+                sent += 1
+        except Exception:
+            logger.exception("goal_milestone_alert_failed goal_id=%s", goal.id)
     return sent
 
 
@@ -206,8 +218,11 @@ def check_all_categories_threshold(db: Session, year_month: str | None = None) -
     rows = budget_service.budget_vs_actual(db, year_month)
     sent = 0
     for row in rows:
-        if _send_threshold_alert(db, row, year_month):
-            sent += 1
+        try:
+            if _send_threshold_alert(db, row, year_month):
+                sent += 1
+        except Exception:
+            logger.exception("threshold_alert_failed category_id=%s", row["category_id"])
     return sent
 
 

@@ -24,6 +24,38 @@ def test_create_product_with_explicit_investment_type(db_session):
     assert product.product_type == "investment"
 
 
+def test_create_product_with_principal_computes_return_rate(db_session):
+    product = savings_product_service.create_product(
+        db_session,
+        "펀드",
+        Decimal("1200000"),
+        Decimal("0"),
+        product_type="investment",
+        principal_amount=Decimal("1000000"),
+    )
+
+    assert product.principal_amount == Decimal("1000000")
+    assert product.return_amount == Decimal("200000")
+    assert product.return_rate_pct == Decimal("20")
+
+
+def test_return_rate_is_none_without_principal(db_session):
+    product = savings_product_service.create_product(
+        db_session, "펀드", Decimal("1200000"), Decimal("0"), product_type="investment"
+    )
+
+    assert product.return_amount is None
+    assert product.return_rate_pct is None
+
+
+def test_return_rate_is_none_for_savings_type_even_with_principal(db_session):
+    product = savings_product_service.create_product(
+        db_session, "적금", Decimal("1200000"), Decimal("0"), product_type="savings", principal_amount=Decimal("1000000")
+    )
+
+    assert product.return_rate_pct is None
+
+
 def test_update_product_changes_type(db_session):
     product = savings_product_service.create_product(
         db_session, "적금", Decimal("0"), Decimal("0"), product_type="savings"

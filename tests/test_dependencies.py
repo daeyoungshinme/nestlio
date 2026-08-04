@@ -56,9 +56,11 @@ def test_valid_token_loads_existing_user(unauth_client, monkeypatch, seeded_db):
     assert resp.json()["email"] == user.email
 
 
-def test_valid_token_for_unknown_user_creates_mirror_row(unauth_client, monkeypatch, db_session):
-    """nestlio는 자체 회원가입이 없다 - 첫 인증된 요청에서 Supabase 사용자를
-    로컬 User 행으로 미러링해야 한다 (기존 auth_service.authenticate_user의 로직과 동일)."""
+def test_valid_token_for_unknown_user_creates_mirror_row_when_household_empty(
+    unauth_client, monkeypatch, db_session
+):
+    """nestlio는 자체 회원가입이 없다 - users 테이블이 완전히 비어 있는 최초 부팅 상태에서만
+    첫 인증된 요청이 Supabase 사용자를 로컬 User 행으로 미러링한다."""
     new_id = uuid.uuid4()
     monkeypatch.setattr(
         "app.dependencies.verify_supabase_token",
@@ -69,3 +71,17 @@ def test_valid_token_for_unknown_user_creates_mirror_row(unauth_client, monkeypa
     body = resp.json()
     assert body["id"] == str(new_id)
     assert body["display_name"] == "new.spouse"
+
+
+def test_valid_token_for_unknown_user_rejected_when_household_not_empty(
+    unauth_client, monkeypatch, seeded_db
+):
+    """이미 사용자가 1명 이상 있으면, 초대 없이 유효한(하지만 로컬에 없는) JWT만으로는
+    가입되지 않는다 - growlio 등 같은 Supabase 프로젝트의 무관한 계정이 통과되는 것을 막는다."""
+    unrelated_id = uuid.uuid4()
+    monkeypatch.setattr(
+        "app.dependencies.verify_supabase_token",
+        lambda token: {"sub": str(unrelated_id), "email": "unrelated@example.com"},
+    )
+    resp = unauth_client.get("/api/v1/users/me", headers={"Authorization": "Bearer good"})
+    assert resp.status_code == 403

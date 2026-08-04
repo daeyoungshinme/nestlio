@@ -1,27 +1,37 @@
 import { useState } from "react";
 import type { FormEvent } from "react";
 import Button from "@/components/common/Button";
+import CategoryPicker from "@/components/common/CategoryPicker";
 import FormInput from "@/components/common/FormInput";
 import { formatKrwPreview } from "@/utils/format";
 import { monthsRemainingInYear } from "@/utils/installment";
+import type { CategoryOut } from "@/types";
 
 export interface CashflowPlanSplitFormValues {
   name: string;
   total_amount: string;
   start_year_month: string;
+  category_id: string;
 }
 
 interface Props {
   defaultStartYearMonth: string;
+  categories: CategoryOut[];
   submitting?: boolean;
   onSubmit: (values: CashflowPlanSplitFormValues) => void;
 }
 
-export default function CashflowPlanSplitForm({ defaultStartYearMonth, submitting, onSubmit }: Props) {
+export default function CashflowPlanSplitForm({
+  defaultStartYearMonth,
+  categories,
+  submitting,
+  onSubmit,
+}: Props) {
   const [values, setValues] = useState<CashflowPlanSplitFormValues>({
     name: "",
     total_amount: "",
     start_year_month: defaultStartYearMonth,
+    category_id: "",
   });
 
   const handleSubmit = (e: FormEvent) => {
@@ -32,6 +42,7 @@ export default function CashflowPlanSplitForm({ defaultStartYearMonth, submittin
 
   const months = monthsRemainingInYear(values.start_year_month);
   const perMonth = Number(values.total_amount) > 0 ? Number(values.total_amount) / months : 0;
+  const irregularCategories = categories.filter((c) => c.type === "irregular");
 
   return (
     <form onSubmit={handleSubmit} className="flex flex-col gap-3">
@@ -39,6 +50,16 @@ export default function CashflowPlanSplitForm({ defaultStartYearMonth, submittin
         총액을 입력하면 선택한 시작월부터 그 해 12월까지 남은 개월 수로 나눠서 계획 항목으로 등록돼요. 등록 후에는
         각 달의 항목을 따로 수정·삭제할 수 있어요.
       </p>
+      {irregularCategories.length > 0 && (
+        <CategoryPicker
+          categories={irregularCategories}
+          value={values.category_id}
+          onChange={(categoryId) => setValues((v) => ({ ...v, category_id: categoryId }))}
+          label="카테고리 (선택)"
+          placeholder="카테고리 없이 자유 입력"
+          className="w-full"
+        />
+      )}
       <FormInput
         label="항목명"
         value={values.name}

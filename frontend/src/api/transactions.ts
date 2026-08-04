@@ -6,6 +6,7 @@ import type {
   TransactionFilters,
   TransactionListOut,
   TransactionOut,
+  TransactionType,
   TransactionUpdateIn,
 } from "@/types";
 
@@ -19,6 +20,9 @@ export const fetchCategoryBreakdown = (filters: {
 }) => apiGet<CategoryAmountOut[]>("/transactions/category-breakdown", { params: filters });
 
 export const fetchTransaction = (id: number) => apiGet<TransactionOut>(`/transactions/${id}`);
+
+export const fetchRecentTransactions = (params: { type: TransactionType; is_savings?: boolean; limit?: number }) =>
+  apiGet<TransactionOut[]>("/transactions/recent-items", { params });
 
 export const createTransaction = (payload: TransactionCreateIn) =>
   apiPost<TransactionOut>("/transactions", payload);

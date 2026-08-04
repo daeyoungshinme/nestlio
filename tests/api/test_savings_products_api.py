@@ -1,3 +1,4 @@
+from decimal import Decimal
 from unittest.mock import patch
 
 from app.dependencies import get_bearer_token
@@ -30,6 +31,24 @@ def test_growlio_link_and_unlink(client, seeded_db):
     assert unlink_resp.status_code == 200
     assert unlink_resp.json()["growlio_account_id"] is None
     assert unlink_resp.json()["auto_sync_enabled"] is False
+
+
+def test_create_investment_product_with_principal_returns_return_rate(client, seeded_db):
+    resp = client.post(
+        "/api/v1/savings-products",
+        json={
+            "name": "펀드",
+            "current_balance": "1200000",
+            "monthly_saving_amount": "0",
+            "product_type": "investment",
+            "principal_amount": "1000000",
+        },
+    )
+    assert resp.status_code == 201
+    body = resp.json()
+    assert body["principal_amount"] == "1000000.00"
+    assert body["return_amount"] == "200000.00"
+    assert Decimal(body["return_rate_pct"]) == Decimal("20")
 
 
 def test_growlio_link_missing_product_returns_404(client, seeded_db):

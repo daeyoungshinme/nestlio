@@ -1,4 +1,8 @@
+import logging
+
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+logger = logging.getLogger(__name__)
 
 
 class Settings(BaseSettings):
@@ -36,3 +40,9 @@ class Settings(BaseSettings):
 
 
 settings = Settings()
+
+if settings.database_url == Settings.model_fields["database_url"].default:
+    logger.warning(
+        "DATABASE_URL이 설정되지 않아 로컬 SQLite(%s)로 폴백합니다. 운영 배포라면 .env를 확인하세요.",
+        settings.database_url,
+    )

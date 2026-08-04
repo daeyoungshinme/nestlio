@@ -58,8 +58,7 @@ export default function InviteAcceptPage() {
   });
 
   const acceptMutation = useMutation({
-    mutationFn: (vars: { userId: string; displayName: string }) =>
-      acceptInvite(token, { user_id: vars.userId, display_name: vars.displayName }),
+    mutationFn: (vars: { displayName: string }) => acceptInvite(token, { display_name: vars.displayName }),
   });
 
   const handleSubmit = async (e: FormEvent) => {
@@ -78,10 +77,16 @@ export default function InviteAcceptPage() {
 
     setSubmitting(true);
     try {
+      const redirectParams = new URLSearchParams({
+        invite_token: token,
+        display_name: displayName,
+      });
       const { data, error: signUpError } = await supabase.auth.signUp({
         email: inviteQuery.data.email,
         password,
-        options: { emailRedirectTo: `${window.location.origin}/auth/callback` },
+        options: {
+          emailRedirectTo: `${window.location.origin}/auth/callback?${redirectParams.toString()}`,
+        },
       });
       if (signUpError || !data.user) {
         const msg = (signUpError?.message ?? "").toLowerCase();
@@ -95,9 +100,10 @@ export default function InviteAcceptPage() {
         return;
       }
 
-      await acceptMutation.mutateAsync({ userId: data.user.id, displayName });
-
       if (data.session) {
+        // 이메일 확인 없이 즉시 세션이 발급된 경우 - 방금 생긴 세션의 JWT로 바로 수락한다.
+        // 확인이 필요한 경우엔 세션이 아직 없으므로, 수락은 AuthCallbackPage에서 처리한다.
+        await acceptMutation.mutateAsync({ displayName });
         await checkAuth();
         navigate("/");
       } else {

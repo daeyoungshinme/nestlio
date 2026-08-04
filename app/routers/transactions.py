@@ -19,7 +19,6 @@ from app.schemas.transaction import (
     TransactionUpdateIn,
 )
 from app.services import notification_service, transaction_service
-from app.services.google_auth import is_connected
 from app.utils.dates import month_bounds
 
 router = APIRouter(prefix="/transactions", tags=["transactions"])
@@ -65,7 +64,7 @@ def create_transaction(
         )
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
-    if payload.type == "expense" and is_connected():
+    if payload.type == "expense":
         try:
             notification_service.check_and_alert_budget_threshold(db, payload.category_id)
         except Exception:
@@ -85,6 +84,17 @@ def category_breakdown(
     df = date_from or default_from
     dt = date_to or default_to
     return transaction_service.category_breakdown(db, df, dt, type)
+
+
+@router.get("/recent-items", response_model=list[TransactionOut])
+def recent_items(
+    type: Literal["income", "expense"],
+    is_savings: bool = False,
+    limit: int = 8,
+    db: Session = Depends(get_db),
+    _: User = Depends(get_current_user),
+):
+    return transaction_service.recent_unique_transactions(db, type, is_savings, limit)
 
 
 @router.get("/export.csv")

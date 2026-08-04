@@ -10,6 +10,8 @@ export const QUERY_KEYS = {
     ["transactions", filters] as const,
   /** Prefix for invalidating every transactions filter variant at once. */
   transactionsAll: ["transactions"] as const,
+  recentTransactions: (filters: Record<string, string | number | boolean | undefined>) =>
+    ["recent-transactions", filters] as const,
   categoryBreakdown: (filters: Record<string, string | number | undefined>) =>
     ["category-breakdown", filters] as const,
   /** Prefix for invalidating every category-breakdown filter variant at once. */

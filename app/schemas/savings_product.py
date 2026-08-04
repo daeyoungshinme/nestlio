@@ -13,6 +13,9 @@ class SavingsProductOut(BaseModel):
     current_balance: Decimal
     monthly_saving_amount: Decimal
     product_type: Literal["savings", "investment"] = "savings"
+    principal_amount: Decimal | None = None
+    return_amount: Decimal | None = None
+    return_rate_pct: Decimal | None = None
     sort_order: int
     is_active: bool
     growlio_account_id: str | None = None
@@ -25,6 +28,7 @@ class SavingsProductCreateIn(BaseModel):
     current_balance: Decimal = Decimal("0")
     monthly_saving_amount: Decimal = Decimal("0")
     product_type: Literal["savings", "investment"] = "savings"
+    principal_amount: Decimal | None = None
 
 
 class SavingsProductUpdateIn(BaseModel):
@@ -32,6 +36,7 @@ class SavingsProductUpdateIn(BaseModel):
     current_balance: Decimal
     monthly_saving_amount: Decimal
     product_type: Literal["savings", "investment"]
+    principal_amount: Decimal | None = None
 
 
 class SavingsProductGrowlioLinkIn(BaseModel):

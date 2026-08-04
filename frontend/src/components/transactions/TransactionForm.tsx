@@ -1,11 +1,23 @@
 import { useState } from "react";
 import type { FormEvent } from "react";
+import { useQuery } from "@tanstack/react-query";
 import Button from "@/components/common/Button";
 import CategoryPicker from "@/components/common/CategoryPicker";
 import FormInput from "@/components/common/FormInput";
+import { fetchRecentTransactions } from "@/api/transactions";
+import { QUERY_KEYS } from "@/constants/queryKeys";
+import { STALE_TIME } from "@/constants/queryConfig";
 import { INLINE_BUTTON_OFFSET, INPUT_SM, LABEL_SM } from "@/constants/inputStyles";
-import { formatKrwPreview, toAmountInputValue } from "@/utils/format";
-import type { CategoryOut, AccountWithBalanceOut, SavingsProductOut, TransactionCreateIn, TransactionType } from "@/types";
+import { TOUCH_TARGET_COMPACT_MOBILE_ONLY } from "@/constants/uiSizes";
+import { formatKrw, formatKrwPreview, toAmountInputValue } from "@/utils/format";
+import type {
+  CategoryOut,
+  AccountWithBalanceOut,
+  SavingsProductOut,
+  TransactionCreateIn,
+  TransactionOut,
+  TransactionType,
+} from "@/types";
 
 export interface TransactionFormValues {
   amount: string;
@@ -27,6 +39,8 @@ interface Props {
   submitting?: boolean;
   onSubmit: (payload: TransactionCreateIn) => void;
   layout?: "row" | "stack";
+  /** 새 거래 등록 컨텍스트에서만 "최근 등록한 항목" 불러오기를 노출한다 (수정 폼에서는 숨김). */
+  isNew: boolean;
 }
 
 const today = () => new Date().toISOString().slice(0, 10);
@@ -42,6 +56,7 @@ export default function TransactionForm({
   submitting,
   onSubmit,
   layout = "row",
+  isNew,
 }: Props) {
   const savingsCategory = categories.find((c) => c.is_savings);
   const nonSavingsCategories = categories.filter((c) => !c.is_savings);
@@ -63,6 +78,28 @@ export default function TransactionForm({
     account_id: initialValues?.account_id ?? "",
     savings_product_id: initialValues?.savings_product_id ?? "",
   });
+
+  const recentType: TransactionType = uiType === "income" ? "income" : "expense";
+  const recentIsSavings = uiType === "savings";
+  const { data: recentItems } = useQuery({
+    queryKey: QUERY_KEYS.recentTransactions({ type: recentType, is_savings: recentIsSavings }),
+    queryFn: () => fetchRecentTransactions({ type: recentType, is_savings: recentIsSavings }),
+    staleTime: STALE_TIME.SHORT,
+    enabled: isNew,
+  });
+
+  const applyRecentItem = (tx: TransactionOut) => {
+    setValues((v) => ({
+      ...v,
+      amount: toAmountInputValue(tx.amount),
+      type: tx.type,
+      category_id: String(tx.category.id),
+      description: tx.description ?? "",
+      payment_method: tx.payment_method ?? "",
+      account_id: tx.account ? String(tx.account.id) : "",
+      savings_product_id: tx.savings_product_id ? String(tx.savings_product_id) : "",
+    }));
+  };
 
   const handleSubmit = (e: FormEvent) => {
     e.preventDefault();
@@ -128,6 +165,25 @@ export default function TransactionForm({
           </button>
         )}
       </div>
+
+      {isNew && recentItems && recentItems.length > 0 && (
+        <div className="w-full">
+          <label className={`block mb-1 font-medium ${LABEL_SM}`}>최근 등록한 항목</label>
+          <div className="flex gap-2 overflow-x-auto pb-1">
+            {recentItems.map((tx) => (
+              <button
+                key={tx.id}
+                type="button"
+                onClick={() => applyRecentItem(tx)}
+                className={`shrink-0 px-3 rounded-full border border-gray-200 dark:border-gray-700 text-xs text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors whitespace-nowrap ${TOUCH_TARGET_COMPACT_MOBILE_ONLY}`}
+              >
+                {tx.category.name} · {formatKrw(tx.amount)}
+                {tx.description ? ` · ${tx.description}` : ""}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       <FormInput
         label="금액"

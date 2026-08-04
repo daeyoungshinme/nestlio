@@ -59,6 +59,7 @@ def upsert_plan_item(
         payload.sort_order,
         payload.year_month,
         current_user.id,
+        category_id=payload.category_id,
     )
     return _plan_list(db, payload.year_month)
 
@@ -80,6 +81,7 @@ def split_plan_item(
         months,
         payload.sort_order,
         current_user.id,
+        category_id=payload.category_id,
     )
     return {"created": len(created)}
 

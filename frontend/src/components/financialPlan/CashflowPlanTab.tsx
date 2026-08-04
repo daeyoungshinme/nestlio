@@ -18,17 +18,17 @@ import {
   splitCashflowPlanItem,
   upsertCashflowPlanItem,
 } from "@/api/cashflowPlan";
-import { copyPreviousMonthBudget, fetchBudgets, upsertBudget } from "@/api/budgets";
+import { fetchBudgets } from "@/api/budgets";
+import { fetchCategories } from "@/api/categories";
 import { fetchUsers } from "@/api/users";
 import { QUERY_KEYS } from "@/constants/queryKeys";
 import { STALE_TIME } from "@/constants/queryConfig";
-import { INPUT_SM } from "@/constants/inputStyles";
-import { formatKrw, formatPercent, toAmountInputValue } from "@/utils/format";
+import { formatKrw, formatPercent } from "@/utils/format";
 import { installmentProgressLabel } from "@/utils/installment";
 import { extractErrorMessage } from "@/utils/error";
 import { planStatusBarClass, planStatusTextClass } from "@/utils/colors";
 import { toast } from "@/utils/toast";
-import type { CashflowPlanItemOut, CashflowPlanSectionSummaryOut, CashflowSection } from "@/types";
+import type { BudgetRowOut, CashflowPlanItemOut, CashflowPlanSectionSummaryOut, CashflowSection } from "@/types";
 import type { CashflowPlanItemFormValues } from "@/components/financialPlan/CashflowPlanItemForm";
 import type { CashflowPlanSplitFormValues } from "@/components/financialPlan/CashflowPlanSplitForm";
 
@@ -66,13 +66,27 @@ function SectionAchievement({ label, summary }: { label: string; summary: Cashfl
   );
 }
 
+function CategoryBudgetProgress({ row }: { row: BudgetRowOut }) {
+  if (Number(row.budget) <= 0) return null;
+  return (
+    <div className="mt-1.5">
+      <div className="flex items-center justify-between text-xs text-gray-500 dark:text-gray-400">
+        <span>실제 {formatKrw(row.actual)} / 예산 {formatKrw(row.budget)}</span>
+        <span className={`font-semibold ${planStatusTextClass(row.status)}`}>{formatPercent(row.pct)} 사용</span>
+      </div>
+      <div className="mt-1">
+        <ProgressBar pct={row.pct} barClassName={planStatusBarClass(row.status)} />
+      </div>
+    </div>
+  );
+}
+
 export default function CashflowPlanTab() {
   const [yearMonth, setYearMonth] = useState(currentYearMonth());
   const [activeLabel, setActiveLabel] = useState<SectionLabel>("수입");
   const [modal, setModal] = useState<ModalState | null>(null);
   const [splitModalOpen, setSplitModalOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<number | null>(null);
-  const [budgetEdits, setBudgetEdits] = useState<Record<number, string>>({});
   const queryClient = useQueryClient();
 
   const { data, isLoading } = useQuery({
@@ -80,17 +94,26 @@ export default function CashflowPlanTab() {
     queryFn: () => fetchCashflowPlan(yearMonth),
   });
   const { data: users } = useQuery({ queryKey: QUERY_KEYS.users, queryFn: fetchUsers, staleTime: STALE_TIME.LONG });
+  const { data: categories } = useQuery({
+    queryKey: QUERY_KEYS.categories("expense"),
+    queryFn: () => fetchCategories("expense"),
+    staleTime: STALE_TIME.LONG,
+  });
   const { data: budgetData } = useQuery({
     queryKey: QUERY_KEYS.budgets(yearMonth),
     queryFn: () => fetchBudgets(yearMonth),
   });
 
-  const invalidate = () => queryClient.invalidateQueries({ queryKey: QUERY_KEYS.cashflowPlan(yearMonth) });
+  const invalidate = () => {
+    void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.cashflowPlan(yearMonth) });
+    void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.budgets(yearMonth) });
+    void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.dashboardAll });
+  };
 
   const upsertMutation = useMutation({
     mutationFn: upsertCashflowPlanItem,
     onSuccess: () => {
-      void invalidate();
+      invalidate();
       toast("저장했습니다.", "success");
     },
     onError: (err) => toast(extractErrorMessage(err), "error"),
@@ -99,7 +122,7 @@ export default function CashflowPlanTab() {
   const deleteMutation = useMutation({
     mutationFn: deleteCashflowPlanItem,
     onSuccess: () => {
-      void invalidate();
+      invalidate();
       setDeleteTarget(null);
       toast("삭제했습니다.", "success");
     },
@@ -109,7 +132,7 @@ export default function CashflowPlanTab() {
   const splitMutation = useMutation({
     mutationFn: splitCashflowPlanItem,
     onSuccess: (result) => {
-      void invalidate();
+      invalidate();
       setSplitModalOpen(false);
       toast(`${result.created}개월치 계획으로 나눠 등록했습니다.`, "success");
     },
@@ -119,7 +142,7 @@ export default function CashflowPlanTab() {
   const copyMutation = useMutation({
     mutationFn: () => copyPreviousMonthCashflowPlan(yearMonth),
     onSuccess: (result) => {
-      void invalidate();
+      invalidate();
       toast(
         result.copied > 0 ? `전월 계획 ${result.copied}건을 복사했습니다.` : "복사할 전월 계획 항목이 없습니다.",
         "success",
@@ -128,47 +151,23 @@ export default function CashflowPlanTab() {
     onError: (err) => toast(extractErrorMessage(err), "error"),
   });
 
-  const invalidateBudgets = () => queryClient.invalidateQueries({ queryKey: QUERY_KEYS.budgets(yearMonth) });
-
-  const upsertBudgetMutation = useMutation({
-    mutationFn: upsertBudget,
-    onSuccess: () => {
-      void invalidateBudgets();
-      void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.dashboardAll });
-    },
-    onError: (err) => toast(extractErrorMessage(err), "error"),
-  });
-
-  const copyBudgetMutation = useMutation({
-    mutationFn: () => copyPreviousMonthBudget(yearMonth),
-    onSuccess: (result) => {
-      void invalidateBudgets();
-      toast(
-        result.copied > 0 ? `전월 예산 ${result.copied}건을 복사했습니다.` : "복사할 전월 예산이 없습니다.",
-        "success",
-      );
-    },
-    onError: (err) => toast(extractErrorMessage(err), "error"),
-  });
-
-  const commitBudgetEdit = (categoryId: number) => {
-    const raw = budgetEdits[categoryId];
-    if (raw === undefined) return;
-    setBudgetEdits((prev) => {
-      const next = { ...prev };
-      delete next[categoryId];
-      return next;
-    });
-    const amount = raw.trim() === "" ? "0" : raw;
-    upsertBudgetMutation.mutate({ year_month: yearMonth, category_id: categoryId, amount });
-  };
-
   if (isLoading || !data) {
     return <SkeletonCard rows={6} />;
   }
 
   const summary = data.summary;
   const budgetRows = budgetData?.rows ?? [];
+  const budgetRowByCategory = new Map(budgetRows.map((row) => [row.category_id, row]));
+
+  const categoryPlannedTotals: Record<number, string> = Object.fromEntries(
+    budgetRows.map((row) => {
+      const editingSameCategory = modal?.item?.category_id === row.category_id;
+      const adjusted = editingSameCategory
+        ? (Number(row.budget) - Number(modal!.item!.amount)).toString()
+        : row.budget;
+      return [row.category_id, adjusted];
+    }),
+  );
 
   const handleSubmitItem = (values: CashflowPlanItemFormValues) => {
     if (!modal) return;
@@ -182,6 +181,7 @@ export default function CashflowPlanTab() {
         owner_user_id: values.owner_user_id || null,
         name: values.name,
         amount: values.amount,
+        category_id: values.category_id ? Number(values.category_id) : null,
         sort_order: item?.sort_order ?? sectionCount,
       },
       { onSuccess: () => setModal(null) },
@@ -195,6 +195,7 @@ export default function CashflowPlanTab() {
       name: values.name,
       total_amount: values.total_amount,
       start_year_month: values.start_year_month,
+      category_id: values.category_id ? Number(values.category_id) : null,
       sort_order: data.items.filter((i) => i.section === "irregular").length,
     });
   };
@@ -215,7 +216,8 @@ export default function CashflowPlanTab() {
       </div>
 
       <p className="text-xs text-gray-400 dark:text-gray-500">
-        계획 금액과 이번 달 실제 거래를 비교해 달성율을 보여줘요.
+        계획 금액과 이번 달 실제 거래를 비교해 달성율을 보여줘요. 카테고리를 태깅하면 그 카테고리의 실제 지출과도
+        비교돼요.
       </p>
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         <SummaryCard label="계획 수입 합계" value={formatKrw(summary.income.planned)} tone="positive" />
@@ -267,12 +269,13 @@ export default function CashflowPlanTab() {
                 const ownerLabel = item.owner_user_id
                   ? (users?.find((u) => u.id === item.owner_user_id)?.display_name ?? "공통")
                   : "공통";
+                const budgetRow = item.category_id !== null ? budgetRowByCategory.get(item.category_id) : undefined;
                 return (
                   <div
                     key={item.id}
                     className="flex items-center justify-between gap-3 py-2 border-b border-gray-100 dark:border-gray-800 last:border-0"
                   >
-                    <div className="min-w-0">
+                    <div className="min-w-0 flex-1">
                       <p className="text-sm font-medium text-gray-900 dark:text-gray-50 truncate">
                         {item.name}
                         {item.installment_total !== null && (
@@ -281,6 +284,15 @@ export default function CashflowPlanTab() {
                           </span>
                         )}
                       </p>
+                      {item.category_name && (
+                        <p className="mt-0.5 flex items-center gap-1.5 text-xs text-gray-500 dark:text-gray-400">
+                          <span
+                            className="inline-block w-2 h-2 rounded-full shrink-0"
+                            style={{ backgroundColor: item.category_color ?? undefined }}
+                          />
+                          {item.category_name}
+                        </p>
+                      )}
                       {key === "income" && (
                         <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{ownerLabel}</p>
                       )}
@@ -289,6 +301,7 @@ export default function CashflowPlanTab() {
                           {installmentProgressLabel(item)}
                         </p>
                       )}
+                      {budgetRow && <CategoryBudgetProgress row={budgetRow} />}
                     </div>
                     <div className="flex items-center gap-1 shrink-0">
                       <span className="text-sm font-semibold text-gray-700 dark:text-gray-300">
@@ -316,73 +329,6 @@ export default function CashflowPlanTab() {
                 <p className="text-sm text-gray-400 dark:text-gray-500 py-4 text-center">등록된 항목이 없습니다.</p>
               )}
             </div>
-
-            {key !== "income" && (
-              <div className="mt-4 pt-4 border-t border-gray-100 dark:border-gray-800">
-                <div className="flex items-center justify-between mb-1">
-                  <h4 className="text-xs font-semibold text-gray-500 dark:text-gray-400">카테고리별 예산</h4>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    icon={<Copy size={12} />}
-                    loading={copyBudgetMutation.isPending}
-                    onClick={() => copyBudgetMutation.mutate()}
-                  >
-                    전월 예산 복사
-                  </Button>
-                </div>
-                <p className="text-xs text-gray-400 dark:text-gray-500 mb-2">
-                  예산 상한을 입력하면 대시보드 코칭 인사이트가 초과 여부를 알려줘요.
-                </p>
-                <div className="space-y-3">
-                  {budgetRows
-                    .filter((row) => row.type === key)
-                    .map((row) => {
-                      const editing = budgetEdits[row.category_id];
-                      return (
-                        <div key={row.category_id}>
-                          <div className="flex items-center justify-between gap-3">
-                            <span className="text-sm text-gray-700 dark:text-gray-300 truncate">{row.name}</span>
-                            <input
-                              type="number"
-                              min={0}
-                              step={1000}
-                              className={`w-28 text-right ${INPUT_SM}`}
-                              value={editing ?? toAmountInputValue(row.budget)}
-                              onChange={(e) =>
-                                setBudgetEdits((prev) => ({ ...prev, [row.category_id]: e.target.value }))
-                              }
-                              onBlur={() => commitBudgetEdit(row.category_id)}
-                              onKeyDown={(e) => e.key === "Enter" && e.currentTarget.blur()}
-                              aria-label={`${row.name} 예산`}
-                            />
-                          </div>
-                          {Number(row.budget) > 0 && (
-                            <>
-                              <div className="mt-1 flex items-center justify-between text-xs text-gray-500 dark:text-gray-400">
-                                <span>
-                                  실제 {formatKrw(row.actual)} / 예산 {formatKrw(row.budget)}
-                                </span>
-                                <span className={`font-semibold ${planStatusTextClass(row.status)}`}>
-                                  {formatPercent(row.pct)} 사용
-                                </span>
-                              </div>
-                              <div className="mt-1">
-                                <ProgressBar pct={row.pct} barClassName={planStatusBarClass(row.status)} />
-                              </div>
-                            </>
-                          )}
-                        </div>
-                      );
-                    })}
-                  {budgetRows.filter((row) => row.type === key).length === 0 && (
-                    <p className="text-xs text-gray-400 dark:text-gray-500 py-2 text-center">
-                      등록된 지출 카테고리가 없습니다.
-                    </p>
-                  )}
-                </div>
-              </div>
-            )}
           </div>
         );
       })()}
@@ -396,12 +342,15 @@ export default function CashflowPlanTab() {
             <CashflowPlanItemForm
               section={modal.section}
               users={users}
+              categories={categories ?? []}
+              categoryPlannedTotals={categoryPlannedTotals}
               initialValues={
                 modal.item
                   ? {
                       name: modal.item.name,
                       owner_user_id: modal.item.owner_user_id ?? "",
                       amount: modal.item.amount,
+                      category_id: modal.item.category_id !== null ? String(modal.item.category_id) : "",
                     }
                   : undefined
               }
@@ -418,6 +367,7 @@ export default function CashflowPlanTab() {
           <div className="p-6 overflow-y-auto">
             <CashflowPlanSplitForm
               defaultStartYearMonth={yearMonth}
+              categories={categories ?? []}
               submitting={splitMutation.isPending}
               onSubmit={handleSubmitSplit}
             />

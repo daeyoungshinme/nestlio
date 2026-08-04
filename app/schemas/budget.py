@@ -20,17 +20,3 @@ class BudgetListOut(BaseModel):
     prev_month: str
     next_month: str
     rows: list[BudgetRowOut]
-
-
-class BudgetUpsertIn(BaseModel):
-    year_month: str
-    category_id: int
-    amount: Decimal
-
-
-class BudgetCopyIn(BaseModel):
-    year_month: str
-
-
-class BudgetCopyResultOut(BaseModel):
-    copied: int

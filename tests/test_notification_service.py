@@ -5,11 +5,12 @@ from unittest.mock import patch
 import pytest
 
 from app.models.user import User
-from app.services import budget_service, challenge_service, goal_service, notification_service
+from app.services import cashflow_plan_service, challenge_service, goal_service, notification_service
 
 
+@patch("app.services.notification_service.is_connected", return_value=True)
 @patch("app.services.notification_service.gmail_service.send_email")
-def test_weekly_summary_sent_once_per_week(mock_send, seeded_db):
+def test_weekly_summary_sent_once_per_week(mock_send, mock_connected, seeded_db):
     db = seeded_db["db"]
     anchor = date(2026, 7, 29)
 
@@ -21,8 +22,22 @@ def test_weekly_summary_sent_once_per_week(mock_send, seeded_db):
     assert mock_send.call_count == 1
 
 
+@patch("app.services.notification_service.is_connected", return_value=False)
 @patch("app.services.notification_service.gmail_service.send_email")
-def test_monthly_summary_sent_once_per_month(mock_send, seeded_db):
+def test_weekly_summary_logs_even_when_google_not_connected(mock_send, mock_connected, seeded_db):
+    db, user = seeded_db["db"], seeded_db["user"]
+
+    sent = notification_service.send_weekly_summary(db, today=date(2026, 7, 29))
+
+    assert sent is True
+    mock_send.assert_not_called()
+    [log] = notification_service.list_notifications(db, user.id)
+    assert log["notif_type"] == "email_weekly"
+
+
+@patch("app.services.notification_service.is_connected", return_value=True)
+@patch("app.services.notification_service.gmail_service.send_email")
+def test_monthly_summary_sent_once_per_month(mock_send, mock_connected, seeded_db):
     db = seeded_db["db"]
     anchor = date(2026, 8, 3)  # summarizes July
 
@@ -34,13 +49,16 @@ def test_monthly_summary_sent_once_per_month(mock_send, seeded_db):
     assert mock_send.call_count == 1
 
 
+@patch("app.services.notification_service.is_connected", return_value=True)
 @patch("app.services.notification_service.gmail_service.send_email")
-def test_threshold_alert_fires_once_per_status_per_month(mock_send, seeded_db):
+def test_threshold_alert_fires_once_per_status_per_month(mock_send, mock_connected, seeded_db):
     db, user, food = seeded_db["db"], seeded_db["user"], seeded_db["food"]
     from app.services import transaction_service
 
     ym = "2026-07"
-    budget_service.upsert_budget(db, food.id, ym, Decimal("100000"), user.id)
+    cashflow_plan_service.upsert_item(
+        db, None, food.type, None, food.name, Decimal("100000"), 0, ym, user.id, category_id=food.id
+    )
     transaction_service.create_transaction(db, user.id, food.id, "expense", Decimal("95000"), date(2026, 7, 10))
 
     sent_first = notification_service.check_and_alert_budget_threshold(db, food.id, ym)
@@ -58,8 +76,29 @@ def test_threshold_alert_fires_once_per_status_per_month(mock_send, seeded_db):
     assert mock_send.call_count == 2
 
 
+@patch("app.services.notification_service.is_connected", return_value=False)
 @patch("app.services.notification_service.gmail_service.send_email")
-def test_goal_milestone_fires_once_per_milestone(mock_send, seeded_db):
+def test_threshold_alert_logs_even_when_google_not_connected(mock_send, mock_connected, seeded_db):
+    db, user, food = seeded_db["db"], seeded_db["user"], seeded_db["food"]
+    from app.services import transaction_service
+
+    ym = "2026-07"
+    cashflow_plan_service.upsert_item(
+        db, None, food.type, None, food.name, Decimal("100000"), 0, ym, user.id, category_id=food.id
+    )
+    transaction_service.create_transaction(db, user.id, food.id, "expense", Decimal("95000"), date(2026, 7, 10))
+
+    sent = notification_service.check_and_alert_budget_threshold(db, food.id, ym)
+
+    assert sent is True
+    mock_send.assert_not_called()
+    [log] = notification_service.list_notifications(db, user.id)
+    assert log["notif_type"] == "threshold_alert"
+
+
+@patch("app.services.notification_service.is_connected", return_value=True)
+@patch("app.services.notification_service.gmail_service.send_email")
+def test_goal_milestone_fires_once_per_milestone(mock_send, mock_connected, seeded_db):
     db = seeded_db["db"]
     goal = goal_service.create_goal(db, 1, "내집마련", 40, Decimal("1000000"), Decimal("100000"), Decimal("250000"))  # 25%
 
@@ -89,8 +128,9 @@ def test_goal_milestone_skips_when_no_milestone_reached(mock_send, seeded_db):
     mock_send.assert_not_called()
 
 
+@patch("app.services.notification_service.is_connected", return_value=True)
 @patch("app.services.notification_service.gmail_service.send_email")
-def test_goal_milestone_jumping_past_multiple_milestones_sends_only_highest(mock_send, seeded_db):
+def test_goal_milestone_jumping_past_multiple_milestones_sends_only_highest(mock_send, mock_connected, seeded_db):
     db = seeded_db["db"]
     goal = goal_service.create_goal(db, 1, "내집마련", 40, Decimal("1000000"), Decimal("100000"), Decimal("1000000"))  # 100%
 
@@ -99,6 +139,20 @@ def test_goal_milestone_jumping_past_multiple_milestones_sends_only_highest(mock
     assert sent is True
     assert mock_send.call_count == 1
     assert "100%" in mock_send.call_args.args[0]
+
+
+@patch("app.services.notification_service.is_connected", return_value=False)
+@patch("app.services.notification_service.gmail_service.send_email")
+def test_goal_milestone_logs_even_when_google_not_connected(mock_send, mock_connected, seeded_db):
+    db, user = seeded_db["db"], seeded_db["user"]
+    goal = goal_service.create_goal(db, 1, "내집마련", 40, Decimal("1000000"), Decimal("100000"), Decimal("250000"))  # 25%
+
+    sent = notification_service.check_and_celebrate_goal_milestone(db, goal.id)
+
+    assert sent is True
+    mock_send.assert_not_called()
+    [log] = notification_service.list_notifications(db, user.id)
+    assert log["notif_type"] == "goal_milestone"
 
 
 def test_check_all_goal_milestones_counts_only_newly_celebrated(seeded_db):
@@ -127,8 +181,9 @@ def test_threshold_alert_skips_categories_without_budget(mock_send, seeded_db):
     mock_send.assert_not_called()
 
 
+@patch("app.services.notification_service.is_connected", return_value=True)
 @patch("app.services.notification_service.gmail_service.send_email")
-def test_challenge_success_celebration_fires_once(mock_send, seeded_db):
+def test_challenge_success_celebration_fires_once(mock_send, mock_connected, seeded_db):
     db, user = seeded_db["db"], seeded_db["user"]
     challenge = challenge_service.create_challenge(
         db, user.id, "외식비 줄이기", None, Decimal("300000"), date(2026, 8, 1), date(2026, 8, 31)
@@ -142,6 +197,23 @@ def test_challenge_success_celebration_fires_once(mock_send, seeded_db):
     assert sent_again is False
     assert mock_send.call_count == 1
     assert "외식비 줄이기" in mock_send.call_args.args[0]
+
+
+@patch("app.services.notification_service.is_connected", return_value=False)
+@patch("app.services.notification_service.gmail_service.send_email")
+def test_challenge_success_logs_even_when_google_not_connected(mock_send, mock_connected, seeded_db):
+    db, user = seeded_db["db"], seeded_db["user"]
+    challenge = challenge_service.create_challenge(
+        db, user.id, "외식비 줄이기", None, Decimal("300000"), date(2026, 8, 1), date(2026, 8, 31)
+    )
+    challenge_service.update_progress(db, challenge.id, Decimal("300000"))
+
+    sent = notification_service.check_and_celebrate_challenge(db, challenge.id)
+
+    assert sent is True
+    mock_send.assert_not_called()
+    [log] = notification_service.list_notifications(db, user.id)
+    assert log["notif_type"] == "challenge_success"
 
 
 @patch("app.services.notification_service.gmail_service.send_email")

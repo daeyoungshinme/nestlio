@@ -24,12 +24,14 @@ def create_product(
     current_balance: Decimal,
     monthly_saving_amount: Decimal,
     product_type: str = "savings",
+    principal_amount: Decimal | None = None,
 ) -> SavingsProduct:
     product = SavingsProduct(
         name=name,
         current_balance=current_balance,
         monthly_saving_amount=monthly_saving_amount,
         product_type=product_type,
+        principal_amount=principal_amount,
         sort_order=999,
     )
     db.add(product)
@@ -45,6 +47,7 @@ def update_product(
     current_balance: Decimal,
     monthly_saving_amount: Decimal,
     product_type: str,
+    principal_amount: Decimal | None = None,
 ) -> SavingsProduct | None:
     product = db.get(SavingsProduct, product_id)
     if product is None:
@@ -53,6 +56,7 @@ def update_product(
     product.current_balance = current_balance
     product.monthly_saving_amount = monthly_saving_amount
     product.product_type = product_type
+    product.principal_amount = principal_amount
     db.commit()
     db.refresh(product)
     return product

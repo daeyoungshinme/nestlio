@@ -41,9 +41,10 @@ def test_test_weekly_email_without_google_returns_409(client):
     assert resp.status_code == 409
 
 
+@patch("app.services.notification_service.is_connected", return_value=True)
 @patch("app.services.notification_service.gmail_service.send_email")
 @patch("app.routers.settings.is_connected", return_value=True)
-def test_test_weekly_email_sends_when_connected(mock_is_connected, mock_send_email, client):
+def test_test_weekly_email_sends_when_connected(mock_is_connected, mock_send_email, mock_service_connected, client):
     resp = client.post("/api/v1/settings/test-weekly-email")
     assert resp.status_code == 200
     assert resp.json()["sent"] is True

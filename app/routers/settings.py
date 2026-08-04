@@ -7,7 +7,7 @@ from app.dependencies import get_current_user
 from app.models.user import User
 from app.schemas.settings import CoachingThresholdsIn, EmergencyFundIn, SettingsOut, TestEmailResultOut
 from app.services import coaching_settings_service, couple_photo_service, notification_service, user_setting_service
-from app.services.google_auth import GoogleNotConnectedError, is_connected
+from app.services.google_auth import is_connected
 
 router = APIRouter(prefix="/settings", tags=["settings"])
 
@@ -73,21 +73,17 @@ def delete_couple_photo(db: Session = Depends(get_db), _: User = Depends(get_cur
 
 @router.post("/test-weekly-email", response_model=TestEmailResultOut)
 def test_weekly(db: Session = Depends(get_db), _: User = Depends(get_current_user)):
-    try:
-        sent = notification_service.send_weekly_summary(db, force=True)
-    except GoogleNotConnectedError:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT, detail="Google 계정이 연결되어 있지 않습니다."
-        ) from None
+    # 이 엔드포인트는 "Google 연동이 실제로 동작하는지" 확인하는 QA용 버튼이므로, 일반
+    # 알림 파이프라인과 달리 미연동 상태에서는 조용히 건너뛰지 않고 409로 알린다.
+    if not is_connected():
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Google 계정이 연결되어 있지 않습니다.")
+    sent = notification_service.send_weekly_summary(db, force=True)
     return {"sent": sent, "message": "주간 요약 이메일을 발송했습니다." if sent else "발송하지 못했습니다."}
 
 
 @router.post("/test-monthly-email", response_model=TestEmailResultOut)
 def test_monthly(db: Session = Depends(get_db), _: User = Depends(get_current_user)):
-    try:
-        sent = notification_service.send_monthly_summary(db, force=True)
-    except GoogleNotConnectedError:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT, detail="Google 계정이 연결되어 있지 않습니다."
-        ) from None
+    if not is_connected():
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Google 계정이 연결되어 있지 않습니다.")
+    sent = notification_service.send_monthly_summary(db, force=True)
     return {"sent": sent, "message": "월간 요약 이메일을 발송했습니다." if sent else "발송하지 못했습니다."}

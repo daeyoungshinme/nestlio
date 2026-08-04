@@ -40,7 +40,12 @@ def create_product(
     payload: SavingsProductCreateIn, db: Session = Depends(get_db), _: User = Depends(get_current_user)
 ):
     return savings_product_service.create_product(
-        db, payload.name, payload.current_balance, payload.monthly_saving_amount, payload.product_type
+        db,
+        payload.name,
+        payload.current_balance,
+        payload.monthly_saving_amount,
+        payload.product_type,
+        payload.principal_amount,
     )
 
 
@@ -52,7 +57,13 @@ def update_product(
     _: User = Depends(get_current_user),
 ):
     product = savings_product_service.update_product(
-        db, product_id, payload.name, payload.current_balance, payload.monthly_saving_amount, payload.product_type
+        db,
+        product_id,
+        payload.name,
+        payload.current_balance,
+        payload.monthly_saving_amount,
+        payload.product_type,
+        payload.principal_amount,
     )
     if product is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "저축/투자 상품을 찾을 수 없습니다.")

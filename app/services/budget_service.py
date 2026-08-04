@@ -1,74 +1,27 @@
-import uuid
 from decimal import Decimal
 
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.config import settings
 from app.models.category import Category
 from app.models.cashflow_plan_item import CashflowPlanItem
 from app.services.transaction_service import category_breakdown
-from app.utils.dates import month_bounds, parse_year_month, shift_month, year_month_str
+from app.utils.dates import month_bounds, parse_year_month
 
 
-def get_budgets_for_month(db: Session, year_month: str) -> dict[int, CashflowPlanItem]:
+def get_budgets_for_month(db: Session, year_month: str) -> dict[int, Decimal]:
+    """카테고리를 태깅한 계획 항목(cashflow_plan_service가 다루는 것과 같은 행)들을 카테고리별로 합산한다.
+    한 카테고리에 여러 항목이 태깅될 수 있으므로(예: 서로 다른 이름의 두 구독이 같은 "구독" 카테고리) 예산 상한은
+    항상 합계다. 항목 입력/수정은 cashflow_plan_service.upsert_item(category_id=...)이 전담한다 — 이 서비스는
+    실적 대비 집계(budget_vs_actual)만 다룬다."""
     rows = (
-        db.query(CashflowPlanItem)
+        db.query(CashflowPlanItem.category_id, func.sum(CashflowPlanItem.amount))
         .filter(CashflowPlanItem.year_month == year_month, CashflowPlanItem.category_id.isnot(None))
+        .group_by(CashflowPlanItem.category_id)
         .all()
     )
-    return {r.category_id: r for r in rows}
-
-
-def upsert_budget(
-    db: Session, category_id: int, year_month: str, amount: Decimal, updated_by: uuid.UUID
-) -> CashflowPlanItem:
-    item = (
-        db.query(CashflowPlanItem)
-        .filter(CashflowPlanItem.category_id == category_id, CashflowPlanItem.year_month == year_month)
-        .first()
-    )
-    if item is None:
-        category = db.get(Category, category_id)
-        item = CashflowPlanItem(
-            category_id=category_id,
-            section=category.type if category else "variable",
-            year_month=year_month,
-            name=category.name if category else "",
-            amount=amount,
-            updated_by=updated_by,
-        )
-        db.add(item)
-    else:
-        item.amount = amount
-        item.updated_by = updated_by
-    db.commit()
-    db.refresh(item)
-    return item
-
-
-def copy_from_previous_month(db: Session, year_month: str, updated_by: uuid.UUID) -> int:
-    """Copy previous month's budget amounts into `year_month` for categories that don't yet have one. Returns count copied."""
-    this_month_start = parse_year_month(year_month)
-    prev_month_str = year_month_str(shift_month(this_month_start, -1))
-    prev_budgets = get_budgets_for_month(db, prev_month_str)
-    existing = get_budgets_for_month(db, year_month)
-    copied = 0
-    for category_id, prev_item in prev_budgets.items():
-        if category_id in existing:
-            continue
-        db.add(
-            CashflowPlanItem(
-                category_id=category_id,
-                section=prev_item.section,
-                year_month=year_month,
-                name=prev_item.name,
-                amount=prev_item.amount,
-                updated_by=updated_by,
-            )
-        )
-        copied += 1
-    db.commit()
-    return copied
+    return {category_id: total for category_id, total in rows}
 
 
 def _status(pct: float, warn_pct: float | None = None, critical_pct: float | None = None) -> str:
@@ -99,8 +52,7 @@ def budget_vs_actual(
     )
     result = []
     for cat in categories:
-        budget = budgets.get(cat.id)
-        budget_amount = budget.amount if budget else Decimal("0")
+        budget_amount = budgets.get(cat.id, Decimal("0"))
         actual = actuals.get(cat.id, Decimal("0"))
         pct = float(actual / budget_amount * 100) if budget_amount else (100.0 if actual else 0.0)
         result.append(

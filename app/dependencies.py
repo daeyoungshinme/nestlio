@@ -40,8 +40,9 @@ def verify_supabase_token(token: str) -> dict:
             signing_key.key,
             algorithms=[signing_key.algorithm_name],
             audience="authenticated",
+            issuer=f"{settings.supabase_project_url}/auth/v1",
             leeway=_LEEWAY,
-            options={"verify_exp": True, "verify_aud": True},
+            options={"verify_exp": True, "verify_aud": True, "verify_iss": True},
         )
     except jwt.PyJWTError as exc:
         logger.warning(
@@ -88,9 +89,16 @@ def get_current_user(
     user_id = uuid.UUID(sub)
     user = db.get(User, user_id)
     if user is None:
-        # nestlio는 자체 회원가입이 없다 (spouse1/spouse2 시드 고정) - 첫 인증된 요청에서
-        # Supabase Auth 사용자를 로컬 User 행으로 미러링한다 (기존 auth_service의
-        # authenticate_user가 로그인 시점에 하던 것과 동일한 로직, 시점만 다름).
+        # nestlio는 자체 회원가입이 없다 - 로컬 users 테이블이 완전히 비어 있는(=앱 최초 부팅)
+        # 경우에만 첫 인증된 요청에서 Supabase Auth 사용자를 로컬 User 행으로 미러링한다.
+        # 이미 사용자가 1명 이상 있으면, 그 이후의 계정 생성은 반드시 배우자 초대
+        # (invite_service.accept_invite)를 거쳐야 한다 - 그렇지 않으면 growlio 등 같은
+        # Supabase 프로젝트를 쓰는 무관한 계정도 여기서 통과되어 버린다.
+        if db.query(User).first() is not None:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="가입되지 않은 계정입니다. 배우자 초대를 통해서만 가입할 수 있습니다.",
+            )
         email = payload.get("email", "")
         user = User(id=user_id, email=email, display_name=email.split("@")[0] if email else "user")
         db.add(user)

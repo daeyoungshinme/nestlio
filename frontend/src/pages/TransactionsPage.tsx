@@ -1,7 +1,7 @@
 import { useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient, keepPreviousData } from "@tanstack/react-query";
-import { CalendarDays, Download, MoreHorizontal, Plus, Repeat, Tag, Upload } from "lucide-react";
+import { CalendarDays, Download, MoreHorizontal, Plus, Repeat, SlidersHorizontal, Tag, Upload } from "lucide-react";
 import ConfirmModal from "@/components/common/ConfirmModal";
 import EmptyState from "@/components/common/EmptyState";
 import Modal from "@/components/common/Modal";
@@ -17,6 +17,11 @@ import ExpenseCategoryGroups from "@/components/transactions/ExpenseCategoryGrou
 import SavingsLinkedTransactionsSection from "@/components/transactions/SavingsLinkedTransactionsSection";
 import EventForm, { emptyEventFormValues, eventToFormValues } from "@/components/transactions/EventForm";
 import RecurringManageSheet from "@/components/transactions/RecurringManageSheet";
+import TransactionFilterSheet, {
+  filterSummaryLabel,
+  type ExpenseTypeFilter,
+  type TopFilter,
+} from "@/components/transactions/TransactionFilterSheet";
 import { fetchCategories } from "@/api/categories";
 import { fetchAccounts } from "@/api/accounts";
 import { fetchSavingsProducts } from "@/api/savingsProducts";
@@ -33,7 +38,6 @@ import { useSwipeMonth } from "@/hooks/useSwipeMonth";
 import { useInvalidateTransactionRelated } from "@/hooks/useInvalidateTransactionRelated";
 import { QUERY_KEYS } from "@/constants/queryKeys";
 import { STALE_TIME } from "@/constants/queryConfig";
-import { SELECT_SM } from "@/constants/inputStyles";
 import { TOUCH_TARGET_COMPACT_MOBILE_ONLY } from "@/constants/uiSizes";
 import { formatKrw } from "@/utils/format";
 import { extractErrorMessage } from "@/utils/error";
@@ -63,24 +67,6 @@ function occurrenceDate(iso: string): string {
   return iso.split("T")[0];
 }
 
-type TopFilter = "all" | "income" | "expense" | "savings";
-
-const TOP_FILTER_OPTIONS: { value: TopFilter; label: string }[] = [
-  { value: "all", label: "전체" },
-  { value: "income", label: "수입" },
-  { value: "expense", label: "지출" },
-  { value: "savings", label: "저축/투자" },
-];
-
-type ExpenseTypeFilter = "all" | "fixed" | "variable" | "irregular";
-
-const EXPENSE_TYPE_FILTER_OPTIONS: { value: ExpenseTypeFilter; label: string }[] = [
-  { value: "all", label: "전체" },
-  { value: "fixed", label: "고정지출" },
-  { value: "variable", label: "변동지출" },
-  { value: "irregular", label: "비정기지출" },
-];
-
 function matchesFilter(
   tx: TransactionOut,
   topFilter: TopFilter,
@@ -109,6 +95,7 @@ export default function TransactionsPage() {
   const [eventDeleteTarget, setEventDeleteTarget] = useState<EventOut | null>(null);
   const [showMoreMenu, setShowMoreMenu] = useState(false);
   const [showRecurringSheet, setShowRecurringSheet] = useState(false);
+  const [showFilterSheet, setShowFilterSheet] = useState(false);
   const queryClient = useQueryClient();
   const calendarRef = useRef<HTMLDivElement>(null);
 
@@ -368,26 +355,14 @@ export default function TransactionsPage() {
       </div>
 
       <div className="flex items-center gap-2">
-        <div className="flex gap-1 bg-gray-100 dark:bg-gray-800 rounded-lg p-1 flex-1">
-          {TOP_FILTER_OPTIONS.map((opt) => (
-            <button
-              key={opt.value}
-              type="button"
-              onClick={() => {
-                setTopFilter(opt.value);
-                setCategoryFilter("all");
-                setExpenseTypeFilter("all");
-              }}
-              className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
-                topFilter === opt.value
-                  ? "bg-white dark:bg-gray-700 shadow text-gray-900 dark:text-gray-50"
-                  : "text-gray-500 dark:text-gray-400"
-              }`}
-            >
-              {opt.label}
-            </button>
-          ))}
-        </div>
+        <button
+          type="button"
+          onClick={() => setShowFilterSheet(true)}
+          className="flex-1 flex items-center gap-2 min-w-0 px-3 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-800 rounded-lg"
+        >
+          <SlidersHorizontal size={14} className="shrink-0" aria-hidden="true" />
+          <span className="truncate">{filterSummaryLabel(topFilter, expenseTypeFilter, categoryFilter, categoryOptions)}</span>
+        </button>
         <Link
           to="/categories"
           className={`shrink-0 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 border border-gray-200 dark:border-gray-700 rounded-lg ${TOUCH_TARGET_COMPACT_MOBILE_ONLY}`}
@@ -397,44 +372,6 @@ export default function TransactionsPage() {
           <Tag size={16} aria-hidden="true" />
         </Link>
       </div>
-
-      {topFilter === "expense" && (
-        <div className="flex gap-1 bg-gray-100 dark:bg-gray-800 rounded-lg p-1">
-          {EXPENSE_TYPE_FILTER_OPTIONS.map((opt) => (
-            <button
-              key={opt.value}
-              type="button"
-              onClick={() => {
-                setExpenseTypeFilter(opt.value);
-                setCategoryFilter("all");
-              }}
-              className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
-                expenseTypeFilter === opt.value
-                  ? "bg-white dark:bg-gray-700 shadow text-gray-900 dark:text-gray-50"
-                  : "text-gray-500 dark:text-gray-400"
-              }`}
-            >
-              {opt.label}
-            </button>
-          ))}
-        </div>
-      )}
-
-      {(topFilter === "income" || topFilter === "expense") && (
-        <select
-          value={categoryFilter === "all" ? "all" : String(categoryFilter)}
-          onChange={(e) => setCategoryFilter(e.target.value === "all" ? "all" : Number(e.target.value))}
-          className={SELECT_SM}
-          aria-label="카테고리 필터"
-        >
-          <option value="all">전체</option>
-          {categoryOptions.map((c) => (
-            <option key={c.id} value={c.id}>
-              {c.name}
-            </option>
-          ))}
-        </select>
-      )}
 
       {topFilter === "savings" ? (
         filteredTransactions.length === 0 ? (
@@ -498,6 +435,7 @@ export default function TransactionsPage() {
               accounts={accounts}
               savingsProducts={savingsProducts}
               layout="stack"
+              isNew={formTarget === "new"}
               submitLabel={formTarget === "new" ? "추가" : "저장"}
               submitting={isSaving}
               initialValues={
@@ -611,6 +549,26 @@ export default function TransactionsPage() {
           dateFrom={date_from}
           dateTo={date_to}
           onClose={() => setShowRecurringSheet(false)}
+        />
+      )}
+
+      {showFilterSheet && (
+        <TransactionFilterSheet
+          topFilter={topFilter}
+          expenseTypeFilter={expenseTypeFilter}
+          categoryFilter={categoryFilter}
+          categoryOptions={categoryOptions}
+          onChangeTopFilter={(value) => {
+            setTopFilter(value);
+            setCategoryFilter("all");
+            setExpenseTypeFilter("all");
+          }}
+          onChangeExpenseTypeFilter={(value) => {
+            setExpenseTypeFilter(value);
+            setCategoryFilter("all");
+          }}
+          onChangeCategoryFilter={setCategoryFilter}
+          onClose={() => setShowFilterSheet(false)}
         />
       )}
     </div>

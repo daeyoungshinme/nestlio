@@ -279,6 +279,7 @@ function GoalFormModal({
   onSubmit: (draft: Draft) => void;
 }) {
   const [draft, setDraft] = useState<Draft>(initial);
+  const [currentAge, setCurrentAge] = useState("");
   const isLinked = draft.primary_savings_product_id !== "";
 
   const handleSubmit = (e: FormEvent) => {
@@ -286,6 +287,13 @@ function GoalFormModal({
     if (!draft.name.trim()) return;
     onSubmit(draft);
   };
+
+  const monthsRemaining =
+    currentAge !== "" && draft.target_age !== "" ? (Number(draft.target_age) - Number(currentAge)) * 12 : null;
+  const suggestedMonthly =
+    monthsRemaining !== null && monthsRemaining > 0
+      ? Math.max(0, Math.round((Number(draft.required_amount) - Number(draft.current_amount)) / monthsRemaining))
+      : null;
 
   return (
     <Modal onClose={onClose} title={title}>
@@ -355,6 +363,34 @@ function GoalFormModal({
             preview={Number(draft.current_amount) > 0 ? formatKrwPreview(Number(draft.current_amount)) : undefined}
           />
         )}
+        <div className="rounded-lg border border-gray-200 dark:border-gray-700 p-3 space-y-2">
+          <p className="text-xs font-medium text-gray-500 dark:text-gray-400">필요 저축액 자동 계산</p>
+          <div className="flex items-end gap-2">
+            <FormInput
+              label="현재 나이"
+              type="number"
+              value={currentAge}
+              onChange={(e) => setCurrentAge(e.target.value)}
+              className="w-24"
+            />
+            {suggestedMonthly !== null && (
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                onClick={() => setDraft((d) => ({ ...d, monthly_saving_amount: String(suggestedMonthly) }))}
+              >
+                제안 적용: 월 {formatKrw(suggestedMonthly)}
+              </Button>
+            )}
+          </div>
+          {currentAge !== "" && draft.target_age !== "" && monthsRemaining !== null && monthsRemaining <= 0 && (
+            <p className="text-xs text-red-500">필요한 나이가 현재 나이보다 이후여야 계산할 수 있어요.</p>
+          )}
+          <p className="text-xs text-gray-400 dark:text-gray-500">
+            (필요금액 - 현재 저축액) ÷ 남은 개월 수로 월 저축금액을 제안해요. 저장되지 않고 계산에만 쓰여요.
+          </p>
+        </div>
         <FormInput
           label="월 저축금액"
           type="number"

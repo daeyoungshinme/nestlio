@@ -8,7 +8,7 @@ TOKEN_PATH = DATA_DIR / "token.json"
 CLIENT_SECRET_PATH = DATA_DIR / "client_secret.json"
 
 SCOPES = [
-    "https://www.googleapis.com/auth/calendar",
+    "https://www.googleapis.com/auth/calendar.events",
     "https://www.googleapis.com/auth/gmail.send",
 ]
 

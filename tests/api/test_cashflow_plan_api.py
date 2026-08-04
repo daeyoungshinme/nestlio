@@ -32,6 +32,27 @@ def test_upsert_and_list_plan_item(client, seeded_db):
     assert len(list_resp.json()["items"]) == 1
 
 
+def test_upsert_plan_item_with_category_returns_category_name(client, seeded_db):
+    food = seeded_db["food"]
+    resp = client.put(
+        "/api/v1/cashflow-plan/items",
+        json={
+            "id": None,
+            "section": food.type,
+            "year_month": "2026-07",
+            "owner_user_id": None,
+            "name": food.name,
+            "amount": "300000",
+            "category_id": food.id,
+            "sort_order": 0,
+        },
+    )
+    assert resp.status_code == 200
+    item = next(i for i in resp.json()["items"] if i["category_id"] == food.id)
+    assert item["category_name"] == food.name
+    assert item["category_color"] == food.color
+
+
 def test_copy_previous_month(client, seeded_db):
     user = seeded_db["user"]
     client.put(

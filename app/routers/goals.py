@@ -1,3 +1,5 @@
+import logging
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
@@ -6,9 +8,9 @@ from app.dependencies import get_current_user
 from app.models.user import User
 from app.schemas.financial_goal import FinancialGoalCreateIn, FinancialGoalOut, FinancialGoalUpdateIn
 from app.services import goal_service, notification_service
-from app.services.google_auth import is_connected
 
 router = APIRouter(prefix="/financial-goals", tags=["financial-goals"])
+logger = logging.getLogger(__name__)
 
 
 @router.get("", response_model=list[FinancialGoalOut])
@@ -28,8 +30,10 @@ def create_goal(payload: FinancialGoalCreateIn, db: Session = Depends(get_db), _
         payload.current_amount,
         payload.primary_savings_product_id,
     )
-    if is_connected():
+    try:
         notification_service.check_and_celebrate_goal_milestone(db, goal.id)
+    except Exception:
+        logger.exception("목표 달성 축하 알림 처리 실패 (목표는 정상 저장됨)")
     return goal
 
 
@@ -53,8 +57,10 @@ def update_goal(
     )
     if goal is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "재무목표를 찾을 수 없습니다.")
-    if is_connected():
+    try:
         notification_service.check_and_celebrate_goal_milestone(db, goal.id)
+    except Exception:
+        logger.exception("목표 달성 축하 알림 처리 실패 (목표는 정상 저장됨)")
     return goal
 
 

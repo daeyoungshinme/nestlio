@@ -21,10 +21,10 @@ import {
 import { fetchGoals } from "@/api/goals";
 import { QUERY_KEYS } from "@/constants/queryKeys";
 import { useCrudMutations } from "@/hooks/useCrudMutations";
-import { formatKrw, formatKrwPreview, toAmountInputValue } from "@/utils/format";
+import { formatKrw, formatKrwPreview, formatPercent, toAmountInputValue } from "@/utils/format";
 import { extractErrorMessage } from "@/utils/error";
 import { toast } from "@/utils/toast";
-import { savingsProductTypeBadgeStyle, savingsProductTypeLabel } from "@/utils/colors";
+import { returnRateTextColor, savingsProductTypeBadgeStyle, savingsProductTypeLabel } from "@/utils/colors";
 import type { SavingsProductOut, SavingsProductType } from "@/types";
 
 function formatSyncedAt(value: string): string {
@@ -41,9 +41,16 @@ interface Draft {
   current_balance: string;
   monthly_saving_amount: string;
   product_type: SavingsProductType;
+  principal_amount: string;
 }
 
-const EMPTY_DRAFT: Draft = { name: "", current_balance: "0", monthly_saving_amount: "0", product_type: "savings" };
+const EMPTY_DRAFT: Draft = {
+  name: "",
+  current_balance: "0",
+  monthly_saving_amount: "0",
+  product_type: "savings",
+  principal_amount: "",
+};
 const PRODUCT_TYPES: SavingsProductType[] = ["savings", "investment"];
 
 function draftFromProduct(product: SavingsProductOut): Draft {
@@ -52,6 +59,17 @@ function draftFromProduct(product: SavingsProductOut): Draft {
     current_balance: toAmountInputValue(product.current_balance),
     monthly_saving_amount: toAmountInputValue(product.monthly_saving_amount),
     product_type: product.product_type,
+    principal_amount: product.principal_amount !== null ? toAmountInputValue(product.principal_amount) : "",
+  };
+}
+
+function toSavingsProductPayload(draft: Draft) {
+  return {
+    name: draft.name,
+    current_balance: draft.current_balance,
+    monthly_saving_amount: draft.monthly_saving_amount,
+    product_type: draft.product_type,
+    principal_amount: draft.product_type === "investment" && draft.principal_amount !== "" ? draft.principal_amount : null,
   };
 }
 
@@ -96,10 +114,11 @@ export default function SavingsProductsSection() {
   const isSaving = createMutation.isPending || updateMutation.isPending;
 
   const handleSubmit = (draft: Draft) => {
+    const payload = toSavingsProductPayload(draft);
     if (formTarget === "new") {
-      createMutation.mutate(draft);
+      createMutation.mutate(payload);
     } else if (formTarget) {
-      updateMutation.mutate({ id: formTarget.id, payload: draft });
+      updateMutation.mutate({ id: formTarget.id, payload });
     }
   };
 
@@ -138,9 +157,22 @@ export default function SavingsProductsSection() {
                       목표: {linkedGoal.name}
                     </span>
                   )}
+                  {product.return_rate_pct !== null && (
+                    <span className={`shrink-0 text-[11px] font-semibold ${returnRateTextColor(Number(product.return_rate_pct))}`}>
+                      {Number(product.return_rate_pct) > 0 ? "+" : ""}
+                      {formatPercent(Number(product.return_rate_pct), 1)}
+                    </span>
+                  )}
                 </div>
                 <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
                   {formatKrw(product.current_balance)} · 월 {formatKrw(product.monthly_saving_amount)}
+                  {product.return_amount !== null && (
+                    <span className={returnRateTextColor(Number(product.return_rate_pct))}>
+                      {" "}
+                      · 원금 {formatKrw(product.principal_amount)} ({Number(product.return_amount) > 0 ? "+" : ""}
+                      {formatKrw(product.return_amount)})
+                    </span>
+                  )}
                 </p>
                 {product.growlio_account_id && (
                   <p className="text-[11px] text-gray-400 dark:text-gray-500 mt-0.5">
@@ -283,6 +315,17 @@ function SavingsProductFormModal({
             Number(draft.monthly_saving_amount) > 0 ? formatKrwPreview(Number(draft.monthly_saving_amount)) : undefined
           }
         />
+        {draft.product_type === "investment" && (
+          <FormInput
+            label="투자 원금 (선택)"
+            type="number"
+            inputMode="decimal"
+            value={draft.principal_amount}
+            onChange={(e) => setDraft((d) => ({ ...d, principal_amount: e.target.value }))}
+            className="w-full"
+            preview={Number(draft.principal_amount) > 0 ? formatKrwPreview(Number(draft.principal_amount)) : undefined}
+          />
+        )}
         {product && <GrowlioLinkSection product={product} onLinked={onClose} />}
         <Button type="submit" loading={submitting} className="mt-2">
           {submitLabel}

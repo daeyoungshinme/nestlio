@@ -125,6 +125,33 @@ def list_transactions(
     return query.order_by(Transaction.transaction_date.desc(), Transaction.id.desc()).all()
 
 
+def recent_unique_transactions(
+    db: Session, type_: str, is_savings: bool = False, limit: int = 8, scan_limit: int = 100
+) -> list[Transaction]:
+    """Most recent transactions, deduplicated by (category, description, amount, account,
+    savings product) so repeat entries of the same combo only show their latest occurrence.
+    Used to let the user quickly refill the transaction form from a past entry."""
+    rows = (
+        db.query(Transaction)
+        .join(Category, Transaction.category_id == Category.id)
+        .filter(Transaction.type == type_, Category.is_savings.is_(is_savings))
+        .order_by(Transaction.transaction_date.desc(), Transaction.id.desc())
+        .limit(scan_limit)
+        .all()
+    )
+    seen: set[tuple] = set()
+    result: list[Transaction] = []
+    for tx in rows:
+        key = (tx.category_id, tx.description, tx.amount, tx.account_id, tx.savings_product_id)
+        if key in seen:
+            continue
+        seen.add(key)
+        result.append(tx)
+        if len(result) >= limit:
+            break
+    return result
+
+
 def period_totals(db: Session, date_from: date, date_to: date) -> dict:
     """Income / expense / fixed / variable / irregular totals for a date range."""
     rows = (

@@ -34,6 +34,10 @@ class InviteAlreadyAcceptedError(InviteError):
     pass
 
 
+class InviteEmailMismatchError(InviteError):
+    pass
+
+
 def _accept_url(token: str) -> str:
     return f"{settings.app_base_url}/invite/accept?token={token}"
 
@@ -113,13 +117,23 @@ def get_invite_by_token(db: Session, token: str, now: datetime | None = None) ->
 
 
 def accept_invite(
-    db: Session, token: str, user_id: uuid.UUID, display_name: str, now: datetime | None = None
+    db: Session,
+    token: str,
+    user_id: uuid.UUID,
+    email: str,
+    display_name: str,
+    now: datetime | None = None,
 ) -> User:
     now = now or datetime.now()
     invite = get_invite_by_token(db, token, now=now)
 
+    if email.strip().lower() != invite.email.strip().lower():
+        raise InviteEmailMismatchError("초대받은 이메일 계정으로만 수락할 수 있습니다.")
+
     user = db.get(User, user_id)
     if user is None:
+        if len(user_service.list_users(db)) >= MAX_HOUSEHOLD_USERS:
+            raise HouseholdFullError("이미 두 명의 사용자가 등록되어 있습니다.")
         user = User(id=user_id, email=invite.email, display_name=display_name)
         db.add(user)
     else:

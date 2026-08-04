@@ -13,8 +13,10 @@ from app.models.user import User
 
 class CashflowPlanItem(Base):
     """가구 단위의 현금흐름 계획(예산 설정) 한 행. 실제 거래내역과는 무관한 목표/계획 값이다.
-    category_id가 채워진 행은 "카테고리별 예산 상한"(구 Budget 모델이 통합된 것)이고, budget_service가
-    다룬다 — 자유 텍스트 계획 항목(category_id NULL)과는 cashflow_plan_service가 필터링해 분리 조회한다."""
+    category_id가 채워진 행은 실제 카테고리에 태깅된 계획 항목으로, budget_service.budget_vs_actual이
+    같은 카테고리를 태깅한 항목들의 합을 그 카테고리의 예산 상한으로 집계한다. category_id가 NULL인 행은
+    특정 카테고리에 매이지 않는 자유 텍스트 계획 항목이다. 둘 다 cashflow_plan_service.list_items가 함께 조회하며
+    섹션 합계(compute_summary)에도 구분 없이 합산된다."""
 
     __tablename__ = "cashflow_plan_items"
 
@@ -38,3 +40,11 @@ class CashflowPlanItem(Base):
 
     owner: Mapped["User | None"] = relationship(foreign_keys=[owner_user_id], lazy="joined")
     category: Mapped["Category | None"] = relationship(lazy="joined")
+
+    @property
+    def category_name(self) -> str | None:
+        return self.category.name if self.category else None
+
+    @property
+    def category_color(self) -> str | None:
+        return self.category.color if self.category else None

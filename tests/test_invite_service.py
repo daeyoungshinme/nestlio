@@ -8,6 +8,7 @@ from app.services import invite_service
 from app.services.invite_service import (
     HouseholdFullError,
     InviteAlreadyAcceptedError,
+    InviteEmailMismatchError,
     InviteExpiredError,
     InviteNotFoundError,
 )
@@ -54,6 +55,7 @@ def test_create_invite_fails_when_household_full(mock_connected, seeded_db):
         db,
         invite_service.create_invite(db, user.id, "spouse2@example.com", now=NOW).token,
         uuid.uuid4(),
+        "spouse2@example.com",
         "Spouse 2",
         now=NOW,
     )
@@ -99,7 +101,9 @@ def test_accept_invite_creates_user_and_marks_accepted(mock_connected, seeded_db
     invite = invite_service.create_invite(db, user.id, "spouse2@example.com", now=NOW)
     new_user_id = uuid.uuid4()
 
-    created = invite_service.accept_invite(db, invite.token, new_user_id, "배우자", now=NOW)
+    created = invite_service.accept_invite(
+        db, invite.token, new_user_id, "spouse2@example.com", "배우자", now=NOW
+    )
 
     assert created.id == new_user_id
     assert created.email == "spouse2@example.com"
@@ -110,6 +114,17 @@ def test_accept_invite_creates_user_and_marks_accepted(mock_connected, seeded_db
 
     with pytest.raises(InviteAlreadyAcceptedError):
         invite_service.get_invite_by_token(db, invite.token, now=NOW)
+
+
+@patch("app.services.invite_service.is_connected", return_value=False)
+def test_accept_invite_rejects_mismatched_email(mock_connected, seeded_db):
+    db, user = seeded_db["db"], seeded_db["user"]
+    invite = invite_service.create_invite(db, user.id, "spouse2@example.com", now=NOW)
+
+    with pytest.raises(InviteEmailMismatchError):
+        invite_service.accept_invite(
+            db, invite.token, uuid.uuid4(), "someone-else@example.com", "배우자", now=NOW
+        )
 
 
 @patch("app.services.invite_service.is_connected", return_value=False)
@@ -128,7 +143,7 @@ def test_cancel_invite(mock_connected, seeded_db):
 def test_cancel_accepted_invite_raises(mock_connected, seeded_db):
     db, user = seeded_db["db"], seeded_db["user"]
     invite = invite_service.create_invite(db, user.id, "spouse2@example.com", now=NOW)
-    invite_service.accept_invite(db, invite.token, uuid.uuid4(), "배우자", now=NOW)
+    invite_service.accept_invite(db, invite.token, uuid.uuid4(), "spouse2@example.com", "배우자", now=NOW)
 
     with pytest.raises(InviteAlreadyAcceptedError):
         invite_service.cancel_invite(db, invite.id)

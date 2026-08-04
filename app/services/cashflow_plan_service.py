@@ -13,11 +13,11 @@ ACHIEVEMENT_SECTIONS = ("income", "fixed", "variable", "irregular")
 
 
 def list_items(db: Session, year_month: str) -> list[CashflowPlanItem]:
-    """category_id가 채워진 행(카테고리별 예산 상한, budget_service가 다룸)은 제외한다 — 이 목록은
-    자유 텍스트 계획 항목 전용이다."""
+    """해당 월의 모든 계획 항목을 반환한다 — 자유 텍스트 항목과 카테고리 태깅 항목(구 budget_service
+    전용 행) 구분 없이 하나의 목록으로 합쳐서 다룬다. 카테고리 태깅 여부는 `item.category_id`로 판단한다."""
     return (
         db.query(CashflowPlanItem)
-        .filter(CashflowPlanItem.year_month == year_month, CashflowPlanItem.category_id.is_(None))
+        .filter(CashflowPlanItem.year_month == year_month)
         .order_by(CashflowPlanItem.section, CashflowPlanItem.sort_order)
         .all()
     )
@@ -33,6 +33,7 @@ def upsert_item(
     sort_order: int,
     year_month: str,
     updated_by: uuid.UUID,
+    category_id: int | None = None,
 ) -> CashflowPlanItem:
     item = db.get(CashflowPlanItem, id) if id is not None else None
     if item is None:
@@ -42,6 +43,7 @@ def upsert_item(
             owner_user_id=owner_user_id,
             name=name,
             amount=amount,
+            category_id=category_id,
             sort_order=sort_order,
             updated_by=updated_by,
         )
@@ -51,6 +53,7 @@ def upsert_item(
         item.owner_user_id = owner_user_id
         item.name = name
         item.amount = amount
+        item.category_id = category_id
         item.sort_order = sort_order
         item.updated_by = updated_by
     db.commit()
@@ -68,6 +71,7 @@ def split_item_into_months(
     months: int,
     sort_order: int,
     updated_by: uuid.UUID,
+    category_id: int | None = None,
 ) -> list[CashflowPlanItem]:
     """총액을 `months`개월로 나눠 `start_year_month`부터 매월 계획 항목을 생성한다 (할부처럼 분할).
     나눗셈 나머지는 앞쪽 달부터 1원 단위로 얹어 합계가 총액과 정확히 일치하도록 한다.
@@ -86,6 +90,7 @@ def split_item_into_months(
             owner_user_id=owner_user_id,
             name=name,
             amount=amount,
+            category_id=category_id,
             sort_order=sort_order,
             installment_no=i + 1,
             installment_total=months,
@@ -107,16 +112,24 @@ def delete_item(db: Session, id: int) -> None:
         db.commit()
 
 
+def _item_key(item: CashflowPlanItem) -> tuple:
+    """카테고리 태깅 항목은 (section, category_id)로, 자유 텍스트 항목은 (section, name)으로 식별한다 —
+    같은 카테고리를 이름이 다른 두 항목으로 중복 복사하지 않기 위함."""
+    if item.category_id is not None:
+        return (item.section, item.category_id)
+    return (item.section, item.name)
+
+
 def copy_from_previous_month(db: Session, year_month: str, updated_by: uuid.UUID) -> int:
-    """Copy previous month's plan items into `year_month` for (section, name) combos missing there. Returns count copied."""
+    """Copy previous month's plan items into `year_month` for (section, category_id-or-name) combos
+    missing there. Returns count copied."""
     this_month_start = parse_year_month(year_month)
     prev_month_str = year_month_str(shift_month(this_month_start, -1))
     prev_items = list_items(db, prev_month_str)
-    existing_keys = {(item.section, item.name) for item in list_items(db, year_month)}
+    existing_keys = {_item_key(item) for item in list_items(db, year_month)}
     copied = 0
     for item in prev_items:
-        key = (item.section, item.name)
-        if key in existing_keys:
+        if _item_key(item) in existing_keys:
             continue
         db.add(
             CashflowPlanItem(
@@ -125,6 +138,7 @@ def copy_from_previous_month(db: Session, year_month: str, updated_by: uuid.UUID
                 owner_user_id=item.owner_user_id,
                 name=item.name,
                 amount=item.amount,
+                category_id=item.category_id,
                 sort_order=item.sort_order,
                 updated_by=updated_by,
             )

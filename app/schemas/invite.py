@@ -9,7 +9,6 @@ class InviteCreateIn(BaseModel):
 
 
 class InviteAcceptIn(BaseModel):
-    user_id: uuid.UUID
     display_name: str
 
 

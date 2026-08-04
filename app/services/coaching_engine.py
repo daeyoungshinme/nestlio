@@ -214,6 +214,21 @@ def emergency_fund_insight(current_balance: Decimal | None, avg_monthly_fixed: D
     )
 
 
+def savings_streak_months(trend: list[dict], target_monthly: Decimal) -> int:
+    """trend는 오래된 달부터 정렬된 월별 income/expense 목록(transaction_service.monthly_trend
+    출력). 가장 최근 달부터 거꾸로 훑으며 그 달의 저축액(income-expense)이 목표 월 저축액 이상이었던
+    연속 개월 수를 센다 (게임화 위젯의 '연속 목표달성' 스트릭 배지용)."""
+    if target_monthly <= 0:
+        return 0
+    streak = 0
+    for row in reversed(trend):
+        savings = row["income"] - row["expense"]
+        if savings < target_monthly:
+            break
+        streak += 1
+    return streak
+
+
 def compute_insights(db: Session, year_month: str | None = None) -> list[Insight]:
     year_month = year_month or year_month_str(date.today())
     month_start = date.fromisoformat(year_month + "-01")

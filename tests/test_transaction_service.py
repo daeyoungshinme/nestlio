@@ -301,3 +301,56 @@ def test_category_breakdown_excludes_savings_linked_transactions(seeded_db):
     breakdown = transaction_service.category_breakdown(db, date(2026, 7, 1), date(2026, 7, 31), "expense")
 
     assert breakdown == []
+
+
+def test_recent_unique_transactions_dedupes_same_combo_keeping_latest(seeded_db):
+    db, user, food = seeded_db["db"], seeded_db["user"], seeded_db["food"]
+    transaction_service.create_transaction(
+        db, user.id, food.id, "expense", Decimal("4500"), date(2026, 7, 1), description="커피"
+    )
+    latest = transaction_service.create_transaction(
+        db, user.id, food.id, "expense", Decimal("4500"), date(2026, 7, 10), description="커피"
+    )
+
+    recent = transaction_service.recent_unique_transactions(db, "expense")
+
+    assert len(recent) == 1
+    assert recent[0].id == latest.id
+
+
+def test_recent_unique_transactions_filters_by_type_and_is_savings(seeded_db):
+    db, user, food = seeded_db["db"], seeded_db["user"], seeded_db["food"]
+    savings_category, product = _add_savings_category_and_product(db)
+    transaction_service.create_transaction(db, user.id, food.id, "expense", Decimal("10000"), date(2026, 7, 1))
+    transaction_service.create_transaction(db, user.id, food.id, "income", Decimal("3000000"), date(2026, 7, 2))
+    transaction_service.create_transaction(
+        db,
+        user.id,
+        savings_category.id,
+        "expense",
+        Decimal("300000"),
+        date(2026, 7, 3),
+        savings_product_id=product.id,
+    )
+
+    expense_only = transaction_service.recent_unique_transactions(db, "expense", is_savings=False)
+    savings_only = transaction_service.recent_unique_transactions(db, "expense", is_savings=True)
+    income_only = transaction_service.recent_unique_transactions(db, "income")
+
+    assert [tx.category_id for tx in expense_only] == [food.id]
+    assert [tx.category_id for tx in savings_only] == [savings_category.id]
+    assert [tx.category_id for tx in income_only] == [food.id]
+
+
+def test_recent_unique_transactions_respects_limit_and_recency_order(seeded_db):
+    db, user, food = seeded_db["db"], seeded_db["user"], seeded_db["food"]
+    for day, amount in enumerate([1000, 2000, 3000], start=1):
+        transaction_service.create_transaction(
+            db, user.id, food.id, "expense", Decimal(amount), date(2026, 7, day), description=f"item-{amount}"
+        )
+
+    recent = transaction_service.recent_unique_transactions(db, "expense", limit=2)
+
+    assert len(recent) == 2
+    assert recent[0].amount == Decimal("3000")
+    assert recent[1].amount == Decimal("2000")

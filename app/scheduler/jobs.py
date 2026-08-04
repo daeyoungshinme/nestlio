@@ -37,38 +37,34 @@ def _sync_upcoming_calendar_events(db) -> None:
 
 
 def weekly_summary_email() -> None:
+    """`notification_service.send_weekly_summary`는 Google이 연결되어 있지 않아도 인앱
+    알림함(NotificationLog)에는 항상 기록하고, 실제 이메일 발송만 내부적으로 건너뛴다."""
     db = SessionLocal()
     try:
-        if not is_connected():
-            logger.info("Google 계정 미연결 - 주간 요약 이메일 건너뜀")
-            return
         notification_service.send_weekly_summary(db)
     except Exception:
-        logger.exception("주간 요약 이메일 발송 실패")
+        logger.exception("주간 요약 알림 처리 실패")
     finally:
         db.close()
 
 
 def monthly_summary_email() -> None:
+    """weekly_summary_email과 동일하게, Google 미연결이어도 인앱 알림은 항상 남는다."""
     db = SessionLocal()
     try:
-        if not is_connected():
-            logger.info("Google 계정 미연결 - 월간 요약 이메일 건너뜀")
-            return
         notification_service.send_monthly_summary(db)
     except Exception:
-        logger.exception("월간 요약 이메일 발송 실패")
+        logger.exception("월간 요약 알림 처리 실패")
     finally:
         db.close()
 
 
 def daily_threshold_safety_net() -> None:
     """Catches any budget-threshold breaches the synchronous per-transaction check missed,
-    and any goal milestones missed by the synchronous per-goal-save check."""
+    and any goal milestones missed by the synchronous per-goal-save check. Google 미연결이어도
+    인앱 알림함에는 항상 기록된다 (이메일만 조건부)."""
     db = SessionLocal()
     try:
-        if not is_connected():
-            return
         notification_service.check_all_categories_threshold(db)
         notification_service.check_all_goal_milestones(db)
     except Exception:

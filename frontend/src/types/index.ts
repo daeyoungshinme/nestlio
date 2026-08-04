@@ -22,7 +22,6 @@ export interface InviteCreateIn {
 }
 
 export interface InviteAcceptIn {
-  user_id: string;
   display_name: string;
 }
 
@@ -123,6 +122,8 @@ export interface DashboardOut {
   trend: TrendRowOut[];
   insights: InsightOut[];
   current_ym: string;
+  savings_streak_months: number;
+  active_challenge: ChallengeOut | null;
 }
 
 export interface MonthlyRetrospectiveOut {
@@ -233,10 +234,6 @@ export interface RecurringUpdateIn {
   reminder_days_before?: number;
 }
 
-export interface RunNowResultOut {
-  created_count: number;
-}
-
 export interface YearlyMonthRowOut {
   year_month: string;
   income: string;
@@ -339,6 +336,9 @@ export interface CashflowPlanItemOut {
   owner_user_id: string | null;
   name: string;
   amount: string;
+  category_id: number | null;
+  category_name: string | null;
+  category_color: string | null;
   sort_order: number;
   installment_no: number | null;
   installment_total: number | null;
@@ -352,6 +352,7 @@ export interface CashflowPlanItemUpsertIn {
   owner_user_id?: string | null;
   name: string;
   amount: string;
+  category_id?: number | null;
   sort_order?: number;
 }
 
@@ -361,6 +362,7 @@ export interface CashflowPlanItemSplitIn {
   name: string;
   total_amount: string;
   start_year_month: string;
+  category_id?: number | null;
   sort_order?: number;
 }
 
@@ -412,16 +414,6 @@ export interface BudgetListOut {
   prev_month: string;
   next_month: string;
   rows: BudgetRowOut[];
-}
-
-export interface BudgetUpsertIn {
-  year_month: string;
-  category_id: number;
-  amount: string;
-}
-
-export interface BudgetCopyResultOut {
-  copied: number;
 }
 
 export interface NotificationOut {
@@ -505,6 +497,9 @@ export interface SavingsProductOut {
   current_balance: string;
   monthly_saving_amount: string;
   product_type: SavingsProductType;
+  principal_amount: string | null;
+  return_amount: string | null;
+  return_rate_pct: string | null;
   sort_order: number;
   is_active: boolean;
   growlio_account_id: string | null;
@@ -517,6 +512,7 @@ export interface SavingsProductCreateIn {
   current_balance: string;
   monthly_saving_amount: string;
   product_type: SavingsProductType;
+  principal_amount?: string | null;
 }
 
 export type SavingsProductUpdateIn = SavingsProductCreateIn;

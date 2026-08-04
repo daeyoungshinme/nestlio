@@ -93,6 +93,12 @@ export function savingsProductTypeLabel(type: SavingsProductType): string {
   return SAVINGS_PRODUCT_TYPE_LABEL[type];
 }
 
+export function returnRateTextColor(pct: number): string {
+  if (pct > 0) return "text-red-600 dark:text-red-400";
+  if (pct < 0) return "text-blue-600 dark:text-blue-400";
+  return "text-gray-500 dark:text-gray-400";
+}
+
 export type InviteStatus = "pending" | "accepted" | "expired";
 
 const INVITE_STATUS_TEXT: Record<InviteStatus, string> = {

@@ -16,6 +16,9 @@ class CashflowPlanItemOut(BaseModel):
     owner_user_id: uuid.UUID | None
     name: str
     amount: Decimal
+    category_id: int | None = None
+    category_name: str | None = None
+    category_color: str | None = None
     sort_order: int
     installment_no: int | None = None
     installment_total: int | None = None
@@ -29,6 +32,7 @@ class CashflowPlanItemUpsertIn(BaseModel):
     owner_user_id: uuid.UUID | None = None
     name: str
     amount: Decimal
+    category_id: int | None = None
     sort_order: int = 0
 
 
@@ -38,6 +42,7 @@ class CashflowPlanItemSplitIn(BaseModel):
     name: str
     total_amount: Decimal
     start_year_month: str
+    category_id: int | None = None
     sort_order: int = 0
 
 

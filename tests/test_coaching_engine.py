@@ -4,7 +4,7 @@ from decimal import Decimal
 import pytest
 
 from app.services import (
-    budget_service,
+    cashflow_plan_service,
     coaching_engine,
     goal_service,
     net_worth_service,
@@ -22,6 +22,7 @@ from app.services.coaching_engine import (
     goal_pace_insight,
     savings_execution_insight,
     savings_rate_insight,
+    savings_streak_months,
     variable_spend_trend_insights,
 )
 
@@ -223,6 +224,32 @@ def test_emergency_fund_skips_when_no_balance_set():
     assert emergency_fund_insight(None, Decimal("1000000")) is None
 
 
+# --- savings streak: consecutive trailing months meeting target, counted from the most recent -
+
+def _trend_row(income, expense):
+    return {"income": Decimal(income), "expense": Decimal(expense)}
+
+
+def test_savings_streak_counts_consecutive_months_hitting_target():
+    trend = [_trend_row(2_000_000, 1_500_000) for _ in range(3)]  # 500,000 savings each month
+    assert savings_streak_months(trend, Decimal("500000")) == 3
+
+
+def test_savings_streak_stops_at_first_miss_from_the_end():
+    trend = [
+        _trend_row(2_000_000, 1_500_000),  # met (oldest)
+        _trend_row(2_000_000, 1_900_000),  # missed
+        _trend_row(2_000_000, 1_500_000),  # met
+        _trend_row(2_000_000, 1_500_000),  # met (most recent)
+    ]
+    assert savings_streak_months(trend, Decimal("500000")) == 2
+
+
+def test_savings_streak_is_zero_without_a_target():
+    trend = [_trend_row(2_000_000, 1_500_000)]
+    assert savings_streak_months(trend, Decimal("0")) == 0
+
+
 # --- end-to-end wiring through compute_insights (uses real DB-backed services) -------------
 
 def test_compute_insights_end_to_end(seeded_db):
@@ -230,7 +257,9 @@ def test_compute_insights_end_to_end(seeded_db):
     ym = "2026-07"
     transaction_service.create_transaction(db, user.id, rent.id, "income", Decimal("3000000"), date(2026, 7, 1))
     transaction_service.create_transaction(db, user.id, rent.id, "expense", Decimal("1600000"), date(2026, 7, 2))  # 53% fixed
-    budget_service.upsert_budget(db, food.id, ym, Decimal("100000"), user.id)
+    cashflow_plan_service.upsert_item(
+        db, None, food.type, None, food.name, Decimal("100000"), 0, ym, user.id, category_id=food.id
+    )
     transaction_service.create_transaction(db, user.id, food.id, "expense", Decimal("100000"), date(2026, 7, 10))
 
     insights = coaching_engine.compute_insights(db, ym)

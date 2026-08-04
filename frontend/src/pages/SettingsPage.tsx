@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { CheckCircle2, Copy, Mail, Moon, Sun, UserPlus, X, XCircle } from "lucide-react";
+import { CheckCircle2, ChevronDown, Copy, Mail, Moon, Sun, UserPlus, X, XCircle } from "lucide-react";
 import { Link } from "react-router-dom";
 import Button from "@/components/common/Button";
 import FormInput from "@/components/common/FormInput";
@@ -46,6 +46,7 @@ export default function SettingsPage() {
   const [couplePhotoFile, setCouplePhotoFile] = useState<File | null>(null);
   const [inviteEmail, setInviteEmail] = useState("");
   const [thresholdEdits, setThresholdEdits] = useState<Partial<CoachingThresholdsOut>>({});
+  const [thresholdsOpen, setThresholdsOpen] = useState(false);
   const queryClient = useQueryClient();
   const logout = useLogout();
   const { isDark, toggle: toggleTheme } = useThemeStore();
@@ -297,36 +298,51 @@ export default function SettingsPage() {
       </div>
 
       <div className="card space-y-3">
-        <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300">코칭 임계값</h3>
-        <p className="text-xs text-gray-500 dark:text-gray-400">
-          대시보드 코칭 인사이트가 발동하는 기준(%)이에요. 두 분의 소비 성향에 맞게 조정할 수 있어요.
-        </p>
-        <div className="grid grid-cols-2 gap-3">
-          {THRESHOLD_FIELDS.map(({ key, label }) => (
-            <FormInput
-              key={key}
-              label={label}
-              type="number"
-              min={0}
-              max={999}
-              step={1}
-              value={thresholdEdits[key] ?? data.coaching_thresholds[key]}
-              onChange={(e) =>
-                setThresholdEdits((prev) => ({ ...prev, [key]: Number(e.target.value) }))
-              }
-            />
-          ))}
-        </div>
-        <Button
-          size="sm"
-          disabled={Object.keys(thresholdEdits).length === 0}
-          loading={thresholdsMutation.isPending}
-          onClick={() =>
-            thresholdsMutation.mutate({ ...data.coaching_thresholds, ...thresholdEdits })
-          }
+        <button
+          type="button"
+          onClick={() => setThresholdsOpen((prev) => !prev)}
+          aria-expanded={thresholdsOpen}
+          className="w-full flex items-center justify-between gap-2 min-h-[44px]"
         >
-          저장
-        </Button>
+          <span className="text-sm font-semibold text-gray-700 dark:text-gray-300">고급: 코칭 기준값</span>
+          <ChevronDown
+            size={16}
+            className={`text-gray-400 transition-transform duration-200 ${thresholdsOpen ? "rotate-180" : ""}`}
+          />
+        </button>
+        {thresholdsOpen && (
+          <>
+            <p className="text-xs text-gray-500 dark:text-gray-400">
+              대시보드 코칭 인사이트가 발동하는 기준(%)이에요. 두 분의 소비 성향에 맞게 조정할 수 있어요.
+            </p>
+            <div className="grid grid-cols-2 gap-3">
+              {THRESHOLD_FIELDS.map(({ key, label }) => (
+                <FormInput
+                  key={key}
+                  label={label}
+                  type="number"
+                  min={0}
+                  max={999}
+                  step={1}
+                  value={thresholdEdits[key] ?? data.coaching_thresholds[key]}
+                  onChange={(e) =>
+                    setThresholdEdits((prev) => ({ ...prev, [key]: Number(e.target.value) }))
+                  }
+                />
+              ))}
+            </div>
+            <Button
+              size="sm"
+              disabled={Object.keys(thresholdEdits).length === 0}
+              loading={thresholdsMutation.isPending}
+              onClick={() =>
+                thresholdsMutation.mutate({ ...data.coaching_thresholds, ...thresholdEdits })
+              }
+            >
+              저장
+            </Button>
+          </>
+        )}
       </div>
 
       <p className="text-xs text-gray-500 dark:text-gray-400 px-1">

@@ -3,6 +3,7 @@ from typing import Literal
 
 from pydantic import BaseModel
 
+from app.schemas.challenge import ChallengeOut
 from app.schemas.coaching import InsightOut
 from app.schemas.common import CategoryAmountOut, TotalsOut, TrendRowOut, UserTotalsOut
 
@@ -17,6 +18,8 @@ class DashboardOut(BaseModel):
     trend: list[TrendRowOut]
     insights: list[InsightOut]
     current_ym: str
+    savings_streak_months: int
+    active_challenge: ChallengeOut | None = None
 
 
 class MonthlyRetrospectiveOut(BaseModel):

@@ -3,6 +3,8 @@ import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { Loader2, PiggyBank } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { useAuthStore } from "@/stores/authStore";
+import { acceptInvite } from "@/api/invites";
+import { extractErrorMessage } from "@/utils/error";
 
 // 다른 기기/브라우저에서 링크를 열어 PKCE code_verifier가 없는 경우 등
 // SIGNED_IN 이벤트가 영영 오지 않을 수 있어 무한 대기를 방지
@@ -36,6 +38,9 @@ export default function AuthCallbackPage() {
   const checkAuth = useAuthStore((s) => s.checkAuth);
   const settledRef = useRef(!!initialError);
 
+  const inviteToken = searchParams.get("invite_token");
+  const inviteDisplayName = searchParams.get("display_name") ?? "";
+
   useEffect(() => {
     if (initialError) return;
 
@@ -44,6 +49,15 @@ export default function AuthCallbackPage() {
       settledRef.current = true;
       window.clearTimeout(timeout);
       await checkAuth();
+      if (inviteToken) {
+        try {
+          await acceptInvite(inviteToken, { display_name: inviteDisplayName });
+        } catch (err) {
+          setErrorMessage(extractErrorMessage(err, "초대 수락 중 오류가 발생했습니다"));
+          setState("error");
+          return;
+        }
+      }
       setState("success");
     };
 

@@ -1,3 +1,5 @@
+import logging
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
@@ -7,9 +9,9 @@ from app.models.user import User
 from app.schemas.challenge import ChallengeCreateIn, ChallengeOut, ChallengeProgressIn, ChallengeUpdateIn
 from app.services import challenge_service, notification_service
 from app.services.challenge_service import ChallengeNotFoundError
-from app.services.google_auth import is_connected
 
 router = APIRouter(prefix="/challenges", tags=["challenges"])
+logger = logging.getLogger(__name__)
 
 
 @router.get("", response_model=list[ChallengeOut])
@@ -68,8 +70,10 @@ def update_progress(
         challenge = challenge_service.update_progress(db, challenge_id, payload.current_amount)
     except ChallengeNotFoundError:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "챌린지를 찾을 수 없습니다.")
-    if is_connected():
+    try:
         notification_service.check_and_celebrate_challenge(db, challenge.id)
+    except Exception:
+        logger.exception("챌린지 성공 축하 알림 처리 실패 (진행률은 정상 저장됨)")
     return challenge_service.to_out(challenge)
 
 

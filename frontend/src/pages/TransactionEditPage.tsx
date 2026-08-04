@@ -84,6 +84,7 @@ export default function TransactionEditPage() {
           accounts={accounts}
           savingsProducts={savingsProducts}
           layout="stack"
+          isNew={false}
           submitLabel="저장"
           submitting={updateMutation.isPending}
           initialValues={{
