@@ -26,6 +26,7 @@ def create_goal(payload: FinancialGoalCreateIn, db: Session = Depends(get_db), _
         payload.required_amount,
         payload.monthly_saving_amount,
         payload.current_amount,
+        payload.primary_savings_product_id,
     )
     if is_connected():
         notification_service.check_and_celebrate_goal_milestone(db, goal.id)
@@ -48,6 +49,7 @@ def update_goal(
         payload.required_amount,
         payload.monthly_saving_amount,
         payload.current_amount,
+        payload.primary_savings_product_id,
     )
     if goal is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "재무목표를 찾을 수 없습니다.")

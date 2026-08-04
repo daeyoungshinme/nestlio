@@ -1,6 +1,10 @@
 from datetime import date
 from decimal import Decimal
 
+import pytest
+
+from app.models.category import Category
+from app.models.savings_product import SavingsProduct
 from app.models.user import User
 from app.services import transaction_service
 
@@ -126,3 +130,174 @@ def test_category_monthly_trend_folds_extra_categories_into_other(seeded_db):
     other_series = trend["series"][-1]
     assert other_series["category_id"] is None
     assert other_series["amounts"] == [Decimal("100000")]
+
+
+def _add_savings_category_and_product(db):
+    category = Category(name="저축/투자", type="fixed", color="#10b981", is_savings=True, sort_order=0)
+    product = SavingsProduct(name="적금", current_balance=Decimal("100000"), monthly_saving_amount=Decimal("0"))
+    db.add_all([category, product])
+    db.commit()
+    db.refresh(category)
+    db.refresh(product)
+    return category, product
+
+
+def test_create_transaction_with_savings_product_link_increments_balance(seeded_db):
+    db, user = seeded_db["db"], seeded_db["user"]
+    savings_category, product = _add_savings_category_and_product(db)
+
+    transaction_service.create_transaction(
+        db,
+        user.id,
+        savings_category.id,
+        "expense",
+        Decimal("50000"),
+        date(2026, 7, 1),
+        savings_product_id=product.id,
+    )
+
+    db.refresh(product)
+    assert product.current_balance == Decimal("150000")
+
+
+def test_create_transaction_savings_link_rejects_non_savings_category(seeded_db):
+    db, user, food = seeded_db["db"], seeded_db["user"], seeded_db["food"]
+    _, product = _add_savings_category_and_product(db)
+
+    with pytest.raises(ValueError):
+        transaction_service.create_transaction(
+            db, user.id, food.id, "expense", Decimal("10000"), date(2026, 7, 1), savings_product_id=product.id
+        )
+
+
+def test_create_transaction_savings_link_rejects_income_type(seeded_db):
+    db, user = seeded_db["db"], seeded_db["user"]
+    savings_category, product = _add_savings_category_and_product(db)
+
+    with pytest.raises(ValueError):
+        transaction_service.create_transaction(
+            db,
+            user.id,
+            savings_category.id,
+            "income",
+            Decimal("10000"),
+            date(2026, 7, 1),
+            savings_product_id=product.id,
+        )
+
+
+def test_update_transaction_savings_link_amount_change_adjusts_balance(seeded_db):
+    db, user = seeded_db["db"], seeded_db["user"]
+    savings_category, product = _add_savings_category_and_product(db)
+    tx = transaction_service.create_transaction(
+        db,
+        user.id,
+        savings_category.id,
+        "expense",
+        Decimal("50000"),
+        date(2026, 7, 1),
+        savings_product_id=product.id,
+    )
+
+    transaction_service.update_transaction(
+        db,
+        tx.id,
+        amount=Decimal("80000"),
+        type="expense",
+        category_id=savings_category.id,
+        transaction_date=date(2026, 7, 1),
+        description=None,
+        payment_method=None,
+        account_id=None,
+        savings_product_id=product.id,
+    )
+
+    db.refresh(product)
+    assert product.current_balance == Decimal("180000")
+
+
+def test_update_transaction_removing_savings_link_reverts_balance(seeded_db):
+    db, user = seeded_db["db"], seeded_db["user"]
+    savings_category, product = _add_savings_category_and_product(db)
+    tx = transaction_service.create_transaction(
+        db,
+        user.id,
+        savings_category.id,
+        "expense",
+        Decimal("50000"),
+        date(2026, 7, 1),
+        savings_product_id=product.id,
+    )
+
+    transaction_service.update_transaction(
+        db,
+        tx.id,
+        amount=Decimal("50000"),
+        type="expense",
+        category_id=savings_category.id,
+        transaction_date=date(2026, 7, 1),
+        description=None,
+        payment_method=None,
+        account_id=None,
+        savings_product_id=None,
+    )
+
+    db.refresh(product)
+    assert product.current_balance == Decimal("100000")
+
+
+def test_delete_transaction_with_savings_link_reverts_balance(seeded_db):
+    db, user = seeded_db["db"], seeded_db["user"]
+    savings_category, product = _add_savings_category_and_product(db)
+    tx = transaction_service.create_transaction(
+        db,
+        user.id,
+        savings_category.id,
+        "expense",
+        Decimal("50000"),
+        date(2026, 7, 1),
+        savings_product_id=product.id,
+    )
+
+    transaction_service.delete_transaction(db, tx.id)
+
+    db.refresh(product)
+    assert product.current_balance == Decimal("100000")
+
+
+def test_period_totals_excludes_savings_linked_transactions(seeded_db):
+    db, user, food = seeded_db["db"], seeded_db["user"], seeded_db["food"]
+    savings_category, product = _add_savings_category_and_product(db)
+    transaction_service.create_transaction(db, user.id, food.id, "expense", Decimal("50000"), date(2026, 7, 10))
+    transaction_service.create_transaction(
+        db,
+        user.id,
+        savings_category.id,
+        "expense",
+        Decimal("300000"),
+        date(2026, 7, 1),
+        savings_product_id=product.id,
+    )
+
+    totals = transaction_service.period_totals(db, date(2026, 7, 1), date(2026, 7, 31))
+
+    assert totals["expense"] == Decimal("50000")
+    assert totals["fixed"] == Decimal("0")
+
+
+def test_category_breakdown_excludes_savings_linked_transactions(seeded_db):
+    db, user = seeded_db["db"], seeded_db["user"]
+    savings_category, product = _add_savings_category_and_product(db)
+    transaction_service.create_transaction(
+        db,
+        user.id,
+        savings_category.id,
+        "expense",
+        Decimal("300000"),
+        date(2026, 7, 1),
+        savings_product_id=product.id,
+    )
+
+    breakdown = transaction_service.category_breakdown(db, date(2026, 7, 1), date(2026, 7, 31), "expense")
+
+    assert breakdown == []

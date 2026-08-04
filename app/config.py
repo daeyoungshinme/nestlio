@@ -15,6 +15,13 @@ class Settings(BaseSettings):
     # React SPA(dev: Vite, prod: 별도 오리진)에서의 요청을 허용
     cors_origins: list[str] = ["http://localhost:5273"]
 
+    # 프론트엔드 SPA의 오리진 (초대 이메일에 넣을 가입 링크 조립용)
+    app_base_url: str = "http://localhost:5273"
+
+    # growlio(자산관리, 별도 서비스) 백엔드 — 저축상품 잔액 자동 동기화용 읽기전용 API 호출.
+    # 비어 있으면 동기화 기능 자체를 비활성화한다 (savings_product_service.sync_from_growlio).
+    growlio_api_base_url: str = ""
+
     savings_rate_warn: float = 20
     savings_rate_critical: float = 10
     fixed_cost_ratio_warn: float = 40

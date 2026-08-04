@@ -1,25 +1,26 @@
 import { useState } from "react";
 import type { FormEvent } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Pencil, Plus, Trash2 } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+import { Plus } from "lucide-react";
 import Button from "@/components/common/Button";
 import ConfirmModal from "@/components/common/ConfirmModal";
 import EmptyState from "@/components/common/EmptyState";
 import FormInput from "@/components/common/FormInput";
 import Modal from "@/components/common/Modal";
+import RowActionButtons from "@/components/common/RowActionButtons";
 import SkeletonCard from "@/components/common/SkeletonCard";
 import { createLoan, deactivateLoan, fetchLoans, updateLoan } from "@/api/loans";
 import { QUERY_KEYS } from "@/constants/queryKeys";
 import { INPUT_SM, LABEL_SM } from "@/constants/inputStyles";
-import { formatKrw, formatKrwPreview } from "@/utils/format";
-import { extractErrorMessage } from "@/utils/error";
-import { toast } from "@/utils/toast";
+import { useCrudMutations } from "@/hooks/useCrudMutations";
+import { formatKrw, formatKrwPreview, toAmountInputValue } from "@/utils/format";
 import type { LoanOut, RepaymentMethod } from "@/types";
 
 const REPAYMENT_METHOD_LABEL: Record<RepaymentMethod, string> = {
   equal_payment: "원리금균등",
   equal_principal: "원금균등",
   bullet: "만기일시상환",
+  grace_period: "거치식",
   other: "기타",
 };
 
@@ -46,8 +47,8 @@ const EMPTY_DRAFT: Draft = {
 function draftFromLoan(loan: LoanOut): Draft {
   return {
     name: loan.name,
-    balance: loan.balance,
-    monthly_payment: loan.monthly_payment,
+    balance: toAmountInputValue(loan.balance),
+    monthly_payment: toAmountInputValue(loan.monthly_payment),
     origination_year_month: loan.origination_year_month ?? "",
     term_months: loan.term_months !== null ? String(loan.term_months) : "",
     interest_rate: loan.interest_rate ?? "",
@@ -70,40 +71,16 @@ function toPayload(draft: Draft) {
 export default function LoansSection() {
   const [formTarget, setFormTarget] = useState<"new" | LoanOut | null>(null);
   const [deactivateTarget, setDeactivateTarget] = useState<number | null>(null);
-  const queryClient = useQueryClient();
 
   const { data, isLoading } = useQuery({ queryKey: QUERY_KEYS.loans, queryFn: fetchLoans });
 
-  const invalidate = () => queryClient.invalidateQueries({ queryKey: QUERY_KEYS.loans });
-
-  const createMutation = useMutation({
-    mutationFn: createLoan,
-    onSuccess: () => {
-      void invalidate();
-      setFormTarget(null);
-      toast("대출을 추가했습니다.", "success");
-    },
-    onError: (err) => toast(extractErrorMessage(err), "error"),
-  });
-
-  const updateMutation = useMutation({
-    mutationFn: ({ id, ...payload }: { id: number } & Parameters<typeof updateLoan>[1]) => updateLoan(id, payload),
-    onSuccess: () => {
-      void invalidate();
-      setFormTarget(null);
-      toast("저장했습니다.", "success");
-    },
-    onError: (err) => toast(extractErrorMessage(err), "error"),
-  });
-
-  const deactivateMutation = useMutation({
-    mutationFn: deactivateLoan,
-    onSuccess: () => {
-      void invalidate();
-      setDeactivateTarget(null);
-      toast("비활성화했습니다.", "success");
-    },
-    onError: (err) => toast(extractErrorMessage(err), "error"),
+  const { createMutation, updateMutation, removeMutation: deactivateMutation } = useCrudMutations({
+    invalidateKeys: [QUERY_KEYS.loans],
+    api: { create: createLoan, update: updateLoan, remove: deactivateLoan },
+    messages: { create: "대출을 추가했습니다.", update: "저장했습니다.", remove: "비활성화했습니다." },
+    onCreateSuccess: () => setFormTarget(null),
+    onUpdateSuccess: () => setFormTarget(null),
+    onRemoveSuccess: () => setDeactivateTarget(null),
   });
 
   if (isLoading || !data) {
@@ -118,7 +95,7 @@ export default function LoansSection() {
     if (formTarget === "new") {
       createMutation.mutate(toPayload(draft));
     } else if (formTarget) {
-      updateMutation.mutate({ id: formTarget.id, ...toPayload(draft) });
+      updateMutation.mutate({ id: formTarget.id, payload: toPayload(draft) });
     }
   };
 
@@ -143,22 +120,11 @@ export default function LoansSection() {
                   {loan.repayment_method ? ` · ${REPAYMENT_METHOD_LABEL[loan.repayment_method]}` : ""}
                 </p>
               </div>
-              <div className="flex items-center gap-1 shrink-0">
-                <button
-                  onClick={() => setFormTarget(loan)}
-                  className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-950 rounded-lg transition-colors"
-                  aria-label="수정"
-                >
-                  <Pencil size={16} />
-                </button>
-                <button
-                  onClick={() => setDeactivateTarget(loan.id)}
-                  className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950 rounded-lg transition-colors"
-                  aria-label="비활성화"
-                >
-                  <Trash2 size={16} />
-                </button>
-              </div>
+              <RowActionButtons
+                onEdit={() => setFormTarget(loan)}
+                onDelete={() => setDeactivateTarget(loan.id)}
+                deleteLabel="비활성화"
+              />
             </div>
           ))}
           <div className="flex justify-end gap-6 pt-1 text-sm font-semibold text-gray-900 dark:text-gray-50">
@@ -246,7 +212,7 @@ function LoanFormModal({
         <div className="grid grid-cols-2 gap-3">
           <FormInput
             label="대출연월"
-            placeholder="YYYY-MM"
+            type="month"
             value={draft.origination_year_month}
             onChange={(e) => setDraft((d) => ({ ...d, origination_year_month: e.target.value }))}
             className="w-full"

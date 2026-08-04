@@ -1,18 +1,17 @@
 import { useState } from "react";
 import type { FormEvent } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Trash2 } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
 import Button from "@/components/common/Button";
 import ConfirmModal from "@/components/common/ConfirmModal";
 import EmptyState from "@/components/common/EmptyState";
 import FormInput from "@/components/common/FormInput";
+import RowActionButtons from "@/components/common/RowActionButtons";
 import SkeletonCard from "@/components/common/SkeletonCard";
 import { INLINE_BUTTON_OFFSET, INPUT_SM, LABEL_SM } from "@/constants/inputStyles";
 import { createAccount, deactivateAccount, fetchAccounts } from "@/api/accounts";
 import { QUERY_KEYS } from "@/constants/queryKeys";
+import { useCrudMutations } from "@/hooks/useCrudMutations";
 import { formatKrw, formatKrwPreview } from "@/utils/format";
-import { extractErrorMessage } from "@/utils/error";
-import { toast } from "@/utils/toast";
 import type { AccountOut } from "@/types";
 
 const ACCOUNT_TYPE_LABEL: Record<AccountOut["account_type"], string> = {
@@ -24,28 +23,15 @@ const ACCOUNT_TYPE_LABEL: Record<AccountOut["account_type"], string> = {
 export default function AccountsSection() {
   const [deactivateTarget, setDeactivateTarget] = useState<number | null>(null);
   const [form, setForm] = useState({ name: "", account_type: "bank" as AccountOut["account_type"], initial_balance: "0" });
-  const queryClient = useQueryClient();
 
   const { data, isLoading } = useQuery({ queryKey: QUERY_KEYS.accounts, queryFn: fetchAccounts });
 
-  const createMutation = useMutation({
-    mutationFn: createAccount,
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ["accounts"] });
-      toast("계좌를 추가했습니다.", "success");
-      setForm({ name: "", account_type: "bank", initial_balance: "0" });
-    },
-    onError: (err) => toast(extractErrorMessage(err), "error"),
-  });
-
-  const deactivateMutation = useMutation({
-    mutationFn: deactivateAccount,
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ["accounts"] });
-      setDeactivateTarget(null);
-      toast("계좌를 비활성화했습니다.", "success");
-    },
-    onError: (err) => toast(extractErrorMessage(err), "error"),
+  const { createMutation, removeMutation: deactivateMutation } = useCrudMutations({
+    invalidateKeys: [QUERY_KEYS.accounts],
+    api: { create: createAccount, remove: deactivateAccount },
+    messages: { create: "계좌를 추가했습니다.", remove: "계좌를 비활성화했습니다." },
+    onCreateSuccess: () => setForm({ name: "", account_type: "bank", initial_balance: "0" }),
+    onRemoveSuccess: () => setDeactivateTarget(null),
   });
 
   const handleSubmit = (e: FormEvent) => {
@@ -107,13 +93,7 @@ export default function AccountsSection() {
                 <p className="text-xs text-gray-500 dark:text-gray-400">{ACCOUNT_TYPE_LABEL[account.account_type]}</p>
                 <p className="mt-1 text-base font-bold text-gray-900 dark:text-gray-50">{formatKrw(balance)}</p>
               </div>
-              <button
-                onClick={() => setDeactivateTarget(account.id)}
-                className="shrink-0 p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950 rounded-lg transition-colors"
-                aria-label="비활성화"
-              >
-                <Trash2 size={16} />
-              </button>
+              <RowActionButtons onDelete={() => setDeactivateTarget(account.id)} deleteLabel="비활성화" />
             </div>
           ))}
         </div>

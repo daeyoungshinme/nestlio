@@ -1,26 +1,28 @@
 import { useState } from "react";
 import type { FormEvent } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Pencil, Plus, Trash2 } from "lucide-react";
+import { Link2, Plus } from "lucide-react";
 import Button from "@/components/common/Button";
 import ConfirmModal from "@/components/common/ConfirmModal";
 import EmptyState from "@/components/common/EmptyState";
 import FormInput from "@/components/common/FormInput";
 import Modal from "@/components/common/Modal";
 import ProgressBar from "@/components/common/ProgressBar";
+import RowActionButtons from "@/components/common/RowActionButtons";
 import SkeletonCard from "@/components/common/SkeletonCard";
 import { fetchDashboard } from "@/api/dashboard";
 import { createGoal, deleteGoal, fetchGoals, updateGoal } from "@/api/goals";
+import { fetchSavingsProducts } from "@/api/savingsProducts";
 import { fetchSettings, setEmergencyFund } from "@/api/settings";
-import { INLINE_BUTTON_OFFSET } from "@/constants/inputStyles";
+import { FORM_LABEL, INLINE_BUTTON_OFFSET, SELECT_SM } from "@/constants/inputStyles";
 import { QUERY_KEYS } from "@/constants/queryKeys";
 import { STALE_TIME } from "@/constants/queryConfig";
-import { TOUCH_TARGET_MIN_MOBILE_ONLY } from "@/constants/uiSizes";
+import { useCrudMutations } from "@/hooks/useCrudMutations";
 import { insightSeverityStyle } from "@/utils/colors";
 import { formatKrw, formatKrwPreview, formatPercent, toAmountInputValue } from "@/utils/format";
 import { extractErrorMessage } from "@/utils/error";
 import { toast } from "@/utils/toast";
-import type { FinancialGoalOut } from "@/types";
+import type { FinancialGoalOut, SavingsProductOut } from "@/types";
 
 interface Draft {
   priority: string;
@@ -29,6 +31,7 @@ interface Draft {
   required_amount: string;
   monthly_saving_amount: string;
   current_amount: string;
+  primary_savings_product_id: string;
 }
 
 const EMPTY_DRAFT: Draft = {
@@ -38,6 +41,7 @@ const EMPTY_DRAFT: Draft = {
   required_amount: "0",
   monthly_saving_amount: "0",
   current_amount: "0",
+  primary_savings_product_id: "",
 };
 
 function draftFromGoal(goal: FinancialGoalOut): Draft {
@@ -48,6 +52,8 @@ function draftFromGoal(goal: FinancialGoalOut): Draft {
     required_amount: toAmountInputValue(goal.required_amount),
     monthly_saving_amount: toAmountInputValue(goal.monthly_saving_amount),
     current_amount: toAmountInputValue(goal.current_amount),
+    primary_savings_product_id:
+      goal.primary_savings_product_id !== null ? String(goal.primary_savings_product_id) : "",
   };
 }
 
@@ -59,6 +65,8 @@ function toPayload(draft: Draft) {
     required_amount: draft.required_amount,
     monthly_saving_amount: draft.monthly_saving_amount,
     current_amount: draft.current_amount,
+    primary_savings_product_id:
+      draft.primary_savings_product_id === "" ? null : Number(draft.primary_savings_product_id),
   };
 }
 
@@ -77,7 +85,16 @@ export default function FinancialGoalsSection() {
   const queryClient = useQueryClient();
 
   const { data, isLoading } = useQuery({ queryKey: QUERY_KEYS.financialGoals, queryFn: fetchGoals });
-  const { data: settingsData } = useQuery({ queryKey: QUERY_KEYS.settings, queryFn: fetchSettings });
+  const { data: savingsProducts } = useQuery({
+    queryKey: QUERY_KEYS.savingsProducts,
+    queryFn: fetchSavingsProducts,
+    staleTime: STALE_TIME.MEDIUM,
+  });
+  const { data: settingsData } = useQuery({
+    queryKey: QUERY_KEYS.settings,
+    queryFn: fetchSettings,
+    staleTime: STALE_TIME.MEDIUM,
+  });
   const { data: dashboard } = useQuery({
     queryKey: QUERY_KEYS.dashboard("month"),
     queryFn: () => fetchDashboard("month"),
@@ -88,42 +105,19 @@ export default function FinancialGoalsSection() {
     mutationFn: setEmergencyFund,
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.settings });
-      void queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+      void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.dashboardAll });
       toast("비상금 잔액이 저장되었습니다.", "success");
     },
     onError: (err) => toast(extractErrorMessage(err), "error"),
   });
 
-  const invalidate = () => queryClient.invalidateQueries({ queryKey: QUERY_KEYS.financialGoals });
-
-  const createMutation = useMutation({
-    mutationFn: createGoal,
-    onSuccess: () => {
-      void invalidate();
-      setFormTarget(null);
-      toast("재무목표를 추가했습니다.", "success");
-    },
-    onError: (err) => toast(extractErrorMessage(err), "error"),
-  });
-
-  const updateMutation = useMutation({
-    mutationFn: ({ id, ...payload }: { id: number } & Parameters<typeof updateGoal>[1]) => updateGoal(id, payload),
-    onSuccess: () => {
-      void invalidate();
-      setFormTarget(null);
-      toast("저장했습니다.", "success");
-    },
-    onError: (err) => toast(extractErrorMessage(err), "error"),
-  });
-
-  const deleteMutation = useMutation({
-    mutationFn: deleteGoal,
-    onSuccess: () => {
-      void invalidate();
-      setDeleteTarget(null);
-      toast("삭제했습니다.", "success");
-    },
-    onError: (err) => toast(extractErrorMessage(err), "error"),
+  const { createMutation, updateMutation, removeMutation: deleteMutation } = useCrudMutations({
+    invalidateKeys: [QUERY_KEYS.financialGoals],
+    api: { create: createGoal, update: updateGoal, remove: deleteGoal },
+    messages: { create: "재무목표를 추가했습니다.", update: "저장했습니다.", remove: "삭제했습니다." },
+    onCreateSuccess: () => setFormTarget(null),
+    onUpdateSuccess: () => setFormTarget(null),
+    onRemoveSuccess: () => setDeleteTarget(null),
   });
 
   if (isLoading || !data) {
@@ -148,7 +142,7 @@ export default function FinancialGoalsSection() {
       createMutation.mutate(toPayload(draft), { onSuccess: (goal) => celebrateIfCrossed(oldPct, goal) });
     } else if (formTarget) {
       updateMutation.mutate(
-        { id: formTarget.id, ...toPayload(draft) },
+        { id: formTarget.id, payload: toPayload(draft) },
         { onSuccess: (goal) => celebrateIfCrossed(oldPct, goal) },
       );
     }
@@ -206,27 +200,21 @@ export default function FinancialGoalsSection() {
                     <p className="text-xs text-gray-500 dark:text-gray-400 truncate">
                       {goal.priority}순위{goal.target_age !== null ? ` · ${goal.target_age}세까지` : ""}
                     </p>
-                    <p className="text-sm font-semibold text-gray-900 dark:text-gray-50 truncate">{goal.name}</p>
+                    <div className="flex items-center gap-1.5">
+                      <p className="text-sm font-semibold text-gray-900 dark:text-gray-50 truncate">{goal.name}</p>
+                      {goal.primary_savings_product_name && (
+                        <span className="shrink-0 flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[11px] font-medium bg-blue-50 text-blue-700 dark:bg-blue-950 dark:text-blue-300">
+                          <Link2 size={11} />
+                          {goal.primary_savings_product_name}
+                        </span>
+                      )}
+                    </div>
                     <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5 truncate">
-                      {formatKrw(goal.current_amount)} / {formatKrw(goal.required_amount)} · 월 {formatKrw(goal.monthly_saving_amount)}
+                      {goal.primary_savings_product_name ? "실제 잔액" : "현재 저축액"} {formatKrw(goal.current_amount)} / 목표{" "}
+                      {formatKrw(goal.required_amount)} · 월 {formatKrw(goal.monthly_saving_amount)}
                     </p>
                   </div>
-                  <div className="flex items-center gap-1 shrink-0">
-                    <button
-                      onClick={() => setFormTarget(goal)}
-                      className={`${TOUCH_TARGET_MIN_MOBILE_ONLY} p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-950 rounded-lg transition-colors`}
-                      aria-label="수정"
-                    >
-                      <Pencil size={16} />
-                    </button>
-                    <button
-                      onClick={() => setDeleteTarget(goal.id)}
-                      className={`${TOUCH_TARGET_MIN_MOBILE_ONLY} p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950 rounded-lg transition-colors`}
-                      aria-label="삭제"
-                    >
-                      <Trash2 size={16} />
-                    </button>
-                  </div>
+                  <RowActionButtons onEdit={() => setFormTarget(goal)} onDelete={() => setDeleteTarget(goal.id)} />
                 </div>
                 <div className="flex items-center gap-3">
                   <div className="flex-1">
@@ -256,6 +244,7 @@ export default function FinancialGoalsSection() {
           title={formTarget === "new" ? "재무목표 추가" : "재무목표 수정"}
           submitLabel={formTarget === "new" ? "추가" : "저장"}
           submitting={isSaving}
+          savingsProducts={savingsProducts ?? []}
           onClose={() => setFormTarget(null)}
           onSubmit={handleSubmit}
         />
@@ -277,6 +266,7 @@ function GoalFormModal({
   title,
   submitLabel,
   submitting,
+  savingsProducts,
   onClose,
   onSubmit,
 }: {
@@ -284,10 +274,12 @@ function GoalFormModal({
   title: string;
   submitLabel: string;
   submitting: boolean;
+  savingsProducts: SavingsProductOut[];
   onClose: () => void;
   onSubmit: (draft: Draft) => void;
 }) {
   const [draft, setDraft] = useState<Draft>(initial);
+  const isLinked = draft.primary_savings_product_id !== "";
 
   const handleSubmit = (e: FormEvent) => {
     e.preventDefault();
@@ -330,15 +322,39 @@ function GoalFormModal({
           className="w-full"
           preview={Number(draft.required_amount) > 0 ? formatKrwPreview(Number(draft.required_amount)) : undefined}
         />
-        <FormInput
-          label="현재 저축액"
-          type="number"
-          inputMode="decimal"
-          value={draft.current_amount}
-          onChange={(e) => setDraft((d) => ({ ...d, current_amount: e.target.value }))}
-          className="w-full"
-          preview={Number(draft.current_amount) > 0 ? formatKrwPreview(Number(draft.current_amount)) : undefined}
-        />
+        <div>
+          <label className={FORM_LABEL}>연동할 저축/투자 상품</label>
+          <select
+            value={draft.primary_savings_product_id}
+            onChange={(e) => setDraft((d) => ({ ...d, primary_savings_product_id: e.target.value }))}
+            className={`w-full ${SELECT_SM}`}
+          >
+            <option value="">연동 안 함 (직접 입력)</option>
+            {savingsProducts.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.name} ({formatKrw(p.current_balance)})
+              </option>
+            ))}
+          </select>
+          <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
+            상품을 연동하면 현재 저축액이 그 상품의 실제 잔액으로 자동 계산돼요.
+          </p>
+        </div>
+        {isLinked ? (
+          <div className="rounded-lg border border-gray-200 dark:border-gray-700 px-3 py-2.5 text-sm text-gray-500 dark:text-gray-400">
+            현재 저축액은 연동된 상품 잔액으로 자동 계산돼요.
+          </div>
+        ) : (
+          <FormInput
+            label="현재 저축액"
+            type="number"
+            inputMode="decimal"
+            value={draft.current_amount}
+            onChange={(e) => setDraft((d) => ({ ...d, current_amount: e.target.value }))}
+            className="w-full"
+            preview={Number(draft.current_amount) > 0 ? formatKrwPreview(Number(draft.current_amount)) : undefined}
+          />
+        )}
         <FormInput
           label="월 저축금액"
           type="number"

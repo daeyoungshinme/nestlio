@@ -20,6 +20,9 @@ export default function TransactionListItem({ tx, onEdit, onDelete, showDate, hi
         <div className="flex items-center gap-2 flex-wrap">
           <Badge type={tx.type} label={tx.type === "income" ? "수입" : "지출"} />
           {!hideCategoryBadge && <Badge type={tx.category.type} label={tx.category.name} />}
+          {tx.savings_product && (
+            <span className="text-xs text-gray-400 dark:text-gray-500">→ {tx.savings_product.name}</span>
+          )}
           {showDate && (
             <span className="text-xs text-gray-400 dark:text-gray-500">{formatDate(tx.transaction_date)}</span>
           )}

@@ -63,3 +63,76 @@ export function planStatusBarClass(status: PlanStatus): string {
 export function planStatusTextClass(status: PlanStatus): string {
   return PLAN_STATUS_TEXT[status];
 }
+
+export type SavingsProductType = "savings" | "investment";
+
+const SAVINGS_PRODUCT_TYPE_BADGE_STYLE: Record<SavingsProductType, string> = {
+  savings: "bg-emerald-50 dark:bg-emerald-950 text-emerald-600 dark:text-emerald-400",
+  investment: "bg-blue-50 dark:bg-blue-950 text-blue-600 dark:text-blue-400",
+};
+
+const SAVINGS_PRODUCT_TYPE_DOT: Record<SavingsProductType, string> = {
+  savings: "bg-emerald-500",
+  investment: "bg-blue-500",
+};
+
+const SAVINGS_PRODUCT_TYPE_LABEL: Record<SavingsProductType, string> = {
+  savings: "저축",
+  investment: "투자",
+};
+
+export function savingsProductTypeBadgeStyle(type: SavingsProductType): string {
+  return SAVINGS_PRODUCT_TYPE_BADGE_STYLE[type];
+}
+
+export function savingsProductTypeDotClass(type: SavingsProductType | undefined): string {
+  return type ? SAVINGS_PRODUCT_TYPE_DOT[type] : "bg-gray-400 dark:bg-gray-600";
+}
+
+export function savingsProductTypeLabel(type: SavingsProductType): string {
+  return SAVINGS_PRODUCT_TYPE_LABEL[type];
+}
+
+export type InviteStatus = "pending" | "accepted" | "expired";
+
+const INVITE_STATUS_TEXT: Record<InviteStatus, string> = {
+  pending: "text-blue-600 dark:text-blue-400",
+  accepted: "text-emerald-600 dark:text-emerald-400",
+  expired: "text-gray-400 dark:text-gray-500",
+};
+
+const INVITE_STATUS_LABEL: Record<InviteStatus, string> = {
+  pending: "대기중",
+  accepted: "수락됨",
+  expired: "만료됨",
+};
+
+export function inviteStatusTextClass(status: InviteStatus): string {
+  return INVITE_STATUS_TEXT[status];
+}
+
+export function inviteStatusLabel(status: InviteStatus): string {
+  return INVITE_STATUS_LABEL[status];
+}
+
+export type ChallengeStatus = "active" | "succeeded" | "expired";
+
+const CHALLENGE_STATUS_BADGE: Record<ChallengeStatus, string> = {
+  active: "bg-blue-50 dark:bg-blue-950 text-blue-700 dark:text-blue-300",
+  succeeded: "bg-emerald-50 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300",
+  expired: "bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400",
+};
+
+const CHALLENGE_STATUS_LABEL: Record<ChallengeStatus, string> = {
+  active: "진행중",
+  succeeded: "성공!",
+  expired: "기간종료",
+};
+
+export function challengeStatusBadgeClass(status: ChallengeStatus): string {
+  return CHALLENGE_STATUS_BADGE[status];
+}
+
+export function challengeStatusLabel(status: ChallengeStatus): string {
+  return CHALLENGE_STATUS_LABEL[status];
+}

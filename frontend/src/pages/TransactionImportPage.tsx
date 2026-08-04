@@ -4,6 +4,7 @@ import { Link } from "react-router-dom";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import Button from "@/components/common/Button";
 import { importTransactionsCsv } from "@/api/transactions";
+import { QUERY_KEYS } from "@/constants/queryKeys";
 import { extractErrorMessage } from "@/utils/error";
 import { TOUCH_TARGET_ROW } from "@/constants/uiSizes";
 import type { ImportResultOut } from "@/types";
@@ -19,8 +20,8 @@ export default function TransactionImportPage() {
     onSuccess: (data) => {
       setResult(data);
       setError("");
-      void queryClient.invalidateQueries({ queryKey: ["transactions"] });
-      void queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+      void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.transactionsAll });
+      void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.dashboardAll });
     },
     onError: (err) => setError(extractErrorMessage(err)),
   });

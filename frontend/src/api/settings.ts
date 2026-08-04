@@ -1,10 +1,13 @@
 import { apiDelete, apiGet, apiPost, apiPut } from "@/api/client";
-import type { SettingsOut, TestEmailResultOut } from "@/types";
+import type { CoachingThresholdsIn, SettingsOut, TestEmailResultOut } from "@/types";
 
 export const fetchSettings = () => apiGet<SettingsOut>("/settings");
 
 export const setEmergencyFund = (balance: string) =>
   apiPut<SettingsOut>("/settings/emergency-fund", { balance });
+
+export const setCoachingThresholds = (payload: CoachingThresholdsIn) =>
+  apiPut<SettingsOut>("/settings/coaching-thresholds", payload);
 
 export const uploadCouplePhoto = (file: File) => {
   const form = new FormData();

@@ -1,13 +1,30 @@
-from datetime import date, timedelta
+import uuid
+from datetime import date, datetime, timedelta
 
 from sqlalchemy.orm import Session
 
 from app.models.notification_log import NotificationLog
-from app.services import budget_service, coaching_engine, gmail_service, goal_service, transaction_service
+from app.models.notification_read import NotificationRead
+from app.services import (
+    budget_service,
+    challenge_service,
+    coaching_engine,
+    gmail_service,
+    goal_service,
+    transaction_service,
+)
 from app.utils.dates import month_bounds, week_bounds, year_month_str
 
 # progress-percent thresholds that trigger a "milestone reached" celebration email, ascending
 GOAL_MILESTONES = (25, 50, 75, 100)
+
+
+class NotificationError(Exception):
+    pass
+
+
+class NotificationNotFoundError(NotificationError):
+    pass
 
 
 def _already_sent(db: Session, notif_type: str, period_key: str, related_id: int | None = None) -> bool:
@@ -97,13 +114,11 @@ def send_monthly_summary(db: Session, today: date | None = None, force: bool = F
     return True
 
 
-def check_and_alert_budget_threshold(db: Session, category_id: int, year_month: str | None = None) -> bool:
-    """Send an alert if this category just crossed the warn/critical budget threshold
-    this month, deduped so each status level fires at most once per category per month."""
-    year_month = year_month or year_month_str(date.today())
-    rows = budget_service.budget_vs_actual(db, year_month)
-    row = next((r for r in rows if r["category_id"] == category_id), None)
-    if row is None or row["status"] not in ("warn", "critical") or row["budget"] <= 0:
+def _send_threshold_alert(db: Session, row: dict, year_month: str) -> bool:
+    """Send an alert for this already-computed budget_vs_actual row if it just crossed the
+    warn/critical threshold, deduped so each status level fires at most once per category per month."""
+    category_id = row["category_id"]
+    if row["status"] not in ("warn", "critical") or row["budget"] <= 0:
         return False
     period_key = f"{year_month}:{row['status']}"
     if _already_sent(db, "threshold_alert", period_key, related_id=category_id):
@@ -119,13 +134,23 @@ def check_and_alert_budget_threshold(db: Session, category_id: int, year_month: 
     return True
 
 
-def check_and_celebrate_goal_milestone(db: Session, goal_id: int) -> bool:
-    """Send a celebration email the first time a goal's progress crosses a milestone
+def check_and_alert_budget_threshold(db: Session, category_id: int, year_month: str | None = None) -> bool:
+    """Send an alert if this category just crossed the warn/critical budget threshold this month."""
+    year_month = year_month or year_month_str(date.today())
+    rows = budget_service.budget_vs_actual(db, year_month)
+    row = next((r for r in rows if r["category_id"] == category_id), None)
+    if row is None:
+        return False
+    return _send_threshold_alert(db, row, year_month)
+
+
+def _celebrate_goal_milestone(db: Session, goal) -> bool:
+    """Send a celebration email the first time this goal's progress crosses a milestone
     (25/50/75/100%), deduped per goal per milestone so re-saving the same goal doesn't
     re-send. If progress jumped past multiple milestones at once, only the highest is sent."""
-    goal = goal_service.get_goal(db, goal_id)
     if goal is None or not goal.required_amount:
         return False
+    goal_id = goal.id
     progress = float(goal.progress_pct)
     reached = [m for m in GOAL_MILESTONES if progress >= m]
     if not reached:
@@ -134,19 +159,44 @@ def check_and_celebrate_goal_milestone(db: Session, goal_id: int) -> bool:
     period_key = str(milestone)
     if _already_sent(db, "goal_milestone", period_key, related_id=goal_id):
         return False
+    congrats = "드디어 목표를 이뤘어요! 두 분이 함께 만든 결과예요." if milestone >= 100 else "두 분이 함께 여기까지 왔어요, 축하해요!"
     body = (
-        f'"{goal.name}" 목표가 {milestone}% 달성했어요! \U0001F389\n\n'
+        f'\U0001F389 "{goal.name}" 목표 {milestone}% 달성! \U0001F389\n\n'
+        f"{congrats}\n\n"
         f"현재 저축액: {goal.current_amount:,.0f}원 / 목표 {goal.required_amount:,.0f}원"
     )
-    gmail_service.send_email(f"[Nestlio] 목표 달성 축하 - {goal.name} {milestone}%", body)
+    gmail_service.send_email(f"[Nestlio] 우리 부부 목표 달성 축하 - {goal.name} {milestone}%", body)
     _log_sent(db, "goal_milestone", period_key, related_id=goal_id, related_type="goal", detail=body[:200])
+    return True
+
+
+def check_and_celebrate_goal_milestone(db: Session, goal_id: int) -> bool:
+    return _celebrate_goal_milestone(db, goal_service.get_goal(db, goal_id))
+
+
+def check_and_celebrate_challenge(db: Session, challenge_id: int) -> bool:
+    """챌린지가 목표 금액에 도달해 succeeded로 전환된 첫 순간에 축하 이메일을 보낸다,
+    goal milestone과 동일한 dedup 패턴(챌린지당 1회)."""
+    challenge = challenge_service.get_challenge(db, challenge_id)
+    if challenge.status != "succeeded":
+        return False
+    period_key = str(challenge_id)
+    if _already_sent(db, "challenge_success", period_key, related_id=challenge_id):
+        return False
+    body = (
+        f'\U0001F389 "{challenge.title}" 챌린지 성공! \U0001F389\n\n'
+        f"목표 {challenge.target_amount:,.0f}원을 두 분이 함께 달성했어요!\n\n"
+        f"현재: {challenge.current_amount:,.0f}원 / 목표 {challenge.target_amount:,.0f}원"
+    )
+    gmail_service.send_email(f"[Nestlio] 챌린지 성공 - {challenge.title}", body)
+    _log_sent(db, "challenge_success", period_key, related_id=challenge_id, related_type="challenge", detail=body[:200])
     return True
 
 
 def check_all_goal_milestones(db: Session) -> int:
     sent = 0
     for goal in goal_service.list_goals(db):
-        if check_and_celebrate_goal_milestone(db, goal.id):
+        if _celebrate_goal_milestone(db, goal):
             sent += 1
     return sent
 
@@ -156,7 +206,65 @@ def check_all_categories_threshold(db: Session, year_month: str | None = None) -
     rows = budget_service.budget_vs_actual(db, year_month)
     sent = 0
     for row in rows:
-        if row["status"] in ("warn", "critical") and row["budget"] > 0:
-            if check_and_alert_budget_threshold(db, row["category_id"], year_month):
-                sent += 1
+        if _send_threshold_alert(db, row, year_month):
+            sent += 1
     return sent
+
+
+def _read_log_ids(db: Session, user_id: uuid.UUID) -> set[int]:
+    rows = db.query(NotificationRead.notification_log_id).filter(NotificationRead.user_id == user_id).all()
+    return {row[0] for row in rows}
+
+
+def list_notifications(db: Session, user_id: uuid.UUID, limit: int = 50) -> list[dict]:
+    logs = db.query(NotificationLog).order_by(NotificationLog.sent_at.desc()).limit(limit).all()
+    read_ids = _read_log_ids(db, user_id)
+    return [
+        {
+            "id": log.id,
+            "notif_type": log.notif_type,
+            "related_type": log.related_type,
+            "related_id": log.related_id,
+            "year_month": log.year_month,
+            "sent_at": log.sent_at,
+            "detail": log.detail,
+            "is_read": log.id in read_ids,
+        }
+        for log in logs
+    ]
+
+
+def unread_count(db: Session, user_id: uuid.UUID) -> int:
+    total = db.query(NotificationLog).count()
+    return total - len(_read_log_ids(db, user_id))
+
+
+def mark_read(db: Session, user_id: uuid.UUID, notification_log_id: int, now: datetime | None = None) -> None:
+    now = now or datetime.now()
+    log = db.get(NotificationLog, notification_log_id)
+    if log is None:
+        raise NotificationNotFoundError("알림을 찾을 수 없습니다.")
+    existing = (
+        db.query(NotificationRead)
+        .filter(NotificationRead.notification_log_id == notification_log_id, NotificationRead.user_id == user_id)
+        .first()
+    )
+    if existing is not None:
+        return
+    db.add(NotificationRead(notification_log_id=notification_log_id, user_id=user_id, read_at=now))
+    db.commit()
+
+
+def mark_all_read(db: Session, user_id: uuid.UUID, now: datetime | None = None) -> int:
+    now = now or datetime.now()
+    read_ids = _read_log_ids(db, user_id)
+    all_log_ids = [row[0] for row in db.query(NotificationLog.id).all()]
+    marked = 0
+    for log_id in all_log_ids:
+        if log_id in read_ids:
+            continue
+        db.add(NotificationRead(notification_log_id=log_id, user_id=user_id, read_at=now))
+        marked += 1
+    if marked:
+        db.commit()
+    return marked

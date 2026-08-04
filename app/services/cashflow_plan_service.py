@@ -13,9 +13,11 @@ ACHIEVEMENT_SECTIONS = ("income", "fixed", "variable", "irregular")
 
 
 def list_items(db: Session, year_month: str) -> list[CashflowPlanItem]:
+    """category_id가 채워진 행(카테고리별 예산 상한, budget_service가 다룸)은 제외한다 — 이 목록은
+    자유 텍스트 계획 항목 전용이다."""
     return (
         db.query(CashflowPlanItem)
-        .filter(CashflowPlanItem.year_month == year_month)
+        .filter(CashflowPlanItem.year_month == year_month, CashflowPlanItem.category_id.is_(None))
         .order_by(CashflowPlanItem.section, CashflowPlanItem.sort_order)
         .all()
     )

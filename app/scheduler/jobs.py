@@ -1,5 +1,5 @@
 import logging
-from datetime import date, datetime, timedelta
+from datetime import date, datetime
 
 from app.database import SessionLocal
 from app.services import event_service, net_worth_service, notification_service, recurring_service
@@ -15,6 +15,8 @@ def daily_due_date_check() -> None:
     try:
         recurring_service.generate_due_transactions(db)
         _sync_upcoming_calendar_events(db)
+    except Exception:
+        logger.exception("고정지출 거래 생성/캘린더 동기화 실패")
     finally:
         db.close()
 

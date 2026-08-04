@@ -1,0 +1,36 @@
+"""growlio(자산관리, 별도 서비스)의 읽기전용 자산 조회 API를 호출하는 클라이언트.
+
+nestlio와 growlio는 같은 Supabase 프로젝트를 공유하므로, 사용자의 Supabase JWT를
+그대로 growlio에 전달한다(growlio의 get_current_user가 동일한 JWKS로 검증한다) —
+별도 서비스 API 키/시크릿은 쓰지 않는다. 저축상품 ↔ growlio 계좌 자동 동기화
+(app/services/savings_product_service.py)에서만 사용한다.
+"""
+
+import httpx
+
+from app.config import settings
+
+_TIMEOUT = 5.0
+
+
+class GrowlioNotConfiguredError(Exception):
+    """settings.growlio_api_base_url이 비어 있어 연동 기능 자체가 꺼져 있을 때."""
+
+
+class GrowlioRequestError(Exception):
+    """growlio API 호출이 실패했을 때 (네트워크 오류, 인증 실패, 5xx 등)."""
+
+
+def fetch_account_balances(bearer_token: str) -> list[dict]:
+    """현재 사용자의 growlio 계좌 목록과 최신 평가액(KRW)을 조회한다."""
+    if not settings.growlio_api_base_url:
+        raise GrowlioNotConfiguredError("growlio 연동이 설정되지 않았습니다 (GROWLIO_API_BASE_URL).")
+    url = f"{settings.growlio_api_base_url.rstrip('/')}/api/v1/external/accounts"
+    try:
+        response = httpx.get(url, headers={"Authorization": f"Bearer {bearer_token}"}, timeout=_TIMEOUT)
+        response.raise_for_status()
+    except httpx.HTTPStatusError as exc:
+        raise GrowlioRequestError(f"growlio API 오류 (status={exc.response.status_code})") from exc
+    except httpx.HTTPError as exc:
+        raise GrowlioRequestError("growlio 서버에 연결하지 못했습니다.") from exc
+    return response.json()

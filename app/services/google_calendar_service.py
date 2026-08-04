@@ -1,4 +1,4 @@
-from datetime import date, timedelta
+from datetime import timedelta
 
 from googleapiclient.discovery import build
 from sqlalchemy.orm import Session
@@ -51,16 +51,6 @@ def upsert_event_for_recurring(db: Session, recurring: RecurringExpense) -> None
     created = service.events().insert(calendarId=CALENDAR_ID, body=body).execute()
     recurring.calendar_event_id = created["id"]
     db.commit()
-
-
-def delete_event_for_recurring(recurring: RecurringExpense) -> None:
-    if not recurring.calendar_event_id:
-        return
-    service = _service()
-    try:
-        service.events().delete(calendarId=CALENDAR_ID, eventId=recurring.calendar_event_id).execute()
-    except Exception:
-        pass
 
 
 def _event_body_for_event(event: Event) -> dict:

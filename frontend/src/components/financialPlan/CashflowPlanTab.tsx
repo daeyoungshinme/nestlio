@@ -18,9 +18,12 @@ import {
   splitCashflowPlanItem,
   upsertCashflowPlanItem,
 } from "@/api/cashflowPlan";
+import { copyPreviousMonthBudget, fetchBudgets, upsertBudget } from "@/api/budgets";
 import { fetchUsers } from "@/api/users";
 import { QUERY_KEYS } from "@/constants/queryKeys";
-import { formatKrw, formatPercent } from "@/utils/format";
+import { STALE_TIME } from "@/constants/queryConfig";
+import { INPUT_SM } from "@/constants/inputStyles";
+import { formatKrw, formatPercent, toAmountInputValue } from "@/utils/format";
 import { installmentProgressLabel } from "@/utils/installment";
 import { extractErrorMessage } from "@/utils/error";
 import { planStatusBarClass, planStatusTextClass } from "@/utils/colors";
@@ -69,13 +72,18 @@ export default function CashflowPlanTab() {
   const [modal, setModal] = useState<ModalState | null>(null);
   const [splitModalOpen, setSplitModalOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<number | null>(null);
+  const [budgetEdits, setBudgetEdits] = useState<Record<number, string>>({});
   const queryClient = useQueryClient();
 
   const { data, isLoading } = useQuery({
     queryKey: QUERY_KEYS.cashflowPlan(yearMonth),
     queryFn: () => fetchCashflowPlan(yearMonth),
   });
-  const { data: users } = useQuery({ queryKey: QUERY_KEYS.users, queryFn: fetchUsers });
+  const { data: users } = useQuery({ queryKey: QUERY_KEYS.users, queryFn: fetchUsers, staleTime: STALE_TIME.LONG });
+  const { data: budgetData } = useQuery({
+    queryKey: QUERY_KEYS.budgets(yearMonth),
+    queryFn: () => fetchBudgets(yearMonth),
+  });
 
   const invalidate = () => queryClient.invalidateQueries({ queryKey: QUERY_KEYS.cashflowPlan(yearMonth) });
 
@@ -120,11 +128,47 @@ export default function CashflowPlanTab() {
     onError: (err) => toast(extractErrorMessage(err), "error"),
   });
 
+  const invalidateBudgets = () => queryClient.invalidateQueries({ queryKey: QUERY_KEYS.budgets(yearMonth) });
+
+  const upsertBudgetMutation = useMutation({
+    mutationFn: upsertBudget,
+    onSuccess: () => {
+      void invalidateBudgets();
+      void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.dashboardAll });
+    },
+    onError: (err) => toast(extractErrorMessage(err), "error"),
+  });
+
+  const copyBudgetMutation = useMutation({
+    mutationFn: () => copyPreviousMonthBudget(yearMonth),
+    onSuccess: (result) => {
+      void invalidateBudgets();
+      toast(
+        result.copied > 0 ? `전월 예산 ${result.copied}건을 복사했습니다.` : "복사할 전월 예산이 없습니다.",
+        "success",
+      );
+    },
+    onError: (err) => toast(extractErrorMessage(err), "error"),
+  });
+
+  const commitBudgetEdit = (categoryId: number) => {
+    const raw = budgetEdits[categoryId];
+    if (raw === undefined) return;
+    setBudgetEdits((prev) => {
+      const next = { ...prev };
+      delete next[categoryId];
+      return next;
+    });
+    const amount = raw.trim() === "" ? "0" : raw;
+    upsertBudgetMutation.mutate({ year_month: yearMonth, category_id: categoryId, amount });
+  };
+
   if (isLoading || !data) {
     return <SkeletonCard rows={6} />;
   }
 
   const summary = data.summary;
+  const budgetRows = budgetData?.rows ?? [];
 
   const handleSubmitItem = (values: CashflowPlanItemFormValues) => {
     if (!modal) return;
@@ -272,6 +316,73 @@ export default function CashflowPlanTab() {
                 <p className="text-sm text-gray-400 dark:text-gray-500 py-4 text-center">등록된 항목이 없습니다.</p>
               )}
             </div>
+
+            {key !== "income" && (
+              <div className="mt-4 pt-4 border-t border-gray-100 dark:border-gray-800">
+                <div className="flex items-center justify-between mb-1">
+                  <h4 className="text-xs font-semibold text-gray-500 dark:text-gray-400">카테고리별 예산</h4>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    icon={<Copy size={12} />}
+                    loading={copyBudgetMutation.isPending}
+                    onClick={() => copyBudgetMutation.mutate()}
+                  >
+                    전월 예산 복사
+                  </Button>
+                </div>
+                <p className="text-xs text-gray-400 dark:text-gray-500 mb-2">
+                  예산 상한을 입력하면 대시보드 코칭 인사이트가 초과 여부를 알려줘요.
+                </p>
+                <div className="space-y-3">
+                  {budgetRows
+                    .filter((row) => row.type === key)
+                    .map((row) => {
+                      const editing = budgetEdits[row.category_id];
+                      return (
+                        <div key={row.category_id}>
+                          <div className="flex items-center justify-between gap-3">
+                            <span className="text-sm text-gray-700 dark:text-gray-300 truncate">{row.name}</span>
+                            <input
+                              type="number"
+                              min={0}
+                              step={1000}
+                              className={`w-28 text-right ${INPUT_SM}`}
+                              value={editing ?? toAmountInputValue(row.budget)}
+                              onChange={(e) =>
+                                setBudgetEdits((prev) => ({ ...prev, [row.category_id]: e.target.value }))
+                              }
+                              onBlur={() => commitBudgetEdit(row.category_id)}
+                              onKeyDown={(e) => e.key === "Enter" && e.currentTarget.blur()}
+                              aria-label={`${row.name} 예산`}
+                            />
+                          </div>
+                          {Number(row.budget) > 0 && (
+                            <>
+                              <div className="mt-1 flex items-center justify-between text-xs text-gray-500 dark:text-gray-400">
+                                <span>
+                                  실제 {formatKrw(row.actual)} / 예산 {formatKrw(row.budget)}
+                                </span>
+                                <span className={`font-semibold ${planStatusTextClass(row.status)}`}>
+                                  {formatPercent(row.pct)} 사용
+                                </span>
+                              </div>
+                              <div className="mt-1">
+                                <ProgressBar pct={row.pct} barClassName={planStatusBarClass(row.status)} />
+                              </div>
+                            </>
+                          )}
+                        </div>
+                      );
+                    })}
+                  {budgetRows.filter((row) => row.type === key).length === 0 && (
+                    <p className="text-xs text-gray-400 dark:text-gray-500 py-2 text-center">
+                      등록된 지출 카테고리가 없습니다.
+                    </p>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
         );
       })()}

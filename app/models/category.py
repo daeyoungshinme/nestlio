@@ -16,4 +16,5 @@ class Category(Base):
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     is_discretionary: Mapped[bool] = mapped_column(Boolean, default=False)
     is_debt: Mapped[bool] = mapped_column(Boolean, default=False)
+    is_savings: Mapped[bool] = mapped_column(Boolean, default=False)
     sort_order: Mapped[int] = mapped_column(Integer, default=0)

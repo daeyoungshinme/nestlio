@@ -65,6 +65,19 @@ def get_token_payload(authorization: str | None = Header(default=None)) -> dict:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token") from None
 
 
+def get_bearer_token(authorization: str | None = Header(default=None)) -> str:
+    """원본 Bearer 토큰이 그대로 필요한 엔드포인트를 위한 의존성 — growlio 등 같은 Supabase
+    프로젝트를 공유하는 자매 서비스 API를 호출할 때, 사용자의 JWT를 그대로 전달하기 위해 쓴다
+    (app/services/growlio_client.py). 서명 검증까지 하므로 get_current_user와 함께 걸어도 중복 비용은
+    JWKS 캐시(_jwks_client)로 크지 않다."""
+    token = _extract_bearer_token(authorization)
+    try:
+        verify_supabase_token(token)
+    except ValueError:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token") from None
+    return token
+
+
 def get_current_user(
     payload: dict = Depends(get_token_payload),
     db: Session = Depends(get_db),

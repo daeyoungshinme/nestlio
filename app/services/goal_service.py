@@ -21,6 +21,7 @@ def create_goal(
     required_amount: Decimal,
     monthly_saving_amount: Decimal,
     current_amount: Decimal = Decimal("0"),
+    primary_savings_product_id: int | None = None,
 ) -> FinancialGoal:
     goal = FinancialGoal(
         priority=priority,
@@ -28,7 +29,8 @@ def create_goal(
         target_age=target_age,
         required_amount=required_amount,
         monthly_saving_amount=monthly_saving_amount,
-        current_amount=current_amount,
+        manual_current_amount=current_amount,
+        primary_savings_product_id=primary_savings_product_id,
         sort_order=999,
     )
     db.add(goal)
@@ -46,6 +48,7 @@ def update_goal(
     required_amount: Decimal,
     monthly_saving_amount: Decimal,
     current_amount: Decimal = Decimal("0"),
+    primary_savings_product_id: int | None = None,
 ) -> FinancialGoal | None:
     goal = db.get(FinancialGoal, goal_id)
     if goal is None:
@@ -55,7 +58,8 @@ def update_goal(
     goal.target_age = target_age
     goal.required_amount = required_amount
     goal.monthly_saving_amount = monthly_saving_amount
-    goal.current_amount = current_amount
+    goal.manual_current_amount = current_amount
+    goal.primary_savings_product_id = primary_savings_product_id
     db.commit()
     db.refresh(goal)
     return goal

@@ -1,11 +1,11 @@
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient, keepPreviousData } from "@tanstack/react-query";
-import { CalendarDays, Download, MoreHorizontal, Plus, Tag, Upload } from "lucide-react";
+import { CalendarDays, Download, MoreHorizontal, Plus, Repeat, Tag, Upload } from "lucide-react";
 import ConfirmModal from "@/components/common/ConfirmModal";
 import EmptyState from "@/components/common/EmptyState";
 import Modal from "@/components/common/Modal";
-import MonthPicker, { currentYearMonth } from "@/components/common/MonthPicker";
+import MonthPicker, { currentYearMonth, shiftYearMonth } from "@/components/common/MonthPicker";
 import SkeletonCard from "@/components/common/SkeletonCard";
 import Button from "@/components/common/Button";
 import MonthCalendarGrid from "@/components/transactions/MonthCalendarGrid";
@@ -14,9 +14,12 @@ import LedgerDayModal from "@/components/transactions/LedgerDayModal";
 import TransactionForm from "@/components/transactions/TransactionForm";
 import TransactionListItem from "@/components/transactions/TransactionListItem";
 import ExpenseCategoryGroups from "@/components/transactions/ExpenseCategoryGroups";
+import SavingsLinkedTransactionsSection from "@/components/transactions/SavingsLinkedTransactionsSection";
 import EventForm, { emptyEventFormValues, eventToFormValues } from "@/components/transactions/EventForm";
+import RecurringManageSheet from "@/components/transactions/RecurringManageSheet";
 import { fetchCategories } from "@/api/categories";
 import { fetchAccounts } from "@/api/accounts";
+import { fetchSavingsProducts } from "@/api/savingsProducts";
 import {
   createTransaction,
   deleteTransaction,
@@ -26,13 +29,20 @@ import {
   updateTransaction,
 } from "@/api/transactions";
 import { createEvent, deleteEvent, fetchEvents, updateEvent } from "@/api/events";
+import { useSwipeMonth } from "@/hooks/useSwipeMonth";
+import { useInvalidateTransactionRelated } from "@/hooks/useInvalidateTransactionRelated";
 import { QUERY_KEYS } from "@/constants/queryKeys";
+import { STALE_TIME } from "@/constants/queryConfig";
 import { SELECT_SM } from "@/constants/inputStyles";
 import { TOUCH_TARGET_COMPACT_MOBILE_ONLY } from "@/constants/uiSizes";
 import { formatKrw } from "@/utils/format";
 import { extractErrorMessage } from "@/utils/error";
 import { toast } from "@/utils/toast";
 import type { CategoryOut, EventOut, RecurringOut, TransactionOut } from "@/types";
+
+const EMPTY_TRANSACTIONS: TransactionOut[] = [];
+const EMPTY_EVENTS: EventOut[] = [];
+const EMPTY_RECURRING: RecurringOut[] = [];
 
 function monthBounds(yearMonth: string): { date_from: string; date_to: string } {
   const [y, m] = yearMonth.split("-").map(Number);
@@ -53,12 +63,13 @@ function occurrenceDate(iso: string): string {
   return iso.split("T")[0];
 }
 
-type TopFilter = "all" | "income" | "expense";
+type TopFilter = "all" | "income" | "expense" | "savings";
 
 const TOP_FILTER_OPTIONS: { value: TopFilter; label: string }[] = [
   { value: "all", label: "전체" },
   { value: "income", label: "수입" },
   { value: "expense", label: "지출" },
+  { value: "savings", label: "저축/투자" },
 ];
 
 type ExpenseTypeFilter = "all" | "fixed" | "variable" | "irregular";
@@ -76,7 +87,9 @@ function matchesFilter(
   categoryFilter: number | "all",
   expenseTypeFilter: ExpenseTypeFilter,
 ): boolean {
+  if (topFilter === "savings") return tx.category.is_savings;
   if (topFilter !== "all" && tx.type !== topFilter) return false;
+  if (topFilter === "expense" && tx.category.is_savings) return false;
   if (topFilter !== "all" && categoryFilter !== "all" && tx.category.id !== categoryFilter) return false;
   if (topFilter === "expense" && expenseTypeFilter !== "all" && tx.category.type !== expenseTypeFilter) return false;
   return true;
@@ -95,12 +108,29 @@ export default function TransactionsPage() {
   const [eventCreateDate, setEventCreateDate] = useState(todayIso());
   const [eventDeleteTarget, setEventDeleteTarget] = useState<EventOut | null>(null);
   const [showMoreMenu, setShowMoreMenu] = useState(false);
+  const [showRecurringSheet, setShowRecurringSheet] = useState(false);
   const queryClient = useQueryClient();
+  const calendarRef = useRef<HTMLDivElement>(null);
+
+  useSwipeMonth(calendarRef, (direction) => setYearMonth((prev) => shiftYearMonth(prev, direction)));
 
   const { date_from, date_to } = monthBounds(yearMonth);
 
-  const { data: categories } = useQuery({ queryKey: QUERY_KEYS.categories(), queryFn: () => fetchCategories() });
-  const { data: accounts } = useQuery({ queryKey: QUERY_KEYS.accounts, queryFn: fetchAccounts });
+  const { data: categories } = useQuery({
+    queryKey: QUERY_KEYS.categories(),
+    queryFn: () => fetchCategories(),
+    staleTime: STALE_TIME.LONG,
+  });
+  const { data: accounts } = useQuery({
+    queryKey: QUERY_KEYS.accounts,
+    queryFn: fetchAccounts,
+    staleTime: STALE_TIME.LONG,
+  });
+  const { data: savingsProducts } = useQuery({
+    queryKey: QUERY_KEYS.savingsProducts,
+    queryFn: fetchSavingsProducts,
+    staleTime: STALE_TIME.MEDIUM,
+  });
   const { data, isLoading } = useQuery({
     queryKey: QUERY_KEYS.transactions({ date_from, date_to }),
     queryFn: () => fetchTransactions({ date_from, date_to }),
@@ -146,11 +176,16 @@ export default function TransactionsPage() {
     return map;
   }, [filteredTransactions]);
 
+  const savingsTotal = useMemo(
+    () => (data?.items ?? []).filter((tx) => tx.category.is_savings).reduce((sum, tx) => sum + Number(tx.amount), 0),
+    [data],
+  );
+
   const categoryOptions = useMemo(() => {
-    if (topFilter === "all") return [];
+    if (topFilter === "all" || topFilter === "savings") return [];
     const byId = new Map<number, CategoryOut>();
     for (const tx of data?.items ?? []) {
-      if (tx.type === topFilter) byId.set(tx.category.id, tx.category);
+      if (tx.type === topFilter && !tx.category.is_savings) byId.set(tx.category.id, tx.category);
     }
     const options = Array.from(byId.values());
     const scoped =
@@ -186,13 +221,9 @@ export default function TransactionsPage() {
     return map;
   }, [eventData]);
 
-  const invalidateAll = () => {
-    void queryClient.invalidateQueries({ queryKey: ["transactions"] });
-    void queryClient.invalidateQueries({ queryKey: ["dashboard"] });
-    void queryClient.invalidateQueries({ queryKey: ["category-breakdown"] });
-  };
+  const invalidateAll = useInvalidateTransactionRelated();
 
-  const invalidateEvents = () => void queryClient.invalidateQueries({ queryKey: ["events"] });
+  const invalidateEvents = () => void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.eventsAll });
 
   const createMutation = useMutation({
     mutationFn: createTransaction,
@@ -278,7 +309,7 @@ export default function TransactionsPage() {
     setEventFormTarget(event);
   };
 
-  if (!categories || !accounts) {
+  if (!categories || !accounts || !savingsProducts) {
     return <SkeletonCard rows={5} />;
   }
 
@@ -308,30 +339,33 @@ export default function TransactionsPage() {
       {data && (
         <div className="flex justify-end">
           <p className="text-sm text-gray-500 dark:text-gray-400">
-            합계: 수입 {formatKrw(data.totals.income)} · 지출 {formatKrw(data.totals.expense)}
+            합계: 수입 {formatKrw(data.totals.income)} · 지출 {formatKrw(data.totals.expense)} · 저축{" "}
+            {formatKrw(savingsTotal)}
           </p>
         </div>
       )}
 
-      {isLoading || eventsLoading || !data || !eventData ? (
-        <SkeletonCard rows={4} />
-      ) : (
-        <MonthCalendarGrid
-          yearMonth={yearMonth}
-          renderCell={(cell) => (
-            <LedgerDayCell
-              date={cell.date}
-              day={cell.day}
-              inCurrentMonth={cell.inCurrentMonth}
-              isToday={cell.isToday}
-              transactions={transactionsByDate.get(cell.date) ?? []}
-              events={eventsByDate.get(cell.date) ?? []}
-              recurringDue={recurringDueByDate.get(cell.date) ?? []}
-              onSelect={setSelectedDate}
-            />
-          )}
-        />
-      )}
+      <div ref={calendarRef}>
+        {isLoading || eventsLoading || !data || !eventData ? (
+          <SkeletonCard rows={4} />
+        ) : (
+          <MonthCalendarGrid
+            yearMonth={yearMonth}
+            renderCell={(cell) => (
+              <LedgerDayCell
+                date={cell.date}
+                day={cell.day}
+                inCurrentMonth={cell.inCurrentMonth}
+                isToday={cell.isToday}
+                transactions={transactionsByDate.get(cell.date) ?? EMPTY_TRANSACTIONS}
+                events={eventsByDate.get(cell.date) ?? EMPTY_EVENTS}
+                recurringDue={recurringDueByDate.get(cell.date) ?? EMPTY_RECURRING}
+                onSelect={setSelectedDate}
+              />
+            )}
+          />
+        )}
+      </div>
 
       <div className="flex items-center gap-2">
         <div className="flex gap-1 bg-gray-100 dark:bg-gray-800 rounded-lg p-1 flex-1">
@@ -386,7 +420,7 @@ export default function TransactionsPage() {
         </div>
       )}
 
-      {topFilter !== "all" && (
+      {(topFilter === "income" || topFilter === "expense") && (
         <select
           value={categoryFilter === "all" ? "all" : String(categoryFilter)}
           onChange={(e) => setCategoryFilter(e.target.value === "all" ? "all" : Number(e.target.value))}
@@ -402,7 +436,17 @@ export default function TransactionsPage() {
         </select>
       )}
 
-      {showExpenseGroups ? (
+      {topFilter === "savings" ? (
+        filteredTransactions.length === 0 ? (
+          <EmptyState title="해당 조건의 거래가 없어요" compact />
+        ) : (
+          <SavingsLinkedTransactionsSection
+            transactions={filteredTransactions}
+            onEdit={openEdit}
+            onDelete={setDeleteTarget}
+          />
+        )
+      ) : showExpenseGroups ? (
         breakdownLoading || !expenseGroups ? (
           <SkeletonCard rows={3} />
         ) : (
@@ -452,6 +496,7 @@ export default function TransactionsPage() {
             <TransactionForm
               categories={categories}
               accounts={accounts}
+              savingsProducts={savingsProducts}
               layout="stack"
               submitLabel={formTarget === "new" ? "추가" : "저장"}
               submitting={isSaving}
@@ -466,6 +511,7 @@ export default function TransactionsPage() {
                       description: formTarget.description ?? "",
                       payment_method: formTarget.payment_method ?? "",
                       account_id: formTarget.account ? String(formTarget.account.id) : "",
+                      savings_product_id: formTarget.savings_product_id ? String(formTarget.savings_product_id) : "",
                     }
               }
               onSubmit={(payload) =>
@@ -546,8 +592,26 @@ export default function TransactionsPage() {
             >
               <Tag size={18} aria-hidden="true" /> 카테고리 관리
             </Link>
+            <button
+              onClick={() => {
+                setShowMoreMenu(false);
+                setShowRecurringSheet(true);
+              }}
+              className="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+            >
+              <Repeat size={18} aria-hidden="true" /> 고정지출 관리
+            </button>
           </div>
         </Modal>
+      )}
+
+      {showRecurringSheet && (
+        <RecurringManageSheet
+          categories={categories}
+          dateFrom={date_from}
+          dateTo={date_to}
+          onClose={() => setShowRecurringSheet(false)}
+        />
       )}
     </div>
   );

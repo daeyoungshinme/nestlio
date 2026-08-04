@@ -4,8 +4,8 @@ import Button from "@/components/common/Button";
 import CategoryPicker from "@/components/common/CategoryPicker";
 import FormInput from "@/components/common/FormInput";
 import { INLINE_BUTTON_OFFSET, INPUT_SM, LABEL_SM } from "@/constants/inputStyles";
-import { formatKrwPreview } from "@/utils/format";
-import type { CategoryOut, AccountWithBalanceOut, TransactionCreateIn, TransactionType } from "@/types";
+import { formatKrwPreview, toAmountInputValue } from "@/utils/format";
+import type { CategoryOut, AccountWithBalanceOut, SavingsProductOut, TransactionCreateIn, TransactionType } from "@/types";
 
 export interface TransactionFormValues {
   amount: string;
@@ -15,11 +15,13 @@ export interface TransactionFormValues {
   description: string;
   payment_method: string;
   account_id: string;
+  savings_product_id: string;
 }
 
 interface Props {
   categories: CategoryOut[];
   accounts: AccountWithBalanceOut[];
+  savingsProducts: SavingsProductOut[];
   initialValues?: Partial<TransactionFormValues>;
   submitLabel: string;
   submitting?: boolean;
@@ -29,25 +31,37 @@ interface Props {
 
 const today = () => new Date().toISOString().slice(0, 10);
 
+type UiType = "income" | "expense" | "savings";
+
 export default function TransactionForm({
   categories,
   accounts,
+  savingsProducts,
   initialValues,
   submitLabel,
   submitting,
   onSubmit,
   layout = "row",
 }: Props) {
+  const savingsCategory = categories.find((c) => c.is_savings);
+  const nonSavingsCategories = categories.filter((c) => !c.is_savings);
+
+  const initialCategory = categories.find((c) => String(c.id) === (initialValues?.category_id ?? ""));
+  const [uiType, setUiType] = useState<UiType>(
+    initialCategory?.is_savings ? "savings" : (initialValues?.type ?? "expense"),
+  );
+
   const [values, setValues] = useState<TransactionFormValues>({
-    amount: initialValues?.amount ?? "",
+    amount: initialValues?.amount ? toAmountInputValue(initialValues.amount) : "",
     type: initialValues?.type ?? "expense",
     category_id:
       initialValues?.category_id ??
-      String(categories.find((c) => c.kind === (initialValues?.type ?? "expense"))?.id ?? ""),
+      String(nonSavingsCategories.find((c) => c.kind === (initialValues?.type ?? "expense"))?.id ?? ""),
     transaction_date: initialValues?.transaction_date ?? today(),
     description: initialValues?.description ?? "",
     payment_method: initialValues?.payment_method ?? "",
     account_id: initialValues?.account_id ?? "",
+    savings_product_id: initialValues?.savings_product_id ?? "",
   });
 
   const handleSubmit = (e: FormEvent) => {
@@ -60,6 +74,7 @@ export default function TransactionForm({
       description: values.description || null,
       payment_method: values.payment_method || null,
       account_id: values.account_id ? Number(values.account_id) : null,
+      savings_product_id: uiType === "savings" && values.savings_product_id ? Number(values.savings_product_id) : null,
     });
   };
 
@@ -73,15 +88,17 @@ export default function TransactionForm({
           <button
             key={t}
             type="button"
-            onClick={() =>
+            onClick={() => {
+              setUiType(t);
               setValues((v) => ({
                 ...v,
                 type: t,
-                category_id: String(categories.find((c) => c.kind === t)?.id ?? ""),
-              }))
-            }
+                category_id: String(nonSavingsCategories.find((c) => c.kind === t)?.id ?? ""),
+                savings_product_id: "",
+              }));
+            }}
             className={`px-3 py-2 text-sm font-medium rounded-md transition-colors ${
-              values.type === t
+              uiType === t
                 ? "bg-white dark:bg-gray-700 shadow text-gray-900 dark:text-gray-50"
                 : "text-gray-500 dark:text-gray-400"
             }`}
@@ -89,6 +106,27 @@ export default function TransactionForm({
             {t === "expense" ? "지출" : "수입"}
           </button>
         ))}
+        {savingsCategory && (
+          <button
+            type="button"
+            onClick={() => {
+              setUiType("savings");
+              setValues((v) => ({
+                ...v,
+                type: "expense",
+                category_id: String(savingsCategory.id),
+                savings_product_id: "",
+              }));
+            }}
+            className={`px-3 py-2 text-sm font-medium rounded-md transition-colors ${
+              uiType === "savings"
+                ? "bg-white dark:bg-gray-700 shadow text-gray-900 dark:text-gray-50"
+                : "text-gray-500 dark:text-gray-400"
+            }`}
+          >
+            저축/투자
+          </button>
+        )}
       </div>
 
       <FormInput
@@ -102,13 +140,15 @@ export default function TransactionForm({
         preview={Number(values.amount) > 0 ? formatKrwPreview(Number(values.amount)) : undefined}
       />
 
-      <CategoryPicker
-        categories={categories}
-        kind={values.type}
-        value={values.category_id}
-        onChange={(category_id) => setValues((v) => ({ ...v, category_id }))}
-        required
-      />
+      {uiType !== "savings" && (
+        <CategoryPicker
+          categories={nonSavingsCategories}
+          kind={values.type}
+          value={values.category_id}
+          onChange={(category_id) => setValues((v) => ({ ...v, category_id }))}
+          required
+        />
+      )}
 
       <FormInput
         label="날짜"
@@ -142,6 +182,25 @@ export default function TransactionForm({
           ))}
         </select>
       </div>
+
+      {uiType === "savings" && (
+        <div>
+          <label className={`block mb-1 font-medium ${LABEL_SM}`}>저축상품</label>
+          <select
+            className={`${INPUT_SM} w-32`}
+            value={values.savings_product_id}
+            onChange={(e) => setValues((v) => ({ ...v, savings_product_id: e.target.value }))}
+            required
+          >
+            <option value="">선택</option>
+            {savingsProducts.map((product) => (
+              <option key={product.id} value={product.id}>
+                {product.name}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
 
       <Button type="submit" loading={submitting} className={buttonOffset}>
         {submitLabel}

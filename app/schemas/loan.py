@@ -1,9 +1,18 @@
+import re
 from decimal import Decimal
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, field_validator
 
-RepaymentMethod = Literal["equal_payment", "equal_principal", "bullet", "other"]
+RepaymentMethod = Literal["equal_payment", "equal_principal", "bullet", "grace_period", "other"]
+
+_YEAR_MONTH_RE = re.compile(r"^\d{4}-\d{2}$")
+
+
+def _validate_year_month(value: str | None) -> str | None:
+    if value is not None and not _YEAR_MONTH_RE.match(value):
+        raise ValueError("origination_year_month must be in YYYY-MM format")
+    return value
 
 
 class LoanOut(BaseModel):
@@ -30,6 +39,8 @@ class LoanCreateIn(BaseModel):
     interest_rate: Decimal | None = None
     repayment_method: RepaymentMethod | None = None
 
+    _validate_origination_year_month = field_validator("origination_year_month")(_validate_year_month)
+
 
 class LoanUpdateIn(BaseModel):
     name: str
@@ -39,3 +50,5 @@ class LoanUpdateIn(BaseModel):
     term_months: int | None
     interest_rate: Decimal | None
     repayment_method: RepaymentMethod | None
+
+    _validate_origination_year_month = field_validator("origination_year_month")(_validate_year_month)

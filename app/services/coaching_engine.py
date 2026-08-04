@@ -7,8 +7,15 @@ from decimal import Decimal
 from sqlalchemy.orm import Session
 
 from app.config import settings
-from app.services import budget_service, goal_service, net_worth_service, transaction_service, user_setting_service
-from app.utils.dates import month_bounds, shift_month, year_month_str
+from app.services import (
+    budget_service,
+    coaching_settings_service,
+    goal_service,
+    net_worth_service,
+    transaction_service,
+    user_setting_service,
+)
+from app.utils.dates import month_bounds, year_month_str
 
 # months to keep emergency fund runway comfortably inside
 EMERGENCY_FUND_MIN_MONTHS = 3
@@ -39,26 +46,32 @@ def _pct(numerator: Decimal, denominator: Decimal) -> float:
     return float(numerator / denominator * 100)
 
 
-def savings_rate_insight(totals: dict) -> Insight | None:
+def savings_rate_insight(totals: dict, warn_pct: float | None = None, critical_pct: float | None = None) -> Insight | None:
     income = totals["income"]
     if income <= 0:
         return None
+    warn_pct = settings.savings_rate_warn if warn_pct is None else warn_pct
+    critical_pct = settings.savings_rate_critical if critical_pct is None else critical_pct
     rate = _pct(totals["savings"], income)
-    if rate < settings.savings_rate_critical:
+    if rate < critical_pct:
         return Insight("savings_rate", "critical", f"이번달 저축률이 {rate:.0f}%로 매우 낮습니다. 지출을 점검해보세요.")
-    if rate < settings.savings_rate_warn:
-        return Insight("savings_rate", "warning", f"이번달 저축률이 {rate:.0f}%입니다. 목표(20%)보다 낮아요.")
-    return Insight("savings_rate", "info", f"이번달 저축률 {rate:.0f}% — 양호합니다.")
+    if rate < warn_pct:
+        return Insight("savings_rate", "warning", f"이번달 저축률이 {rate:.0f}%입니다. 목표({warn_pct:.0f}%)보다 낮아요.")
+    return Insight("savings_rate", "info", f"이번달 저축률 {rate:.0f}% — 두 분 다 잘하고 계세요!")
 
 
-def fixed_cost_ratio_insight(totals: dict) -> Insight | None:
+def fixed_cost_ratio_insight(
+    totals: dict, warn_pct: float | None = None, critical_pct: float | None = None
+) -> Insight | None:
     income = totals["income"]
     if income <= 0:
         return None
+    warn_pct = settings.fixed_cost_ratio_warn if warn_pct is None else warn_pct
+    critical_pct = settings.fixed_cost_ratio_critical if critical_pct is None else critical_pct
     ratio = _pct(totals["fixed"], income)
-    if ratio >= settings.fixed_cost_ratio_critical:
+    if ratio >= critical_pct:
         return Insight("fixed_cost_ratio", "critical", f"고정비가 소득의 {ratio:.0f}%를 차지합니다. 부담이 큰 수준이에요.")
-    if ratio >= settings.fixed_cost_ratio_warn:
+    if ratio >= warn_pct:
         return Insight("fixed_cost_ratio", "warning", f"고정비가 소득의 {ratio:.0f}%입니다. 조금 높은 편이에요.")
     return None
 
@@ -100,30 +113,36 @@ def variable_spend_trend_insights(current_breakdown: list[dict], trailing_avg: d
     return insights
 
 
-def discretionary_ratio_insight(totals: dict, category_breakdown: list[dict]) -> Insight | None:
+def discretionary_ratio_insight(
+    totals: dict, category_breakdown: list[dict], warn_pct: float | None = None
+) -> Insight | None:
     income = totals["income"]
     if income <= 0:
         return None
+    warn_pct = settings.discretionary_ratio_warn if warn_pct is None else warn_pct
     discretionary_total = sum(
         (row["amount"] for row in category_breakdown if row.get("is_discretionary")),
         Decimal("0"),
     )
     ratio = _pct(discretionary_total, income)
-    if ratio >= settings.discretionary_ratio_warn:
+    if ratio >= warn_pct:
         return Insight("discretionary_ratio", "warning", f"여가/쇼핑 지출이 소득의 {ratio:.0f}%입니다.")
     return None
 
 
-def debt_ratio_insight(totals: dict, category_breakdown: list[dict]) -> Insight | None:
+def debt_ratio_insight(
+    totals: dict, category_breakdown: list[dict], warn_pct: float | None = None
+) -> Insight | None:
     income = totals["income"]
     if income <= 0:
         return None
+    warn_pct = settings.debt_ratio_warn if warn_pct is None else warn_pct
     debt_total = sum(
         (row["amount"] for row in category_breakdown if row.get("is_debt")), Decimal("0")
     )
     ratio = _pct(debt_total, income)
-    if ratio >= settings.debt_ratio_warn:
-        return Insight("debt_ratio", "warning", f"대출상환이 소득의 {ratio:.0f}%입니다. (권장 30% 이하)")
+    if ratio >= warn_pct:
+        return Insight("debt_ratio", "warning", f"대출상환이 소득의 {ratio:.0f}%입니다. (권장 {warn_pct:.0f}% 이하)")
     return None
 
 
@@ -134,13 +153,17 @@ def goal_pace_insight(totals: dict, goals: list[dict]) -> Insight | None:
     pct = _pct(totals["savings"], target_monthly)
     if pct < GOAL_PACE_CRITICAL_PCT:
         return Insight(
-            "goal_pace", "critical", f"이번달 저축액이 목표 월 저축액의 {pct:.0f}%예요. 목표 페이스에 많이 못 미쳤어요."
+            "goal_pace",
+            "critical",
+            f"이번달 저축액이 목표 월 저축액의 {pct:.0f}%예요. 목표 페이스에 많이 못 미쳤어요. 이번 달엔 같이 지출을 점검해볼까요?",
         )
     if pct < GOAL_PACE_INFO_PCT:
         return Insight(
-            "goal_pace", "warning", f"이번달 저축액이 목표 월 저축액의 {pct:.0f}%예요. 조금만 더 힘내볼까요?"
+            "goal_pace", "warning", f"이번달 저축액이 목표 월 저축액의 {pct:.0f}%예요. 우리 조금만 더 힘내볼까요?"
         )
-    return Insight("goal_pace", "info", f"이번달 저축액이 목표 월 저축액의 {pct:.0f}% — 목표 페이스를 잘 따라가고 있어요!")
+    return Insight(
+        "goal_pace", "info", f"이번달 저축액이 목표 월 저축액의 {pct:.0f}% — 두 분 다 목표 페이스를 잘 지키고 있어요!"
+    )
 
 
 def savings_execution_insight(surplus: Decimal, actual_saved: Decimal | None) -> Insight | None:
@@ -166,7 +189,7 @@ def savings_execution_insight(surplus: Decimal, actual_saved: Decimal | None) ->
     return Insight(
         "savings_execution",
         "info",
-        f"이번달 남은 돈의 {pct:.0f}%를 저축·투자로 옮겼어요. 잘하고 있어요!",
+        f"이번달 남은 돈의 {pct:.0f}%를 저축·투자로 옮겼어요. 두 분 다 잘하고 있어요!",
     )
 
 
@@ -184,9 +207,11 @@ def emergency_fund_insight(current_balance: Decimal | None, avg_monthly_fixed: D
         return Insight(
             "emergency_fund",
             "info",
-            f"비상금이 고정지출의 {months_covered:.1f}개월치입니다. {EMERGENCY_FUND_TARGET_MONTHS}개월치가 이상적이에요.",
+            f"비상금이 고정지출의 {months_covered:.1f}개월치입니다. {EMERGENCY_FUND_TARGET_MONTHS}개월치가 이상적이에요. 함께 조금씩 채워가요.",
         )
-    return Insight("emergency_fund", "info", f"비상금이 고정지출의 {months_covered:.1f}개월치로 충분합니다.")
+    return Insight(
+        "emergency_fund", "info", f"비상금이 고정지출의 {months_covered:.1f}개월치로 충분합니다. 든든하게 잘 대비하고 있어요!"
+    )
 
 
 def compute_insights(db: Session, year_month: str | None = None) -> list[Insight]:
@@ -194,19 +219,24 @@ def compute_insights(db: Session, year_month: str | None = None) -> list[Insight
     month_start = date.fromisoformat(year_month + "-01")
     start, end = month_bounds(month_start)
 
+    thresholds = coaching_settings_service.get_thresholds(db)
     totals = transaction_service.period_totals(db, start, end)
     breakdown = transaction_service.category_breakdown(db, start, end, "expense")
-    budget_rows = budget_service.budget_vs_actual(db, year_month)
+    budget_rows = budget_service.budget_vs_actual(
+        db, year_month, thresholds["budget_warn_pct"], thresholds["budget_critical_pct"]
+    )
     trailing_avg = transaction_service.trailing_average_by_category(db, month_start, months=3)
     goals = [{"monthly_saving_amount": g.monthly_saving_amount} for g in goal_service.list_goals(db)]
 
     insights: list[Insight] = []
     actual_saved = net_worth_service.savings_delta(db, year_month)
     for candidate in (
-        savings_rate_insight(totals),
-        fixed_cost_ratio_insight(totals),
-        discretionary_ratio_insight(totals, breakdown),
-        debt_ratio_insight(totals, breakdown),
+        savings_rate_insight(totals, thresholds["savings_rate_warn"], thresholds["savings_rate_critical"]),
+        fixed_cost_ratio_insight(
+            totals, thresholds["fixed_cost_ratio_warn"], thresholds["fixed_cost_ratio_critical"]
+        ),
+        discretionary_ratio_insight(totals, breakdown, thresholds["discretionary_ratio_warn"]),
+        debt_ratio_insight(totals, breakdown, thresholds["debt_ratio_warn"]),
         goal_pace_insight(totals, goals),
         savings_execution_insight(totals["savings"], actual_saved),
     ):

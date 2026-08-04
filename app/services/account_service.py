@@ -46,7 +46,26 @@ def current_balance(db: Session, account: Account) -> Decimal:
 
 
 def list_with_balances(db: Session) -> list[dict]:
+    accounts = list_accounts(db)
+    account_ids = [account.id for account in accounts]
+    rows = (
+        db.query(Transaction.account_id, Transaction.type, func.sum(Transaction.amount))
+        .filter(Transaction.account_id.in_(account_ids))
+        .group_by(Transaction.account_id, Transaction.type)
+        .all()
+    )
+    totals: dict[int, dict[str, Decimal]] = {}
+    for account_id, tx_type, amount in rows:
+        totals.setdefault(account_id, {})[tx_type] = amount or Decimal("0")
+
     return [
-        {"account": account, "balance": current_balance(db, account)}
-        for account in list_accounts(db)
+        {
+            "account": account,
+            "balance": (
+                Decimal(account.initial_balance)
+                + totals.get(account.id, {}).get("income", Decimal("0"))
+                - totals.get(account.id, {}).get("expense", Decimal("0"))
+            ),
+        }
+        for account in accounts
     ]

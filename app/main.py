@@ -12,11 +12,14 @@ from app.routers import (
     budgets,
     cashflow_plan,
     categories,
+    challenges,
     dashboard,
     events,
     goals,
+    invites,
     loans,
     net_worth,
+    notifications,
     recurring,
     reports,
     savings_products,
@@ -58,9 +61,12 @@ app.include_router(reports.router, prefix=API_PREFIX)
 app.include_router(settings.router, prefix=API_PREFIX)
 app.include_router(cashflow_plan.router, prefix=API_PREFIX)
 app.include_router(goals.router, prefix=API_PREFIX)
+app.include_router(invites.router, prefix=API_PREFIX)
 app.include_router(savings_products.router, prefix=API_PREFIX)
 app.include_router(loans.router, prefix=API_PREFIX)
 app.include_router(net_worth.router, prefix=API_PREFIX)
+app.include_router(notifications.router, prefix=API_PREFIX)
+app.include_router(challenges.router, prefix=API_PREFIX)
 
 Path(app_settings.upload_dir).mkdir(parents=True, exist_ok=True)
 app.mount("/media", StaticFiles(directory=app_settings.upload_dir), name="media")

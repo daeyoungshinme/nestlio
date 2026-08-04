@@ -50,17 +50,21 @@ def create_transaction(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    tx = transaction_service.create_transaction(
-        db,
-        user_id=current_user.id,
-        category_id=payload.category_id,
-        type_=payload.type,
-        amount=payload.amount,
-        transaction_date=payload.transaction_date,
-        description=payload.description,
-        payment_method=payload.payment_method,
-        account_id=payload.account_id,
-    )
+    try:
+        tx = transaction_service.create_transaction(
+            db,
+            user_id=current_user.id,
+            category_id=payload.category_id,
+            type_=payload.type,
+            amount=payload.amount,
+            transaction_date=payload.transaction_date,
+            description=payload.description,
+            payment_method=payload.payment_method,
+            account_id=payload.account_id,
+            savings_product_id=payload.savings_product_id,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
     if payload.type == "expense" and is_connected():
         try:
             notification_service.check_and_alert_budget_threshold(db, payload.category_id)
@@ -134,17 +138,21 @@ def update_transaction(
     db: Session = Depends(get_db),
     _: User = Depends(get_current_user),
 ):
-    tx = transaction_service.update_transaction(
-        db,
-        tx_id,
-        amount=payload.amount,
-        type=payload.type,
-        category_id=payload.category_id,
-        transaction_date=payload.transaction_date,
-        description=payload.description,
-        payment_method=payload.payment_method,
-        account_id=payload.account_id,
-    )
+    try:
+        tx = transaction_service.update_transaction(
+            db,
+            tx_id,
+            amount=payload.amount,
+            type=payload.type,
+            category_id=payload.category_id,
+            transaction_date=payload.transaction_date,
+            description=payload.description,
+            payment_method=payload.payment_method,
+            account_id=payload.account_id,
+            savings_product_id=payload.savings_product_id,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
     if tx is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Transaction not found")
     return tx

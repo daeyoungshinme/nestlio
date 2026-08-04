@@ -3,6 +3,11 @@ set -euo pipefail
 
 cd "$(dirname "${BASH_SOURCE[0]}")"
 
+MODE="dev"
+if [ "${1:-}" = "run" ]; then
+  MODE="run"
+fi
+
 BACKEND_PORT=8899
 FRONTEND_PORT=5273
 
@@ -15,7 +20,9 @@ kill_port() {
 }
 
 kill_port "$BACKEND_PORT"
-kill_port "$FRONTEND_PORT"
+if [ "$MODE" = "dev" ]; then
+  kill_port "$FRONTEND_PORT"
+fi
 sleep 1
 echo "[dev.sh] stop step done, continuing..."
 
@@ -30,7 +37,7 @@ PYTHON="$VENV_PY"
 
 if [ ! -f ".env" ] && [ -f ".env.example" ]; then
   echo "[dev.sh] .env not found, copying from .env.example"
-  echo "[dev.sh] WARNING: edit .env and fill in SECRET_KEY / spouse passwords before real use"
+  echo "[dev.sh] WARNING: edit .env and fill in Supabase / DB settings before real use"
   cp ".env.example" ".env"
 fi
 
@@ -57,6 +64,14 @@ fi
 if [ ! -f "frontend/.env" ] && [ -f "frontend/.env.example" ]; then
   echo "[dev.sh] frontend/.env not found, copying from frontend/.env.example"
   cp "frontend/.env.example" "frontend/.env"
+fi
+
+if [ "$MODE" = "run" ]; then
+  echo "[dev.sh] building frontend (frontend/dist)..."
+  (cd frontend && npm run build)
+
+  echo "[dev.sh] starting server on http://0.0.0.0:$BACKEND_PORT"
+  exec "$PYTHON" -m uvicorn app.main:app --host 0.0.0.0 --port "$BACKEND_PORT"
 fi
 
 BACKEND_PID=""

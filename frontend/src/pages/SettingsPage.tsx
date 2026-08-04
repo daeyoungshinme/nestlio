@@ -1,30 +1,64 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { CheckCircle2, Mail, Moon, Sun, XCircle } from "lucide-react";
+import { CheckCircle2, Copy, Mail, Moon, Sun, UserPlus, X, XCircle } from "lucide-react";
 import { Link } from "react-router-dom";
 import Button from "@/components/common/Button";
+import FormInput from "@/components/common/FormInput";
 import SkeletonCard from "@/components/common/SkeletonCard";
 import { useLogout } from "@/hooks/useLogout";
 import { useThemeStore } from "@/stores/themeStore";
-import { deleteCouplePhoto, fetchSettings, testMonthlyEmail, testWeeklyEmail, uploadCouplePhoto } from "@/api/settings";
+import {
+  deleteCouplePhoto,
+  fetchSettings,
+  setCoachingThresholds,
+  testMonthlyEmail,
+  testWeeklyEmail,
+  uploadCouplePhoto,
+} from "@/api/settings";
+import { cancelInvite, createInvite, fetchInvites } from "@/api/invites";
+import { fetchUsers } from "@/api/users";
+import type { CoachingThresholdsOut, InviteOut } from "@/types";
 import { QUERY_KEYS } from "@/constants/queryKeys";
-import { formatPercent } from "@/utils/format";
+import { INPUT_SM } from "@/constants/inputStyles";
 import { extractErrorMessage } from "@/utils/error";
+import { inviteStatusLabel, inviteStatusTextClass } from "@/utils/colors";
+import type { InviteStatus } from "@/utils/colors";
 import { toast } from "@/utils/toast";
+
+const THRESHOLD_FIELDS: { key: keyof CoachingThresholdsOut; label: string }[] = [
+  { key: "savings_rate_warn", label: "저축률 경고" },
+  { key: "savings_rate_critical", label: "저축률 위험" },
+  { key: "fixed_cost_ratio_warn", label: "고정비율 경고" },
+  { key: "fixed_cost_ratio_critical", label: "고정비율 위험" },
+  { key: "budget_warn_pct", label: "예산 경고" },
+  { key: "budget_critical_pct", label: "예산 위험" },
+  { key: "discretionary_ratio_warn", label: "재량지출 경고" },
+  { key: "debt_ratio_warn", label: "부채비율 경고" },
+];
+
+function inviteStatus(invite: InviteOut): InviteStatus {
+  if (invite.accepted_at) return "accepted";
+  if (new Date(invite.expires_at) < new Date()) return "expired";
+  return "pending";
+}
 
 export default function SettingsPage() {
   const [couplePhotoFile, setCouplePhotoFile] = useState<File | null>(null);
+  const [inviteEmail, setInviteEmail] = useState("");
+  const [thresholdEdits, setThresholdEdits] = useState<Partial<CoachingThresholdsOut>>({});
   const queryClient = useQueryClient();
   const logout = useLogout();
   const { isDark, toggle: toggleTheme } = useThemeStore();
 
   const { data, isLoading } = useQuery({ queryKey: QUERY_KEYS.settings, queryFn: fetchSettings });
+  const usersQuery = useQuery({ queryKey: QUERY_KEYS.users, queryFn: fetchUsers });
+  const invitesQuery = useQuery({ queryKey: QUERY_KEYS.invites, queryFn: fetchInvites });
 
   const uploadPhotoMutation = useMutation({
     mutationFn: uploadCouplePhoto,
     onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ["settings"] });
-      void queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+      void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.settings });
+      void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.dashboardAll });
       setCouplePhotoFile(null);
       toast("부부 사진이 저장되었습니다.", "success");
     },
@@ -34,8 +68,8 @@ export default function SettingsPage() {
   const deletePhotoMutation = useMutation({
     mutationFn: deleteCouplePhoto,
     onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ["settings"] });
-      void queryClient.invalidateQueries({ queryKey: ["dashboard"] });
+      void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.settings });
+      void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.dashboardAll });
       toast("부부 사진을 삭제했습니다.", "success");
     },
     onError: (err) => toast(extractErrorMessage(err), "error"),
@@ -52,6 +86,47 @@ export default function SettingsPage() {
     onSuccess: (res) => toast(res.message, res.sent ? "success" : "info"),
     onError: (err) => toast(extractErrorMessage(err), "error"),
   });
+
+  const thresholdsMutation = useMutation({
+    mutationFn: setCoachingThresholds,
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.settings });
+      void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.dashboardAll });
+      setThresholdEdits({});
+      toast("코칭 임계값을 저장했습니다.", "success");
+    },
+    onError: (err) => toast(extractErrorMessage(err), "error"),
+  });
+
+  const createInviteMutation = useMutation({
+    mutationFn: createInvite,
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.invites });
+      setInviteEmail("");
+      toast("배우자에게 초대를 보냈습니다.", "success");
+    },
+    onError: (err) => toast(extractErrorMessage(err), "error"),
+  });
+
+  const cancelInviteMutation = useMutation({
+    mutationFn: cancelInvite,
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.invites });
+      toast("초대를 취소했습니다.", "success");
+    },
+    onError: (err) => toast(extractErrorMessage(err), "error"),
+  });
+
+  const copyAcceptUrl = async (url: string) => {
+    try {
+      await navigator.clipboard.writeText(url);
+      toast("초대 링크를 복사했습니다.", "success");
+    } catch {
+      toast("링크 복사에 실패했습니다.", "error");
+    }
+  };
+
+  const householdFull = (usersQuery.data?.length ?? 0) >= 2;
 
   if (isLoading || !data) {
     return <SkeletonCard rows={4} />;
@@ -113,6 +188,77 @@ export default function SettingsPage() {
       </div>
 
       <div className="card space-y-3">
+        <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300">배우자 초대</h3>
+        {householdFull ? (
+          <p className="text-xs text-gray-500 dark:text-gray-400">이미 배우자가 등록되어 있어요.</p>
+        ) : (
+          <>
+            <p className="text-xs text-gray-500 dark:text-gray-400">
+              이메일로 초대를 보내면, 배우자가 링크를 눌러 직접 계정을 만들 수 있어요.
+            </p>
+            <div className="flex gap-2">
+              <input
+                type="email"
+                value={inviteEmail}
+                onChange={(e) => setInviteEmail(e.target.value)}
+                placeholder="spouse@example.com"
+                className={`flex-1 ${INPUT_SM}`}
+              />
+              <Button
+                size="sm"
+                icon={<UserPlus size={14} />}
+                disabled={!inviteEmail}
+                loading={createInviteMutation.isPending}
+                onClick={() => createInviteMutation.mutate(inviteEmail)}
+              >
+                초대
+              </Button>
+            </div>
+          </>
+        )}
+
+        {!!invitesQuery.data?.length && (
+          <ul className="space-y-2">
+            {invitesQuery.data.map((invite) => {
+              const status = inviteStatus(invite);
+              return (
+                <li
+                  key={invite.id}
+                  className="flex items-center justify-between gap-2 text-sm px-3 py-2 rounded-lg bg-gray-50 dark:bg-gray-800"
+                >
+                  <div className="min-w-0">
+                    <p className="text-gray-700 dark:text-gray-300 truncate">{invite.email}</p>
+                    <p className={`text-xs ${inviteStatusTextClass(status)}`}>{inviteStatusLabel(status)}</p>
+                  </div>
+                  {status === "pending" && (
+                    <div className="flex items-center gap-1 shrink-0">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        aria-label="초대 링크 복사"
+                        onClick={() => void copyAcceptUrl(invite.accept_url)}
+                      >
+                        <Copy size={14} />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        aria-label="초대 취소"
+                        loading={cancelInviteMutation.isPending}
+                        onClick={() => cancelInviteMutation.mutate(invite.id)}
+                      >
+                        <X size={14} />
+                      </Button>
+                    </div>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </div>
+
+      <div className="card space-y-3">
         <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300">Google 연동</h3>
         <div className="flex items-center gap-2 text-sm">
           {data.google_connected ? (
@@ -150,12 +296,37 @@ export default function SettingsPage() {
         </div>
       </div>
 
-      <div className="card space-y-2">
-        <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300">예산 임계값</h3>
-        <p className="text-sm text-gray-500 dark:text-gray-400">
-          경고 {formatPercent(data.budget_warn_pct)} · 위험 {formatPercent(data.budget_critical_pct)}
+      <div className="card space-y-3">
+        <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300">코칭 임계값</h3>
+        <p className="text-xs text-gray-500 dark:text-gray-400">
+          대시보드 코칭 인사이트가 발동하는 기준(%)이에요. 두 분의 소비 성향에 맞게 조정할 수 있어요.
         </p>
-        <p className="text-xs text-gray-400 dark:text-gray-500">서버 환경변수(BUDGET_WARN_PCT 등)로 조정합니다.</p>
+        <div className="grid grid-cols-2 gap-3">
+          {THRESHOLD_FIELDS.map(({ key, label }) => (
+            <FormInput
+              key={key}
+              label={label}
+              type="number"
+              min={0}
+              max={999}
+              step={1}
+              value={thresholdEdits[key] ?? data.coaching_thresholds[key]}
+              onChange={(e) =>
+                setThresholdEdits((prev) => ({ ...prev, [key]: Number(e.target.value) }))
+              }
+            />
+          ))}
+        </div>
+        <Button
+          size="sm"
+          disabled={Object.keys(thresholdEdits).length === 0}
+          loading={thresholdsMutation.isPending}
+          onClick={() =>
+            thresholdsMutation.mutate({ ...data.coaching_thresholds, ...thresholdEdits })
+          }
+        >
+          저장
+        </Button>
       </div>
 
       <p className="text-xs text-gray-500 dark:text-gray-400 px-1">

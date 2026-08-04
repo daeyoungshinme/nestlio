@@ -1,3 +1,4 @@
+import { memo } from "react";
 import { Repeat } from "lucide-react";
 import { categoryTypeBadgeStyle, transactionAmountTextColor } from "@/utils/colors";
 import { formatKrw, formatKrwCompact } from "@/utils/format";
@@ -17,7 +18,7 @@ interface Props {
 const MAX_VISIBLE_EVENTS = 1;
 const MAX_VISIBLE_RECURRING = 1;
 
-export default function LedgerDayCell({
+function LedgerDayCell({
   date,
   day,
   inCurrentMonth,
@@ -28,7 +29,9 @@ export default function LedgerDayCell({
   onSelect,
 }: Props) {
   const income = transactions.filter((t) => t.type === "income").reduce((sum, t) => sum + Number(t.amount), 0);
-  const expense = transactions.filter((t) => t.type === "expense").reduce((sum, t) => sum + Number(t.amount), 0);
+  const expense = transactions
+    .filter((t) => t.type === "expense" && !t.category.is_savings)
+    .reduce((sum, t) => sum + Number(t.amount), 0);
   const showIncome = income > 0;
   const showExpense = expense > 0;
 
@@ -100,3 +103,5 @@ export default function LedgerDayCell({
     </button>
   );
 }
+
+export default memo(LedgerDayCell);

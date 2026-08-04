@@ -1,19 +1,19 @@
 import { useState } from "react";
 import type { FormEvent } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Pencil, Trash2 } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
 import Badge from "@/components/common/Badge";
 import Button from "@/components/common/Button";
 import ConfirmModal from "@/components/common/ConfirmModal";
 import EmptyState from "@/components/common/EmptyState";
 import FormInput from "@/components/common/FormInput";
 import Modal from "@/components/common/Modal";
+import RowActionButtons from "@/components/common/RowActionButtons";
 import SkeletonCard from "@/components/common/SkeletonCard";
 import { INLINE_BUTTON_OFFSET, INPUT_SM, LABEL_SM } from "@/constants/inputStyles";
 import { createCategory, deactivateCategory, fetchCategories, updateCategory } from "@/api/categories";
 import { QUERY_KEYS } from "@/constants/queryKeys";
-import { extractErrorMessage } from "@/utils/error";
-import { toast } from "@/utils/toast";
+import { STALE_TIME } from "@/constants/queryConfig";
+import { useCrudMutations } from "@/hooks/useCrudMutations";
 import type { CategoryOut, CategoryType } from "@/types";
 
 const TYPE_LABEL: Record<CategoryType, string> = {
@@ -37,44 +37,24 @@ export default function CategoriesSection() {
   const [form, setForm] = useState<FormState>(emptyForm);
   const [editing, setEditing] = useState<CategoryOut | null>(null);
   const [deactivateTarget, setDeactivateTarget] = useState<CategoryOut | null>(null);
-  const queryClient = useQueryClient();
 
-  const { data, isLoading } = useQuery({ queryKey: QUERY_KEYS.categories(), queryFn: () => fetchCategories() });
-
-  const invalidate = () => {
-    void queryClient.invalidateQueries({ queryKey: ["categories"] });
-    void queryClient.invalidateQueries({ queryKey: ["transactions"] });
-    void queryClient.invalidateQueries({ queryKey: ["category-breakdown"] });
-  };
-
-  const createMutation = useMutation({
-    mutationFn: createCategory,
-    onSuccess: () => {
-      invalidate();
-      toast("카테고리를 추가했습니다.", "success");
-      setForm(emptyForm);
-    },
-    onError: (err) => toast(extractErrorMessage(err), "error"),
+  const { data, isLoading } = useQuery({
+    queryKey: QUERY_KEYS.categories(),
+    queryFn: () => fetchCategories(),
+    staleTime: STALE_TIME.LONG,
   });
 
-  const updateMutation = useMutation({
-    mutationFn: ({ id, payload }: { id: number; payload: FormState }) => updateCategory(id, payload),
-    onSuccess: () => {
-      invalidate();
-      toast("카테고리를 수정했습니다.", "success");
-      setEditing(null);
+  const { createMutation, updateMutation, removeMutation: deactivateMutation } = useCrudMutations({
+    invalidateKeys: [QUERY_KEYS.categoriesAll, QUERY_KEYS.transactionsAll, QUERY_KEYS.categoryBreakdownAll],
+    api: { create: createCategory, update: updateCategory, remove: deactivateCategory },
+    messages: {
+      create: "카테고리를 추가했습니다.",
+      update: "카테고리를 수정했습니다.",
+      remove: "카테고리를 비활성화했습니다.",
     },
-    onError: (err) => toast(extractErrorMessage(err), "error"),
-  });
-
-  const deactivateMutation = useMutation({
-    mutationFn: deactivateCategory,
-    onSuccess: () => {
-      invalidate();
-      setDeactivateTarget(null);
-      toast("카테고리를 비활성화했습니다.", "success");
-    },
-    onError: (err) => toast(extractErrorMessage(err), "error"),
+    onCreateSuccess: () => setForm(emptyForm),
+    onUpdateSuccess: () => setEditing(null),
+    onRemoveSuccess: () => setDeactivateTarget(null),
   });
 
   const handleSubmit = (e: FormEvent) => {
@@ -94,9 +74,9 @@ export default function CategoriesSection() {
 
   const expenseByType = TYPE_ORDER.map((type) => ({
     type,
-    items: data.filter((c) => c.kind === "expense" && c.type === type),
+    items: data.filter((c) => c.kind === "expense" && c.type === type && !c.is_savings),
   }));
-  const incomeCategories = data.filter((c) => c.kind === "income");
+  const incomeCategories = data.filter((c) => c.kind === "income" && !c.is_savings);
 
   return (
     <div className="space-y-6">
@@ -275,22 +255,7 @@ function CategoryCard({
           <Badge type={category.type} label={category.kind === "income" ? "수입" : TYPE_LABEL[category.type]} />
         </div>
       </div>
-      <div className="flex items-center gap-1 shrink-0">
-        <button
-          onClick={onEdit}
-          className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-950 rounded-lg transition-colors"
-          aria-label="수정"
-        >
-          <Pencil size={16} />
-        </button>
-        <button
-          onClick={onDeactivate}
-          className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950 rounded-lg transition-colors"
-          aria-label="비활성화"
-        >
-          <Trash2 size={16} />
-        </button>
-      </div>
+      <RowActionButtons onEdit={onEdit} onDelete={onDeactivate} deleteLabel="비활성화" />
     </div>
   );
 }

@@ -50,7 +50,7 @@ def test_savings_product_create_update_deactivate(seeded_db):
     product = savings_product_service.create_product(db, "비상예비자금", Decimal("3000000"), Decimal("200000"))
     assert product.is_active is True
 
-    savings_product_service.update_product(db, product.id, "비상예비자금", Decimal("3200000"), Decimal("200000"))
+    savings_product_service.update_product(db, product.id, "비상예비자금", Decimal("3200000"), Decimal("200000"), "savings")
     savings_product_service.deactivate_product(db, product.id)
 
     active = savings_product_service.list_products(db, active_only=True)

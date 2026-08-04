@@ -1,5 +1,5 @@
 import { Link, useNavigate, useParams } from "react-router-dom";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { ArrowLeft, Trash2 } from "lucide-react";
 import { useState } from "react";
 import Button from "@/components/common/Button";
@@ -8,8 +8,11 @@ import SkeletonCard from "@/components/common/SkeletonCard";
 import TransactionForm from "@/components/transactions/TransactionForm";
 import { fetchCategories } from "@/api/categories";
 import { fetchAccounts } from "@/api/accounts";
+import { fetchSavingsProducts } from "@/api/savingsProducts";
 import { deleteTransaction, fetchTransaction, updateTransaction } from "@/api/transactions";
 import { QUERY_KEYS } from "@/constants/queryKeys";
+import { STALE_TIME } from "@/constants/queryConfig";
+import { useInvalidateTransactionRelated } from "@/hooks/useInvalidateTransactionRelated";
 import { extractErrorMessage } from "@/utils/error";
 import { toast } from "@/utils/toast";
 import { TOUCH_TARGET_ROW } from "@/constants/uiSizes";
@@ -18,20 +21,28 @@ export default function TransactionEditPage() {
   const { id } = useParams<{ id: string }>();
   const txId = Number(id);
   const navigate = useNavigate();
-  const queryClient = useQueryClient();
+  const invalidateAll = useInvalidateTransactionRelated();
   const [confirmDelete, setConfirmDelete] = useState(false);
 
-  const { data: categories } = useQuery({ queryKey: QUERY_KEYS.categories(), queryFn: () => fetchCategories() });
-  const { data: accounts } = useQuery({ queryKey: QUERY_KEYS.accounts, queryFn: fetchAccounts });
+  const { data: categories } = useQuery({
+    queryKey: QUERY_KEYS.categories(),
+    queryFn: () => fetchCategories(),
+    staleTime: STALE_TIME.LONG,
+  });
+  const { data: accounts } = useQuery({
+    queryKey: QUERY_KEYS.accounts,
+    queryFn: fetchAccounts,
+    staleTime: STALE_TIME.LONG,
+  });
+  const { data: savingsProducts } = useQuery({
+    queryKey: QUERY_KEYS.savingsProducts,
+    queryFn: fetchSavingsProducts,
+    staleTime: STALE_TIME.MEDIUM,
+  });
   const { data: tx, isLoading } = useQuery({
     queryKey: QUERY_KEYS.transaction(txId),
     queryFn: () => fetchTransaction(txId),
   });
-
-  const invalidateAll = () => {
-    void queryClient.invalidateQueries({ queryKey: ["transactions"] });
-    void queryClient.invalidateQueries({ queryKey: ["dashboard"] });
-  };
 
   const updateMutation = useMutation({
     mutationFn: (payload: Parameters<typeof updateTransaction>[1]) => updateTransaction(txId, payload),
@@ -53,7 +64,7 @@ export default function TransactionEditPage() {
     onError: (err) => toast(extractErrorMessage(err), "error"),
   });
 
-  if (!categories || !accounts || isLoading || !tx) {
+  if (!categories || !accounts || !savingsProducts || isLoading || !tx) {
     return <SkeletonCard rows={4} />;
   }
 
@@ -71,6 +82,7 @@ export default function TransactionEditPage() {
         <TransactionForm
           categories={categories}
           accounts={accounts}
+          savingsProducts={savingsProducts}
           layout="stack"
           submitLabel="저장"
           submitting={updateMutation.isPending}
@@ -82,6 +94,7 @@ export default function TransactionEditPage() {
             description: tx.description ?? "",
             payment_method: tx.payment_method ?? "",
             account_id: tx.account ? String(tx.account.id) : "",
+            savings_product_id: tx.savings_product_id ? String(tx.savings_product_id) : "",
           }}
           onSubmit={(payload) => updateMutation.mutate(payload)}
         />

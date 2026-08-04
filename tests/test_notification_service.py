@@ -1,8 +1,11 @@
-from datetime import date
+from datetime import date, datetime
 from decimal import Decimal
 from unittest.mock import patch
 
-from app.services import budget_service, goal_service, notification_service
+import pytest
+
+from app.models.user import User
+from app.services import budget_service, challenge_service, goal_service, notification_service
 
 
 @patch("app.services.notification_service.gmail_service.send_email")
@@ -122,3 +125,96 @@ def test_threshold_alert_skips_categories_without_budget(mock_send, seeded_db):
 
     assert sent is False
     mock_send.assert_not_called()
+
+
+@patch("app.services.notification_service.gmail_service.send_email")
+def test_challenge_success_celebration_fires_once(mock_send, seeded_db):
+    db, user = seeded_db["db"], seeded_db["user"]
+    challenge = challenge_service.create_challenge(
+        db, user.id, "외식비 줄이기", None, Decimal("300000"), date(2026, 8, 1), date(2026, 8, 31)
+    )
+    challenge_service.update_progress(db, challenge.id, Decimal("300000"))
+
+    sent_first = notification_service.check_and_celebrate_challenge(db, challenge.id)
+    sent_again = notification_service.check_and_celebrate_challenge(db, challenge.id)
+
+    assert sent_first is True
+    assert sent_again is False
+    assert mock_send.call_count == 1
+    assert "외식비 줄이기" in mock_send.call_args.args[0]
+
+
+@patch("app.services.notification_service.gmail_service.send_email")
+def test_challenge_success_celebration_skips_while_active(mock_send, seeded_db):
+    db, user = seeded_db["db"], seeded_db["user"]
+    challenge = challenge_service.create_challenge(
+        db, user.id, "외식비 줄이기", None, Decimal("300000"), date(2026, 8, 1), date(2026, 8, 31)
+    )
+    challenge_service.update_progress(db, challenge.id, Decimal("150000"))
+
+    sent = notification_service.check_and_celebrate_challenge(db, challenge.id)
+
+    assert sent is False
+    mock_send.assert_not_called()
+
+
+def _second_user(db) -> User:
+    spouse = User(email="spouse2@example.com", display_name="Spouse 2")
+    db.add(spouse)
+    db.commit()
+    db.refresh(spouse)
+    return spouse
+
+
+@patch("app.services.notification_service.gmail_service.send_email")
+def test_list_notifications_reflects_read_state_independently_per_user(mock_send, seeded_db):
+    db, user = seeded_db["db"], seeded_db["user"]
+    spouse = _second_user(db)
+    notification_service.send_weekly_summary(db, today=date(2026, 7, 29))
+
+    [log] = notification_service.list_notifications(db, user.id)
+    assert log["is_read"] is False
+    assert notification_service.unread_count(db, user.id) == 1
+
+    notification_service.mark_read(db, user.id, log["id"], now=datetime(2026, 7, 29, 12, 0))
+
+    [log_after] = notification_service.list_notifications(db, user.id)
+    assert log_after["is_read"] is True
+    assert notification_service.unread_count(db, user.id) == 0
+
+    # the other spouse's read state is unaffected
+    [spouse_view] = notification_service.list_notifications(db, spouse.id)
+    assert spouse_view["is_read"] is False
+    assert notification_service.unread_count(db, spouse.id) == 1
+
+
+@patch("app.services.notification_service.gmail_service.send_email")
+def test_mark_read_is_idempotent(mock_send, seeded_db):
+    db, user = seeded_db["db"], seeded_db["user"]
+    notification_service.send_weekly_summary(db, today=date(2026, 7, 29))
+    [log] = notification_service.list_notifications(db, user.id)
+
+    notification_service.mark_read(db, user.id, log["id"])
+    notification_service.mark_read(db, user.id, log["id"])  # should not raise / double-insert
+
+    assert notification_service.unread_count(db, user.id) == 0
+
+
+def test_mark_read_unknown_id_raises(seeded_db):
+    db, user = seeded_db["db"], seeded_db["user"]
+    with pytest.raises(notification_service.NotificationNotFoundError):
+        notification_service.mark_read(db, user.id, 999999)
+
+
+@patch("app.services.notification_service.gmail_service.send_email")
+def test_mark_all_read(mock_send, seeded_db):
+    db, user = seeded_db["db"], seeded_db["user"]
+    notification_service.send_weekly_summary(db, today=date(2026, 7, 29))
+    notification_service.send_monthly_summary(db, today=date(2026, 8, 3))
+
+    marked = notification_service.mark_all_read(db, user.id)
+    marked_again = notification_service.mark_all_read(db, user.id)
+
+    assert marked == 2
+    assert marked_again == 0
+    assert notification_service.unread_count(db, user.id) == 0

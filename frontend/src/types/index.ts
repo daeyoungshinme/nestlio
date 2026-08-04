@@ -7,6 +7,25 @@ export interface UserOut {
   display_name: string;
 }
 
+export interface InviteOut {
+  id: string;
+  email: string;
+  invited_by_id: string;
+  created_at: string;
+  expires_at: string;
+  accepted_at: string | null;
+  accept_url: string;
+}
+
+export interface InviteCreateIn {
+  email: string;
+}
+
+export interface InviteAcceptIn {
+  user_id: string;
+  display_name: string;
+}
+
 export type CategoryType = "fixed" | "variable" | "irregular";
 
 export interface CategoryOut {
@@ -19,6 +38,7 @@ export interface CategoryOut {
   is_active: boolean;
   is_discretionary: boolean;
   is_debt: boolean;
+  is_savings: boolean;
   sort_order: number;
 }
 
@@ -105,6 +125,16 @@ export interface DashboardOut {
   current_ym: string;
 }
 
+export interface MonthlyRetrospectiveOut {
+  year_month: string;
+  start: string;
+  end: string;
+  totals: TotalsOut;
+  by_user: UserTotalsOut[];
+  top_categories: CategoryAmountOut[];
+  insights: InsightOut[];
+}
+
 export type TransactionType = "income" | "expense";
 
 export interface TransactionOut {
@@ -115,8 +145,10 @@ export interface TransactionOut {
   description: string | null;
   payment_method: string | null;
   account_id: number | null;
+  savings_product_id: number | null;
   category: CategoryOut;
   account: AccountOut | null;
+  savings_product: SavingsProductOut | null;
   user: UserOut;
   created_at: string;
   updated_at: string;
@@ -130,6 +162,7 @@ export interface TransactionCreateIn {
   description?: string | null;
   payment_method?: string | null;
   account_id?: number | null;
+  savings_product_id?: number | null;
 }
 
 export type TransactionUpdateIn = TransactionCreateIn;
@@ -173,6 +206,35 @@ export interface RecurringOut {
   next_due_date: string;
   is_active: boolean;
   category: CategoryOut;
+}
+
+export interface RecurringListOut {
+  items: RecurringOut[];
+  upcoming: RecurringOut[];
+}
+
+export interface RecurringCreateIn {
+  name: string;
+  category_id: number;
+  amount: string;
+  frequency: RecurringFrequency;
+  start_date: string;
+  end_date?: string | null;
+  reminder_days_before?: number;
+}
+
+export interface RecurringUpdateIn {
+  name?: string;
+  category_id?: number;
+  amount?: string;
+  frequency?: RecurringFrequency;
+  start_date?: string;
+  end_date?: string | null;
+  reminder_days_before?: number;
+}
+
+export interface RunNowResultOut {
+  created_count: number;
 }
 
 export interface YearlyMonthRowOut {
@@ -242,11 +304,23 @@ export interface EventCreateIn {
 
 export type EventUpdateIn = EventCreateIn;
 
+export interface CoachingThresholdsOut {
+  savings_rate_warn: number;
+  savings_rate_critical: number;
+  fixed_cost_ratio_warn: number;
+  fixed_cost_ratio_critical: number;
+  budget_warn_pct: number;
+  budget_critical_pct: number;
+  discretionary_ratio_warn: number;
+  debt_ratio_warn: number;
+}
+
+export type CoachingThresholdsIn = CoachingThresholdsOut;
+
 export interface SettingsOut {
   google_connected: boolean;
   notify_email_to: string;
-  budget_warn_pct: number;
-  budget_critical_pct: number;
+  coaching_thresholds: CoachingThresholdsOut;
   emergency_fund_balance: string | null;
   couple_photo_url: string | null;
 }
@@ -322,6 +396,50 @@ export interface CashflowPlanCopyResultOut {
   copied: number;
 }
 
+export interface BudgetRowOut {
+  category_id: number;
+  name: string;
+  type: "fixed" | "variable" | "irregular";
+  color: string;
+  budget: string;
+  actual: string;
+  pct: number;
+  status: "ok" | "warn" | "critical";
+}
+
+export interface BudgetListOut {
+  year_month: string;
+  prev_month: string;
+  next_month: string;
+  rows: BudgetRowOut[];
+}
+
+export interface BudgetUpsertIn {
+  year_month: string;
+  category_id: number;
+  amount: string;
+}
+
+export interface BudgetCopyResultOut {
+  copied: number;
+}
+
+export interface NotificationOut {
+  id: number;
+  notif_type: string;
+  related_type: string | null;
+  related_id: number | null;
+  year_month: string | null;
+  sent_at: string;
+  detail: string | null;
+  is_read: boolean;
+}
+
+export interface NotificationListOut {
+  items: NotificationOut[];
+  unread_count: number;
+}
+
 export interface FinancialGoalOut {
   id: number;
   priority: number;
@@ -332,6 +450,8 @@ export interface FinancialGoalOut {
   current_amount: string;
   progress_pct: string;
   sort_order: number;
+  primary_savings_product_id: number | null;
+  primary_savings_product_name: string | null;
 }
 
 export interface FinancialGoalCreateIn {
@@ -341,28 +461,80 @@ export interface FinancialGoalCreateIn {
   required_amount: string;
   monthly_saving_amount: string;
   current_amount?: string;
+  primary_savings_product_id?: number | null;
 }
 
 export type FinancialGoalUpdateIn = FinancialGoalCreateIn;
+
+export interface ChallengeOut {
+  id: number;
+  title: string;
+  description: string | null;
+  target_amount: string;
+  current_amount: string;
+  progress_pct: string;
+  start_date: string;
+  end_date: string;
+  status: "active" | "succeeded";
+  effective_status: "active" | "succeeded" | "expired";
+  created_by_id: string;
+  completed_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ChallengeCreateIn {
+  title: string;
+  description?: string | null;
+  target_amount: string;
+  start_date: string;
+  end_date: string;
+}
+
+export type ChallengeUpdateIn = ChallengeCreateIn;
+
+export interface ChallengeProgressIn {
+  current_amount: string;
+}
+
+export type SavingsProductType = "savings" | "investment";
 
 export interface SavingsProductOut {
   id: number;
   name: string;
   current_balance: string;
   monthly_saving_amount: string;
+  product_type: SavingsProductType;
   sort_order: number;
   is_active: boolean;
+  growlio_account_id: string | null;
+  auto_sync_enabled: boolean;
+  last_synced_at: string | null;
 }
 
 export interface SavingsProductCreateIn {
   name: string;
   current_balance: string;
   monthly_saving_amount: string;
+  product_type: SavingsProductType;
 }
 
 export type SavingsProductUpdateIn = SavingsProductCreateIn;
 
-export type RepaymentMethod = "equal_payment" | "equal_principal" | "bullet" | "other";
+export interface SavingsProductGrowlioLinkIn {
+  growlio_account_id: string | null;
+  auto_sync_enabled: boolean;
+}
+
+export interface GrowlioAccountOut {
+  id: string;
+  name: string;
+  asset_type: string;
+  current_value_krw: number;
+  as_of: string | null;
+}
+
+export type RepaymentMethod = "equal_payment" | "equal_principal" | "bullet" | "grace_period" | "other";
 
 export interface LoanOut {
   id: number;

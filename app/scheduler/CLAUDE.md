@@ -20,6 +20,7 @@ APScheduler(`AsyncIOScheduler`) 기반 백그라운드 잡. `app/main.py`의 `li
 | `weekly_summary_email` | 매주 월 08:00 | `notification_service.send_weekly_summary` |
 | `monthly_summary_email` | 매월 1일 08:00 | `notification_service.send_monthly_summary` |
 | `daily_threshold_safety_net` | 매일 20:00 | `notification_service.check_all_categories_threshold` + `check_all_goal_milestones` (실시간 체크 누락 대비 백스톱) |
+| `monthly_net_worth_snapshot` | 매월 1일 08:05 | `net_worth_service.record_snapshot` (순자산 추이 차트용 월별 스냅샷 기록) |
 | `event_reminder_check` | 15분 간격 (`interval`) | `event_service.send_due_reminders` (일정 시작 전 리마인더 이메일 — "N분/일 전" 단위라 daily cron으로는 부족해 유일하게 interval 트리거 사용) |
 
 ## 세션 패턴

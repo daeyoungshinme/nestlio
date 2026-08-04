@@ -10,6 +10,8 @@ import { AUTH_ME_CACHE_KEY, useAuthStore } from "./stores/authStore";
 import { useThemeStore } from "./stores/themeStore";
 
 const LoginPage = lazy(() => import("./pages/LoginPage"));
+const InviteAcceptPage = lazy(() => import("./pages/InviteAcceptPage"));
+const AuthCallbackPage = lazy(() => import("./pages/AuthCallbackPage"));
 const DashboardPage = lazy(() => import("./pages/DashboardPage"));
 const TransactionsPage = lazy(() => import("./pages/TransactionsPage"));
 const TransactionEditPage = lazy(() => import("./pages/TransactionEditPage"));
@@ -41,6 +43,8 @@ function AppRoutes() {
   return (
     <Routes>
       <Route path="/login" element={<LazyRoute Component={LoginPage} />} />
+      <Route path="/invite/accept" element={<LazyRoute Component={InviteAcceptPage} />} />
+      <Route path="/auth/callback" element={<LazyRoute Component={AuthCallbackPage} />} />
       <Route
         path="/"
         element={

@@ -14,6 +14,13 @@ def get_shared_setting(db: Session, key: str, default: str | None = None) -> str
     return row.value if row else default
 
 
+def get_shared_settings(db: Session, keys: list[str]) -> dict[str, str]:
+    """Batched get_shared_setting() for multiple keys in a single query. Keys with no
+    saved row are simply absent from the result."""
+    rows = db.query(UserSetting).filter(UserSetting.key.in_(keys)).all()
+    return {row.key: row.value for row in rows}
+
+
 def set_shared_setting(db: Session, key: str, value: str, user_id: uuid.UUID) -> None:
     row = db.query(UserSetting).filter(UserSetting.key == key).first()
     if row is None:

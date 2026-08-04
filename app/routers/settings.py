@@ -5,8 +5,8 @@ from app.config import settings as app_settings
 from app.database import get_db
 from app.dependencies import get_current_user
 from app.models.user import User
-from app.schemas.settings import EmergencyFundIn, SettingsOut, TestEmailResultOut
-from app.services import couple_photo_service, notification_service, user_setting_service
+from app.schemas.settings import CoachingThresholdsIn, EmergencyFundIn, SettingsOut, TestEmailResultOut
+from app.services import coaching_settings_service, couple_photo_service, notification_service, user_setting_service
 from app.services.google_auth import GoogleNotConnectedError, is_connected
 
 router = APIRouter(prefix="/settings", tags=["settings"])
@@ -16,8 +16,7 @@ def _settings_out(db: Session) -> dict:
     return {
         "google_connected": is_connected(),
         "notify_email_to": app_settings.notify_email_to,
-        "budget_warn_pct": app_settings.budget_warn_pct,
-        "budget_critical_pct": app_settings.budget_critical_pct,
+        "coaching_thresholds": coaching_settings_service.get_thresholds(db),
         "emergency_fund_balance": user_setting_service.get_shared_setting(
             db, user_setting_service.EMERGENCY_FUND_BALANCE_KEY, None
         ),
@@ -39,6 +38,16 @@ def set_emergency_fund(
     user_setting_service.set_shared_setting(
         db, user_setting_service.EMERGENCY_FUND_BALANCE_KEY, str(payload.balance), current_user.id
     )
+    return _settings_out(db)
+
+
+@router.put("/coaching-thresholds", response_model=SettingsOut)
+def set_coaching_thresholds(
+    payload: CoachingThresholdsIn,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    coaching_settings_service.set_thresholds(db, payload.model_dump(), current_user.id)
     return _settings_out(db)
 
 

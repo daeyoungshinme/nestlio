@@ -17,3 +17,13 @@ class DashboardOut(BaseModel):
     trend: list[TrendRowOut]
     insights: list[InsightOut]
     current_ym: str
+
+
+class MonthlyRetrospectiveOut(BaseModel):
+    year_month: str
+    start: date
+    end: date
+    totals: TotalsOut
+    by_user: list[UserTotalsOut]
+    top_categories: list[CategoryAmountOut]
+    insights: list[InsightOut]

@@ -15,6 +15,7 @@ class CategoryOut(BaseModel):
     is_active: bool
     is_discretionary: bool = False
     is_debt: bool = False
+    is_savings: bool = False
     sort_order: int
 
 

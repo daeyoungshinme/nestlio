@@ -261,7 +261,7 @@ def test_compute_insights_includes_savings_execution_when_snapshots_exist(seeded
     # surplus = 1,000,000; only 300,000 actually moved into savings this month
     product = savings_product_service.create_product(db, "적금", Decimal("0"), Decimal("300000"))
     net_worth_service.record_snapshot(db, today=date(2026, 6, 30))
-    savings_product_service.update_product(db, product.id, "적금", Decimal("300000"), Decimal("300000"))
+    savings_product_service.update_product(db, product.id, "적금", Decimal("300000"), Decimal("300000"), "savings")
     net_worth_service.record_snapshot(db, today=date(2026, 7, 31))
 
     insights = coaching_engine.compute_insights(db, "2026-07")
