@@ -23,6 +23,19 @@ jobs:
   call-internal-job:
     runs-on: ubuntu-latest
     steps:
+      - name: verify required secrets
+        run: |
+          missing=""
+          [ -z "$APP_URL" ] && missing="$missing APP_URL"
+          [ -z "$INTERNAL_JOB_SECRET" ] && missing="$missing INTERNAL_JOB_SECRET"
+          if [ -n "$missing" ]; then
+            echo "::error::Missing repository secrets:$missing — set them under Settings > Secrets and variables > Actions"
+            exit 1
+          fi
+        env:
+          APP_URL: ${{ secrets.APP_URL }}
+          INTERNAL_JOB_SECRET: ${{ secrets.INTERNAL_JOB_SECRET }}
+
       - name: daily_due_date_check
         if: github.event.schedule == '0 22 * * *' || github.event_name == 'workflow_dispatch'
         run: |
