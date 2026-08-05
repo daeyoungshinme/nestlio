@@ -2,7 +2,8 @@ from decimal import Decimal
 from unittest.mock import patch
 
 
-def test_get_settings_reflects_config(client):
+@patch("app.routers.settings.is_connected", return_value=False)
+def test_get_settings_reflects_config(mock_is_connected, client):
     resp = client.get("/api/v1/settings")
     assert resp.status_code == 200
     body = resp.json()
@@ -10,7 +11,8 @@ def test_get_settings_reflects_config(client):
     assert "budget_warn_pct" in body["coaching_thresholds"]
 
 
-def test_set_coaching_thresholds_overrides_and_persists(client):
+@patch("app.routers.settings.is_connected", return_value=False)
+def test_set_coaching_thresholds_overrides_and_persists(mock_is_connected, client):
     payload = {
         "savings_rate_warn": 25,
         "savings_rate_critical": 15,
@@ -29,14 +31,16 @@ def test_set_coaching_thresholds_overrides_and_persists(client):
     assert client.get("/api/v1/settings").json()["coaching_thresholds"] == payload
 
 
-def test_set_emergency_fund(client):
+@patch("app.routers.settings.is_connected", return_value=False)
+def test_set_emergency_fund(mock_is_connected, client):
     resp = client.put("/api/v1/settings/emergency-fund", json={"balance": "3000000"})
     assert resp.status_code == 200
     assert Decimal(resp.json()["emergency_fund_balance"]) == Decimal("3000000")
 
 
-def test_test_weekly_email_without_google_returns_409(client):
-    # data/token.json이 없는 (Google 미연결) 상태를 가정 - GoogleNotConnectedError -> 409
+@patch("app.routers.settings.is_connected", return_value=False)
+def test_test_weekly_email_without_google_returns_409(mock_is_connected, client):
+    # google_oauth_tokens에 행이 없는 (Google 미연결) 상태 - GoogleNotConnectedError -> 409
     resp = client.post("/api/v1/settings/test-weekly-email")
     assert resp.status_code == 409
 

@@ -63,7 +63,7 @@ cd frontend && npm run test:watch  # 워치 모드
 - `/settings` — 설정
 - 미매칭 경로(`*`)는 `/`로 리다이렉트
 
-새 페이지 추가 시 `App.tsx`의 `<Route>`뿐 아니라 `constants/nav.ts`의 `SIDEBAR_NAV_GROUPS`(데스크톱 사이드바, "지출관리"/"자산·목표"/"리포트" 3개 그룹 + 그룹 헤더 없이 상단/하단에 단독 배치되는 대시보드·설정, 총 7개 항목)도 갱신한다. `SIDEBAR_NAV_ITEMS`는 `SIDEBAR_NAV_GROUPS`를 평탄화한 파생 목록이다. 모바일 `BottomNav`는 터치 타겟을 지키기 위해 `BOTTOM_NAV_PRIMARY_ITEMS`(4개: 대시보드/가계부/자산현황/목표)만 상시 노출하고 나머지(`BOTTOM_NAV_MORE_ITEMS`: 연간리포트/설정)는 "더보기" 바텀시트로 접는다 — 예산·고정지출은 관리 화면 자체가 없어지면서 별도 슬롯이 필요 없어졌고, 그 자리에 다음으로 자주 쓰는 자산현황을 승격했다. 일정/예산/고정지출은 독립 탭이 아니라 가계부(`/transactions`) 페이지의 필터·목록으로 흡수됐다 (위 라우트 설명 참고). 두 배열 다 경로(`to`)로 `SIDEBAR_NAV_ITEMS`에서 찾아 파생시키므로(배열 인덱스가 아니라 경로 문자열 목록), 항목을 늘릴 때 `nav.ts`의 그룹 정의와 두 파생 배열의 경로 목록만 고치면 된다.
+새 페이지 추가 시 `App.tsx`의 `<Route>`뿐 아니라 `constants/nav.ts`의 `SIDEBAR_NAV_GROUPS`(데스크톱 사이드바, "지출관리"/"자산·목표"/"리포트" 3개 그룹 + 그룹 헤더 없이 상단/하단에 단독 배치되는 대시보드·설정, 총 6개 항목)도 갱신한다. `SIDEBAR_NAV_ITEMS`는 `SIDEBAR_NAV_GROUPS`를 평탄화한 파생 목록이다. 모바일 `BottomNav`는 터치 타겟을 지키기 위해 `BOTTOM_NAV_PRIMARY_ITEMS`(4개: 대시보드/가계부/자산현황/목표)만 상시 노출하고 나머지(`BOTTOM_NAV_MORE_ITEMS`: 연간리포트/설정)는 "더보기" 바텀시트로 접는다 — 예산·고정지출은 관리 화면 자체가 없어지면서 별도 슬롯이 필요 없어졌고, 그 자리에 다음으로 자주 쓰는 자산현황을 승격했다. 일정/예산/고정지출은 독립 탭이 아니라 가계부(`/transactions`) 페이지의 필터·목록으로 흡수됐다 (위 라우트 설명 참고). 두 배열 다 경로(`to`)로 `SIDEBAR_NAV_ITEMS`에서 찾아 파생시키므로(배열 인덱스가 아니라 경로 문자열 목록), 항목을 늘릴 때 `nav.ts`의 그룹 정의와 두 파생 배열의 경로 목록만 고치면 된다.
 
 **컴포넌트 디렉토리** (`src/components/`):
 - `layout/` — `AppLayout.tsx`(사이드바+헤더+본문+하단탭 셸), `Sidebar.tsx`(`hidden lg:flex`), `Header.tsx`(데스크톱/모바일 공통 상단바, 현재는 알림 벨 아이콘 하나뿐), `BottomNav.tsx`(`lg:hidden fixed bottom-0`, "더보기" 바텀시트 포함)

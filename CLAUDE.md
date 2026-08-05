@@ -9,8 +9,8 @@
 - **DB/ORM**: SQLAlchemy 2.0 (`Mapped`/`mapped_column` 스타일, 동기 세션), Alembic 마이그레이션 (`migrations/`)
 - **설정**: pydantic-settings (`app/config.py`)
 - **인증**: growlio와 동일 — 프론트엔드가 `@supabase/supabase-js`로 직접 로그인해 Supabase JWT를 발급받고, 백엔드는 `app/dependencies.py`에서 JWKS(`PyJWKClient`)로 서명만 검증한다. 백엔드에는 로그인 엔드포인트가 없다 (세션 쿠키 없음, `Authorization: Bearer <token>` 헤더만 사용)
-- **스케줄링**: APScheduler — 상세는 [app/scheduler/CLAUDE.md](app/scheduler/CLAUDE.md). 웹/인증 계층과 완전히 분리되어 있음 (자체 DB 세션 사용)
-- **외부 연동**: Google Calendar / Gmail API
+- **스케줄링**: 예약 작업은 in-process 스케줄러가 아니라 GitHub Actions 예약 워크플로(`.github/workflows/scheduled-jobs.yml`)가 `POST /internal/jobs/{job_name}`을 호출해 실행한다 (Render 무료 웹서비스가 15분 미사용 시 슬립하기 때문). 상세는 [app/scheduler/CLAUDE.md](app/scheduler/CLAUDE.md)
+- **외부 연동**: Google Calendar / Gmail API, growlio 자산 조회 API(읽기전용, `app/services/growlio_client.py` — 사용자의 Supabase JWT를 그대로 전달해 호출, 저축상품 잔액 자동 동기화에만 사용)
 
 ## 아키텍처
 
@@ -38,7 +38,7 @@
 - 배포 스냅샷 실행: `dev.sh run` (Windows: `dev.bat run`) — `frontend/dist`를 정적 빌드한 뒤 uvicorn 단일 프로세스(8899 포트)로 서빙한다. 프론트 수정 시 재빌드가 필요하다 (구 `run.sh`/`run.bat`은 이 모드로 통합됨).
 - 테스트: `pytest` (pytest 설정 파일 없음, 기본 옵션으로 동작 — 상세 컨벤션은 [tests/CLAUDE.md](tests/CLAUDE.md))
 - 마이그레이션: Alembic (`alembic.ini`, `migrations/`) — 모델 변경 시 리비전 생성 필요
-- 배포: FastAPI가 `frontend/dist`(빌드된 SPA)를 정적 파일로 서빙하는 단일 프로세스 구조 (growlio의 nginx 분리 구조와 다른, nestlio 규모에 맞춘 의도적 단순화)
+- 배포: FastAPI가 `frontend/dist`(빌드된 SPA)를 정적 파일로 서빙하는 단일 프로세스 구조 (growlio의 nginx/Render+Vercel 분리 구조와 다른, nestlio 규모에 맞춘 의도적 단순화). Render 무료 웹서비스 1개로 배포한다 (`render.yaml` 참고) — DB는 별도로 마련할 필요 없이 growlio와 공유하는 Supabase Postgres를 그대로 쓴다. Render 무료 티어는 디스크가 완전히 휘발성이라 부부 사진은 Supabase Storage에, 구글 OAuth 토큰은 Postgres에 저장한다(아래 참고). 15분 미사용 시 슬립하므로 예약 작업은 인프로세스 스케줄러 대신 GitHub Actions가 트리거한다([app/scheduler/CLAUDE.md](app/scheduler/CLAUDE.md)).
 
 ## 환경 변수
 
@@ -49,7 +49,9 @@
 - 프론트엔드 오리진(배우자 초대 이메일의 가입 링크 조립용): `APP_BASE_URL`
 - 알림: `NOTIFY_EMAIL_TO`
 - 코칭엔진 임계값(0-100 %): `SAVINGS_RATE_*`, `FIXED_COST_RATIO_*`, `BUDGET_*_PCT`, `DISCRETIONARY_RATIO_WARN`, `DEBT_RATIO_WARN`
-
-Google OAuth 관련 파일(`data/token.json`, `data/client_secret.json`)은 `.gitignore` 처리되어 있으며 `scripts/google_auth_setup.py`로 최초 설정한다.
+- growlio 연동(자산 조회, 저축상품 자동 동기화용): `GROWLIO_API_BASE_URL` — 비어 있으면 동기화 기능이 꺼진다
+- 부부 사진 저장용 Supabase Storage: `SUPABASE_SERVICE_ROLE_KEY`, `SUPABASE_STORAGE_BUCKET`, `MAX_UPLOAD_SIZE_MB` — 백엔드가 `/media/couple-photo`에서 프록시로 서빙한다(`app/services/couple_photo_service.py`, `app/main.py`). 둘 중 하나라도 비어 있으면 "사진 없음"으로 동작한다.
+- 예약 작업 인증: `INTERNAL_JOB_SECRET` — GitHub Actions가 `/internal/jobs/{job_name}` 호출 시 `X-Internal-Job-Secret` 헤더로 보낸다.
+- Google OAuth: `GOOGLE_OAUTH_CLIENT_ID`, `GOOGLE_OAUTH_CLIENT_SECRET` — 토큰 자체는 파일이 아니라 Postgres `household.google_oauth_tokens`에 저장되며(재배포/재시작에도 유지), `scripts/google_auth_setup.py`로 최초 1회 로컬에서 연결한다.
 
 프론트엔드 전용 컨벤션(디렉토리 구조, growlio 디자인 시스템 이식 규칙 등)은 [frontend/CLAUDE.md](frontend/CLAUDE.md) 참고.

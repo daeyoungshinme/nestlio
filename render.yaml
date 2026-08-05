@@ -1,0 +1,59 @@
+services:
+  - type: web
+    name: nestlio
+    runtime: python
+    plan: free
+    buildCommand: "pip install -r requirements.txt && cd frontend && npm ci && npm run build"
+    startCommand: "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port $PORT"
+    healthCheckPath: /
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.9
+      - key: DATABASE_URL
+        sync: false
+      - key: SUPABASE_PROJECT_URL
+        sync: false
+      - key: SUPABASE_ANON_KEY
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: SUPABASE_STORAGE_BUCKET
+        value: nestlio-media
+      # 실제 배포 도메인(Render가 할당하는 https://<service>.onrender.com)은 첫 배포 후에만
+      # 알 수 있으므로 값을 미리 채우지 않는다 - 대시보드에서 배포 후 직접 채운다.
+      - key: CORS_ORIGINS
+        sync: false
+      - key: APP_BASE_URL
+        sync: false
+      - key: NOTIFY_EMAIL_TO
+        sync: false
+      - key: GROWLIO_API_BASE_URL
+        sync: false
+      - key: INTERNAL_JOB_SECRET
+        generateValue: true
+      - key: GOOGLE_OAUTH_CLIENT_ID
+        sync: false
+      - key: GOOGLE_OAUTH_CLIENT_SECRET
+        sync: false
+      - key: MAX_UPLOAD_SIZE_MB
+        value: "5"
+      - key: SAVINGS_RATE_WARN
+        value: "20"
+      - key: SAVINGS_RATE_CRITICAL
+        value: "10"
+      - key: FIXED_COST_RATIO_WARN
+        value: "40"
+      - key: FIXED_COST_RATIO_CRITICAL
+        value: "50"
+      - key: BUDGET_WARN_PCT
+        value: "90"
+      - key: BUDGET_CRITICAL_PCT
+        value: "100"
+      - key: DISCRETIONARY_RATIO_WARN
+        value: "15"
+      - key: DEBT_RATIO_WARN
+        value: "30"
+      - key: VITE_SUPABASE_URL
+        sync: false
+      - key: VITE_SUPABASE_ANON_KEY
+        sync: false

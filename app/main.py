@@ -1,7 +1,6 @@
-from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, HTTPException, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
@@ -16,6 +15,7 @@ from app.routers import (
     dashboard,
     events,
     goals,
+    internal_jobs,
     invites,
     loans,
     net_worth,
@@ -27,19 +27,12 @@ from app.routers import (
     transactions,
     users,
 )
-from app.scheduler.setup import start_scheduler, stop_scheduler
+from app.services import couple_photo_service
 
 FRONTEND_DIST = Path(__file__).resolve().parent.parent / "frontend" / "dist"
 
 
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    start_scheduler()
-    yield
-    stop_scheduler()
-
-
-app = FastAPI(title="Nestlio", lifespan=lifespan)
+app = FastAPI(title="Nestlio")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=app_settings.cors_origins,
@@ -78,9 +71,18 @@ app.include_router(loans.router, prefix=API_PREFIX)
 app.include_router(net_worth.router, prefix=API_PREFIX)
 app.include_router(notifications.router, prefix=API_PREFIX)
 app.include_router(challenges.router, prefix=API_PREFIX)
+app.include_router(internal_jobs.router)
 
-Path(app_settings.upload_dir).mkdir(parents=True, exist_ok=True)
-app.mount("/media", StaticFiles(directory=app_settings.upload_dir), name="media")
+
+@app.get("/media/couple-photo", include_in_schema=False)
+def serve_couple_photo():
+    # 인증 없이 서빙 — <img src>는 Authorization 헤더를 못 보내고, 기존 StaticFiles 마운트도
+    # 비인증이었으므로 동작을 그대로 유지한다.
+    result = couple_photo_service.get_photo_bytes()
+    if result is None:
+        raise HTTPException(status_code=404)
+    content, content_type = result
+    return Response(content=content, media_type=content_type)
 
 # growlio는 별도 nginx가 프론트엔드를 서빙하지만, nestlio는 운영 단순화를 위해
 # FastAPI가 빌드된 SPA(frontend/dist, `npm run build` 산출물)를 직접 서빙한다.

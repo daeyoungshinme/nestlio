@@ -13,6 +13,9 @@ class Settings(BaseSettings):
     # Supabase Auth (growlio와 같은 프로젝트를 공유 — 로그인 검증에만 사용)
     supabase_project_url: str = ""
     supabase_anon_key: str = ""
+    # 부부 사진 저장용 Supabase Storage — 서비스 롤 키는 백엔드가 버킷에 직접 업/다운로드할 때만 사용
+    supabase_service_role_key: str = ""
+    supabase_storage_bucket: str = "nestlio-media"
 
     notify_email_to: str = "you@example.com"
 
@@ -35,8 +38,14 @@ class Settings(BaseSettings):
     discretionary_ratio_warn: float = 15
     debt_ratio_warn: float = 30
 
-    upload_dir: str = "data/uploads"
     max_upload_size_mb: float = 5
+
+    # /internal/jobs/* 엔드포인트 인증용 공유 시크릿 (GitHub Actions 예약 워크플로가 호출)
+    internal_job_secret: str = ""
+
+    # Google OAuth (Calendar/Gmail 연동, scripts/google_auth_setup.py에서 사용)
+    google_oauth_client_id: str = ""
+    google_oauth_client_secret: str = ""
 
 
 settings = Settings()

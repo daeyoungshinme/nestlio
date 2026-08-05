@@ -1,0 +1,93 @@
+name: nestlio scheduled jobs
+
+# Render 무료 웹서비스는 15분 미사용 시 슬립하고, 인프로세스 스케줄러를 유지할 수 없다.
+# 대신 이 워크플로가 GitHub Actions cron으로 깨어나 /internal/jobs/{name}을 호출한다.
+# 시간은 전부 UTC (GitHub Actions는 cron에 타임존을 지원하지 않음, KST = UTC+9).
+# workflow_dispatch(수동 실행)로 돌리면 요일/말일 조건과 무관하게 6개 잡이 모두 실행된다 (동작 확인용).
+on:
+  schedule:
+    # daily_due_date_check: 매일 07:00 KST = 전날 22:00 UTC
+    - cron: "0 22 * * *"
+    # weekly_summary_email(매주 월 08:00 KST) + monthly_summary_email(매월 1일 08:00 KST)
+    # 둘 다 23:00 UTC 트리거이며, 아래 스텝에서 요일/말일 여부로 각각 분기한다.
+    - cron: "0 23 * * *"
+    # monthly_net_worth_snapshot: 매월 1일 08:05 KST = 전월 말일 23:05 UTC
+    - cron: "5 23 * * *"
+    # daily_threshold_safety_net: 매일 20:00 KST = 11:00 UTC
+    - cron: "0 11 * * *"
+    # event_reminder_check: 15분 간격
+    - cron: "*/15 * * * *"
+  workflow_dispatch: {}
+
+jobs:
+  call-internal-job:
+    runs-on: ubuntu-latest
+    steps:
+      - name: daily_due_date_check
+        if: github.event.schedule == '0 22 * * *' || github.event_name == 'workflow_dispatch'
+        run: |
+          curl -fsS --max-time 90 -X POST "$APP_URL/internal/jobs/daily-due-date-check" \
+            -H "X-Internal-Job-Secret: $INTERNAL_JOB_SECRET"
+        env:
+          APP_URL: ${{ secrets.APP_URL }}
+          INTERNAL_JOB_SECRET: ${{ secrets.INTERNAL_JOB_SECRET }}
+
+      - name: weekly_summary_email (Sun 23:00 UTC = Mon 08:00 KST)
+        if: github.event.schedule == '0 23 * * *' || github.event_name == 'workflow_dispatch'
+        run: |
+          if [ "$(date -u +%u)" = "7" ] || [ -n "$FORCE_RUN" ]; then
+            curl -fsS --max-time 90 -X POST "$APP_URL/internal/jobs/weekly-summary-email" \
+              -H "X-Internal-Job-Secret: $INTERNAL_JOB_SECRET"
+          else
+            echo "not Sunday UTC, skipping weekly_summary_email"
+          fi
+        env:
+          APP_URL: ${{ secrets.APP_URL }}
+          INTERNAL_JOB_SECRET: ${{ secrets.INTERNAL_JOB_SECRET }}
+          FORCE_RUN: ${{ github.event_name == 'workflow_dispatch' && '1' || '' }}
+
+      - name: monthly_summary_email (last UTC day of month 23:00 = 1st 08:00 KST)
+        if: github.event.schedule == '0 23 * * *' || github.event_name == 'workflow_dispatch'
+        run: |
+          if [ "$(date -u -d '+1 day' +%d)" = "01" ] || [ -n "$FORCE_RUN" ]; then
+            curl -fsS --max-time 90 -X POST "$APP_URL/internal/jobs/monthly-summary-email" \
+              -H "X-Internal-Job-Secret: $INTERNAL_JOB_SECRET"
+          else
+            echo "tomorrow (UTC) is not the 1st, skipping monthly_summary_email"
+          fi
+        env:
+          APP_URL: ${{ secrets.APP_URL }}
+          INTERNAL_JOB_SECRET: ${{ secrets.INTERNAL_JOB_SECRET }}
+          FORCE_RUN: ${{ github.event_name == 'workflow_dispatch' && '1' || '' }}
+
+      - name: monthly_net_worth_snapshot (last UTC day of month 23:05 = 1st 08:05 KST)
+        if: github.event.schedule == '5 23 * * *' || github.event_name == 'workflow_dispatch'
+        run: |
+          if [ "$(date -u -d '+1 day' +%d)" = "01" ] || [ -n "$FORCE_RUN" ]; then
+            curl -fsS --max-time 90 -X POST "$APP_URL/internal/jobs/monthly-net-worth-snapshot" \
+              -H "X-Internal-Job-Secret: $INTERNAL_JOB_SECRET"
+          else
+            echo "tomorrow (UTC) is not the 1st, skipping monthly_net_worth_snapshot"
+          fi
+        env:
+          APP_URL: ${{ secrets.APP_URL }}
+          INTERNAL_JOB_SECRET: ${{ secrets.INTERNAL_JOB_SECRET }}
+          FORCE_RUN: ${{ github.event_name == 'workflow_dispatch' && '1' || '' }}
+
+      - name: daily_threshold_safety_net
+        if: github.event.schedule == '0 11 * * *' || github.event_name == 'workflow_dispatch'
+        run: |
+          curl -fsS --max-time 90 -X POST "$APP_URL/internal/jobs/daily-threshold-safety-net" \
+            -H "X-Internal-Job-Secret: $INTERNAL_JOB_SECRET"
+        env:
+          APP_URL: ${{ secrets.APP_URL }}
+          INTERNAL_JOB_SECRET: ${{ secrets.INTERNAL_JOB_SECRET }}
+
+      - name: event_reminder_check
+        if: github.event.schedule == '*/15 * * * *' || github.event_name == 'workflow_dispatch'
+        run: |
+          curl -fsS --max-time 90 -X POST "$APP_URL/internal/jobs/event-reminder-check" \
+            -H "X-Internal-Job-Secret: $INTERNAL_JOB_SECRET"
+        env:
+          APP_URL: ${{ secrets.APP_URL }}
+          INTERNAL_JOB_SECRET: ${{ secrets.INTERNAL_JOB_SECRET }}

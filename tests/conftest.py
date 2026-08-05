@@ -37,6 +37,18 @@ def db_session():
         session.close()
 
 
+@pytest.fixture(autouse=True)
+def _google_auth_test_db(monkeypatch, db_session):
+    """google_auth.py opens its own SessionLocal() rather than using the request-scoped
+    get_db() override (see app/services/CLAUDE.md's documented exception for it) - left
+    unpatched, is_connected()/get_credentials() would hit the real DATABASE_URL (the
+    production Supabase Postgres shared with growlio in local dev) on every call, instead
+    of this test's isolated in-memory DB. Route it at the same engine db_session uses."""
+    monkeypatch.setattr(
+        "app.services.google_auth.SessionLocal", sessionmaker(bind=db_session.get_bind())
+    )
+
+
 @pytest.fixture()
 def seeded_db(db_session):
     user = User(email="spouse1@example.com", display_name="Spouse 1")

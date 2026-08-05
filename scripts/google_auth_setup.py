@@ -6,12 +6,13 @@ Prerequisites (do this once in Google Cloud Console, https://console.cloud.googl
   3. Configure the OAuth consent screen (External is fine for personal use; add your
      own Google account under "Test users" if the app stays in Testing mode).
   4. Create credentials > OAuth client ID > Application type "Desktop app".
-  5. Download the JSON and save it as: data/client_secret.json
+  5. Put the client ID/secret into .env as GOOGLE_OAUTH_CLIENT_ID / GOOGLE_OAUTH_CLIENT_SECRET.
 
 Then run: .venv/Scripts/python.exe scripts/google_auth_setup.py
-A browser window will open for you to sign in and consent. After that,
-data/token.json is created and the running app will auto-refresh it - no
-further manual steps needed.
+A browser window will open for you to sign in and consent. The resulting token is
+saved to the household.google_oauth_tokens table (same Supabase Postgres the deployed
+app uses via .env's DATABASE_URL) - run this once locally and the deployed app picks
+it up immediately, no redeploy needed. The running app auto-refreshes it from there.
 """
 import sys
 from pathlib import Path
@@ -20,20 +21,29 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from google_auth_oauthlib.flow import InstalledAppFlow
 
-from app.services.google_auth import CLIENT_SECRET_PATH, SCOPES, TOKEN_PATH
+from app.config import settings
+from app.services.google_auth import SCOPES, save_credentials
 
 
 def main():
-    if not CLIENT_SECRET_PATH.exists():
-        print(f"오류: {CLIENT_SECRET_PATH} 파일이 없습니다.")
-        print("Google Cloud Console에서 OAuth 클라이언트(Desktop app)를 만들고 JSON을 다운로드해")
-        print(f"{CLIENT_SECRET_PATH} 경로에 저장한 뒤 다시 실행하세요.")
+    if not settings.google_oauth_client_id or not settings.google_oauth_client_secret:
+        print("오류: GOOGLE_OAUTH_CLIENT_ID / GOOGLE_OAUTH_CLIENT_SECRET이 .env에 설정되어 있지 않습니다.")
+        print("Google Cloud Console에서 OAuth 클라이언트(Desktop app)를 만들고 .env에 값을 채운 뒤 다시 실행하세요.")
         sys.exit(1)
 
-    flow = InstalledAppFlow.from_client_secrets_file(str(CLIENT_SECRET_PATH), SCOPES)
+    client_config = {
+        "installed": {
+            "client_id": settings.google_oauth_client_id,
+            "client_secret": settings.google_oauth_client_secret,
+            "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+            "token_uri": "https://oauth2.googleapis.com/token",
+            "redirect_uris": ["http://localhost"],
+        }
+    }
+    flow = InstalledAppFlow.from_client_config(client_config, SCOPES)
     creds = flow.run_local_server(port=0)
-    TOKEN_PATH.write_text(creds.to_json(), encoding="utf-8")
-    print(f"연결 완료. 토큰이 저장되었습니다: {TOKEN_PATH}")
+    save_credentials(creds)
+    print("연결 완료. 토큰이 household.google_oauth_tokens 테이블에 저장되었습니다.")
 
 
 if __name__ == "__main__":

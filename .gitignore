@@ -1,8 +1,5 @@
 .env
 data/*.db
-data/token.json
-data/client_secret.json
-data/uploads/
 __pycache__/
 *.pyc
 .pytest_cache/
