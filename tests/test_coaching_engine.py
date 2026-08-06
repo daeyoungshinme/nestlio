@@ -272,6 +272,34 @@ def test_compute_insights_end_to_end(seeded_db):
     assert severities == sorted(severities, key=lambda s: {"critical": 0, "warning": 1, "info": 2}[s])
 
 
+def test_compute_insights_uses_precomputed_totals_breakdown_goals_when_given(seeded_db):
+    db, user, food, rent = seeded_db["db"], seeded_db["user"], seeded_db["food"], seeded_db["rent"]
+    ym = "2026-07"
+    transaction_service.create_transaction(db, user.id, rent.id, "income", Decimal("3000000"), date(2026, 7, 1))
+    transaction_service.create_transaction(db, user.id, rent.id, "expense", Decimal("1600000"), date(2026, 7, 2))
+    cashflow_plan_service.upsert_item(
+        db, None, food.type, None, food.name, Decimal("100000"), 0, ym, user.id, category_id=food.id
+    )
+    transaction_service.create_transaction(db, user.id, food.id, "expense", Decimal("100000"), date(2026, 7, 10))
+    start, end = date(2026, 7, 1), date(2026, 7, 31)
+    totals = transaction_service.period_totals(db, start, end)
+    breakdown = transaction_service.category_breakdown(db, start, end, "expense")
+    goals = goal_service.list_goals(db)
+
+    baseline = coaching_engine.compute_insights(db, ym)
+    with_precomputed = coaching_engine.compute_insights(db, ym, totals=totals, breakdown=breakdown, goals=goals)
+
+    assert {i.rule_code for i in with_precomputed} == {i.rule_code for i in baseline}
+    baseline_savings_rate = next(i for i in baseline if i.rule_code == "savings_rate")
+    assert baseline_savings_rate.severity == "info"  # real data: ~43% savings rate
+
+    # passing deliberately different totals proves the override path is actually used, not silently ignored
+    fabricated_totals = _totals(1_000_000, 950_000, 0, 950_000)  # 5% savings rate -> critical
+    overridden = coaching_engine.compute_insights(db, ym, totals=fabricated_totals, breakdown=breakdown, goals=goals)
+    overridden_savings_rate = next(i for i in overridden if i.rule_code == "savings_rate")
+    assert overridden_savings_rate.severity == "critical"
+
+
 def test_compute_insights_includes_goal_pace_when_goals_exist(seeded_db):
     db, user, food, rent = seeded_db["db"], seeded_db["user"], seeded_db["food"], seeded_db["rent"]
     goal_service.create_goal(db, 1, "내집마련", 40, Decimal("100000000"), Decimal("1000000"))

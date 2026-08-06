@@ -2,6 +2,7 @@ from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
@@ -33,6 +34,9 @@ FRONTEND_DIST = Path(__file__).resolve().parent.parent / "frontend" / "dist"
 
 
 app = FastAPI(title="Nestlio")
+# GZip을 CORS/보안 헤더보다 먼저 등록한다 - Starlette은 먼저 등록한 미들웨어가 응답을
+# 가장 나중에(가장 바깥에서) 처리하므로, 이래야 최종 응답 바디가 압축된다.
+app.add_middleware(GZipMiddleware, minimum_size=500)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=app_settings.cors_origins,
@@ -44,6 +48,9 @@ app.add_middleware(
 @app.middleware("http")
 async def add_security_headers(request: Request, call_next):
     response = await call_next(request)
+    if request.url.path.startswith("/assets/"):
+        # Vite 빌드 산출물은 콘텐츠 해시 파일명이라 장기 캐시가 안전하다.
+        response.headers["Cache-Control"] = "public, max-age=31536000, immutable"
     response.headers["X-Content-Type-Options"] = "nosniff"
     response.headers["X-Frame-Options"] = "DENY"
     response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"

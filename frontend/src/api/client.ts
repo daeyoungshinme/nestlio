@@ -1,4 +1,5 @@
 import axios from "axios";
+import axiosRetry from "axios-retry";
 import type { InternalAxiosRequestConfig } from "axios";
 import { supabase } from "@/lib/supabase";
 import { toast } from "@/utils/toast";
@@ -30,7 +31,20 @@ export const api = axios.create({
   // dev: Vite 프록시(/api -> 127.0.0.1:8899), prod: FastAPI가 SPA와 같은 오리진에서 서빙
   baseURL: "/api/v1",
   headers: { "Content-Type": "application/json" },
-  timeout: 30_000,
+  timeout: 15_000,
+});
+
+// 응답 자체를 못 받은(네트워크 끊김/타임아웃) GET류 요청만 재시도한다 - 서버가 응답을 준
+// 4xx/5xx는 재시도해도 무의미하거나(인증 만료 등) 위험하므로 대상에서 제외하고,
+// POST/PUT/DELETE는 "요청이 서버에 도달했지만 응답만 유실"된 경우 재시도가 중복 실행을
+// 유발할 수 있어 idempotent 메서드로만 제한한다.
+axiosRetry(api, {
+  retries: 2,
+  retryDelay: axiosRetry.exponentialDelay,
+  retryCondition: (error) =>
+    !error.response &&
+    ["get", "head", "options"].includes(error.config?.method ?? "") &&
+    (error.code === "ECONNABORTED" || axiosRetry.isNetworkError(error)),
 });
 
 api.interceptors.request.use(async (config) => {

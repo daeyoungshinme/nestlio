@@ -39,9 +39,11 @@ def dashboard(
     expense_breakdown = transaction_service.category_breakdown(db, start, end, "expense")
     trend = transaction_service.monthly_trend(db, months=6, anchor=end)
     current_ym = year_month_str(start)
-    insights = coaching_engine.compute_insights(db, current_ym)
-
     goals = goal_service.list_goals(db)
+    insights = coaching_engine.compute_insights(
+        db, current_ym, totals=totals, breakdown=expense_breakdown, goals=goals
+    )
+
     target_monthly = sum((g.monthly_saving_amount for g in goals), Decimal("0"))
     streak = coaching_engine.savings_streak_months(trend, target_monthly)
 
@@ -79,8 +81,8 @@ def monthly_retrospective(
 
     totals = transaction_service.period_totals(db, start, end)
     by_user = transaction_service.totals_by_user(db, start, end)
-    top_categories = transaction_service.category_breakdown(db, start, end, "expense")[:3]
-    insights = coaching_engine.compute_insights(db, year_month)
+    breakdown = transaction_service.category_breakdown(db, start, end, "expense")
+    insights = coaching_engine.compute_insights(db, year_month, totals=totals, breakdown=breakdown)
 
     return {
         "year_month": year_month,
@@ -88,6 +90,6 @@ def monthly_retrospective(
         "end": end,
         "totals": totals,
         "by_user": by_user,
-        "top_categories": top_categories,
+        "top_categories": breakdown[:3],
         "insights": insights,
     }

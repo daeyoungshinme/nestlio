@@ -107,7 +107,7 @@ def send_monthly_summary(db: Session, today: date | None = None, force: bool = F
     breakdown = transaction_service.category_breakdown(db, start, end, "expense")
     body = _format_summary("월간 가계부 요약", start, end, totals, breakdown)
 
-    insights = coaching_engine.compute_insights(db, period_key)
+    insights = coaching_engine.compute_insights(db, period_key, totals=totals, breakdown=breakdown)
     if insights:
         body += "\n\n자산증식 코칭:\n"
         body += "\n".join(f"  - [{i.severity}] {i.message}" for i in insights)

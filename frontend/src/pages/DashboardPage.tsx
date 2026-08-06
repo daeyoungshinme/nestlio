@@ -67,8 +67,16 @@ export default function DashboardPage() {
     queryFn: fetchSettings,
     staleTime: STALE_TIME.MEDIUM,
   });
-  const { data: netWorth } = useQuery({ queryKey: QUERY_KEYS.netWorth, queryFn: () => fetchNetWorth() });
-  const { data: goals } = useQuery({ queryKey: QUERY_KEYS.financialGoals, queryFn: fetchGoals });
+  const { data: netWorth } = useQuery({
+    queryKey: QUERY_KEYS.netWorth,
+    queryFn: () => fetchNetWorth(),
+    staleTime: STALE_TIME.MEDIUM,
+  });
+  const { data: goals } = useQuery({
+    queryKey: QUERY_KEYS.financialGoals,
+    queryFn: fetchGoals,
+    staleTime: STALE_TIME.MEDIUM,
+  });
   const { data: categories } = useQuery({
     queryKey: QUERY_KEYS.categories(),
     queryFn: () => fetchCategories(),

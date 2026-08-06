@@ -7,6 +7,7 @@ from decimal import Decimal
 from sqlalchemy.orm import Session
 
 from app.config import settings
+from app.models.financial_goal import FinancialGoal
 from app.services import (
     budget_service,
     coaching_settings_service,
@@ -229,19 +230,30 @@ def savings_streak_months(trend: list[dict], target_monthly: Decimal) -> int:
     return streak
 
 
-def compute_insights(db: Session, year_month: str | None = None) -> list[Insight]:
+def compute_insights(
+    db: Session,
+    year_month: str | None = None,
+    *,
+    totals: dict | None = None,
+    breakdown: list[dict] | None = None,
+    goals: list[FinancialGoal] | None = None,
+) -> list[Insight]:
+    """호출부가 이미 같은 기간의 totals/breakdown/goals를 조회해둔 경우, 넘겨받아 재조회를 피한다."""
     year_month = year_month or year_month_str(date.today())
     month_start = date.fromisoformat(year_month + "-01")
     start, end = month_bounds(month_start)
 
     thresholds = coaching_settings_service.get_thresholds(db)
-    totals = transaction_service.period_totals(db, start, end)
-    breakdown = transaction_service.category_breakdown(db, start, end, "expense")
+    totals = totals if totals is not None else transaction_service.period_totals(db, start, end)
+    breakdown = (
+        breakdown if breakdown is not None else transaction_service.category_breakdown(db, start, end, "expense")
+    )
     budget_rows = budget_service.budget_vs_actual(
         db, year_month, thresholds["budget_warn_pct"], thresholds["budget_critical_pct"]
     )
     trailing_avg = transaction_service.trailing_average_by_category(db, month_start, months=3)
-    goals = [{"monthly_saving_amount": g.monthly_saving_amount} for g in goal_service.list_goals(db)]
+    goal_rows = goals if goals is not None else goal_service.list_goals(db)
+    goal_dicts = [{"monthly_saving_amount": g.monthly_saving_amount} for g in goal_rows]
 
     insights: list[Insight] = []
     actual_saved = net_worth_service.savings_delta(db, year_month)
@@ -252,7 +264,7 @@ def compute_insights(db: Session, year_month: str | None = None) -> list[Insight
         ),
         discretionary_ratio_insight(totals, breakdown, thresholds["discretionary_ratio_warn"]),
         debt_ratio_insight(totals, breakdown, thresholds["debt_ratio_warn"]),
-        goal_pace_insight(totals, goals),
+        goal_pace_insight(totals, goal_dicts),
         savings_execution_insight(totals["savings"], actual_saved),
     ):
         if candidate:

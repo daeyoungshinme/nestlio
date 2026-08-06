@@ -9,6 +9,26 @@ export default defineConfig({
       "@": path.resolve(__dirname, "./src"),
     },
   },
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks: (id: string) => {
+          if (id.includes("node_modules")) {
+            if (/[\\/](react|react-dom|react-router-dom)[\\/]/.test(id)) return "react-vendor";
+            if (
+              /[\\/]@tanstack[\\/](react-query|react-query-persist-client|query-sync-storage-persister)[\\/]/.test(
+                id,
+              )
+            )
+              return "query-vendor";
+            if (id.includes("@supabase/supabase-js")) return "supabase-vendor";
+            if (id.includes("recharts")) return "chart-vendor";
+          }
+          return undefined;
+        },
+      },
+    },
+  },
   server: {
     port: 5273,
     proxy: {
