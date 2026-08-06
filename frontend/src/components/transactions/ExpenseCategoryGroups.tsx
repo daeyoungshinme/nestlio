@@ -20,7 +20,7 @@ export default function ExpenseCategoryGroups({
   onDelete,
 }: Props) {
   if (groups.length === 0) {
-    return <EmptyState title="해당 조건의 거래가 없어요" compact />;
+    return <EmptyState title="해당 조건의 내역이 없어요" compact />;
   }
 
   const total = Number(totalExpense);

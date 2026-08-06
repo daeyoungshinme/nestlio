@@ -23,6 +23,8 @@ class CashflowPlanItemOut(BaseModel):
     installment_no: int | None = None
     installment_total: int | None = None
     installment_total_amount: Decimal | None = None
+    recurring_expense_id: int | None = None
+    recurring_active: bool | None = None
 
 
 class CashflowPlanItemUpsertIn(BaseModel):
@@ -80,3 +82,7 @@ class CashflowPlanCopyIn(BaseModel):
 
 class CashflowPlanCopyResultOut(BaseModel):
     copied: int
+
+
+class CashflowPlanLinkRecurringIn(BaseModel):
+    recurring_expense_id: int

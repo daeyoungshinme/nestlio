@@ -199,8 +199,10 @@ export interface RecurringOut {
   name: string;
   category_id: number;
   amount: string;
+  type: TransactionType;
   frequency: RecurringFrequency;
   day_of_month: number | null;
+  days_of_month: number[] | null;
   start_date: string;
   end_date: string | null;
   reminder_days_before: number;
@@ -218,7 +220,9 @@ export interface RecurringCreateIn {
   name: string;
   category_id: number;
   amount: string;
+  type: TransactionType;
   frequency: RecurringFrequency;
+  days_of_month?: number[] | null;
   start_date: string;
   end_date?: string | null;
   reminder_days_before?: number;
@@ -228,7 +232,9 @@ export interface RecurringUpdateIn {
   name?: string;
   category_id?: number;
   amount?: string;
+  type?: TransactionType;
   frequency?: RecurringFrequency;
+  days_of_month?: number[] | null;
   start_date?: string;
   end_date?: string | null;
   reminder_days_before?: number;
@@ -343,6 +349,8 @@ export interface CashflowPlanItemOut {
   installment_no: number | null;
   installment_total: number | null;
   installment_total_amount: string | null;
+  recurring_expense_id: number | null;
+  recurring_active: boolean | null;
 }
 
 export interface CashflowPlanItemUpsertIn {
@@ -396,6 +404,10 @@ export interface CashflowPlanListOut {
 
 export interface CashflowPlanCopyResultOut {
   copied: number;
+}
+
+export interface CashflowPlanLinkRecurringIn {
+  recurring_expense_id: number;
 }
 
 export interface BudgetRowOut {

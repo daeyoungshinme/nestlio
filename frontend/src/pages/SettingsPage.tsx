@@ -16,7 +16,7 @@ import {
   uploadCouplePhoto,
 } from "@/api/settings";
 import { cancelInvite, createInvite, fetchInvites } from "@/api/invites";
-import { fetchUsers } from "@/api/users";
+import { fetchMe, fetchUsers, updateMe } from "@/api/users";
 import type { CoachingThresholdsOut, InviteOut } from "@/types";
 import { QUERY_KEYS } from "@/constants/queryKeys";
 import { INPUT_SM } from "@/constants/inputStyles";
@@ -47,11 +47,13 @@ export default function SettingsPage() {
   const [inviteEmail, setInviteEmail] = useState("");
   const [thresholdEdits, setThresholdEdits] = useState<Partial<CoachingThresholdsOut>>({});
   const [thresholdsOpen, setThresholdsOpen] = useState(false);
+  const [displayNameEdit, setDisplayNameEdit] = useState<string | null>(null);
   const queryClient = useQueryClient();
   const logout = useLogout();
   const { isDark, toggle: toggleTheme } = useThemeStore();
 
   const { data, isLoading } = useQuery({ queryKey: QUERY_KEYS.settings, queryFn: fetchSettings });
+  const meQuery = useQuery({ queryKey: QUERY_KEYS.me, queryFn: fetchMe });
   const usersQuery = useQuery({ queryKey: QUERY_KEYS.users, queryFn: fetchUsers });
   const invitesQuery = useQuery({ queryKey: QUERY_KEYS.invites, queryFn: fetchInvites });
 
@@ -72,6 +74,18 @@ export default function SettingsPage() {
       void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.settings });
       void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.dashboardAll });
       toast("부부 사진을 삭제했습니다.", "success");
+    },
+    onError: (err) => toast(extractErrorMessage(err), "error"),
+  });
+
+  const updateDisplayNameMutation = useMutation({
+    mutationFn: updateMe,
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.me });
+      void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.users });
+      void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.dashboardAll });
+      setDisplayNameEdit(null);
+      toast("표시 이름을 저장했습니다.", "success");
     },
     onError: (err) => toast(extractErrorMessage(err), "error"),
   });
@@ -136,6 +150,33 @@ export default function SettingsPage() {
   return (
     <div className="max-w-lg space-y-4">
       <h1 className="text-xl font-bold text-gray-900 dark:text-gray-50">설정</h1>
+
+      <div className="card space-y-3">
+        <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300">표시 이름</h3>
+        <div className="flex gap-2 items-end">
+          <div className="flex-1">
+            <FormInput
+              label="내 표시 이름"
+              value={displayNameEdit ?? meQuery.data?.display_name ?? ""}
+              onChange={(e) => setDisplayNameEdit(e.target.value)}
+              hint="남편, 아내처럼 원하는 별칭을 입력할 수 있어요. 목표 항목 구분, 대시보드 배우자별 합계 등에 표시돼요."
+              maxLength={100}
+            />
+          </div>
+          <Button
+            size="sm"
+            disabled={
+              displayNameEdit === null ||
+              displayNameEdit.trim() === "" ||
+              displayNameEdit === meQuery.data?.display_name
+            }
+            loading={updateDisplayNameMutation.isPending}
+            onClick={() => displayNameEdit && updateDisplayNameMutation.mutate(displayNameEdit.trim())}
+          >
+            저장
+          </Button>
+        </div>
+      </div>
 
       <div className="card space-y-3">
         <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300">화면 테마</h3>

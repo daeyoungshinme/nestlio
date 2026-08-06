@@ -1,4 +1,5 @@
 import uuid
+from calendar import monthrange
 from datetime import date, timedelta
 from decimal import Decimal
 
@@ -7,7 +8,7 @@ from sqlalchemy.orm import Session
 from app.models.recurring_expense import RecurringExpense
 from app.models.transaction import Transaction
 from app.services.transaction_service import create_transaction
-from app.utils.dates import advance_due_date
+from app.utils.dates import add_months_with_day, advance_recurring_date
 
 
 def list_recurring(db: Session, active_only: bool = True) -> list[RecurringExpense]:
@@ -56,17 +57,33 @@ def create_recurring(
     created_by: uuid.UUID,
     end_date: date | None = None,
     reminder_days_before: int = 3,
+    type_: str = "expense",
+    days_of_month: list[int] | None = None,
 ) -> RecurringExpense:
+    day_of_month = min(days_of_month) if days_of_month else start_date.day
+    next_due_date = start_date
+    if days_of_month:
+        # first configured occurrence on/after start_date - same month if a day >= start_date.day
+        # exists there (clamped to the month's length), otherwise the earliest day next month.
+        month_length = monthrange(start_date.year, start_date.month)[1]
+        effective_days = sorted({min(d, month_length) for d in days_of_month})
+        candidates_this_month = [d for d in effective_days if d >= start_date.day]
+        if candidates_this_month:
+            next_due_date = start_date.replace(day=candidates_this_month[0])
+        else:
+            next_due_date = add_months_with_day(start_date, 1, min(days_of_month))
     recurring = RecurringExpense(
         name=name,
         category_id=category_id,
         amount=amount,
+        type=type_,
         frequency=frequency,
-        day_of_month=start_date.day,
+        day_of_month=day_of_month,
+        days_of_month=days_of_month,
         start_date=start_date,
         end_date=end_date,
         reminder_days_before=reminder_days_before,
-        next_due_date=start_date,
+        next_due_date=next_due_date,
         created_by=created_by,
         is_active=True,
     )
@@ -117,15 +134,15 @@ def generate_due_transactions(db: Session, today: date | None = None) -> list[Tr
                 db,
                 user_id=recurring.created_by,
                 category_id=recurring.category_id,
-                type_="expense",
+                type_=recurring.type,
                 amount=recurring.amount,
                 transaction_date=recurring.next_due_date,
                 description=recurring.name,
                 recurring_expense_id=recurring.id,
             )
             created.append(tx)
-            recurring.next_due_date = advance_due_date(
-                recurring.next_due_date, recurring.frequency, recurring.day_of_month
+            recurring.next_due_date = advance_recurring_date(
+                recurring.next_due_date, recurring.frequency, recurring.day_of_month, recurring.days_of_month
             )
         db.commit()
     return created

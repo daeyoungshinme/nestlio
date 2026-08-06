@@ -3,6 +3,7 @@ import type {
   CashflowPlanCopyResultOut,
   CashflowPlanItemSplitIn,
   CashflowPlanItemUpsertIn,
+  CashflowPlanLinkRecurringIn,
   CashflowPlanListOut,
   CashflowPlanSplitResultOut,
 } from "@/types";
@@ -20,3 +21,6 @@ export const deleteCashflowPlanItem = (id: number) => apiDelete(`/cashflow-plan/
 
 export const copyPreviousMonthCashflowPlan = (yearMonth: string) =>
   apiPost<CashflowPlanCopyResultOut>("/cashflow-plan/copy-previous-month", { year_month: yearMonth });
+
+export const linkCashflowPlanRecurring = (itemId: number, payload: CashflowPlanLinkRecurringIn) =>
+  apiPost<CashflowPlanListOut>(`/cashflow-plan/items/${itemId}/link-recurring`, payload);

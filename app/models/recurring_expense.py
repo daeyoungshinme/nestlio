@@ -2,7 +2,7 @@ import uuid
 from datetime import date
 from decimal import Decimal
 
-from sqlalchemy import Boolean, Date, ForeignKey, Integer, Numeric, String
+from sqlalchemy import JSON, Boolean, Date, ForeignKey, Integer, Numeric, String
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -17,8 +17,10 @@ class RecurringExpense(Base):
     name: Mapped[str] = mapped_column(String(150))
     category_id: Mapped[int] = mapped_column(ForeignKey("categories.id"))
     amount: Mapped[Decimal] = mapped_column(Numeric(12, 2))
+    type: Mapped[str] = mapped_column(String(10), default="expense")  # 'income' | 'expense'
     frequency: Mapped[str] = mapped_column(String(10))  # 'monthly' | 'weekly' | 'yearly'
     day_of_month: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    days_of_month: Mapped[list[int] | None] = mapped_column(JSON, nullable=True)
     start_date: Mapped[date] = mapped_column(Date)
     end_date: Mapped[date | None] = mapped_column(Date, nullable=True)
     reminder_days_before: Mapped[int] = mapped_column(Integer, default=3)

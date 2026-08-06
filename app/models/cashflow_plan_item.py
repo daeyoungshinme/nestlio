@@ -8,6 +8,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
 from app.models.category import Category
+from app.models.recurring_expense import RecurringExpense
 from app.models.user import User
 
 
@@ -35,11 +36,17 @@ class CashflowPlanItem(Base):
     installment_no: Mapped[int | None] = mapped_column(Integer, nullable=True)
     installment_total: Mapped[int | None] = mapped_column(Integer, nullable=True)
     installment_total_amount: Mapped[Decimal | None] = mapped_column(Numeric(12, 2), nullable=True)
+    # 수입/고정지출 항목을 반복거래로 등록해 자동으로 가계부에 반영시킬 때만 채워진다. 연결은 생성 시점에
+    # 값을 한 번 복사하는 것일 뿐 이후 계획 금액 수정과 계속 동기화되지는 않는다(cashflow_plan_service.link_recurring 참고).
+    recurring_expense_id: Mapped[int | None] = mapped_column(
+        ForeignKey("recurring_expenses.id", ondelete="SET NULL"), nullable=True
+    )
     updated_by: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
     updated_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), onupdate=func.now())
 
     owner: Mapped["User | None"] = relationship(foreign_keys=[owner_user_id], lazy="joined")
     category: Mapped["Category | None"] = relationship(lazy="joined")
+    recurring_expense: Mapped["RecurringExpense | None"] = relationship(lazy="joined")
 
     @property
     def category_name(self) -> str | None:
@@ -48,3 +55,7 @@ class CashflowPlanItem(Base):
     @property
     def category_color(self) -> str | None:
         return self.category.color if self.category else None
+
+    @property
+    def recurring_active(self) -> bool | None:
+        return self.recurring_expense.is_active if self.recurring_expense else None

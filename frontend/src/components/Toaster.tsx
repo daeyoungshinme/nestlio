@@ -16,9 +16,12 @@ export default function Toaster() {
     const handler = (e: Event) => {
       const detail = (e as CustomEvent<ToastEvent>).detail;
       setToasts((prev) => [...prev, detail].slice(-MAX_TOASTS));
-      setTimeout(() => {
-        setToasts((prev) => prev.filter((t) => t.id !== detail.id));
-      }, 3500);
+      setTimeout(
+        () => {
+          setToasts((prev) => prev.filter((t) => t.id !== detail.id));
+        },
+        detail.action ? 6000 : 3500,
+      );
     };
     window.addEventListener("nestlio:toast", handler);
     return () => window.removeEventListener("nestlio:toast", handler);
@@ -33,9 +36,21 @@ export default function Toaster() {
           key={t.id}
           role={t.type === "error" ? "alert" : "status"}
           aria-live={t.type === "error" ? "assertive" : "polite"}
-          className={`${COLORS[t.type]} text-white text-sm px-4 py-2.5 rounded-xl shadow-lg`}
+          className={`${COLORS[t.type]} text-white text-sm px-4 py-2.5 rounded-xl shadow-lg flex items-center gap-3 pointer-events-auto`}
         >
-          {t.message}
+          <span>{t.message}</span>
+          {t.action && (
+            <button
+              type="button"
+              onClick={() => {
+                t.action?.onClick();
+                setToasts((prev) => prev.filter((toastItem) => toastItem.id !== t.id));
+              }}
+              className="font-medium underline underline-offset-2 shrink-0"
+            >
+              {t.action.label}
+            </button>
+          )}
         </div>
       ))}
     </div>

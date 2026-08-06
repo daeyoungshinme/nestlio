@@ -94,7 +94,7 @@ def recent_items(
     db: Session = Depends(get_db),
     _: User = Depends(get_current_user),
 ):
-    return transaction_service.recent_unique_transactions(db, type, is_savings, limit)
+    return transaction_service.frequent_unique_transactions(db, type, date.today(), is_savings, limit)
 
 
 @router.get("/export.csv")

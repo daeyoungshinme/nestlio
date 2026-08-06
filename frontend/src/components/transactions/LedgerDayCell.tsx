@@ -1,6 +1,6 @@
 import { memo } from "react";
 import { Repeat } from "lucide-react";
-import { categoryTypeBadgeStyle, transactionAmountTextColor } from "@/utils/colors";
+import { transactionAmountTextColor, transactionTypeBadgeStyle } from "@/utils/colors";
 import { formatKrw, formatKrwCompact } from "@/utils/format";
 import type { EventOut, RecurringOut, TransactionOut } from "@/types";
 
@@ -80,8 +80,8 @@ function LedgerDayCell({
       {visibleRecurring.map((recurring) => (
         <span
           key={`recurring-${recurring.id}`}
-          className={`inline-flex items-center gap-0.5 text-[10px] sm:text-xs font-medium truncate w-full px-1 py-0.5 rounded ${categoryTypeBadgeStyle("fixed")}`}
-          title={`${recurring.name} (고정지출 예정)`}
+          className={`inline-flex items-center gap-0.5 text-[10px] sm:text-xs font-medium truncate w-full px-1 py-0.5 rounded ${transactionTypeBadgeStyle(recurring.type)}`}
+          title={`${recurring.name} (반복 내역 예정)`}
         >
           <Repeat size={10} className="shrink-0" aria-hidden="true" />
           {recurring.name}

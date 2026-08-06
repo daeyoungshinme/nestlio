@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Copy, Layers, Pencil, Plus, Trash2 } from "lucide-react";
+import { Copy, Layers, Pencil, Plus, Repeat, Send, Trash2 } from "lucide-react";
 import CashflowPlanItemForm from "@/components/financialPlan/CashflowPlanItemForm";
 import CashflowPlanSplitForm from "@/components/financialPlan/CashflowPlanSplitForm";
 import Button from "@/components/common/Button";
@@ -11,26 +11,35 @@ import ProgressBar from "@/components/common/ProgressBar";
 import SkeletonCard from "@/components/common/SkeletonCard";
 import SummaryCard from "@/components/common/SummaryCard";
 import Tabs from "@/components/common/Tabs";
+import RecurringForm from "@/components/transactions/RecurringForm";
+import TransactionForm from "@/components/transactions/TransactionForm";
 import {
   copyPreviousMonthCashflowPlan,
   deleteCashflowPlanItem,
   fetchCashflowPlan,
+  linkCashflowPlanRecurring,
   splitCashflowPlanItem,
   upsertCashflowPlanItem,
 } from "@/api/cashflowPlan";
+import { fetchAccounts } from "@/api/accounts";
 import { fetchBudgets } from "@/api/budgets";
 import { fetchCategories } from "@/api/categories";
+import { createRecurring } from "@/api/recurring";
+import { fetchSavingsProducts } from "@/api/savingsProducts";
+import { createTransaction } from "@/api/transactions";
 import { fetchUsers } from "@/api/users";
+import { useInvalidateTransactionRelated } from "@/hooks/useInvalidateTransactionRelated";
 import { QUERY_KEYS } from "@/constants/queryKeys";
 import { STALE_TIME } from "@/constants/queryConfig";
 import { formatKrw, formatPercent } from "@/utils/format";
 import { installmentProgressLabel } from "@/utils/installment";
 import { extractErrorMessage } from "@/utils/error";
-import { planStatusBarClass, planStatusTextClass } from "@/utils/colors";
+import { planStatusBarClass, planStatusTextClass, recurringLinkBadgeLabel, recurringLinkBadgeStyle } from "@/utils/colors";
 import { toast } from "@/utils/toast";
 import type { BudgetRowOut, CashflowPlanItemOut, CashflowPlanSectionSummaryOut, CashflowSection } from "@/types";
 import type { CashflowPlanItemFormValues } from "@/components/financialPlan/CashflowPlanItemForm";
 import type { CashflowPlanSplitFormValues } from "@/components/financialPlan/CashflowPlanSplitForm";
+import type { RecurringFormValues } from "@/components/transactions/RecurringForm";
 
 const SECTIONS = [
   { key: "income", label: "수입" },
@@ -87,7 +96,10 @@ export default function CashflowPlanTab() {
   const [modal, setModal] = useState<ModalState | null>(null);
   const [splitModalOpen, setSplitModalOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<number | null>(null);
+  const [recurringLinkTarget, setRecurringLinkTarget] = useState<CashflowPlanItemOut | null>(null);
+  const [quickAddTarget, setQuickAddTarget] = useState<CashflowPlanItemOut | null>(null);
   const queryClient = useQueryClient();
+  const invalidateTxRelated = useInvalidateTransactionRelated();
 
   const { data, isLoading } = useQuery({
     queryKey: QUERY_KEYS.cashflowPlan(yearMonth),
@@ -99,9 +111,27 @@ export default function CashflowPlanTab() {
     queryFn: () => fetchCategories("expense"),
     staleTime: STALE_TIME.LONG,
   });
+  // 반복거래 등록/가계부 즉시추가 모달은 수입 카테고리도 골라야 하므로 지출 전용인 위 categories와 별도로 전체를 받는다.
+  const { data: allCategories } = useQuery({
+    queryKey: QUERY_KEYS.categoriesAll,
+    queryFn: () => fetchCategories(),
+    staleTime: STALE_TIME.LONG,
+  });
   const { data: budgetData } = useQuery({
     queryKey: QUERY_KEYS.budgets(yearMonth),
     queryFn: () => fetchBudgets(yearMonth),
+  });
+  const { data: accounts } = useQuery({
+    queryKey: QUERY_KEYS.accounts,
+    queryFn: fetchAccounts,
+    staleTime: STALE_TIME.LONG,
+    enabled: quickAddTarget !== null,
+  });
+  const { data: savingsProducts } = useQuery({
+    queryKey: QUERY_KEYS.savingsProducts,
+    queryFn: fetchSavingsProducts,
+    staleTime: STALE_TIME.MEDIUM,
+    enabled: quickAddTarget !== null,
   });
 
   const invalidate = () => {
@@ -150,6 +180,65 @@ export default function CashflowPlanTab() {
     },
     onError: (err) => toast(extractErrorMessage(err), "error"),
   });
+
+  const linkRecurringMutation = useMutation({
+    mutationFn: (vars: { itemId: number; payload: { recurring_expense_id: number } }) =>
+      linkCashflowPlanRecurring(vars.itemId, vars.payload),
+  });
+
+  const createRecurringMutation = useMutation({
+    mutationFn: createRecurring,
+    onError: (err) => toast(extractErrorMessage(err), "error"),
+  });
+
+  const quickAddMutation = useMutation({
+    mutationFn: createTransaction,
+    onSuccess: () => {
+      invalidate();
+      invalidateTxRelated();
+      setQuickAddTarget(null);
+      toast("가계부에 추가했습니다.", "success");
+    },
+    onError: (err) => toast(extractErrorMessage(err), "error"),
+  });
+
+  const handleLinkRecurringSubmit = (item: CashflowPlanItemOut, values: RecurringFormValues) => {
+    const payload = {
+      name: values.name,
+      category_id: Number(values.category_id),
+      amount: values.amount,
+      type: values.type,
+      frequency: values.frequency,
+      days_of_month: values.frequency === "monthly" && values.days_of_month.length > 0 ? values.days_of_month : null,
+      start_date: values.start_date,
+      end_date: values.end_date || null,
+      reminder_days_before: Number(values.reminder_days_before),
+    };
+    createRecurringMutation.mutate(payload, {
+      onSuccess: (created) => {
+        linkRecurringMutation.mutate(
+          { itemId: item.id, payload: { recurring_expense_id: created.id } },
+          {
+            onSuccess: () => {
+              invalidate();
+              void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.recurring });
+              void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.eventsAll });
+              setRecurringLinkTarget(null);
+              toast("반복내역을 등록하고 계획 항목에 연결했습니다.", "success");
+            },
+            onError: (err) => {
+              void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.recurring });
+              setRecurringLinkTarget(null);
+              toast(
+                `반복내역은 등록됐지만 계획 항목 연결에 실패했습니다: ${extractErrorMessage(err)} (반복 내역 관리에서 확인해 주세요)`,
+                "error",
+              );
+            },
+          },
+        );
+      },
+    });
+  };
 
   if (isLoading || !data) {
     return <SkeletonCard rows={6} />;
@@ -216,7 +305,7 @@ export default function CashflowPlanTab() {
       </div>
 
       <p className="text-xs text-gray-400 dark:text-gray-500">
-        계획 금액과 이번 달 실제 거래를 비교해 달성율을 보여줘요. 카테고리를 태깅하면 그 카테고리의 실제 지출과도
+        계획 금액과 이번 달 실제 내역을 비교해 달성율을 보여줘요. 카테고리를 태깅하면 그 카테고리의 실제 지출과도
         비교돼요.
       </p>
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
@@ -307,6 +396,31 @@ export default function CashflowPlanTab() {
                       <span className="text-sm font-semibold text-gray-700 dark:text-gray-300">
                         {formatKrw(item.amount)}
                       </span>
+                      {(key === "income" || key === "fixed") &&
+                        (item.recurring_expense_id !== null ? (
+                          <span
+                            className={`px-1.5 py-0.5 rounded text-[10px] font-medium whitespace-nowrap ${recurringLinkBadgeStyle(item.recurring_active ?? false)}`}
+                          >
+                            {recurringLinkBadgeLabel(item.recurring_active ?? false)}
+                          </span>
+                        ) : (
+                          <button
+                            onClick={() => setRecurringLinkTarget(item)}
+                            className="p-2 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-950 rounded-lg transition-colors"
+                            aria-label="반복내역으로 등록"
+                            title="반복내역으로 등록 — 매달 자동으로 가계부에 반영돼요"
+                          >
+                            <Repeat size={16} />
+                          </button>
+                        ))}
+                      <button
+                        onClick={() => setQuickAddTarget(item)}
+                        className="p-2 text-gray-400 hover:text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-950 rounded-lg transition-colors"
+                        aria-label="가계부에 추가"
+                        title="가계부에 지금 추가"
+                      >
+                        <Send size={16} />
+                      </button>
                       <button
                         onClick={() => setModal({ section: key, item })}
                         className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-950 rounded-lg transition-colors"
@@ -381,6 +495,63 @@ export default function CashflowPlanTab() {
           onConfirm={() => deleteMutation.mutate(deleteTarget)}
           onCancel={() => setDeleteTarget(null)}
         />
+      )}
+
+      {recurringLinkTarget && (
+        <Modal onClose={() => setRecurringLinkTarget(null)} title="반복내역으로 등록">
+          <div className="p-6 overflow-y-auto">
+            <p className="mb-3 text-xs text-gray-400 dark:text-gray-500">
+              등록하면 스케줄러가 매달 자동으로 가계부에 내역을 만들어요. 이후 이 계획 항목의 금액을 고쳐도 반복내역엔
+              반영되지 않으니, 금액을 바꾸고 싶으면 "반복 내역 관리"에서 직접 수정해 주세요.
+            </p>
+            {recurringLinkTarget.category_id === null && (
+              <p className="mb-3 text-xs text-amber-600 dark:text-amber-400">
+                이 계획 항목엔 카테고리가 없어요. 반복내역 등록에는 카테고리가 꼭 필요하니 아래에서 선택해 주세요.
+              </p>
+            )}
+            <RecurringForm
+              categories={allCategories ?? []}
+              initial={{
+                name: recurringLinkTarget.name,
+                category_id: recurringLinkTarget.category_id ?? undefined,
+                amount: recurringLinkTarget.amount,
+                type: recurringLinkTarget.section === "income" ? "income" : "expense",
+              }}
+              submitLabel="등록 후 연결"
+              submitting={createRecurringMutation.isPending || linkRecurringMutation.isPending}
+              onSubmit={(values) => handleLinkRecurringSubmit(recurringLinkTarget, values)}
+            />
+          </div>
+        </Modal>
+      )}
+
+      {quickAddTarget && (
+        <Modal onClose={() => setQuickAddTarget(null)} title="가계부에 추가">
+          <div className="p-6 overflow-y-auto">
+            {quickAddTarget.category_id === null && (
+              <p className="mb-3 text-xs text-amber-600 dark:text-amber-400">
+                이 계획 항목엔 카테고리가 없어요. 아래에서 카테고리를 확인해 주세요.
+              </p>
+            )}
+            <TransactionForm
+              categories={allCategories ?? []}
+              accounts={accounts ?? []}
+              savingsProducts={savingsProducts ?? []}
+              layout="stack"
+              isNew={false}
+              submitLabel="추가"
+              submitting={quickAddMutation.isPending}
+              initialValues={{
+                amount: quickAddTarget.amount,
+                type: quickAddTarget.section === "income" ? "income" : "expense",
+                category_id: quickAddTarget.category_id !== null ? String(quickAddTarget.category_id) : "",
+                transaction_date: new Date().toISOString().slice(0, 10),
+                description: quickAddTarget.category_id === null ? quickAddTarget.name : "",
+              }}
+              onSubmit={(payload) => quickAddMutation.mutate(payload)}
+            />
+          </div>
+        </Modal>
       )}
     </div>
   );

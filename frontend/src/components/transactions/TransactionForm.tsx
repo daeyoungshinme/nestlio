@@ -9,6 +9,8 @@ import { QUERY_KEYS } from "@/constants/queryKeys";
 import { STALE_TIME } from "@/constants/queryConfig";
 import { INLINE_BUTTON_OFFSET, INPUT_SM, LABEL_SM } from "@/constants/inputStyles";
 import { TOUCH_TARGET_COMPACT_MOBILE_ONLY } from "@/constants/uiSizes";
+import { EXPENSE_TYPE_FILTER_OPTIONS } from "@/components/transactions/TransactionFilterSheet";
+import { categoryTypeBadgeStyle } from "@/utils/colors";
 import { formatKrw, formatKrwPreview, toAmountInputValue } from "@/utils/format";
 import type {
   CategoryOut,
@@ -18,6 +20,10 @@ import type {
   TransactionOut,
   TransactionType,
 } from "@/types";
+
+const EXPENSE_TYPE_GROUPS = EXPENSE_TYPE_FILTER_OPTIONS.filter(
+  (o): o is { value: "fixed" | "variable" | "irregular"; label: string } => o.value !== "all",
+);
 
 export interface TransactionFormValues {
   amount: string;
@@ -39,7 +45,7 @@ interface Props {
   submitting?: boolean;
   onSubmit: (payload: TransactionCreateIn) => void;
   layout?: "row" | "stack";
-  /** 새 거래 등록 컨텍스트에서만 "최근 등록한 항목" 불러오기를 노출한다 (수정 폼에서는 숨김). */
+  /** 새 거래 등록 컨텍스트에서만 "자주 쓰는 항목" 불러오기를 노출한다 (수정 폼에서는 숨김). */
   isNew: boolean;
 }
 
@@ -81,38 +87,55 @@ export default function TransactionForm({
 
   const recentType: TransactionType = uiType === "income" ? "income" : "expense";
   const recentIsSavings = uiType === "savings";
+  const recentLimit = uiType === "expense" ? 12 : 8;
   const { data: recentItems } = useQuery({
-    queryKey: QUERY_KEYS.recentTransactions({ type: recentType, is_savings: recentIsSavings }),
-    queryFn: () => fetchRecentTransactions({ type: recentType, is_savings: recentIsSavings }),
+    queryKey: QUERY_KEYS.recentTransactions({ type: recentType, is_savings: recentIsSavings, limit: recentLimit }),
+    queryFn: () => fetchRecentTransactions({ type: recentType, is_savings: recentIsSavings, limit: recentLimit }),
     staleTime: STALE_TIME.SHORT,
     enabled: isNew,
   });
 
-  const applyRecentItem = (tx: TransactionOut) => {
-    setValues((v) => ({
-      ...v,
-      amount: toAmountInputValue(tx.amount),
-      type: tx.type,
-      category_id: String(tx.category.id),
-      description: tx.description ?? "",
-      payment_method: tx.payment_method ?? "",
-      account_id: tx.account ? String(tx.account.id) : "",
-      savings_product_id: tx.savings_product_id ? String(tx.savings_product_id) : "",
-    }));
-  };
+  const recentGroups =
+    uiType === "expense"
+      ? EXPENSE_TYPE_GROUPS.map((group) => ({
+          ...group,
+          items: (recentItems ?? []).filter((tx) => tx.category.type === group.value),
+        })).filter((group) => group.items.length > 0)
+      : [];
+
+  const buildPayload = (v: TransactionFormValues, forSavings: boolean): TransactionCreateIn => ({
+    amount: v.amount,
+    type: v.type,
+    category_id: Number(v.category_id),
+    transaction_date: v.transaction_date,
+    description: v.description || null,
+    payment_method: v.payment_method || null,
+    account_id: v.account_id ? Number(v.account_id) : null,
+    savings_product_id: forSavings && v.savings_product_id ? Number(v.savings_product_id) : null,
+  });
 
   const handleSubmit = (e: FormEvent) => {
     e.preventDefault();
-    onSubmit({
-      amount: values.amount,
-      type: values.type,
-      category_id: Number(values.category_id),
-      transaction_date: values.transaction_date,
-      description: values.description || null,
-      payment_method: values.payment_method || null,
-      account_id: values.account_id ? Number(values.account_id) : null,
-      savings_product_id: uiType === "savings" && values.savings_product_id ? Number(values.savings_product_id) : null,
-    });
+    onSubmit(buildPayload(values, uiType === "savings"));
+  };
+
+  /** "자주 쓰는 항목" 칩 탭 = 현재 선택된 날짜로 즉시 등록 (탭 1회 = 등록 완료). */
+  const quickAdd = (tx: TransactionOut) => {
+    onSubmit(
+      buildPayload(
+        {
+          ...values,
+          amount: toAmountInputValue(tx.amount),
+          type: tx.type,
+          category_id: String(tx.category.id),
+          description: tx.description ?? "",
+          payment_method: tx.payment_method ?? "",
+          account_id: tx.account ? String(tx.account.id) : "",
+          savings_product_id: tx.savings_product_id ? String(tx.savings_product_id) : "",
+        },
+        Boolean(tx.savings_product_id),
+      ),
+    );
   };
 
   const containerClass = layout === "stack" ? "flex flex-col gap-3 max-w-sm" : "flex flex-wrap items-start gap-3";
@@ -168,20 +191,49 @@ export default function TransactionForm({
 
       {isNew && recentItems && recentItems.length > 0 && (
         <div className="w-full">
-          <label className={`block mb-1 font-medium ${LABEL_SM}`}>최근 등록한 항목</label>
-          <div className="flex gap-2 overflow-x-auto pb-1">
-            {recentItems.map((tx) => (
-              <button
-                key={tx.id}
-                type="button"
-                onClick={() => applyRecentItem(tx)}
-                className={`shrink-0 px-3 rounded-full border border-gray-200 dark:border-gray-700 text-xs text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors whitespace-nowrap ${TOUCH_TARGET_COMPACT_MOBILE_ONLY}`}
-              >
-                {tx.category.name} · {formatKrw(tx.amount)}
-                {tx.description ? ` · ${tx.description}` : ""}
-              </button>
-            ))}
-          </div>
+          <label className={`block mb-1 font-medium ${LABEL_SM}`}>자주 쓰는 항목</label>
+          {recentGroups.length > 0 ? (
+            <div className="flex flex-col gap-2">
+              {recentGroups.map((group) => (
+                <div key={group.value}>
+                  <span
+                    className={`inline-block mb-1 px-2 py-0.5 rounded text-[11px] font-medium ${categoryTypeBadgeStyle(group.value)}`}
+                  >
+                    {group.label}
+                  </span>
+                  <div className="flex gap-2 overflow-x-auto pb-1">
+                    {group.items.map((tx) => (
+                      <button
+                        key={tx.id}
+                        type="button"
+                        disabled={submitting}
+                        onClick={() => quickAdd(tx)}
+                        className={`shrink-0 px-3 rounded-full border border-gray-200 dark:border-gray-700 text-xs text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed ${TOUCH_TARGET_COMPACT_MOBILE_ONLY}`}
+                      >
+                        {tx.category.name} · {formatKrw(tx.amount)}
+                        {tx.description ? ` · ${tx.description}` : ""}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="flex gap-2 overflow-x-auto pb-1">
+              {recentItems.map((tx) => (
+                <button
+                  key={tx.id}
+                  type="button"
+                  disabled={submitting}
+                  onClick={() => quickAdd(tx)}
+                  className={`shrink-0 px-3 rounded-full border border-gray-200 dark:border-gray-700 text-xs text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed ${TOUCH_TARGET_COMPACT_MOBILE_ONLY}`}
+                >
+                  {tx.category.name} · {formatKrw(tx.amount)}
+                  {tx.description ? ` · ${tx.description}` : ""}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
       )}
 

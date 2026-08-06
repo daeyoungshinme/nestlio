@@ -150,6 +150,118 @@ def test_irregular_section_shows_actual_from_matching_category_transactions(clie
     assert irregular["status"] == "ok"
 
 
+def test_link_recurring_endpoint_success(client, seeded_db):
+    rent = seeded_db["rent"]
+    plan_resp = client.put(
+        "/api/v1/cashflow-plan/items",
+        json={
+            "id": None,
+            "section": "fixed",
+            "year_month": "2026-07",
+            "owner_user_id": None,
+            "name": "월세",
+            "amount": "800000",
+            "category_id": rent.id,
+            "sort_order": 0,
+        },
+    )
+    item_id = plan_resp.json()["items"][0]["id"]
+    recurring_resp = client.post(
+        "/api/v1/recurring",
+        json={
+            "name": "월세",
+            "category_id": rent.id,
+            "amount": "800000",
+            "frequency": "monthly",
+            "start_date": "2026-07-05",
+        },
+    )
+    recurring_id = recurring_resp.json()["id"]
+
+    link_resp = client.post(
+        f"/api/v1/cashflow-plan/items/{item_id}/link-recurring", json={"recurring_expense_id": recurring_id}
+    )
+
+    assert link_resp.status_code == 200
+    item = next(i for i in link_resp.json()["items"] if i["id"] == item_id)
+    assert item["recurring_expense_id"] == recurring_id
+    assert item["recurring_active"] is True
+
+
+def test_link_recurring_endpoint_409_when_already_linked(client, seeded_db):
+    rent = seeded_db["rent"]
+    plan_resp = client.put(
+        "/api/v1/cashflow-plan/items",
+        json={
+            "id": None,
+            "section": "fixed",
+            "year_month": "2026-07",
+            "owner_user_id": None,
+            "name": "월세",
+            "amount": "800000",
+            "category_id": rent.id,
+            "sort_order": 0,
+        },
+    )
+    item_id = plan_resp.json()["items"][0]["id"]
+    first = client.post(
+        "/api/v1/recurring",
+        json={
+            "name": "월세",
+            "category_id": rent.id,
+            "amount": "800000",
+            "frequency": "monthly",
+            "start_date": "2026-07-05",
+        },
+    ).json()
+    second = client.post(
+        "/api/v1/recurring",
+        json={
+            "name": "월세2",
+            "category_id": rent.id,
+            "amount": "800000",
+            "frequency": "monthly",
+            "start_date": "2026-07-05",
+        },
+    ).json()
+    client.post(f"/api/v1/cashflow-plan/items/{item_id}/link-recurring", json={"recurring_expense_id": first["id"]})
+
+    resp = client.post(
+        f"/api/v1/cashflow-plan/items/{item_id}/link-recurring", json={"recurring_expense_id": second["id"]}
+    )
+
+    assert resp.status_code == 409
+
+
+def test_link_recurring_endpoint_404_for_missing_item(client, seeded_db):
+    resp = client.post(
+        "/api/v1/cashflow-plan/items/999999/link-recurring", json={"recurring_expense_id": 1}
+    )
+    assert resp.status_code == 404
+
+
+def test_link_recurring_endpoint_409_for_missing_recurring_expense(client, seeded_db):
+    plan_resp = client.put(
+        "/api/v1/cashflow-plan/items",
+        json={
+            "id": None,
+            "section": "fixed",
+            "year_month": "2026-07",
+            "owner_user_id": None,
+            "name": "월세",
+            "amount": "800000",
+            "sort_order": 0,
+        },
+    )
+    item_id = plan_resp.json()["items"][0]["id"]
+
+    resp = client.post(
+        f"/api/v1/cashflow-plan/items/{item_id}/link-recurring", json={"recurring_expense_id": 999999}
+    )
+
+    assert resp.status_code == 409
+
+
 def test_delete_plan_item(client, seeded_db):
     put_resp = client.put(
         "/api/v1/cashflow-plan/items",

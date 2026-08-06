@@ -54,9 +54,9 @@ cd frontend && npm run test:watch  # 워치 모드
 
 **라우트** (`src/App.tsx` 참고, `/login` 제외 전부 `AppLayout` 하위 `PrivateRoute`):
 - `/` — 대시보드 (DashboardPage)
-- `/transactions` — 가계부. 예산(월별 카테고리 한도 설정) **관리 화면은 없다** — 월간 캘린더 뷰에 거래/일정/고정지출 예정을 함께 표시하고, 캘린더 아래에 3단계 필터 + 그 조건에 맞는 이번 달 거래를 나열하는 단일 목록(`TransactionListItem`)이 있다. 1단계는 `전체/수입/지출`, `지출`을 고르면 2단계로 `전체/고정지출/변동지출/비정기지출` pill이, 그 아래 3단계로 실제 그 달에 쓰인 카테고리별 필터(`전체` + 카테고리 pill)가 추가로 뜬다. 날짜 클릭 시 뜨는 "거래"/"일정" 탭 모달(`LedgerDayModal`)은 이 필터와 무관하게 항상 그날 전체 거래를 보여준다. 구 `/calendar`(일정 탭)는 이 페이지로 흡수됐고, 구 `/budgets`, `/recurring` 라우트도 `/transactions`로 리다이렉트된다. 고정지출(`RecurringExpense`)은 백엔드 스케줄러(`app/scheduler/jobs.py`)가 계속 자동으로 거래를 생성하며, 규칙 등록/수정/비활성화는 별도 nav 슬롯 없이 페이지 우상단 "더보기" 시트의 "고정지출 관리" 항목(`RecurringManageSheet.tsx`)에서 한다 — 예산 탭과 마찬가지로 기존 탭/시트에 흡수한 것으로, 별도 관리 화면을 두지 않는다는 설계 철학과 배치되지 않는다.
+- `/transactions` — 가계부. 예산(월별 카테고리 한도 설정) **관리 화면은 없다** — 월간 캘린더 뷰에 거래/일정/고정지출 예정을 함께 표시하고, 캘린더 아래에 3단계 필터 + 그 조건에 맞는 이번 달 거래를 나열하는 단일 목록(`TransactionListItem`)이 있다. 1단계는 `전체/수입/지출`, `지출`을 고르면 2단계로 `전체/고정지출/변동지출/비정기지출` pill이, 그 아래 3단계로 실제 그 달에 쓰인 카테고리별 필터(`전체` + 카테고리 pill)가 추가로 뜬다. 날짜 클릭 시 뜨는 "거래"/"일정" 탭 모달(`LedgerDayModal`)은 이 필터와 무관하게 항상 그날 전체 거래를 보여준다. 구 `/calendar`(일정 탭)는 이 페이지로 흡수됐고, 구 `/budgets`, `/recurring` 라우트도 `/transactions`로 리다이렉트된다. 반복 거래(`RecurringExpense` 모델 — 수입/고정지출/변동지출/비정기지출을 모두 다루며, 매월 여러 일자(`days_of_month`, 예: 5일·25일) 반복도 지원한다)는 백엔드 스케줄러(`app/scheduler/jobs.py`)가 계속 자동으로 거래를 생성하며, 규칙 등록/수정/비활성화는 별도 nav 슬롯 없이 페이지 우상단 "더보기" 시트의 "반복 거래 관리" 항목(`RecurringManageSheet.tsx`)에서 한다 — 예산 탭과 마찬가지로 기존 탭/시트에 흡수한 것으로, 별도 관리 화면을 두지 않는다는 설계 철학과 배치되지 않는다.
 - `/transactions/import`, `/transactions/:id/edit` — CSV 가져오기, 거래 수정 딥링크
-- `/categories` — 카테고리 관리(생성/수정/비활성화). 사이드바·하단탭에는 노출하지 않고(예산·고정지출처럼 별도 관리 화면을 최소화하는 설계 철학과 일관되게 nav 슬롯을 늘리지 않음) 가계부(`/transactions`) 더보기 메뉴와 설정(`/settings`) 페이지 링크로만 진입한다.
+- `/categories` — 카테고리 관리(생성/수정/비활성화). 사이드바·하단탭에는 노출하지 않고(예산·반복 거래처럼 별도 관리 화면을 최소화하는 설계 철학과 일관되게 nav 슬롯을 늘리지 않음) 가계부(`/transactions`) 더보기 메뉴와 설정(`/settings`) 페이지 링크로만 진입한다.
 - `/accounts` — 자산현황 (구 "계좌", 계좌/저축·투자/대출 3탭 평탄 구성 — 저축·투자현황과 대출현황은 목표탭에서 이곳으로 이동했다: 미래 계획·목표치가 아니라 현재 잔액을 조회·기록하는 자산 스냅샷이라는 성격상 대시보드 순자산 카드(`accounts_total`+`savings_total`-`loans_total`=`net_worth`, `GET /net-worth`)와 개념적으로 한 세트이기 때문)
 - `/reports/yearly` — 연간 리포트
 - `/financial-plan` — 목표 (구 "재무설계", 현금흐름계획/재무목표 2탭 평탄 구성 — 카테고리별 월 예산 상한 입력(구 "예산" 탭, `BudgetTab.tsx`는 삭제됨)은 현금흐름계획 탭의 고정/변동/비정기 섹션 패널 안에 "카테고리별 예산" 서브섹션으로 흡수됐다. 계획(섹션별 금액)과 예산 상한(카테고리별 금액)이 개념적으로 겹쳐 별도 탭 두 개로 나뉘어 있던 것을 한 화면에서 같이 보고 입력하게 합친 것 — 예산 입력은 여전히 대시보드의 `budget_overrun` 코칭 인사이트를 활성화한다. 옛 `tab=예산` 딥링크는 탭 목록에 없는 값이라 기본 탭으로 안전하게 폴백된다)
@@ -71,8 +71,8 @@ cd frontend && npm run test:watch  # 워치 모드
 - `transactions/TransactionForm.tsx` — 가계부 캘린더 페이지의 거래 추가/수정 모달과 `/transactions/:id/edit` 수정 페이지가 공유하는 폼
 - `transactions/EventForm.tsx` — 같은 페이지의 일정 추가/수정 모달이 쓰는 폼 (제목/종일/시작·종료일시/장소/설명/반복/리마인더)
 - `transactions/MonthCalendarGrid.tsx` — 월간 캘린더 그리드 셸(요일 헤더 + 7열 그리드, `buildGrid`/`todayIso`). 셀 렌더링은 `renderCell` render prop으로 위임하는 제네릭 컴포넌트
-- `transactions/LedgerDayCell.tsx` — `MonthCalendarGrid`의 날짜 셀. 거래 수입/지출 금액 + 일정 제목 칩 + 고정지출 예정 배지를 함께 표시
-- `transactions/LedgerDayModal.tsx` — 캘린더에서 날짜 칸을 탭했을 때 뜨는 모달. "거래"/"일정" 탭(공용 `Tabs`)으로 나뉘며 각 탭에 해당 날짜의 목록 + 추가/수정/삭제 진입점이 있다 (일정 탭의 고정지출 예정 카드는 정보 표시용이며 더 이상 클릭 이동하지 않는다 — 관리 화면이 없어졌기 때문)
+- `transactions/LedgerDayCell.tsx` — `MonthCalendarGrid`의 날짜 셀. 거래 수입/지출 금액 + 일정 제목 칩 + 반복 거래 예정 배지를 함께 표시
+- `transactions/LedgerDayModal.tsx` — 캘린더에서 날짜 칸을 탭했을 때 뜨는 모달. "거래"/"일정" 탭(공용 `Tabs`)으로 나뉘며 각 탭에 해당 날짜의 목록 + 추가/수정/삭제 진입점이 있다 (일정 탭의 반복 거래 예정 카드는 정보 표시용이며 더 이상 클릭 이동하지 않는다 — 별도 관리 화면 없이 "더보기" 시트에 흡수됐기 때문)
 - `transactions/TransactionListItem.tsx` — 거래 한 건의 행 UI(카테고리 배지 + 설명 + 금액 + 수정/삭제 버튼). `LedgerDayModal`의 "거래" 탭과 `TransactionsPage`의 캘린더 아래 월간 목록이 공유한다. `showDate` prop으로 날짜 표시 여부를 정한다(월간 목록은 여러 날짜가 섞여 나오므로 `true`).
 - `common/CategoryPicker.tsx` — 카테고리 `<select>` 공통 컴포넌트. `kind` prop으로 수입/지출 필터링. `TransactionForm`이 사용한다.
 - `ErrorBoundary.tsx`, `Toaster.tsx` — 최상위 (App.tsx가 감쌈), `nestlio:toast` 커스텀 이벤트 구독

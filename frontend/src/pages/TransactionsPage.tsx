@@ -214,10 +214,13 @@ export default function TransactionsPage() {
 
   const createMutation = useMutation({
     mutationFn: createTransaction,
-    onSuccess: () => {
+    onSuccess: (created) => {
       invalidateAll();
       setFormTarget(null);
-      toast("거래를 추가했습니다.", "success");
+      toast("내역을 추가했습니다.", "success", {
+        label: "취소",
+        onClick: () => deleteMutation.mutate(created.id),
+      });
     },
     onError: (err) => toast(extractErrorMessage(err), "error"),
   });
@@ -228,7 +231,7 @@ export default function TransactionsPage() {
     onSuccess: () => {
       invalidateAll();
       setFormTarget(null);
-      toast("거래를 수정했습니다.", "success");
+      toast("내역을 수정했습니다.", "success");
     },
     onError: (err) => toast(extractErrorMessage(err), "error"),
   });
@@ -238,7 +241,7 @@ export default function TransactionsPage() {
     onSuccess: () => {
       invalidateAll();
       setDeleteTarget(null);
-      toast("거래를 삭제했습니다.", "success");
+      toast("내역을 삭제했습니다.", "success");
     },
     onError: (err) => toast(extractErrorMessage(err), "error"),
   });
@@ -316,7 +319,7 @@ export default function TransactionsPage() {
             <MoreHorizontal size={18} />
           </button>
           <Button size="sm" icon={<Plus size={14} />} onClick={() => openCreate()}>
-            거래 추가
+            내역 추가
           </Button>
         </div>
       </div>
@@ -375,7 +378,7 @@ export default function TransactionsPage() {
 
       {topFilter === "savings" ? (
         filteredTransactions.length === 0 ? (
-          <EmptyState title="해당 조건의 거래가 없어요" compact />
+          <EmptyState title="해당 조건의 내역이 없어요" compact />
         ) : (
           <SavingsLinkedTransactionsSection
             transactions={filteredTransactions}
@@ -396,7 +399,7 @@ export default function TransactionsPage() {
           />
         )
       ) : filteredTransactions.length === 0 ? (
-        <EmptyState title="해당 조건의 거래가 없어요" compact />
+        <EmptyState title="해당 조건의 내역이 없어요" compact />
       ) : (
         <div className="space-y-2">
           {filteredTransactions.map((tx) => (
@@ -428,7 +431,7 @@ export default function TransactionsPage() {
       )}
 
       {formTarget && (
-        <Modal onClose={() => setFormTarget(null)} title={formTarget === "new" ? "거래 추가" : "거래 수정"}>
+        <Modal onClose={() => setFormTarget(null)} title={formTarget === "new" ? "내역 추가" : "내역 수정"}>
           <div className="p-6 overflow-y-auto">
             <TransactionForm
               categories={categories}
@@ -483,7 +486,7 @@ export default function TransactionsPage() {
 
       {deleteTarget && (
         <ConfirmModal
-          message="이 거래를 삭제할까요? 되돌릴 수 없습니다."
+          message="이 내역을 삭제할까요? 되돌릴 수 없습니다."
           onConfirm={() => deleteMutation.mutate(deleteTarget.id)}
           onCancel={() => setDeleteTarget(null)}
         />
@@ -537,7 +540,7 @@ export default function TransactionsPage() {
               }}
               className="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
             >
-              <Repeat size={18} aria-hidden="true" /> 고정지출 관리
+              <Repeat size={18} aria-hidden="true" /> 반복 내역 관리
             </button>
           </div>
         </Modal>

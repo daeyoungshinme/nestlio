@@ -1,6 +1,6 @@
 import uuid
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class UserOut(BaseModel):
@@ -9,3 +9,7 @@ class UserOut(BaseModel):
     id: uuid.UUID
     email: str
     display_name: str
+
+
+class UserUpdateIn(BaseModel):
+    display_name: str = Field(min_length=1, max_length=100)

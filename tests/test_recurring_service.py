@@ -3,7 +3,7 @@ from decimal import Decimal
 
 from app.models.transaction import Transaction
 from app.services import recurring_service
-from app.utils.dates import advance_due_date
+from app.utils.dates import advance_due_date, advance_recurring_date
 
 
 def test_advance_due_date_monthly_clamps_and_self_corrects():
@@ -21,6 +21,25 @@ def test_advance_due_date_yearly_handles_leap_day():
 
 def test_advance_due_date_weekly():
     assert advance_due_date(date(2026, 7, 1), "weekly", None) == date(2026, 7, 8)
+
+
+def test_advance_recurring_date_moves_to_next_day_within_same_month():
+    assert advance_recurring_date(date(2026, 7, 5), "monthly", 5, [5, 25]) == date(2026, 7, 25)
+
+
+def test_advance_recurring_date_rolls_over_to_next_month():
+    assert advance_recurring_date(date(2026, 7, 25), "monthly", 5, [5, 25]) == date(2026, 8, 5)
+
+
+def test_advance_recurring_date_clamps_at_month_end():
+    # Feb 2026 has 28 days - day 31 clamps down, so it's not "later" than the 28th we start from
+    assert advance_recurring_date(date(2026, 2, 28), "monthly", 5, [5, 31]) == date(2026, 3, 5)
+
+
+def test_advance_recurring_date_without_days_of_month_falls_back():
+    assert advance_recurring_date(date(2026, 7, 1), "monthly", 15, None) == advance_due_date(
+        date(2026, 7, 1), "monthly", 15
+    )
 
 
 def test_update_recurring_changes_fields_and_returns_none_for_missing(seeded_db):
@@ -116,3 +135,49 @@ def test_generate_due_transactions_catches_up_multiple_missed_periods(seeded_db)
 
     assert len(created) == 3
     assert [tx.transaction_date for tx in created] == [date(2026, 5, 1), date(2026, 6, 1), date(2026, 7, 1)]
+
+
+def test_create_recurring_income_generates_income_transaction(seeded_db):
+    db, user, salary = seeded_db["db"], seeded_db["user"], seeded_db["salary"]
+    recurring_service.create_recurring(
+        db,
+        name="월급",
+        category_id=salary.id,
+        amount=Decimal("3000000"),
+        frequency="monthly",
+        start_date=date(2026, 7, 25),
+        created_by=user.id,
+        type_="income",
+    )
+
+    created = recurring_service.generate_due_transactions(db, today=date(2026, 7, 25))
+
+    assert len(created) == 1
+    assert created[0].type == "income"
+    assert created[0].amount == Decimal("3000000")
+
+
+def test_create_recurring_with_days_of_month_sets_first_occurrence_on_or_after_start(seeded_db):
+    db, user, rent = seeded_db["db"], seeded_db["user"], seeded_db["rent"]
+    # start_date's day (10th) isn't in the list -> first eligible day is the 25th, same month
+    recurring = recurring_service.create_recurring(
+        db, name="적금", category_id=rent.id, amount=Decimal("100000"),
+        frequency="monthly", start_date=date(2026, 7, 10), created_by=user.id,
+        days_of_month=[5, 25],
+    )
+
+    assert recurring.next_due_date == date(2026, 7, 25)
+    assert recurring.day_of_month == 5
+
+
+def test_generate_due_transactions_with_multiple_days_of_month(seeded_db):
+    db, user, rent = seeded_db["db"], seeded_db["user"], seeded_db["rent"]
+    recurring_service.create_recurring(
+        db, name="공과금", category_id=rent.id, amount=Decimal("50000"),
+        frequency="monthly", start_date=date(2026, 7, 5), created_by=user.id,
+        days_of_month=[5, 25],
+    )
+
+    created = recurring_service.generate_due_transactions(db, today=date(2026, 7, 25))
+
+    assert [tx.transaction_date for tx in created] == [date(2026, 7, 5), date(2026, 7, 25)]

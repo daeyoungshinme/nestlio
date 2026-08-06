@@ -89,7 +89,7 @@ export default function DashboardPage() {
     onSuccess: () => {
       invalidateAll();
       setShowQuickAdd(false);
-      toast("거래를 추가했습니다.", "success");
+      toast("내역을 추가했습니다.", "success");
     },
     onError: (err) => toast(extractErrorMessage(err), "error"),
   });
@@ -296,14 +296,14 @@ export default function DashboardPage() {
         type="button"
         onClick={() => setShowQuickAdd(true)}
         className="fixed bottom-[calc(5rem+env(safe-area-inset-bottom))] right-4 lg:bottom-6 z-30 flex items-center justify-center w-14 h-14 rounded-full bg-emerald-500 hover:bg-emerald-600 text-white shadow-lg transition-colors active:scale-[0.97]"
-        aria-label="거래 빠르게 추가"
-        title="거래 빠르게 추가"
+        aria-label="내역 빠르게 추가"
+        title="내역 빠르게 추가"
       >
         <Plus size={24} aria-hidden="true" />
       </button>
 
       {showQuickAdd && (
-        <Modal onClose={() => setShowQuickAdd(false)} title="거래 추가">
+        <Modal onClose={() => setShowQuickAdd(false)} title="내역 추가">
           <div className="p-6 overflow-y-auto">
             {!categories || !accounts || !savingsProducts ? (
               <SkeletonCard rows={4} />

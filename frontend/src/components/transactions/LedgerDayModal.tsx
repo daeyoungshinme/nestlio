@@ -15,7 +15,7 @@ function occurrenceTime(iso: string): string {
   return timePart ? timePart.slice(0, 5) : "";
 }
 
-const TABS = ["거래", "일정"] as const;
+const TABS = ["내역", "일정"] as const;
 type Tab = (typeof TABS)[number];
 
 interface Props {
@@ -45,21 +45,21 @@ export default function LedgerDayModal({
   onEditEvent,
   onDeleteEvent,
 }: Props) {
-  const [tab, setTab] = useState<Tab>("거래");
+  const [tab, setTab] = useState<Tab>("내역");
 
   return (
     <Modal onClose={onClose} title={formatDate(date)}>
       <div className="p-6 space-y-4 overflow-y-auto">
         <Tabs tabs={TABS} activeTab={tab} onChange={setTab} variant="pill" />
 
-        {tab === "거래" ? (
+        {tab === "내역" ? (
           <div className="space-y-4">
             <Button size="sm" icon={<Plus size={14} />} onClick={onAddTransaction}>
-              거래 추가
+              내역 추가
             </Button>
 
             {transactions.length === 0 ? (
-              <EmptyState title="거래가 없어요" compact />
+              <EmptyState title="내역이 없어요" compact />
             ) : (
               <div className="space-y-2">
                 {transactions.map((tx) => (
@@ -85,7 +85,7 @@ export default function LedgerDayModal({
                       <Repeat size={14} className="shrink-0 text-indigo-500" aria-hidden="true" />
                       <p className="text-sm font-medium text-gray-900 dark:text-gray-50 truncate">{recurring.name}</p>
                       <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-indigo-50 dark:bg-indigo-950 text-indigo-600 dark:text-indigo-400 shrink-0">
-                        고정지출 예정
+                        반복 내역 예정
                       </span>
                     </div>
                     <span className="text-sm font-semibold text-gray-700 dark:text-gray-300 shrink-0">

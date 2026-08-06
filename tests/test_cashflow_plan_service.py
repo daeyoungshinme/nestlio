@@ -1,8 +1,10 @@
 from datetime import date
 from decimal import Decimal
 
+import pytest
+
 from app.models.category import Category
-from app.services import cashflow_plan_service, transaction_service
+from app.services import cashflow_plan_service, recurring_service, transaction_service
 from app.utils.dates import year_month_str
 
 
@@ -266,3 +268,72 @@ def test_section_summary_status_income_direction_is_inverted():
     # zero income actual -> shortfall (100-0=100) crosses critical threshold (100)
     zero = cashflow_plan_service.compute_summary([item], actuals={"income": Decimal("0")})
     assert zero["income"]["status"] == "critical"
+
+
+def test_link_recurring_sets_fk(seeded_db):
+    db, user, rent = seeded_db["db"], seeded_db["user"], seeded_db["rent"]
+    item = cashflow_plan_service.upsert_item(
+        db, None, "fixed", None, "월세", Decimal("800000"), 0, "2026-07", user.id, category_id=rent.id
+    )
+    recurring = recurring_service.create_recurring(
+        db, name="월세", category_id=rent.id, amount=Decimal("800000"),
+        frequency="monthly", start_date=date(2026, 7, 5), created_by=user.id,
+    )
+
+    linked = cashflow_plan_service.link_recurring(db, item.id, recurring.id)
+
+    assert linked.recurring_expense_id == recurring.id
+    assert linked.recurring_active is True
+
+
+def test_link_recurring_rejects_already_linked_item(seeded_db):
+    db, user, rent = seeded_db["db"], seeded_db["user"], seeded_db["rent"]
+    item = cashflow_plan_service.upsert_item(
+        db, None, "fixed", None, "월세", Decimal("800000"), 0, "2026-07", user.id, category_id=rent.id
+    )
+    recurring = recurring_service.create_recurring(
+        db, name="월세", category_id=rent.id, amount=Decimal("800000"),
+        frequency="monthly", start_date=date(2026, 7, 5), created_by=user.id,
+    )
+    cashflow_plan_service.link_recurring(db, item.id, recurring.id)
+    other_recurring = recurring_service.create_recurring(
+        db, name="월세2", category_id=rent.id, amount=Decimal("800000"),
+        frequency="monthly", start_date=date(2026, 7, 5), created_by=user.id,
+    )
+
+    with pytest.raises(ValueError):
+        cashflow_plan_service.link_recurring(db, item.id, other_recurring.id)
+
+
+def test_link_recurring_rejects_missing_recurring_expense(seeded_db):
+    db, user = seeded_db["db"], seeded_db["user"]
+    item = cashflow_plan_service.upsert_item(
+        db, None, "fixed", None, "월세", Decimal("800000"), 0, "2026-07", user.id
+    )
+
+    with pytest.raises(ValueError):
+        cashflow_plan_service.link_recurring(db, item.id, 999999)
+
+
+def test_link_recurring_returns_none_for_missing_item(seeded_db):
+    db = seeded_db["db"]
+
+    assert cashflow_plan_service.link_recurring(db, 999999, 1) is None
+
+
+def test_copy_from_previous_month_carries_recurring_link_forward(seeded_db):
+    db, user, rent = seeded_db["db"], seeded_db["user"], seeded_db["rent"]
+    item = cashflow_plan_service.upsert_item(
+        db, None, "fixed", None, "월세", Decimal("800000"), 0, "2026-07", user.id, category_id=rent.id
+    )
+    recurring = recurring_service.create_recurring(
+        db, name="월세", category_id=rent.id, amount=Decimal("800000"),
+        frequency="monthly", start_date=date(2026, 7, 5), created_by=user.id,
+    )
+    cashflow_plan_service.link_recurring(db, item.id, recurring.id)
+
+    cashflow_plan_service.copy_from_previous_month(db, "2026-08", user.id)
+
+    august_items = cashflow_plan_service.list_items(db, "2026-08")
+    rent_item = next(i for i in august_items if i.name == "월세")
+    assert rent_item.recurring_expense_id == recurring.id

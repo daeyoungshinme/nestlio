@@ -303,7 +303,7 @@ def test_category_breakdown_excludes_savings_linked_transactions(seeded_db):
     assert breakdown == []
 
 
-def test_recent_unique_transactions_dedupes_same_combo_keeping_latest(seeded_db):
+def test_frequent_unique_transactions_dedupes_same_combo_keeping_latest(seeded_db):
     db, user, food = seeded_db["db"], seeded_db["user"], seeded_db["food"]
     transaction_service.create_transaction(
         db, user.id, food.id, "expense", Decimal("4500"), date(2026, 7, 1), description="커피"
@@ -312,13 +312,13 @@ def test_recent_unique_transactions_dedupes_same_combo_keeping_latest(seeded_db)
         db, user.id, food.id, "expense", Decimal("4500"), date(2026, 7, 10), description="커피"
     )
 
-    recent = transaction_service.recent_unique_transactions(db, "expense")
+    recent = transaction_service.frequent_unique_transactions(db, "expense", today=date(2026, 7, 15))
 
     assert len(recent) == 1
     assert recent[0].id == latest.id
 
 
-def test_recent_unique_transactions_filters_by_type_and_is_savings(seeded_db):
+def test_frequent_unique_transactions_filters_by_type_and_is_savings(seeded_db):
     db, user, food = seeded_db["db"], seeded_db["user"], seeded_db["food"]
     savings_category, product = _add_savings_category_and_product(db)
     transaction_service.create_transaction(db, user.id, food.id, "expense", Decimal("10000"), date(2026, 7, 1))
@@ -333,24 +333,53 @@ def test_recent_unique_transactions_filters_by_type_and_is_savings(seeded_db):
         savings_product_id=product.id,
     )
 
-    expense_only = transaction_service.recent_unique_transactions(db, "expense", is_savings=False)
-    savings_only = transaction_service.recent_unique_transactions(db, "expense", is_savings=True)
-    income_only = transaction_service.recent_unique_transactions(db, "income")
+    today = date(2026, 7, 15)
+    expense_only = transaction_service.frequent_unique_transactions(db, "expense", today, is_savings=False)
+    savings_only = transaction_service.frequent_unique_transactions(db, "expense", today, is_savings=True)
+    income_only = transaction_service.frequent_unique_transactions(db, "income", today)
 
     assert [tx.category_id for tx in expense_only] == [food.id]
     assert [tx.category_id for tx in savings_only] == [savings_category.id]
     assert [tx.category_id for tx in income_only] == [food.id]
 
 
-def test_recent_unique_transactions_respects_limit_and_recency_order(seeded_db):
+def test_frequent_unique_transactions_respects_limit_and_recency_tiebreak(seeded_db):
     db, user, food = seeded_db["db"], seeded_db["user"], seeded_db["food"]
     for day, amount in enumerate([1000, 2000, 3000], start=1):
         transaction_service.create_transaction(
             db, user.id, food.id, "expense", Decimal(amount), date(2026, 7, day), description=f"item-{amount}"
         )
 
-    recent = transaction_service.recent_unique_transactions(db, "expense", limit=2)
+    recent = transaction_service.frequent_unique_transactions(db, "expense", today=date(2026, 7, 15), limit=2)
 
     assert len(recent) == 2
     assert recent[0].amount == Decimal("3000")
     assert recent[1].amount == Decimal("2000")
+
+
+def test_frequent_unique_transactions_ranks_by_registration_count_over_recency(seeded_db):
+    db, user, food = seeded_db["db"], seeded_db["user"], seeded_db["food"]
+    for day in (1, 5, 10):
+        transaction_service.create_transaction(
+            db, user.id, food.id, "expense", Decimal("4500"), date(2026, 7, day), description="커피"
+        )
+    transaction_service.create_transaction(
+        db, user.id, food.id, "expense", Decimal("9000"), date(2026, 7, 12), description="장보기"
+    )
+
+    ranked = transaction_service.frequent_unique_transactions(db, "expense", today=date(2026, 7, 15))
+
+    assert [tx.description for tx in ranked] == ["커피", "장보기"]
+
+
+def test_frequent_unique_transactions_ignores_entries_outside_since_days_window(seeded_db):
+    db, user, food = seeded_db["db"], seeded_db["user"], seeded_db["food"]
+    transaction_service.create_transaction(
+        db, user.id, food.id, "expense", Decimal("4500"), date(2026, 1, 1), description="옛날 커피"
+    )
+
+    ranked = transaction_service.frequent_unique_transactions(
+        db, "expense", today=date(2026, 7, 15), since_days=90
+    )
+
+    assert ranked == []

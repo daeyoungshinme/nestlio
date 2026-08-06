@@ -69,3 +69,17 @@ def test_list_users(client, seeded_db):
     assert resp.status_code == 200
     emails = {u["email"] for u in resp.json()}
     assert user.email in emails
+
+
+def test_update_my_display_name(client, seeded_db):
+    resp = client.put("/api/v1/users/me", json={"display_name": "남편"})
+    assert resp.status_code == 200
+    assert resp.json()["display_name"] == "남편"
+
+    me_resp = client.get("/api/v1/users/me")
+    assert me_resp.json()["display_name"] == "남편"
+
+
+def test_update_my_display_name_rejects_blank(client, seeded_db):
+    resp = client.put("/api/v1/users/me", json={"display_name": ""})
+    assert resp.status_code == 422

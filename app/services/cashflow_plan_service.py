@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 
 from app.config import settings
 from app.models.cashflow_plan_item import CashflowPlanItem
+from app.models.recurring_expense import RecurringExpense
 from app.services import transaction_service
 from app.utils.dates import month_bounds, parse_year_month, shift_month, year_month_str
 
@@ -105,6 +106,23 @@ def split_item_into_months(
     return created
 
 
+def link_recurring(db: Session, item_id: int, recurring_expense_id: int) -> CashflowPlanItem | None:
+    """계획 항목을 이미 존재하는 반복거래에 연결한다 — 값은 프론트가 반복거래 생성 시 이미 복사해 넣었으므로
+    여기서는 FK만 세팅한다(계속 동기화하지 않음, 최초 연결 시점의 값으로 고정)."""
+    item = db.get(CashflowPlanItem, item_id)
+    if item is None:
+        return None
+    if item.recurring_expense_id is not None:
+        raise ValueError("이미 반복내역에 연결된 항목입니다.")
+    recurring = db.get(RecurringExpense, recurring_expense_id)
+    if recurring is None:
+        raise ValueError("반복내역을 찾을 수 없습니다.")
+    item.recurring_expense_id = recurring_expense_id
+    db.commit()
+    db.refresh(item)
+    return item
+
+
 def delete_item(db: Session, id: int) -> None:
     item = db.get(CashflowPlanItem, id)
     if item is not None:
@@ -140,6 +158,7 @@ def copy_from_previous_month(db: Session, year_month: str, updated_by: uuid.UUID
                 amount=item.amount,
                 category_id=item.category_id,
                 sort_order=item.sort_order,
+                recurring_expense_id=item.recurring_expense_id,
                 updated_by=updated_by,
             )
         )

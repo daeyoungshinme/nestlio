@@ -7,9 +7,9 @@ from app.models.user import User
 from app.schemas.recurring import RecurringCreateIn, RecurringListOut, RecurringOut, RecurringUpdateIn, RunNowResultOut
 from app.services import recurring_service
 
-# 프론트엔드 관리 화면은 없다 (의도적으로 API 전용) — 자동 생성은
-# app/scheduler/jobs.py의 daily_due_date_check가 recurring_service를 직접 호출해서 처리하며,
-# 이 라우터는 새 규칙 등록/수정/수동 실행이 필요할 때 API를 직접 호출하기 위한 용도다.
+# 자동 생성은 app/scheduler/jobs.py의 daily_due_date_check가 recurring_service를 직접
+# 호출해서 처리한다. 규칙 등록/수정/비활성화는 가계부 페이지의 "반복 거래 관리"
+# (frontend/src/components/transactions/RecurringManageSheet.tsx)가 이 라우터를 호출한다.
 router = APIRouter(prefix="/recurring", tags=["recurring"])
 
 
@@ -37,6 +37,8 @@ def create_recurring(
         created_by=current_user.id,
         end_date=payload.end_date,
         reminder_days_before=payload.reminder_days_before,
+        type_=payload.type,
+        days_of_month=payload.days_of_month,
     )
 
 
@@ -48,7 +50,9 @@ def update_recurring(
     _: User = Depends(get_current_user),
 ):
     fields = payload.model_dump(exclude_unset=True)
-    if "start_date" in fields:
+    if fields.get("days_of_month"):
+        fields["day_of_month"] = min(fields["days_of_month"])
+    elif "start_date" in fields:
         fields["day_of_month"] = fields["start_date"].day
     recurring = recurring_service.update_recurring(db, recurring_id, **fields)
     if recurring is None:

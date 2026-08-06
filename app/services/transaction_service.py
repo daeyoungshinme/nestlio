@@ -1,7 +1,7 @@
 import csv
 import io
 import uuid
-from datetime import date
+from datetime import date, timedelta
 from decimal import Decimal, InvalidOperation
 
 from sqlalchemy import func
@@ -22,7 +22,7 @@ def _validate_savings_link(db: Session, category_id: int, type_: str, savings_pr
     if savings_product_id is None:
         return
     if type_ != "expense":
-        raise ValueError("저축상품은 지출 거래에만 연결할 수 있습니다.")
+        raise ValueError("저축상품은 지출 내역에만 연결할 수 있습니다.")
     category = db.get(Category, category_id)
     if category is None or not category.is_savings:
         raise ValueError("저축상품은 저축 전용 카테고리에서만 연결할 수 있습니다.")
@@ -125,31 +125,41 @@ def list_transactions(
     return query.order_by(Transaction.transaction_date.desc(), Transaction.id.desc()).all()
 
 
-def recent_unique_transactions(
-    db: Session, type_: str, is_savings: bool = False, limit: int = 8, scan_limit: int = 100
+def frequent_unique_transactions(
+    db: Session,
+    type_: str,
+    today: date,
+    is_savings: bool = False,
+    limit: int = 8,
+    since_days: int = 90,
+    scan_limit: int = 300,
 ) -> list[Transaction]:
-    """Most recent transactions, deduplicated by (category, description, amount, account,
-    savings product) so repeat entries of the same combo only show their latest occurrence.
-    Used to let the user quickly refill the transaction form from a past entry."""
+    """Transactions grouped by (category, description, amount, account, savings product) within
+    the last `since_days` days, ranked by how many times that exact combo was registered (ties
+    broken by most recent). Used to let the user one-tap re-register a frequently repeated entry."""
+    cutoff = today - timedelta(days=since_days)
     rows = (
         db.query(Transaction)
         .join(Category, Transaction.category_id == Category.id)
-        .filter(Transaction.type == type_, Category.is_savings.is_(is_savings))
+        .filter(
+            Transaction.type == type_,
+            Category.is_savings.is_(is_savings),
+            Transaction.transaction_date >= cutoff,
+        )
         .order_by(Transaction.transaction_date.desc(), Transaction.id.desc())
         .limit(scan_limit)
         .all()
     )
-    seen: set[tuple] = set()
-    result: list[Transaction] = []
+    groups: dict[tuple, dict] = {}
     for tx in rows:
         key = (tx.category_id, tx.description, tx.amount, tx.account_id, tx.savings_product_id)
-        if key in seen:
-            continue
-        seen.add(key)
-        result.append(tx)
-        if len(result) >= limit:
-            break
-    return result
+        group = groups.setdefault(key, {"count": 0, "tx": tx})
+        group["count"] += 1
+    ranked = sorted(
+        groups.values(),
+        key=lambda g: (-g["count"], -g["tx"].transaction_date.toordinal(), -g["tx"].id),
+    )
+    return [g["tx"] for g in ranked[:limit]]
 
 
 def period_totals(db: Session, date_from: date, date_to: date) -> dict:

@@ -56,13 +56,15 @@ def seeded_db(db_session):
     food = Category(name="식비", type="variable", color="#14b8a6", sort_order=0)
     rent = Category(name="주거비", type="fixed", color="#6366f1", sort_order=0)
     events = Category(name="경조사비", type="irregular", color="#e11d48", sort_order=0)
-    db_session.add_all([food, rent, events])
+    salary = Category(name="급여", kind="income", type="fixed", color="#22c55e", sort_order=0)
+    db_session.add_all([food, rent, events, salary])
     db_session.commit()
     db_session.refresh(user)
     db_session.refresh(food)
     db_session.refresh(rent)
     db_session.refresh(events)
-    return {"db": db_session, "user": user, "food": food, "rent": rent, "events": events}
+    db_session.refresh(salary)
+    return {"db": db_session, "user": user, "food": food, "rent": rent, "events": events, "salary": salary}
 
 
 @pytest.fixture()

@@ -142,3 +142,21 @@ export function challengeStatusBadgeClass(status: ChallengeStatus): string {
 export function challengeStatusLabel(status: ChallengeStatus): string {
   return CHALLENGE_STATUS_LABEL[status];
 }
+
+const RECURRING_LINK_BADGE_STYLE: Record<"active" | "inactive", string> = {
+  active: "bg-indigo-50 dark:bg-indigo-950 text-indigo-600 dark:text-indigo-400",
+  inactive: "bg-gray-100 dark:bg-gray-800 text-gray-400 dark:text-gray-500",
+};
+
+const RECURRING_LINK_BADGE_LABEL: Record<"active" | "inactive", string> = {
+  active: "자동 반영 중",
+  inactive: "반복내역 비활성",
+};
+
+export function recurringLinkBadgeStyle(active: boolean): string {
+  return RECURRING_LINK_BADGE_STYLE[active ? "active" : "inactive"];
+}
+
+export function recurringLinkBadgeLabel(active: boolean): string {
+  return RECURRING_LINK_BADGE_LABEL[active ? "active" : "inactive"];
+}

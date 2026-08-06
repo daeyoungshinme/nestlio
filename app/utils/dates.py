@@ -63,3 +63,22 @@ def advance_due_date(current: date, frequency: str, day_of_month: int | None) ->
     if frequency == "yearly":
         return add_months_with_day(current, 12, day_of_month or current.day)
     raise ValueError(f"unknown frequency: {frequency}")
+
+
+def advance_recurring_date(
+    current: date, frequency: str, day_of_month: int | None, days_of_month: list[int] | None
+) -> date:
+    """Like `advance_due_date`, but supports multiple days per month (e.g. 5th and 25th).
+
+    Only `frequency == "monthly"` benefits from `days_of_month`; weekly/yearly rules have at
+    most one occurrence per period, so they fall back to `advance_due_date` unchanged.
+    """
+    if frequency != "monthly" or not days_of_month:
+        return advance_due_date(current, frequency, day_of_month)
+
+    month_length = monthrange(current.year, current.month)[1]
+    effective_days = sorted({min(d, month_length) for d in days_of_month})
+    later_this_month = [d for d in effective_days if d > current.day]
+    if later_this_month:
+        return current.replace(day=later_this_month[0])
+    return add_months_with_day(current, 1, min(days_of_month))

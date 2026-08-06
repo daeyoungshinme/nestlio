@@ -48,7 +48,7 @@ export default function TransactionEditPage() {
     mutationFn: (payload: Parameters<typeof updateTransaction>[1]) => updateTransaction(txId, payload),
     onSuccess: () => {
       invalidateAll();
-      toast("거래를 수정했습니다.", "success");
+      toast("내역을 수정했습니다.", "success");
       navigate("/transactions");
     },
     onError: (err) => toast(extractErrorMessage(err), "error"),
@@ -58,7 +58,7 @@ export default function TransactionEditPage() {
     mutationFn: () => deleteTransaction(txId),
     onSuccess: () => {
       invalidateAll();
-      toast("거래를 삭제했습니다.", "success");
+      toast("내역을 삭제했습니다.", "success");
       navigate("/transactions");
     },
     onError: (err) => toast(extractErrorMessage(err), "error"),
@@ -77,7 +77,7 @@ export default function TransactionEditPage() {
         <ArrowLeft size={18} />
         가계부
       </Link>
-      <h1 className="text-xl font-bold text-gray-900 dark:text-gray-50">거래 수정</h1>
+      <h1 className="text-xl font-bold text-gray-900 dark:text-gray-50">내역 수정</h1>
       <div className="card">
         <TransactionForm
           categories={categories}
@@ -106,7 +106,7 @@ export default function TransactionEditPage() {
 
       {confirmDelete && (
         <ConfirmModal
-          message="이 거래를 삭제할까요? 되돌릴 수 없습니다."
+          message="이 내역을 삭제할까요? 되돌릴 수 없습니다."
           onConfirm={() => deleteMutation.mutate()}
           onCancel={() => setConfirmDelete(false)}
         />
