@@ -12,7 +12,7 @@ interface Props {
 }
 
 /** CRUD 리소스 섹션이 반복하던 행별 수정/삭제 아이콘 버튼 마크업 공통화.
- * onEdit을 생략하면 삭제(비활성화) 버튼만 렌더링한다(예: AccountsSection). */
+ * onEdit을 생략하면 삭제(비활성화) 버튼만 렌더링한다. */
 export default function RowActionButtons({
   onEdit,
   onDelete,

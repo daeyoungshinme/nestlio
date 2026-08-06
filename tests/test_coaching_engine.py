@@ -20,6 +20,7 @@ from app.services.coaching_engine import (
     emergency_fund_insight,
     fixed_cost_ratio_insight,
     goal_pace_insight,
+    investable_surplus,
     savings_execution_insight,
     savings_rate_insight,
     savings_streak_months,
@@ -199,6 +200,30 @@ def test_savings_execution_skips_when_no_prior_snapshot():
 def test_savings_execution_skips_when_no_surplus():
     assert savings_execution_insight(Decimal("0"), Decimal("100000")) is None
     assert savings_execution_insight(Decimal("-100000"), Decimal("100000")) is None
+
+
+# --- investable surplus: surplus - actual_saved, floored at 0 -------------------------------
+
+def test_investable_surplus_is_gap_between_surplus_and_actual_saved():
+    totals = _totals(3000000, 2000000, 1000000, 500000)  # savings = 1,000,000
+    assert investable_surplus(totals, Decimal("400000")) == Decimal("600000")
+
+
+def test_investable_surplus_zero_when_no_prior_snapshot():
+    totals = _totals(3000000, 2000000, 1000000, 500000)
+    assert investable_surplus(totals, None) == Decimal("0")
+
+
+def test_investable_surplus_floors_at_zero_when_actual_saved_covers_surplus():
+    totals = _totals(3000000, 2000000, 1000000, 500000)  # savings = 1,000,000
+    assert investable_surplus(totals, Decimal("1500000")) == Decimal("0")
+
+
+def test_investable_surplus_zero_when_no_surplus():
+    totals = _totals(2000000, 2000000, 1000000, 500000)  # savings = 0
+    assert investable_surplus(totals, Decimal("100000")) == Decimal("0")
+    negative_totals = _totals(1500000, 2000000, 1000000, 500000)  # savings = -500,000
+    assert investable_surplus(negative_totals, Decimal("100000")) == Decimal("0")
 
 
 # --- emergency fund: <3mo critical-ish warning, <6mo info(build up), >=6mo info(sufficient) --

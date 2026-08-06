@@ -44,6 +44,10 @@ class SavingsProductGrowlioLinkIn(BaseModel):
     auto_sync_enabled: bool = False
 
 
+class SavingsProductGrowlioImportIn(BaseModel):
+    growlio_account_ids: list[str]
+
+
 class GrowlioAccountOut(BaseModel):
     """growlio `/api/v1/external/accounts` 응답을 그대로 전달하는 프록시용 스키마."""
 

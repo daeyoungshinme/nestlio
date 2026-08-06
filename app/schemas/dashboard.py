@@ -1,4 +1,5 @@
 from datetime import date
+from decimal import Decimal
 from typing import Literal
 
 from pydantic import BaseModel
@@ -20,6 +21,7 @@ class DashboardOut(BaseModel):
     current_ym: str
     savings_streak_months: int
     active_challenge: ChallengeOut | None = None
+    investable_surplus: Decimal
 
 
 class MonthlyRetrospectiveOut(BaseModel):

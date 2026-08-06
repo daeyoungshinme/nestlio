@@ -11,6 +11,10 @@ class GrowlioSyncError(Exception):
     """동기화 요청이 사용자에게 보여줄 수 있는 사유로 실패했을 때 (연동 없음/계좌 못 찾음)."""
 
 
+def _map_product_type(asset_type: str) -> str:
+    return "investment" if asset_type in growlio_client.INVESTMENT_ASSET_TYPES else "savings"
+
+
 def list_products(db: Session, active_only: bool = True) -> list[SavingsProduct]:
     query = db.query(SavingsProduct)
     if active_only:
@@ -66,6 +70,9 @@ def deactivate_product(db: Session, product_id: int) -> None:
     product = db.get(SavingsProduct, product_id)
     if product is not None:
         product.is_active = False
+        product.growlio_account_id = None
+        product.auto_sync_enabled = False
+        product.last_synced_at = None
         db.commit()
 
 
@@ -92,8 +99,13 @@ def set_growlio_link(
 
 
 def list_growlio_accounts(bearer_token: str) -> list[dict]:
-    """연동 대상 선택 UI를 위해 growlio 계좌 목록을 그대로 전달한다."""
-    return growlio_client.fetch_account_balances(bearer_token)
+    """연동 대상 선택 UI를 위해 growlio 계좌 목록을 전달한다.
+
+    은행 계좌(BANK_ACCOUNT)는 nestlio의 계좌 탭(account_service)에서 별도로 가져오므로 제외한다
+    — 저축상품과 계좌가 서로 다른 모델이라 같은 growlio 계좌가 양쪽에 중복 생성되는 것을 막는다.
+    """
+    accounts = growlio_client.fetch_account_balances(bearer_token)
+    return [a for a in accounts if a["asset_type"] not in growlio_client.BANK_ASSET_TYPES]
 
 
 def sync_from_growlio(db: Session, product_id: int, bearer_token: str, *, now: datetime) -> SavingsProduct | None:
@@ -111,3 +123,45 @@ def sync_from_growlio(db: Session, product_id: int, bearer_token: str, *, now: d
     db.commit()
     db.refresh(product)
     return product
+
+
+def import_from_growlio(
+    db: Session, growlio_account_ids: list[str], bearer_token: str, *, now: datetime
+) -> list[SavingsProduct]:
+    """선택한 growlio 계좌들을 각각 새 저축/투자 상품으로 일괄 생성하고 연동한다."""
+    if not growlio_account_ids:
+        return []
+    accounts_by_id = {
+        a["id"]: a
+        for a in growlio_client.fetch_account_balances(bearer_token)
+        if a["asset_type"] not in growlio_client.BANK_ASSET_TYPES
+    }
+    already_linked = {
+        product_id
+        for (product_id,) in db.query(SavingsProduct.growlio_account_id).filter(
+            SavingsProduct.growlio_account_id.isnot(None), SavingsProduct.is_active.is_(True)
+        )
+    }
+    created: list[SavingsProduct] = []
+    for account_id in growlio_account_ids:
+        if account_id in already_linked:
+            continue
+        account = accounts_by_id.get(account_id)
+        if account is None:
+            continue
+        product = SavingsProduct(
+            name=account["name"],
+            current_balance=Decimal(str(account["current_value_krw"])),
+            monthly_saving_amount=Decimal("0"),
+            product_type=_map_product_type(account["asset_type"]),
+            growlio_account_id=account_id,
+            auto_sync_enabled=True,
+            last_synced_at=now,
+            sort_order=999,
+        )
+        db.add(product)
+        created.append(product)
+    db.commit()
+    for product in created:
+        db.refresh(product)
+    return created

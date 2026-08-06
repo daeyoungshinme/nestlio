@@ -12,6 +12,13 @@ from app.config import settings
 
 _TIMEOUT = 5.0
 
+# growlio의 AssetType(app/enums.py) 중 은행 입출금 계좌 — nestlio의 계좌(Account) 가져오기 대상.
+# nestlio는 growlio의 enum을 직접 import하지 않으므로(별도 서비스, 느슨한 결합) 문자열로 매핑한다.
+BANK_ASSET_TYPES = {"BANK_ACCOUNT"}
+
+# growlio의 AssetType 중 증권/투자성 계좌 — nestlio의 저축상품(investment) 가져오기 대상.
+INVESTMENT_ASSET_TYPES = {"STOCK_KIS", "STOCK_KIWOOM", "STOCK_OTHER", "CASH_STOCK", "REAL_ESTATE"}
+
 
 class GrowlioNotConfiguredError(Exception):
     """settings.growlio_api_base_url이 비어 있어 연동 기능 자체가 꺼져 있을 때."""

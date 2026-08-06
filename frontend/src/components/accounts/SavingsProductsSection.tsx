@@ -1,11 +1,12 @@
 import { useState } from "react";
 import type { FormEvent } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Link2, Plus, RefreshCw, Unlink } from "lucide-react";
+import { Download, ExternalLink, Link2, Plus, RefreshCw, Unlink } from "lucide-react";
 import Button from "@/components/common/Button";
 import ConfirmModal from "@/components/common/ConfirmModal";
 import EmptyState from "@/components/common/EmptyState";
 import FormInput from "@/components/common/FormInput";
+import GrowlioImportModal from "@/components/common/GrowlioImportModal";
 import Modal from "@/components/common/Modal";
 import RowActionButtons from "@/components/common/RowActionButtons";
 import SkeletonCard from "@/components/common/SkeletonCard";
@@ -14,6 +15,7 @@ import {
   deactivateSavingsProduct,
   fetchGrowlioAccounts,
   fetchSavingsProducts,
+  importGrowlioAccounts,
   setGrowlioLink,
   syncSavingsProduct,
   updateSavingsProduct,
@@ -25,6 +27,7 @@ import { formatKrw, formatKrwPreview, formatPercent, toAmountInputValue } from "
 import { extractErrorMessage } from "@/utils/error";
 import { toast } from "@/utils/toast";
 import { returnRateTextColor, savingsProductTypeBadgeStyle, savingsProductTypeLabel } from "@/utils/colors";
+import { GROWLIO_APP_URL, growlioPortfolioUrl } from "@/constants/growlio";
 import type { SavingsProductOut, SavingsProductType } from "@/types";
 
 function formatSyncedAt(value: string): string {
@@ -76,6 +79,7 @@ function toSavingsProductPayload(draft: Draft) {
 export default function SavingsProductsSection() {
   const [formTarget, setFormTarget] = useState<"new" | SavingsProductOut | null>(null);
   const [deactivateTarget, setDeactivateTarget] = useState<number | null>(null);
+  const [importOpen, setImportOpen] = useState(false);
   const queryClient = useQueryClient();
 
   const { data, isLoading } = useQuery({ queryKey: QUERY_KEYS.savingsProducts, queryFn: fetchSavingsProducts });
@@ -105,6 +109,9 @@ export default function SavingsProductsSection() {
     return <SkeletonCard rows={4} />;
   }
 
+  const existingGrowlioAccountIds = new Set(
+    data.filter((p): p is SavingsProductOut & { growlio_account_id: string } => !!p.growlio_account_id).map((p) => p.growlio_account_id)
+  );
   const totalBalance = data.reduce((sum, p) => sum + Number(p.current_balance), 0);
   const totalMonthly = data.reduce((sum, p) => sum + Number(p.monthly_saving_amount), 0);
   const balanceByType = PRODUCT_TYPES.map((type) => ({
@@ -124,7 +131,10 @@ export default function SavingsProductsSection() {
 
   return (
     <div className="space-y-4">
-      <div className="flex justify-end">
+      <div className="flex justify-end gap-2">
+        <Button size="sm" variant="secondary" icon={<Download size={14} />} onClick={() => setImportOpen(true)}>
+          growlio에서 가져오기
+        </Button>
         <Button size="sm" icon={<Plus size={14} />} onClick={() => setFormTarget("new")}>
           상품 추가
         </Button>
@@ -194,6 +204,18 @@ export default function SavingsProductsSection() {
                     <RefreshCw size={16} className={syncMutation.isPending ? "animate-spin" : ""} />
                   </button>
                 )}
+                {product.product_type === "investment" && product.growlio_account_id && GROWLIO_APP_URL && (
+                  <a
+                    href={growlioPortfolioUrl(product.growlio_account_id)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="p-2 text-gray-400 hover:text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-950 rounded-lg transition-colors"
+                    aria-label="growlio에서 포트폴리오 보기"
+                    title="growlio에서 포트폴리오 보기"
+                  >
+                    <ExternalLink size={16} />
+                  </a>
+                )}
                 <RowActionButtons
                   onEdit={() => setFormTarget(product)}
                   onDelete={() => setDeactivateTarget(product.id)}
@@ -238,6 +260,19 @@ export default function SavingsProductsSection() {
           message="이 저축/투자 상품을 비활성화할까요?"
           onConfirm={() => deactivateMutation.mutate(deactivateTarget)}
           onCancel={() => setDeactivateTarget(null)}
+        />
+      )}
+
+      {importOpen && (
+        <GrowlioImportModal
+          title="growlio 계좌 가져오기"
+          queryKey={QUERY_KEYS.growlioInvestmentAccounts}
+          fetchAccounts={fetchGrowlioAccounts}
+          importAccounts={importGrowlioAccounts}
+          existingGrowlioAccountIds={existingGrowlioAccountIds}
+          invalidateKeys={[QUERY_KEYS.savingsProducts]}
+          getAmount={(product) => product.current_balance}
+          onClose={() => setImportOpen(false)}
         />
       )}
     </div>
@@ -343,7 +378,7 @@ function GrowlioLinkSection({ product, onLinked }: { product: SavingsProductOut;
   const queryClient = useQueryClient();
 
   const { data: growlioAccounts, isLoading, isError, error } = useQuery({
-    queryKey: QUERY_KEYS.growlioAccounts,
+    queryKey: QUERY_KEYS.growlioInvestmentAccounts,
     queryFn: fetchGrowlioAccounts,
     enabled: pickerOpen,
     retry: false,
@@ -414,3 +449,4 @@ function GrowlioLinkSection({ product, onLinked }: { product: SavingsProductOut;
     </div>
   );
 }
+

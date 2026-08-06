@@ -1,8 +1,9 @@
 import { useState } from "react";
 import type { FormEvent } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Link2, Plus } from "lucide-react";
+import { ExternalLink, Link2, Plus } from "lucide-react";
 import Button from "@/components/common/Button";
+import ChallengesSection from "@/components/financialPlan/ChallengesSection";
 import ConfirmModal from "@/components/common/ConfirmModal";
 import EmptyState from "@/components/common/EmptyState";
 import FormInput from "@/components/common/FormInput";
@@ -23,7 +24,20 @@ import { insightSeverityStyle } from "@/utils/colors";
 import { formatKrw, formatKrwPreview, formatPercent, toAmountInputValue } from "@/utils/format";
 import { extractErrorMessage } from "@/utils/error";
 import { toast } from "@/utils/toast";
+import { GROWLIO_APP_URL, growlioPortfolioUrl, isGrowlioLinkedInvestment } from "@/constants/growlio";
 import type { FinancialGoalOut, SavingsProductOut } from "@/types";
+
+/** 목표에 연동된 저축/투자 상품 중 growlio에 연동된 투자 상품(가장 우선순위 높은 것)을 찾는다.
+ * 이 목표를 위해 모은 투자금을 growlio 포트폴리오 화면으로 바로 이어주는 딥링크에 쓰인다. */
+function findGrowlioInvestmentLink(
+  goal: FinancialGoalOut,
+  savingsProducts: SavingsProductOut[],
+): string | null {
+  const linked = savingsProducts.find(
+    (p) => goal.funding_source_ids.includes(p.id) && isGrowlioLinkedInvestment(p),
+  );
+  return linked?.growlio_account_id ?? null;
+}
 
 interface Draft {
   priority: string;
@@ -127,6 +141,12 @@ export default function FinancialGoalsSection() {
   const totalMonthly = data.reduce((sum, g) => sum + Number(g.monthly_saving_amount), 0);
   const isSaving = createMutation.isPending || updateMutation.isPending;
   const goalPaceInsight = dashboard?.insights.find((i) => i.rule_code === "goal_pace");
+  const investableSurplus = dashboard?.investable_surplus ?? "0";
+  const sortedGoals = data.slice().sort((a, b) => a.priority - b.priority);
+  // 여유자금은 가계 전체 단위라 목표마다 반복 표시하면 목표별로 다른 금액처럼 오인될 수 있어,
+  // growlio 연동된 목표 중 우선순위가 가장 높은 하나에만 붙인다.
+  const firstGrowlioLinkedGoalId =
+    sortedGoals.find((g) => findGrowlioInvestmentLink(g, savingsProducts ?? []))?.id ?? null;
 
   const celebrateIfCrossed = (oldPct: number, goal: FinancialGoalOut) => {
     const milestone = crossedMilestone(oldPct, Number(goal.progress_pct));
@@ -189,10 +209,11 @@ export default function FinancialGoalsSection() {
         <EmptyState title="등록된 재무목표가 없어요" description="위 버튼으로 첫 재무목표를 세워보세요" compact />
       ) : (
         <div className="space-y-2">
-          {data
-            .slice()
-            .sort((a, b) => a.priority - b.priority)
-            .map((goal) => (
+          {sortedGoals.map((goal) => {
+            const growlioAccountId = findGrowlioInvestmentLink(goal, savingsProducts ?? []);
+            const showSurplusHint =
+              goal.id === firstGrowlioLinkedGoalId && GROWLIO_APP_URL && Number(investableSurplus) > 0;
+            return (
               <div key={goal.id} className="card space-y-2">
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
@@ -224,8 +245,25 @@ export default function FinancialGoalsSection() {
                     {formatPercent(Number(goal.progress_pct))} 달성
                   </span>
                 </div>
+                {growlioAccountId && GROWLIO_APP_URL && (
+                  <a
+                    href={growlioPortfolioUrl(growlioAccountId)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1 text-xs font-medium text-emerald-600 dark:text-emerald-400 hover:underline"
+                  >
+                    <ExternalLink size={12} />
+                    이 목표의 투자금, growlio에서 포트폴리오로 굴리기
+                  </a>
+                )}
+                {showSurplusHint && (
+                  <p className="text-xs text-gray-500 dark:text-gray-400">
+                    이번 달 여유자금 {formatKrw(investableSurplus)}, 이 목표의 투자금에 보태보세요.
+                  </p>
+                )}
               </div>
-            ))}
+            );
+          })}
           <div className="flex flex-col sm:flex-row sm:justify-end gap-1 sm:gap-6 pt-1 text-sm font-semibold text-gray-900 dark:text-gray-50">
             <span className="sm:text-right">필요금액 합계 {formatKrw(totalRequired)}</span>
             <span className="sm:text-right">월 저축금액 합계 {formatKrw(totalMonthly)}</span>
@@ -237,6 +275,14 @@ export default function FinancialGoalsSection() {
           )}
         </div>
       )}
+
+      <div className="pt-2 border-t border-gray-100 dark:border-gray-800 space-y-3">
+        <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300">부부 챌린지</h3>
+        <p className="text-xs text-gray-500 dark:text-gray-400">
+          기간을 정해두고 부부가 함께 짧게 도전하는 미니 목표예요. 장기 목표와 별개로 자유롭게 만들어보세요.
+        </p>
+        <ChallengesSection />
+      </div>
 
       {formTarget && (
         <GoalFormModal

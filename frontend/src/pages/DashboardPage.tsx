@@ -7,6 +7,8 @@ import MonthPicker, { currentYearMonth } from "@/components/common/MonthPicker";
 import DayPicker, { currentDateIso } from "@/components/common/DayPicker";
 import WeekPicker, { currentWeekAnchor } from "@/components/common/WeekPicker";
 import MonthlyRetrospectiveCard from "@/components/dashboard/MonthlyRetrospectiveCard";
+import CoupleContributionCard from "@/components/dashboard/CoupleContributionCard";
+import InvestSurplusCard from "@/components/dashboard/InvestSurplusCard";
 import SummaryCards from "@/components/common/SummaryCards";
 import SkeletonCard from "@/components/common/SkeletonCard";
 import EmptyState from "@/components/common/EmptyState";
@@ -93,7 +95,6 @@ export default function DashboardPage() {
     queryKey: QUERY_KEYS.savingsProducts,
     queryFn: fetchSavingsProducts,
     staleTime: STALE_TIME.MEDIUM,
-    enabled: showQuickAdd,
   });
 
   const createMutation = useMutation({
@@ -254,36 +255,6 @@ export default function DashboardPage() {
               <ProgressBar pct={Number(activeChallenge.progress_pct)} barClassName="bg-blue-500" />
             </div>
           )}
-
-          {data.by_user.length > 0 && (
-            <div className="pt-4 border-t border-gray-100 dark:border-gray-800">
-              <div className="flex items-center justify-between text-sm mb-2">
-                <span className="font-medium text-gray-700 dark:text-gray-300">
-                  {isCurrentPeriod
-                    ? "이번 기간 함께 모은 돈"
-                    : period === "month"
-                      ? `${formatYearMonth(data.current_ym)} 함께 모은 돈`
-                      : period === "week"
-                        ? `${formatWeekRange(data.start, data.end)} 함께 모은 돈`
-                        : `${formatDate(data.start)} 함께 모은 돈`}
-                </span>
-                <span className="font-bold text-gray-900 dark:text-gray-50">{formatKrw(totalUserSavings)}</span>
-              </div>
-              <div className="space-y-3">
-                {data.by_user.map((u) => (
-                  <div key={u.user_id}>
-                    <div className="flex items-center justify-between text-sm mb-1">
-                      <span className="font-medium text-gray-900 dark:text-gray-50">{u.display_name}</span>
-                      <span className="text-gray-500 dark:text-gray-400">{formatKrw(u.savings)} 보탰어요</span>
-                    </div>
-                    <ProgressBar
-                      pct={totalUserSavings > 0 ? (Math.max(0, Number(u.savings)) / totalUserSavings) * 100 : 0}
-                    />
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
         </Link>
 
         <Link to="/accounts" className="card block hover:border-emerald-300 dark:hover:border-emerald-700 transition-colors">
@@ -315,6 +286,25 @@ export default function DashboardPage() {
       </div>
 
       <SummaryCards totals={data.totals} collapsible />
+
+      <CoupleContributionCard
+        title={
+          isCurrentPeriod
+            ? "이번 기간 함께 모은 돈"
+            : period === "month"
+              ? `${formatYearMonth(data.current_ym)} 함께 모은 돈`
+              : period === "week"
+                ? `${formatWeekRange(data.start, data.end)} 함께 모은 돈`
+                : `${formatDate(data.start)} 함께 모은 돈`
+        }
+        byUser={data.by_user}
+        totalUserSavings={totalUserSavings}
+      />
+
+      <InvestSurplusCard
+        investableSurplus={data.investable_surplus}
+        investmentProducts={savingsProducts ?? []}
+      />
 
       <MonthlyRetrospectiveCard />
 

@@ -194,6 +194,15 @@ def savings_execution_insight(surplus: Decimal, actual_saved: Decimal | None) ->
     )
 
 
+def investable_surplus(totals: dict, actual_saved: Decimal | None) -> Decimal:
+    """이번달 여유자금(수입-지출) 중 아직 저축·투자로 옮겨지지 않은 금액.
+    savings_execution_insight와 같은 입력을 쓰는 자매 함수 — growlio 투자 유도 카드에 쓰인다."""
+    surplus = totals["savings"]
+    if actual_saved is None or surplus <= 0:
+        return Decimal("0")
+    return max(surplus - actual_saved, Decimal("0"))
+
+
 def emergency_fund_insight(current_balance: Decimal | None, avg_monthly_fixed: Decimal) -> Insight | None:
     if current_balance is None or avg_monthly_fixed <= 0:
         return None
@@ -237,6 +246,7 @@ def compute_insights(
     totals: dict | None = None,
     breakdown: list[dict] | None = None,
     goals: list[FinancialGoal] | None = None,
+    actual_saved: Decimal | None = None,
 ) -> list[Insight]:
     """호출부가 이미 같은 기간의 totals/breakdown/goals를 조회해둔 경우, 넘겨받아 재조회를 피한다."""
     year_month = year_month or year_month_str(date.today())
@@ -256,7 +266,7 @@ def compute_insights(
     goal_dicts = [{"monthly_saving_amount": g.monthly_saving_amount} for g in goal_rows]
 
     insights: list[Insight] = []
-    actual_saved = net_worth_service.savings_delta(db, year_month)
+    actual_saved = actual_saved if actual_saved is not None else net_worth_service.savings_delta(db, year_month)
     for candidate in (
         savings_rate_insight(totals, thresholds["savings_rate_warn"], thresholds["savings_rate_critical"]),
         fixed_cost_ratio_insight(

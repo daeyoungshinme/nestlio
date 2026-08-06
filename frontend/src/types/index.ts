@@ -57,6 +57,7 @@ export interface AccountOut {
   initial_balance: string;
   is_active: boolean;
   sort_order: number;
+  growlio_account_id: string | null;
 }
 
 export interface AccountWithBalanceOut {
@@ -68,6 +69,16 @@ export interface AccountCreateIn {
   name: string;
   account_type: "bank" | "cash" | "card";
   initial_balance: string;
+}
+
+export interface AccountUpdateIn {
+  name: string;
+  account_type: "bank" | "cash" | "card";
+  current_balance: string;
+}
+
+export interface AccountGrowlioImportIn {
+  growlio_account_ids: string[];
 }
 
 export interface TotalsOut {
@@ -124,6 +135,7 @@ export interface DashboardOut {
   current_ym: string;
   savings_streak_months: number;
   active_challenge: ChallengeOut | null;
+  investable_surplus: string;
 }
 
 export interface MonthlyRetrospectiveOut {
@@ -532,6 +544,10 @@ export type SavingsProductUpdateIn = SavingsProductCreateIn;
 export interface SavingsProductGrowlioLinkIn {
   growlio_account_id: string | null;
   auto_sync_enabled: boolean;
+}
+
+export interface SavingsProductGrowlioImportIn {
+  growlio_account_ids: string[];
 }
 
 export interface GrowlioAccountOut {

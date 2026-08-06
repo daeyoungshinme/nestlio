@@ -106,3 +106,29 @@ def test_list_growlio_accounts_proxies_client(client, seeded_db):
 
     assert resp.status_code == 200
     assert resp.json() == [{"id": "growlio-acc-1", "name": "국민 자유적금", "asset_type": "DEPOSIT", "current_value_krw": 1.0, "as_of": None}]
+
+
+def test_growlio_import_creates_one_product_per_selected_account(client, seeded_db):
+    _override_bearer_token()
+
+    with patch(
+        "app.services.savings_product_service.growlio_client.fetch_account_balances",
+        return_value=[
+            {"id": "growlio-acc-1", "name": "국민 자유적금", "asset_type": "DEPOSIT", "current_value_krw": 1234500.0},
+            {"id": "growlio-acc-2", "name": "키움 증권", "asset_type": "STOCK_KIWOOM", "current_value_krw": 5000000.0},
+        ],
+    ):
+        resp = client.post(
+            "/api/v1/savings-products/growlio-import",
+            json={"growlio_account_ids": ["growlio-acc-1", "growlio-acc-2"]},
+        )
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert len(body) == 2
+    by_account = {p["growlio_account_id"]: p for p in body}
+    assert by_account["growlio-acc-1"]["product_type"] == "savings"
+    assert by_account["growlio-acc-1"]["current_balance"] == "1234500.00"
+    assert by_account["growlio-acc-2"]["product_type"] == "investment"
+    assert by_account["growlio-acc-2"]["current_balance"] == "5000000.00"
+    assert by_account["growlio-acc-2"]["auto_sync_enabled"] is True

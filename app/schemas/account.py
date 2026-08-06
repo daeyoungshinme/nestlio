@@ -13,6 +13,7 @@ class AccountOut(BaseModel):
     initial_balance: Decimal
     is_active: bool
     sort_order: int
+    growlio_account_id: str | None = None
 
 
 class AccountWithBalanceOut(BaseModel):
@@ -24,3 +25,13 @@ class AccountCreateIn(BaseModel):
     name: str
     account_type: Literal["bank", "cash", "card"]
     initial_balance: Decimal = Decimal("0")
+
+
+class AccountUpdateIn(BaseModel):
+    name: str
+    account_type: Literal["bank", "cash", "card"]
+    current_balance: Decimal
+
+
+class AccountGrowlioImportIn(BaseModel):
+    growlio_account_ids: list[str]

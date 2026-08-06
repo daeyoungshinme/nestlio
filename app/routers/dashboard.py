@@ -9,7 +9,7 @@ from app.database import get_db
 from app.dependencies import get_current_user
 from app.models.user import User
 from app.schemas.dashboard import DashboardOut, MonthlyRetrospectiveOut
-from app.services import challenge_service, coaching_engine, goal_service, transaction_service
+from app.services import challenge_service, coaching_engine, goal_service, net_worth_service, transaction_service
 from app.utils.dates import month_bounds, parse_year_month, shift_month, week_bounds, year_month_str
 
 router = APIRouter(prefix="/dashboard", tags=["dashboard"])
@@ -40,9 +40,11 @@ def dashboard(
     trend = transaction_service.monthly_trend(db, months=6, anchor=end)
     current_ym = year_month_str(start)
     goals = goal_service.list_goals(db)
+    actual_saved = net_worth_service.savings_delta(db, current_ym)
     insights = coaching_engine.compute_insights(
-        db, current_ym, totals=totals, breakdown=expense_breakdown, goals=goals
+        db, current_ym, totals=totals, breakdown=expense_breakdown, goals=goals, actual_saved=actual_saved
     )
+    investable_surplus = coaching_engine.investable_surplus(totals, actual_saved)
 
     target_monthly = sum((g.monthly_saving_amount for g in goals), Decimal("0"))
     streak = coaching_engine.savings_streak_months(trend, target_monthly)
@@ -64,6 +66,7 @@ def dashboard(
         "insights": insights,
         "current_ym": current_ym,
         "savings_streak_months": streak,
+        "investable_surplus": investable_surplus,
         "active_challenge": challenge_service.to_out(active_challenge, status_asof) if active_challenge else None,
     }
 

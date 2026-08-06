@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 
 from app.models.account import Account
 from app.models.transaction import Transaction
+from app.services import growlio_client
 
 
 def list_accounts(db: Session, active_only: bool = True) -> list[Account]:
@@ -22,11 +23,78 @@ def create_account(db: Session, name: str, account_type: str, initial_balance: D
     return account
 
 
+def update_account(
+    db: Session, account_id: int, name: str, account_type: str, current_balance_value: Decimal
+) -> Account | None:
+    account = db.get(Account, account_id)
+    if account is None:
+        return None
+    # 잔액은 initial_balance + 거래 순증감액으로 파생되므로, 입력받은 "현재 잔액"이 그대로
+    # 화면에 표시되도록 이미 반영된 거래 순증감액만큼 initial_balance를 역산해 저장한다.
+    net_transactions = current_balance(db, account) - account.initial_balance
+    account.name = name
+    account.account_type = account_type
+    account.initial_balance = current_balance_value - net_transactions
+    db.commit()
+    db.refresh(account)
+    return account
+
+
 def deactivate_account(db: Session, account_id: int) -> None:
     account = db.get(Account, account_id)
     if account is not None:
         account.is_active = False
+        account.growlio_account_id = None
         db.commit()
+
+
+def list_growlio_bank_accounts(bearer_token: str) -> list[dict]:
+    """계좌 가져오기 UI를 위해 growlio 계좌 중 은행 계좌(BANK_ACCOUNT)만 전달한다.
+
+    투자성 계좌는 저축상품 가져오기(savings_product_service)의 몫이라 여기서는 제외한다.
+    """
+    accounts = growlio_client.fetch_account_balances(bearer_token)
+    return [a for a in accounts if a["asset_type"] in growlio_client.BANK_ASSET_TYPES]
+
+
+def import_from_growlio(db: Session, growlio_account_ids: list[str], bearer_token: str) -> list[Account]:
+    """선택한 growlio 은행 계좌들을 각각 새 계좌로 1회성 잔액 시딩하며 가져온다.
+
+    이후 잔액은 growlio가 아니라 가계부 거래 내역으로 파생되므로(current_balance) 지속 동기화는 하지 않는다.
+    """
+    if not growlio_account_ids:
+        return []
+    accounts_by_id = {
+        a["id"]: a
+        for a in growlio_client.fetch_account_balances(bearer_token)
+        if a["asset_type"] in growlio_client.BANK_ASSET_TYPES
+    }
+    already_linked = {
+        growlio_account_id
+        for (growlio_account_id,) in db.query(Account.growlio_account_id).filter(
+            Account.growlio_account_id.isnot(None), Account.is_active.is_(True)
+        )
+    }
+    created: list[Account] = []
+    for account_id in growlio_account_ids:
+        if account_id in already_linked:
+            continue
+        account = accounts_by_id.get(account_id)
+        if account is None:
+            continue
+        new_account = Account(
+            name=account["name"],
+            account_type="bank",
+            initial_balance=Decimal(str(account["current_value_krw"])),
+            growlio_account_id=account_id,
+            sort_order=999,
+        )
+        db.add(new_account)
+        created.append(new_account)
+    db.commit()
+    for account in created:
+        db.refresh(account)
+    return created
 
 
 def current_balance(db: Session, account: Account) -> Decimal:

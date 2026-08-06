@@ -15,8 +15,10 @@ def get_goal(db: Session, goal_id: int) -> FinancialGoal | None:
 
 
 def _apply_funding_sources(goal: FinancialGoal, savings_product_ids: list[int] | None) -> None:
+    existing_by_product_id = {fs.savings_product_id: fs for fs in goal.funding_sources}
     goal.funding_sources = [
-        GoalFundingSource(savings_product_id=pid) for pid in dict.fromkeys(savings_product_ids or [])
+        existing_by_product_id.get(pid) or GoalFundingSource(savings_product_id=pid)
+        for pid in dict.fromkeys(savings_product_ids or [])
     ]
 
 
