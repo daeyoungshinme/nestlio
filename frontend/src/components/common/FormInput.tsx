@@ -1,5 +1,6 @@
 import type { InputHTMLAttributes } from "react";
 import { INPUT_MD, INPUT_SM, LABEL_MD, LABEL_SM } from "@/constants/inputStyles";
+import { cn } from "@/utils/cn";
 
 interface Props extends Omit<InputHTMLAttributes<HTMLInputElement>, "size"> {
   label: string;
@@ -36,7 +37,7 @@ export default function FormInput({
       </label>
       <input
         id={inputId}
-        className={`w-full disabled:opacity-60 disabled:cursor-not-allowed ${baseClass} ${error ? errorClass : ""} ${className ?? ""}`}
+        className={cn("w-full", "disabled:opacity-60 disabled:cursor-not-allowed", baseClass, error && errorClass, className)}
         required={required}
         aria-invalid={!!error}
         aria-describedby={errorId ?? hintId}

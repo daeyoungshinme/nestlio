@@ -60,13 +60,13 @@ function PillGroup<T extends string>({
   onChange: (value: T) => void;
 }) {
   return (
-    <div className="flex gap-1 bg-gray-100 dark:bg-gray-800 rounded-lg p-1">
+    <div className="flex flex-nowrap gap-1 overflow-x-auto bg-gray-100 dark:bg-gray-800 rounded-lg p-1">
       {options.map((opt) => (
         <button
           key={opt.value}
           type="button"
           onClick={() => onChange(opt.value)}
-          className={`flex-1 px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
+          className={`shrink-0 whitespace-nowrap px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
             value === opt.value
               ? "bg-white dark:bg-gray-700 shadow text-gray-900 dark:text-gray-50"
               : "text-gray-500 dark:text-gray-400"

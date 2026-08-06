@@ -13,10 +13,12 @@ const TONE_CLASS: Record<NonNullable<Props["tone"]>, string> = {
 
 export default function SummaryCard({ label, value, tone = "default", sub }: Props) {
   return (
-    <div className="card">
-      <p className="text-xs text-gray-500 dark:text-gray-400">{label}</p>
-      <p className={`mt-1 text-lg sm:text-xl font-bold ${TONE_CLASS[tone]}`}>{value}</p>
-      {sub && <p className="mt-0.5 text-xs text-gray-400 dark:text-gray-500">{sub}</p>}
+    <div className="card min-w-0">
+      <p className="text-xs text-gray-500 dark:text-gray-400 truncate">{label}</p>
+      <p className={`mt-1 text-lg sm:text-xl font-bold truncate ${TONE_CLASS[tone]}`} title={value}>
+        {value}
+      </p>
+      {sub && <p className="mt-0.5 text-xs text-gray-400 dark:text-gray-500 truncate">{sub}</p>}
     </div>
   );
 }

@@ -153,7 +153,10 @@ export default function SavingsProductsSection() {
                     </span>
                   )}
                   {linkedGoals.length > 0 && (
-                    <span className="shrink-0 px-1.5 py-0.5 rounded text-[11px] font-medium bg-emerald-50 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300">
+                    <span
+                      className="shrink-0 max-w-[140px] sm:max-w-[220px] truncate px-1.5 py-0.5 rounded text-[11px] font-medium bg-emerald-50 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300"
+                      title={`목표: ${linkedGoals.map((g) => g.name).join(", ")}`}
+                    >
                       목표: {linkedGoals.map((g) => g.name).join(", ")}
                     </span>
                   )}
@@ -201,9 +204,9 @@ export default function SavingsProductsSection() {
             );
           })}
           <div className="flex flex-col items-end gap-1 pt-1">
-            <div className="flex justify-end gap-6 text-sm font-semibold text-gray-900 dark:text-gray-50">
-              <span>현재 적립액 합계 {formatKrw(totalBalance)}</span>
-              <span>월 저축액 합계 {formatKrw(totalMonthly)}</span>
+            <div className="flex flex-col sm:flex-row sm:justify-end gap-1 sm:gap-6 text-sm font-semibold text-gray-900 dark:text-gray-50">
+              <span className="sm:text-right">현재 적립액 합계 {formatKrw(totalBalance)}</span>
+              <span className="sm:text-right">월 저축액 합계 {formatKrw(totalMonthly)}</span>
             </div>
             {balanceByType.length > 1 && (
               <div className="flex justify-end gap-4 text-xs text-gray-500 dark:text-gray-400">

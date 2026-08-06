@@ -20,6 +20,7 @@ import { fetchMe, fetchUsers, updateMe } from "@/api/users";
 import type { CoachingThresholdsOut, InviteOut } from "@/types";
 import { QUERY_KEYS } from "@/constants/queryKeys";
 import { INPUT_SM } from "@/constants/inputStyles";
+import { TOUCH_TARGET_MIN_MOBILE_ONLY } from "@/constants/uiSizes";
 import { extractErrorMessage } from "@/utils/error";
 import { inviteStatusLabel, inviteStatusTextClass } from "@/utils/colors";
 import type { InviteStatus } from "@/utils/colors";
@@ -206,12 +207,24 @@ export default function SettingsPage() {
             className="w-full h-32 object-cover rounded-lg"
           />
         )}
-        <input
-          type="file"
-          accept="image/jpeg,image/png,image/webp"
-          onChange={(e) => setCouplePhotoFile(e.target.files?.[0] ?? null)}
-          className="block w-full text-sm text-gray-500 dark:text-gray-400"
-        />
+        <div className="flex items-center gap-3">
+          <label
+            htmlFor="couple-photo-input"
+            className={`${TOUCH_TARGET_MIN_MOBILE_ONLY} px-4 rounded-lg border border-gray-300 dark:border-gray-600 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 cursor-pointer transition-colors`}
+          >
+            파일 선택
+          </label>
+          <input
+            id="couple-photo-input"
+            type="file"
+            accept="image/jpeg,image/png,image/webp"
+            onChange={(e) => setCouplePhotoFile(e.target.files?.[0] ?? null)}
+            className="sr-only"
+          />
+          <span className="text-sm text-gray-500 dark:text-gray-400 truncate">
+            {couplePhotoFile ? couplePhotoFile.name : "선택된 파일 없음"}
+          </span>
+        </div>
         <div className="flex gap-2">
           <Button
             size="sm"

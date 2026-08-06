@@ -33,7 +33,7 @@ export default function SummaryCards({ totals, collapsible = false }: Props) {
 
   return (
     <div className="space-y-2">
-      <div className="grid grid-cols-3 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         <SummaryCard label="수입" value={formatKrw(totals.income)} tone="positive" />
         <SummaryCard label="지출" value={formatKrw(totals.expense)} tone="negative" />
         <SummaryCard
@@ -43,7 +43,7 @@ export default function SummaryCards({ totals, collapsible = false }: Props) {
         />
       </div>
       {expanded && (
-        <div className="grid grid-cols-3 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           <SummaryCard label="고정지출" value={formatKrw(totals.fixed)} />
           <SummaryCard label="변동지출" value={formatKrw(totals.variable)} />
           <SummaryCard label="비정기지출" value={formatKrw(totals.irregular)} />

@@ -127,9 +127,9 @@ export default function LoansSection() {
               />
             </div>
           ))}
-          <div className="flex justify-end gap-6 pt-1 text-sm font-semibold text-gray-900 dark:text-gray-50">
-            <span>대출잔액 합계 {formatKrw(totalBalance)}</span>
-            <span>월납입금액 합계 {formatKrw(totalMonthly)}</span>
+          <div className="flex flex-col sm:flex-row sm:justify-end gap-1 sm:gap-6 pt-1 text-sm font-semibold text-gray-900 dark:text-gray-50">
+            <span className="sm:text-right">대출잔액 합계 {formatKrw(totalBalance)}</span>
+            <span className="sm:text-right">월납입금액 합계 {formatKrw(totalMonthly)}</span>
           </div>
         </div>
       )}

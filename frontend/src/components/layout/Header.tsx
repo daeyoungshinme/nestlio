@@ -1,10 +1,12 @@
 import { useState } from "react";
+import { useLocation } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Bell } from "lucide-react";
+import { Bell, PiggyBank } from "lucide-react";
 import Modal from "@/components/common/Modal";
 import EmptyState from "@/components/common/EmptyState";
 import { fetchNotifications, markAllNotificationsRead, markNotificationRead } from "@/api/notifications";
 import { QUERY_KEYS } from "@/constants/queryKeys";
+import { SIDEBAR_NAV_ITEMS } from "@/constants/nav";
 import { TOUCH_TARGET_MIN } from "@/constants/uiSizes";
 import { formatDate } from "@/utils/format";
 import { extractErrorMessage } from "@/utils/error";
@@ -24,8 +26,18 @@ function notificationTitle(n: NotificationOut): string {
   return NOTIF_TYPE_LABEL[n.notif_type] ?? n.notif_type;
 }
 
+/** 현재 경로에 대응하는 사이드바 nav 항목의 라벨. `/categories`처럼 nav에 없는 경로는 undefined. */
+function currentPageLabel(pathname: string): string | undefined {
+  if (pathname === "/") return SIDEBAR_NAV_ITEMS.find((item) => item.to === "/")?.label;
+  return SIDEBAR_NAV_ITEMS.filter((item) => item.to !== "/" && pathname.startsWith(item.to)).sort(
+    (a, b) => b.to.length - a.to.length,
+  )[0]?.label;
+}
+
 export default function Header() {
   const [showInbox, setShowInbox] = useState(false);
+  const location = useLocation();
+  const pageLabel = currentPageLabel(location.pathname);
   const queryClient = useQueryClient();
 
   const { data } = useQuery({
@@ -51,7 +63,13 @@ export default function Header() {
   const unreadCount = data?.unread_count ?? 0;
 
   return (
-    <header className="flex items-center justify-end px-3 py-2 lg:px-6 lg:py-3 border-b border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900">
+    <header className="flex items-center justify-between lg:justify-end px-3 pt-[calc(0.5rem+env(safe-area-inset-top))] pb-2 lg:px-6 lg:py-3 border-b border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900">
+      <div className="flex items-center gap-2 lg:hidden min-w-0">
+        <PiggyBank className="text-blue-600 dark:text-blue-400 shrink-0" size={20} aria-hidden="true" />
+        {pageLabel && (
+          <span className="font-bold text-base text-gray-900 dark:text-gray-50 truncate">{pageLabel}</span>
+        )}
+      </div>
       <button
         onClick={() => setShowInbox(true)}
         aria-label="알림"

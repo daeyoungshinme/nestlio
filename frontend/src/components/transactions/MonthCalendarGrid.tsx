@@ -44,15 +44,15 @@ export default function MonthCalendarGrid({ yearMonth, renderCell }: Props) {
   const today = todayIso();
 
   return (
-    <div className="card-overflow p-2 sm:p-3">
-      <div className="grid grid-cols-7 gap-1 mb-1">
+    <div className="card-overflow p-1.5 sm:p-3">
+      <div className="grid grid-cols-7 gap-0.5 sm:gap-1 mb-1">
         {WEEKDAY_LABELS.map((label) => (
           <div key={label} className="text-center text-[10px] sm:text-xs font-medium text-gray-500 dark:text-gray-400 py-1">
             {label}
           </div>
         ))}
       </div>
-      <div className="grid grid-cols-7 gap-1">
+      <div className="grid grid-cols-7 gap-0.5 sm:gap-1">
         {cells.map((cell) => (
           <Fragment key={cell.date}>{renderCell({ ...cell, isToday: cell.date === today })}</Fragment>
         ))}

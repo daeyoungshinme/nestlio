@@ -2,6 +2,8 @@ import { useState } from "react";
 import { MoreHorizontal } from "lucide-react";
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import { BOTTOM_NAV_MORE_ITEMS, BOTTOM_NAV_PRIMARY_ITEMS } from "@/constants/nav";
+import { TOUCH_TARGET_MIN_HEIGHT } from "@/constants/uiSizes";
+import { Z_BOTTOM_NAV } from "@/constants/zIndex";
 import Modal from "@/components/common/Modal";
 
 export default function BottomNav() {
@@ -15,7 +17,7 @@ export default function BottomNav() {
     <>
       <nav
         aria-label="하단 내비게이션"
-        className="lg:hidden fixed bottom-0 inset-x-0 bg-white dark:bg-gray-900 border-t border-gray-200 dark:border-gray-700 flex items-stretch justify-around z-50 pb-[env(safe-area-inset-bottom)]"
+        className={`lg:hidden fixed bottom-0 inset-x-0 bg-white dark:bg-gray-900 border-t border-gray-200 dark:border-gray-700 flex items-stretch justify-around ${Z_BOTTOM_NAV} pb-[env(safe-area-inset-bottom)]`}
       >
         {BOTTOM_NAV_PRIMARY_ITEMS.map(({ to, icon: Icon, label }) => (
           <NavLink
@@ -23,7 +25,7 @@ export default function BottomNav() {
             to={to}
             end={to === "/"}
             className={({ isActive }) =>
-              `flex flex-col items-center justify-center gap-0.5 px-2 py-3 min-w-0 flex-1 text-xs font-medium transition-colors ${
+              `flex flex-col items-center justify-center gap-0.5 px-2 py-3 min-w-0 flex-1 ${TOUCH_TARGET_MIN_HEIGHT} text-xs font-medium transition-colors ${
                 isActive
                   ? "text-blue-600 dark:text-blue-400 border-t-2 border-blue-600 dark:border-blue-400 -mt-px"
                   : "text-gray-500 dark:text-gray-400 border-t-2 border-transparent -mt-px"
@@ -36,7 +38,7 @@ export default function BottomNav() {
         ))}
         <button
           onClick={() => setShowMore(true)}
-          className={`flex flex-col items-center justify-center gap-0.5 px-2 py-3 min-w-0 flex-1 text-xs font-medium transition-colors border-t-2 -mt-px ${
+          className={`flex flex-col items-center justify-center gap-0.5 px-2 py-3 min-w-0 flex-1 ${TOUCH_TARGET_MIN_HEIGHT} text-xs font-medium transition-colors border-t-2 -mt-px ${
             isMoreActive
               ? "text-blue-600 dark:text-blue-400 border-blue-600 dark:border-blue-400"
               : "text-gray-500 dark:text-gray-400 border-transparent"

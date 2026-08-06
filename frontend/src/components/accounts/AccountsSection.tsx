@@ -48,17 +48,18 @@ export default function AccountsSection() {
       <div className="card">
         <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">새 계좌 추가</h3>
         <form onSubmit={handleSubmit} className="flex flex-wrap items-start gap-3">
-          <FormInput
-            label="이름"
-            value={form.name}
-            onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
-            required
-            className="w-40"
-          />
-          <div>
+          <div className="flex-1 min-w-[140px]">
+            <FormInput
+              label="이름"
+              value={form.name}
+              onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
+              required
+            />
+          </div>
+          <div className="flex-1 min-w-[110px]">
             <label className={`block mb-1 font-medium ${LABEL_SM}`}>종류</label>
             <select
-              className={`${INPUT_SM} w-28`}
+              className={`${INPUT_SM} w-full`}
               value={form.account_type}
               onChange={(e) => setForm((f) => ({ ...f, account_type: e.target.value as AccountOut["account_type"] }))}
             >
@@ -67,15 +68,16 @@ export default function AccountsSection() {
               <option value="card">카드</option>
             </select>
           </div>
-          <FormInput
-            label="초기 잔액"
-            type="number"
-            inputMode="decimal"
-            value={form.initial_balance}
-            onChange={(e) => setForm((f) => ({ ...f, initial_balance: e.target.value }))}
-            className="w-32"
-            preview={Number(form.initial_balance) > 0 ? formatKrwPreview(Number(form.initial_balance)) : undefined}
-          />
+          <div className="flex-1 min-w-[130px]">
+            <FormInput
+              label="초기 잔액"
+              type="number"
+              inputMode="decimal"
+              value={form.initial_balance}
+              onChange={(e) => setForm((f) => ({ ...f, initial_balance: e.target.value }))}
+              preview={Number(form.initial_balance) > 0 ? formatKrwPreview(Number(form.initial_balance)) : undefined}
+            />
+          </div>
           <Button type="submit" loading={createMutation.isPending} className={INLINE_BUTTON_OFFSET}>
             추가
           </Button>

@@ -83,17 +83,18 @@ export default function CategoriesSection() {
       <div className="card">
         <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">새 카테고리 추가</h3>
         <form onSubmit={handleSubmit} className="flex flex-wrap items-start gap-3">
-          <FormInput
-            label="이름"
-            value={form.name}
-            onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
-            required
-            className="w-32"
-          />
-          <div>
+          <div className="flex-1 min-w-[120px]">
+            <FormInput
+              label="이름"
+              value={form.name}
+              onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
+              required
+            />
+          </div>
+          <div className="flex-1 min-w-[100px]">
             <label className={`block mb-1 font-medium ${LABEL_SM}`}>종류</label>
             <select
-              className={`${INPUT_SM} w-24`}
+              className={`${INPUT_SM} w-full`}
               value={form.kind}
               onChange={(e) => setForm((f) => ({ ...f, kind: e.target.value as "income" | "expense" }))}
             >
@@ -101,10 +102,10 @@ export default function CategoriesSection() {
               <option value="income">수입</option>
             </select>
           </div>
-          <div>
+          <div className="flex-1 min-w-[110px]">
             <label className={`block mb-1 font-medium ${LABEL_SM}`}>구분</label>
             <select
-              className={`${INPUT_SM} w-28`}
+              className={`${INPUT_SM} w-full`}
               value={form.type}
               onChange={(e) => setForm((f) => ({ ...f, type: e.target.value as CategoryType }))}
             >
@@ -115,7 +116,7 @@ export default function CategoriesSection() {
               ))}
             </select>
           </div>
-          <div>
+          <div className="shrink-0">
             <label className={`block mb-1 font-medium ${LABEL_SM}`}>색상</label>
             <input
               type="color"

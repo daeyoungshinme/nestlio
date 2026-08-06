@@ -1,7 +1,8 @@
 import { memo } from "react";
-import { Repeat } from "lucide-react";
+import { CalendarDays, Receipt, Repeat } from "lucide-react";
 import { transactionAmountTextColor, transactionTypeBadgeStyle } from "@/utils/colors";
 import { formatKrw, formatKrwCompact } from "@/utils/format";
+import { LEDGER_DAY_CELL_MIN_HEIGHT } from "@/constants/uiSizes";
 import type { EventOut, RecurringOut, TransactionOut } from "@/types";
 
 interface Props {
@@ -14,9 +15,6 @@ interface Props {
   recurringDue: RecurringOut[];
   onSelect: (date: string) => void;
 }
-
-const MAX_VISIBLE_EVENTS = 1;
-const MAX_VISIBLE_RECURRING = 1;
 
 function LedgerDayCell({
   date,
@@ -35,17 +33,16 @@ function LedgerDayCell({
   const showIncome = income > 0;
   const showExpense = expense > 0;
 
-  const visibleRecurring = recurringDue.slice(0, MAX_VISIBLE_RECURRING);
-  const recurringOverflow = recurringDue.length - visibleRecurring.length;
-  const visibleEvents = events.slice(0, MAX_VISIBLE_EVENTS);
-  const eventOverflow = events.length - visibleEvents.length;
+  const incomeRecurring = recurringDue.filter((r) => r.type === "income");
+  const expenseRecurring = recurringDue.filter((r) => r.type === "expense");
+  const hasBadgeRow = transactions.length > 0 || recurringDue.length > 0 || events.length > 0;
 
   return (
     <button
       type="button"
       disabled={!inCurrentMonth}
       onClick={() => onSelect(date)}
-      className={`flex flex-col items-start gap-0.5 min-h-16 sm:min-h-24 lg:min-h-28 p-1 sm:p-1.5 rounded-lg border border-gray-100 dark:border-gray-800 bg-white dark:bg-gray-900 text-left transition-colors ${
+      className={`flex flex-col items-start gap-0.5 ${LEDGER_DAY_CELL_MIN_HEIGHT} p-1 sm:p-1.5 rounded-lg border border-gray-100 dark:border-gray-800 bg-white dark:bg-gray-900 text-left transition-colors ${
         inCurrentMonth ? "hover:bg-gray-50 dark:hover:bg-gray-800" : "opacity-40 cursor-default"
       }`}
     >
@@ -74,32 +71,46 @@ function LedgerDayCell({
           -{formatKrwCompact(expense)}
         </span>
       )}
-      {transactions.length > 1 && (
-        <span className="text-[9px] text-gray-400 dark:text-gray-500">{transactions.length}건</span>
+      {hasBadgeRow && (
+        <div className="flex flex-wrap items-center gap-1 w-full">
+          {transactions.length > 0 && (
+            <span
+              className="inline-flex items-center gap-0.5 text-[9px] sm:text-[10px] font-medium text-gray-400 dark:text-gray-500"
+              title={`거래 ${transactions.length}건`}
+            >
+              <Receipt size={9} className="shrink-0" aria-hidden="true" />
+              {transactions.length}
+            </span>
+          )}
+          {incomeRecurring.length > 0 && (
+            <span
+              className={`inline-flex items-center gap-0.5 text-[9px] sm:text-[10px] font-medium px-1 rounded ${transactionTypeBadgeStyle("income")}`}
+              title={`반복 수입 예정 ${incomeRecurring.length}건: ${incomeRecurring.map((r) => r.name).join(", ")}`}
+            >
+              <Repeat size={9} className="shrink-0" aria-hidden="true" />
+              {incomeRecurring.length}
+            </span>
+          )}
+          {expenseRecurring.length > 0 && (
+            <span
+              className={`inline-flex items-center gap-0.5 text-[9px] sm:text-[10px] font-medium px-1 rounded ${transactionTypeBadgeStyle("expense")}`}
+              title={`반복 지출 예정 ${expenseRecurring.length}건: ${expenseRecurring.map((r) => r.name).join(", ")}`}
+            >
+              <Repeat size={9} className="shrink-0" aria-hidden="true" />
+              {expenseRecurring.length}
+            </span>
+          )}
+          {events.length > 0 && (
+            <span
+              className="inline-flex items-center gap-0.5 text-[9px] sm:text-[10px] font-medium px-1 rounded bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400"
+              title={`일정 ${events.length}건: ${events.map((e) => e.title).join(", ")}`}
+            >
+              <CalendarDays size={9} className="shrink-0" aria-hidden="true" />
+              {events.length}
+            </span>
+          )}
+        </div>
       )}
-      {visibleRecurring.map((recurring) => (
-        <span
-          key={`recurring-${recurring.id}`}
-          className={`inline-flex items-center gap-0.5 text-[10px] sm:text-xs font-medium truncate w-full px-1 py-0.5 rounded ${transactionTypeBadgeStyle(recurring.type)}`}
-          title={`${recurring.name} (반복 내역 예정)`}
-        >
-          <Repeat size={10} className="shrink-0" aria-hidden="true" />
-          {recurring.name}
-        </span>
-      ))}
-      {recurringOverflow > 0 && (
-        <span className="text-[9px] text-gray-400 dark:text-gray-500">+{recurringOverflow}</span>
-      )}
-      {visibleEvents.map((event) => (
-        <span
-          key={event.id}
-          className="text-[10px] sm:text-xs font-medium truncate w-full px-1 py-0.5 rounded bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400"
-          title={event.title}
-        >
-          {event.title}
-        </span>
-      ))}
-      {eventOverflow > 0 && <span className="text-[9px] text-gray-400 dark:text-gray-500">+{eventOverflow}</span>}
     </button>
   );
 }

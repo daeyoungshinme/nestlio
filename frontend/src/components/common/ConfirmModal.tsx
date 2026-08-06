@@ -2,6 +2,7 @@ import { AlertTriangle } from "lucide-react";
 import { useId } from "react";
 import type { ReactNode } from "react";
 import { TOUCH_TARGET_MIN } from "@/constants/uiSizes";
+import { Z_CONFIRM_MODAL } from "@/constants/zIndex";
 
 interface Props {
   message: string;
@@ -26,7 +27,7 @@ export default function ConfirmModal({
 
   return (
     <div
-      className="fixed inset-0 bg-black/40 flex items-end sm:items-center justify-center z-[70] sm:p-4"
+      className={`fixed inset-0 bg-black/40 flex items-end sm:items-center justify-center ${Z_CONFIRM_MODAL} sm:p-4`}
       onClick={onCancel}
     >
       <div

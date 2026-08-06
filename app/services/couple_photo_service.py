@@ -51,11 +51,19 @@ def save_photo(raw: bytes, content_type: str | None) -> str:
     return f"/media/{OBJECT_KEY}?t={int(time.time())}"
 
 
+def _is_not_found(resp: httpx.Response) -> bool:
+    # Supabase Storage는 존재하지 않는 버킷/오브젝트에 대해 404가 아니라
+    # 400(NoSuchBucket 등)을 반환하는 경우가 있어, 상태 코드만으로 진짜 서버 오류와
+    # 구분되지 않는다. 이 서비스는 고정된 오브젝트 키만 조회하므로(사용자 입력 없음),
+    # 400은 곧 "버킷/파일이 아직 없음"으로 취급해도 안전하다.
+    return resp.status_code in (404, 400)
+
+
 def get_photo_url() -> str | None:
     if not _storage_configured():
         return None
     resp = httpx.head(_object_url(), headers=_auth_headers(), timeout=10)
-    if resp.status_code == 404:
+    if _is_not_found(resp):
         return None
     if resp.status_code >= 400:
         raise PhotoStorageError(f"사진 조회에 실패했습니다: {resp.status_code} {resp.text}")
@@ -66,7 +74,7 @@ def get_photo_bytes() -> tuple[bytes, str] | None:
     if not _storage_configured():
         return None
     resp = httpx.get(_object_url(), headers=_auth_headers(), timeout=30)
-    if resp.status_code == 404:
+    if _is_not_found(resp):
         return None
     if resp.status_code >= 400:
         raise PhotoStorageError(f"사진 조회에 실패했습니다: {resp.status_code} {resp.text}")
@@ -84,5 +92,5 @@ def delete_photo() -> None:
         json={"prefixes": [OBJECT_KEY]},
         timeout=10,
     )
-    if resp.status_code >= 400:
+    if resp.status_code >= 400 and not _is_not_found(resp):
         raise PhotoStorageError(f"사진 삭제에 실패했습니다: {resp.status_code} {resp.text}")

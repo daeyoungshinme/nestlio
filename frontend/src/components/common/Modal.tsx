@@ -2,7 +2,9 @@ import { X } from "lucide-react";
 import type { ReactNode } from "react";
 import { useId } from "react";
 import { useModalBehavior } from "@/hooks/useModalBehavior";
+import { useVisualViewportHeight } from "@/hooks/useVisualViewportHeight";
 import { TOUCH_TARGET_MIN_MOBILE_ONLY } from "@/constants/uiSizes";
+import { Z_MODAL } from "@/constants/zIndex";
 
 const SIZE_CLASSES = {
   sm: "max-w-sm",
@@ -20,13 +22,14 @@ interface Props {
 }
 
 export default function Modal({ children, onClose, title, size = "md", closeOnBackdrop = false }: Props) {
-  const { dialogRef, overlayRef } = useModalBehavior(onClose);
+  const { dialogRef, overlayRef, handleRef } = useModalBehavior(onClose);
   const titleId = useId();
+  const viewportHeight = useVisualViewportHeight();
 
   return (
     <div
       ref={overlayRef}
-      className="fixed inset-0 pb-[env(safe-area-inset-bottom)] bg-black/40 flex items-end sm:items-center justify-center z-[60] sm:p-4"
+      className={`fixed inset-0 pb-[env(safe-area-inset-bottom)] bg-black/40 flex items-end sm:items-center justify-center ${Z_MODAL} sm:p-4`}
       onClick={closeOnBackdrop ? onClose : undefined}
     >
       <div
@@ -35,9 +38,10 @@ export default function Modal({ children, onClose, title, size = "md", closeOnBa
         aria-modal="true"
         aria-labelledby={title != null ? titleId : undefined}
         className={`bg-white dark:bg-gray-900 rounded-t-2xl sm:rounded-2xl shadow-xl w-full ${SIZE_CLASSES[size]} max-h-[85dvh] flex flex-col overscroll-contain`}
+        style={viewportHeight != null ? { maxHeight: `${viewportHeight * 0.85}px` } : undefined}
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="sm:hidden flex justify-center pt-2 pb-1 shrink-0" aria-hidden="true">
+        <div ref={handleRef} className="sm:hidden flex justify-center pt-2 pb-1 shrink-0 touch-none" aria-hidden="true">
           <div className="w-9 h-1 rounded-full bg-gray-300 dark:bg-gray-600" />
         </div>
         {title != null && (

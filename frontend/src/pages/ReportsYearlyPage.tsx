@@ -26,8 +26,23 @@ import { PieChart as PieChartIcon, TrendingUp } from "lucide-react";
 
 const CATEGORY_TREND_MONTHS = 6;
 
+const MONTH_TICK_FORMATTER = (value: string) => value.replace("월", "");
+const TREND_TICK_FORMATTER = (value: string) => value.replace(/^\d+년\s*/, "");
+
 export default function ReportsYearlyPage() {
   const [year, setYear] = useState(new Date().getFullYear());
+  const [hiddenSeries, setHiddenSeries] = useState<Set<string>>(new Set());
+  const toggleSeries = (name: string) => {
+    setHiddenSeries((prev) => {
+      const next = new Set(prev);
+      if (next.has(name)) {
+        next.delete(name);
+      } else {
+        next.add(name);
+      }
+      return next;
+    });
+  };
   const { data, isLoading } = useQuery({ queryKey: QUERY_KEYS.yearlyReport(year), queryFn: () => fetchYearlyReport(year) });
   const { data: trend, isLoading: isTrendLoading } = useQuery({
     queryKey: QUERY_KEYS.categoryTrend(CATEGORY_TREND_MONTHS),
@@ -72,7 +87,7 @@ export default function ReportsYearlyPage() {
         <ResponsiveContainer width="100%" height={260}>
           <BarChart data={monthlyData}>
             <CartesianGrid strokeDasharray="3 3" className="stroke-gray-200 dark:stroke-gray-700" />
-            <XAxis dataKey="name" tick={{ fontSize: 12 }} />
+            <XAxis dataKey="name" tick={{ fontSize: 12 }} tickFormatter={MONTH_TICK_FORMATTER} interval={0} />
             <YAxis tick={{ fontSize: 12 }} />
             <Tooltip formatter={(v) => formatKrw(Number(v))} />
             <Legend />
@@ -108,13 +123,27 @@ export default function ReportsYearlyPage() {
         ) : trend.series.length === 0 ? (
           <EmptyState icon={TrendingUp} title="최근 지출 내역이 없어요" compact />
         ) : (
-          <ResponsiveContainer width="100%" height={260}>
-            <LineChart data={trendData}>
+          <ResponsiveContainer width="100%" height={280}>
+            <LineChart data={trendData} margin={{ bottom: 16 }}>
               <CartesianGrid strokeDasharray="3 3" className="stroke-gray-200 dark:stroke-gray-700" />
-              <XAxis dataKey="name" tick={{ fontSize: 12 }} />
+              <XAxis
+                dataKey="name"
+                tick={{ fontSize: 12 }}
+                tickFormatter={TREND_TICK_FORMATTER}
+                interval={0}
+                angle={-30}
+                textAnchor="end"
+                height={40}
+              />
               <YAxis tick={{ fontSize: 12 }} />
               <Tooltip formatter={(v) => formatKrw(Number(v))} />
-              <Legend />
+              <Legend
+                onClick={(e) => toggleSeries(String(e.value))}
+                wrapperStyle={{ cursor: "pointer" }}
+                formatter={(value) => (
+                  <span className={hiddenSeries.has(value) ? "line-through opacity-40" : ""}>{value}</span>
+                )}
+              />
               {trend.series.map((series) => (
                 <Line
                   key={series.category_id ?? "other"}
@@ -123,6 +152,7 @@ export default function ReportsYearlyPage() {
                   stroke={series.color}
                   strokeWidth={2}
                   dot={{ r: 3 }}
+                  hide={hiddenSeries.has(series.name)}
                 />
               ))}
             </LineChart>
