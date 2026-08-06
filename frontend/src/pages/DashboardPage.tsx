@@ -131,7 +131,7 @@ export default function DashboardPage() {
 
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <h1 className="text-xl font-bold text-gray-900 dark:text-gray-50">대시보드</h1>
-        <div className="flex items-center gap-3 w-full sm:w-auto overflow-x-auto scrollbar-none">
+        <div className="flex items-center gap-2 sm:gap-3 w-full sm:w-auto overflow-x-auto scrollbar-none">
           {period === "today" && <DayPicker date={day} onChange={setDay} />}
           {period === "week" && <WeekPicker date={week} onChange={setWeek} />}
           {period === "month" && <MonthPicker yearMonth={yearMonth} onChange={setYearMonth} />}
