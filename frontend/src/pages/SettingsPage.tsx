@@ -151,6 +151,8 @@ export default function SettingsPage() {
     <div className="max-w-lg space-y-4">
       <h1 className="text-xl font-bold text-gray-900 dark:text-gray-50">설정</h1>
 
+      <p className="px-1 text-xs font-semibold text-gray-400 dark:text-gray-500">개인 설정</p>
+
       <div className="card space-y-3">
         <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300">표시 이름</h3>
         <div className="flex gap-2 items-end">
@@ -191,6 +193,8 @@ export default function SettingsPage() {
           </span>
         </button>
       </div>
+
+      <p className="px-1 pt-2 text-xs font-semibold text-gray-400 dark:text-gray-500">커플·초대</p>
 
       <div className="card space-y-3">
         <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300">부부 사진</h3>
@@ -300,6 +304,8 @@ export default function SettingsPage() {
         )}
       </div>
 
+      <p className="px-1 pt-2 text-xs font-semibold text-gray-400 dark:text-gray-500">연동</p>
+
       <div className="card space-y-3">
         <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300">Google 연동</h3>
         <div className="flex items-center gap-2 text-sm">
@@ -337,6 +343,8 @@ export default function SettingsPage() {
           </Button>
         </div>
       </div>
+
+      <p className="px-1 pt-2 text-xs font-semibold text-gray-400 dark:text-gray-500">코칭 알림 설정</p>
 
       <div className="card space-y-3">
         <button

@@ -1,5 +1,5 @@
-import { useMemo, useRef, useState } from "react";
-import { Link } from "react-router-dom";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Link, useSearchParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient, keepPreviousData } from "@tanstack/react-query";
 import { CalendarDays, Download, MoreHorizontal, Plus, Repeat, SlidersHorizontal, Tag, Upload } from "lucide-react";
 import ConfirmModal from "@/components/common/ConfirmModal";
@@ -8,6 +8,7 @@ import Modal from "@/components/common/Modal";
 import MonthPicker, { currentYearMonth, shiftYearMonth } from "@/components/common/MonthPicker";
 import SkeletonCard from "@/components/common/SkeletonCard";
 import Button from "@/components/common/Button";
+import QuickAddFab from "@/components/common/QuickAddFab";
 import MonthCalendarGrid from "@/components/transactions/MonthCalendarGrid";
 import LedgerDayCell from "@/components/transactions/LedgerDayCell";
 import LedgerDayModal from "@/components/transactions/LedgerDayModal";
@@ -98,8 +99,24 @@ export default function TransactionsPage() {
   const [showFilterSheet, setShowFilterSheet] = useState(false);
   const queryClient = useQueryClient();
   const calendarRef = useRef<HTMLDivElement>(null);
+  const [searchParams, setSearchParams] = useSearchParams();
 
   useSwipeMonth(calendarRef, (direction) => setYearMonth((prev) => shiftYearMonth(prev, direction)));
+
+  // 현금흐름계획 탭의 "반복 거래 규칙 수정하기" 딥링크(?recurring=manage)로 들어오면 반복 내역 관리 시트를 바로 연다.
+  useEffect(() => {
+    if (searchParams.get("recurring") !== "manage") return;
+    setShowRecurringSheet(true);
+    setSearchParams(
+      (prev) => {
+        const next = new URLSearchParams(prev);
+        next.delete("recurring");
+        return next;
+      },
+      { replace: true },
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
 
   const { date_from, date_to } = monthBounds(yearMonth);
 
@@ -408,6 +425,8 @@ export default function TransactionsPage() {
         </div>
       )}
 
+      <QuickAddFab onClick={() => openCreate()} />
+
       {selectedDate && (
         <LedgerDayModal
           date={selectedDate}
@@ -503,6 +522,22 @@ export default function TransactionsPage() {
       {showMoreMenu && (
         <Modal onClose={() => setShowMoreMenu(false)} title="더보기" size="sm" closeOnBackdrop>
           <div className="p-2 pb-[calc(0.5rem+env(safe-area-inset-bottom))]">
+            <Link
+              to="/categories"
+              onClick={() => setShowMoreMenu(false)}
+              className="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+            >
+              <Tag size={18} aria-hidden="true" /> 카테고리 관리
+            </Link>
+            <button
+              onClick={() => {
+                setShowMoreMenu(false);
+                setShowRecurringSheet(true);
+              }}
+              className="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+            >
+              <Repeat size={18} aria-hidden="true" /> 반복 내역 관리
+            </button>
             <button
               onClick={() => {
                 setShowMoreMenu(false);
@@ -526,22 +561,6 @@ export default function TransactionsPage() {
             >
               <Upload size={18} aria-hidden="true" /> CSV 가져오기
             </Link>
-            <Link
-              to="/categories"
-              onClick={() => setShowMoreMenu(false)}
-              className="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
-            >
-              <Tag size={18} aria-hidden="true" /> 카테고리 관리
-            </Link>
-            <button
-              onClick={() => {
-                setShowMoreMenu(false);
-                setShowRecurringSheet(true);
-              }}
-              className="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
-            >
-              <Repeat size={18} aria-hidden="true" /> 반복 내역 관리
-            </button>
           </div>
         </Modal>
       )}

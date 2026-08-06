@@ -9,6 +9,7 @@ interface Props {
   label?: string;
   placeholder?: string;
   required?: boolean;
+  disabled?: boolean;
   className?: string;
 }
 
@@ -20,6 +21,7 @@ export default function CategoryPicker({
   label = "카테고리",
   placeholder,
   required,
+  disabled,
   className = "w-32",
 }: Props) {
   const options = kind ? categories.filter((c) => c.kind === kind) : categories;
@@ -28,10 +30,11 @@ export default function CategoryPicker({
     <div>
       <label className={`block mb-1 font-medium ${LABEL_SM}`}>{label}</label>
       <select
-        className={`${INPUT_SM} ${className}`}
+        className={`${INPUT_SM} ${className} ${disabled ? "opacity-60 cursor-not-allowed" : ""}`}
         value={value}
         onChange={(e) => onChange(e.target.value)}
         required={required}
+        disabled={disabled}
       >
         {placeholder && <option value="">{placeholder}</option>}
         {options.map((c) => (

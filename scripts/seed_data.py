@@ -38,35 +38,39 @@ DEFAULT_CATEGORIES = [
     ("부수입", "income", "variable", "#84cc16", False, False, False),
 ]
 
-# (section, name) - owner_user_id는 사용자가 화면에서 본인/배우자를 지정한다
+# (section, name, category_name) - owner_user_id는 사용자가 화면에서 본인/배우자를 지정한다.
+# category_name이 채워진 항목은 DEFAULT_CATEGORIES의 동명(또는 대응) 카테고리에 자동으로 태깅되어,
+# 처음부터 budget_service.budget_vs_actual(예산 대비 실적)과 대시보드 초과지출 코칭에 반영된다.
+# 대응되는 카테고리가 없거나 의미가 애매한 항목(관리비/통신비/교육비/용돈/할부금/지원금/휴가비/피복비/
+# 재산세/각 섹션의 "기타")은 억지로 매핑하지 않고 자유 텍스트로 남겨둔다.
 DEFAULT_CASHFLOW_PLAN_ITEMS = [
-    ("income", "근로/사업소득"),
-    ("income", "연금소득"),
-    ("income", "정부연금"),
-    ("income", "금융투자소득"),
-    ("income", "부동산임대소득"),
-    ("income", "기타소득"),
-    ("fixed", "보장성보험"),
-    ("fixed", "부채상환액"),
-    ("fixed", "할부금"),
-    ("fixed", "지원금"),
-    ("fixed", "기타"),
-    ("variable", "식료품비"),
-    ("variable", "외식비"),
-    ("variable", "관리비"),
-    ("variable", "교통비"),
-    ("variable", "통신비"),
-    ("variable", "교육비"),
-    ("variable", "여가 및 문화생활비"),
-    ("variable", "용돈"),
-    ("variable", "기타"),
-    ("irregular", "휴가비"),
-    ("irregular", "명절비"),
-    ("irregular", "경조사비"),
-    ("irregular", "피복비"),
-    ("irregular", "재산세"),
-    ("irregular", "자동차보험료"),
-    ("irregular", "자동차세"),
+    ("income", "근로/사업소득", None),
+    ("income", "연금소득", None),
+    ("income", "정부연금", None),
+    ("income", "금융투자소득", None),
+    ("income", "부동산임대소득", None),
+    ("income", "기타소득", None),
+    ("fixed", "보장성보험", "보험료"),
+    ("fixed", "부채상환액", "대출상환"),
+    ("fixed", "할부금", None),
+    ("fixed", "지원금", None),
+    ("fixed", "기타", None),
+    ("variable", "식료품비", "장보기"),
+    ("variable", "외식비", "식비"),
+    ("variable", "관리비", None),
+    ("variable", "교통비", "교통"),
+    ("variable", "통신비", None),
+    ("variable", "교육비", None),
+    ("variable", "여가 및 문화생활비", "여가"),
+    ("variable", "용돈", None),
+    ("variable", "기타", None),
+    ("irregular", "휴가비", None),
+    ("irregular", "명절비", "명절비"),
+    ("irregular", "경조사비", "경조사비"),
+    ("irregular", "피복비", None),
+    ("irregular", "재산세", None),
+    ("irregular", "자동차보험료", "자동차세/보험료"),
+    ("irregular", "자동차세", "자동차세/보험료"),
 ]
 
 DEFAULT_SAVINGS_PRODUCTS = [
@@ -97,7 +101,7 @@ def seed_categories(db):
 
 
 def seed_cashflow_plan_items(db, year_month: str):
-    for order, (section, name) in enumerate(DEFAULT_CASHFLOW_PLAN_ITEMS):
+    for order, (section, name, category_name) in enumerate(DEFAULT_CASHFLOW_PLAN_ITEMS):
         existing = db.query(CashflowPlanItem).filter(
             CashflowPlanItem.section == section,
             CashflowPlanItem.name == name,
@@ -105,7 +109,18 @@ def seed_cashflow_plan_items(db, year_month: str):
         ).first()
         if existing:
             continue
-        db.add(CashflowPlanItem(section=section, name=name, amount=0, sort_order=order, year_month=year_month))
+        category_id = None
+        if category_name:
+            category = db.query(Category).filter(Category.name == category_name).first()
+            category_id = category.id if category else None
+        db.add(CashflowPlanItem(
+            section=section,
+            name=name,
+            own_amount=0,
+            own_category_id=category_id,
+            sort_order=order,
+            year_month=year_month,
+        ))
         print(f"created cashflow plan item: [{section}] {name}")
     db.commit()
 

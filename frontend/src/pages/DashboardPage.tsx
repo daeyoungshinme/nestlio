@@ -3,12 +3,16 @@ import { Link } from "react-router-dom";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { LineChart, Line, ResponsiveContainer, Tooltip } from "recharts";
 import Tabs from "@/components/common/Tabs";
+import MonthPicker, { currentYearMonth } from "@/components/common/MonthPicker";
+import DayPicker, { currentDateIso } from "@/components/common/DayPicker";
+import WeekPicker, { currentWeekAnchor } from "@/components/common/WeekPicker";
 import MonthlyRetrospectiveCard from "@/components/dashboard/MonthlyRetrospectiveCard";
 import SummaryCards from "@/components/common/SummaryCards";
 import SkeletonCard from "@/components/common/SkeletonCard";
 import EmptyState from "@/components/common/EmptyState";
 import ProgressBar from "@/components/common/ProgressBar";
 import Modal from "@/components/common/Modal";
+import QuickAddFab from "@/components/common/QuickAddFab";
 import TransactionForm from "@/components/transactions/TransactionForm";
 import { fetchDashboard } from "@/api/dashboard";
 import { fetchNetWorth } from "@/api/netWorth";
@@ -22,11 +26,11 @@ import { useInvalidateTransactionRelated } from "@/hooks/useInvalidateTransactio
 import { QUERY_KEYS } from "@/constants/queryKeys";
 import { STALE_TIME } from "@/constants/queryConfig";
 import { insightSeverityStyle } from "@/utils/colors";
-import { formatKrw, formatPercent } from "@/utils/format";
+import { formatDate, formatKrw, formatPercent, formatWeekRange, formatYearMonth } from "@/utils/format";
 import { extractErrorMessage } from "@/utils/error";
 import { toast } from "@/utils/toast";
 import type { DashboardPeriod } from "@/types";
-import { Flame, Plus, Target } from "lucide-react";
+import { Flame, Target } from "lucide-react";
 
 const PERIOD_TABS: DashboardPeriod[] = ["today", "week", "month"];
 const PERIOD_LABEL: Record<DashboardPeriod, string> = { today: "오늘", week: "이번주", month: "이번달" };
@@ -43,19 +47,19 @@ const INSIGHT_LINKS: Partial<Record<string, { to: string; label: string }>> = {
   savings_execution: { to: "/accounts?tab=저축·투자", label: "저축·투자 보기" },
 };
 
-function todayIso(): string {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-}
-
 export default function DashboardPage() {
   const [period, setPeriod] = useState<DashboardPeriod>("month");
+  const [yearMonth, setYearMonth] = useState(currentYearMonth());
+  const [day, setDay] = useState(currentDateIso());
+  const [week, setWeek] = useState(currentWeekAnchor());
   const [showQuickAdd, setShowQuickAdd] = useState(false);
   const invalidateAll = useInvalidateTransactionRelated();
 
+  const anchor = period === "month" ? yearMonth : period === "week" ? week : day;
+
   const { data, isLoading } = useQuery({
-    queryKey: QUERY_KEYS.dashboard(period),
-    queryFn: () => fetchDashboard(period),
+    queryKey: QUERY_KEYS.dashboard(period, anchor),
+    queryFn: () => fetchDashboard(period, anchor),
     staleTime: STALE_TIME.SHORT,
   });
   const { data: settingsData } = useQuery({
@@ -111,6 +115,7 @@ export default function DashboardPage() {
     savings: Number(row.income) - Number(row.expense),
   }));
   const activeChallenge = data.active_challenge;
+  const isCurrentPeriod = anchor === (period === "month" ? currentYearMonth() : currentDateIso());
 
   return (
     <div className="space-y-6">
@@ -126,15 +131,20 @@ export default function DashboardPage() {
 
       <div className="flex items-center justify-between flex-wrap gap-3">
         <h1 className="text-xl font-bold text-gray-900 dark:text-gray-50">대시보드</h1>
-        <Tabs
-          tabs={PERIOD_TABS.map((p) => PERIOD_LABEL[p])}
-          activeTab={PERIOD_LABEL[period]}
-          onChange={(label) => {
-            const found = PERIOD_TABS.find((p) => PERIOD_LABEL[p] === label);
-            if (found) setPeriod(found);
-          }}
-          variant="pill"
-        />
+        <div className="flex items-center gap-3 flex-wrap">
+          {period === "today" && <DayPicker date={day} onChange={setDay} />}
+          {period === "week" && <WeekPicker date={week} onChange={setWeek} />}
+          {period === "month" && <MonthPicker yearMonth={yearMonth} onChange={setYearMonth} />}
+          <Tabs
+            tabs={PERIOD_TABS.map((p) => PERIOD_LABEL[p])}
+            activeTab={PERIOD_LABEL[period]}
+            onChange={(label) => {
+              const found = PERIOD_TABS.find((p) => PERIOD_LABEL[p] === label);
+              if (found) setPeriod(found);
+            }}
+            variant="pill"
+          />
+        </div>
       </div>
 
       {data.insights.length > 0 && (
@@ -240,7 +250,15 @@ export default function DashboardPage() {
           {data.by_user.length > 0 && (
             <div className="pt-4 border-t border-gray-100 dark:border-gray-800">
               <div className="flex items-center justify-between text-sm mb-2">
-                <span className="font-medium text-gray-700 dark:text-gray-300">이번 기간 함께 모은 돈</span>
+                <span className="font-medium text-gray-700 dark:text-gray-300">
+                  {isCurrentPeriod
+                    ? "이번 기간 함께 모은 돈"
+                    : period === "month"
+                      ? `${formatYearMonth(data.current_ym)} 함께 모은 돈`
+                      : period === "week"
+                        ? `${formatWeekRange(data.start, data.end)} 함께 모은 돈`
+                        : `${formatDate(data.start)} 함께 모은 돈`}
+                </span>
                 <span className="font-bold text-gray-900 dark:text-gray-50">{formatKrw(totalUserSavings)}</span>
               </div>
               <div className="space-y-3">
@@ -292,15 +310,7 @@ export default function DashboardPage() {
 
       <MonthlyRetrospectiveCard />
 
-      <button
-        type="button"
-        onClick={() => setShowQuickAdd(true)}
-        className="fixed bottom-[calc(5rem+env(safe-area-inset-bottom))] right-4 lg:bottom-6 z-30 flex items-center justify-center w-14 h-14 rounded-full bg-emerald-500 hover:bg-emerald-600 text-white shadow-lg transition-colors active:scale-[0.97]"
-        aria-label="내역 빠르게 추가"
-        title="내역 빠르게 추가"
-      >
-        <Plus size={24} aria-hidden="true" />
-      </button>
+      <QuickAddFab onClick={() => setShowQuickAdd(true)} />
 
       {showQuickAdd && (
         <Modal onClose={() => setShowQuickAdd(false)} title="내역 추가">
@@ -316,7 +326,7 @@ export default function DashboardPage() {
                 isNew
                 submitLabel="추가"
                 submitting={createMutation.isPending}
-                initialValues={{ transaction_date: todayIso() }}
+                initialValues={{ transaction_date: currentDateIso() }}
                 onSubmit={(payload) => createMutation.mutate(payload)}
               />
             )}

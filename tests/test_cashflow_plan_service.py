@@ -253,7 +253,7 @@ def test_section_summary_status_income_direction_is_inverted():
     from app.models.cashflow_plan_item import CashflowPlanItem
 
     item = CashflowPlanItem(
-        section="income", year_month="2026-07", name="근로소득", amount=Decimal("1000000"), sort_order=0
+        section="income", year_month="2026-07", name="근로소득", own_amount=Decimal("1000000"), sort_order=0
     )
 
     # over-achieving income should never be flagged
@@ -319,6 +319,31 @@ def test_link_recurring_returns_none_for_missing_item(seeded_db):
     db = seeded_db["db"]
 
     assert cashflow_plan_service.link_recurring(db, 999999, 1) is None
+
+
+def test_linked_item_reads_through_recurring_amount_and_category(seeded_db):
+    """Once linked, the plan item's amount/category must always reflect the recurring expense's current
+    values, not the value copied in at link time - editing the recurring afterwards should show up
+    immediately without touching the plan item again."""
+    db, user, rent, food = seeded_db["db"], seeded_db["user"], seeded_db["rent"], seeded_db["food"]
+    item = cashflow_plan_service.upsert_item(
+        db, None, "fixed", None, "월세", Decimal("800000"), 0, "2026-07", user.id, category_id=rent.id
+    )
+    recurring = recurring_service.create_recurring(
+        db, name="월세", category_id=rent.id, amount=Decimal("800000"),
+        frequency="monthly", start_date=date(2026, 7, 5), created_by=user.id,
+    )
+    cashflow_plan_service.link_recurring(db, item.id, recurring.id)
+
+    recurring_service.update_recurring(db, recurring.id, amount=Decimal("850000"), category_id=food.id)
+
+    [refreshed] = cashflow_plan_service.list_items(db, "2026-07")
+    assert refreshed.amount == Decimal("850000")
+    assert refreshed.category_id == food.id
+    assert refreshed.category_name == food.name
+
+    summary = cashflow_plan_service.compute_summary([refreshed])
+    assert summary["fixed"]["planned"] == Decimal("850000")
 
 
 def test_copy_from_previous_month_carries_recurring_link_forward(seeded_db):

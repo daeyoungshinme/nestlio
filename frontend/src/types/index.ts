@@ -454,8 +454,8 @@ export interface FinancialGoalOut {
   current_amount: string;
   progress_pct: string;
   sort_order: number;
-  primary_savings_product_id: number | null;
-  primary_savings_product_name: string | null;
+  funding_source_ids: number[];
+  funding_source_names: string[];
 }
 
 export interface FinancialGoalCreateIn {
@@ -465,7 +465,7 @@ export interface FinancialGoalCreateIn {
   required_amount: string;
   monthly_saving_amount: string;
   current_amount?: string;
-  primary_savings_product_id?: number | null;
+  savings_product_ids?: number[];
 }
 
 export type FinancialGoalUpdateIn = FinancialGoalCreateIn;

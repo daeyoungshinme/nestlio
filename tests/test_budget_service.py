@@ -1,7 +1,7 @@
 from datetime import date
 from decimal import Decimal
 
-from app.services import budget_service, cashflow_plan_service, transaction_service
+from app.services import budget_service, cashflow_plan_service, recurring_service, transaction_service
 from app.utils.dates import year_month_str
 
 
@@ -78,6 +78,24 @@ def test_budget_vs_actual_sums_multiple_items_tagged_to_same_category(seeded_db)
 
     assert food_row["pct"] == 90.0  # 90000 / (70000+30000)
     assert food_row["status"] == "warn"
+
+
+def test_budget_reflects_updated_recurring_amount_for_linked_item(seeded_db):
+    """get_budgets_for_month is a raw SQL aggregate, so it must join through to the linked recurring
+    expense too - not just the Python-side amount property that cashflow_plan_service uses."""
+    db, user, food = seeded_db["db"], seeded_db["user"], seeded_db["food"]
+    ym = year_month_str(date(2026, 7, 15))
+    item = _set_budget(db, food, ym, "70000", user.id)
+    recurring = recurring_service.create_recurring(
+        db, name="식비", category_id=food.id, amount=Decimal("70000"),
+        frequency="monthly", start_date=date(2026, 7, 5), created_by=user.id,
+    )
+    cashflow_plan_service.link_recurring(db, item.id, recurring.id)
+
+    recurring_service.update_recurring(db, recurring.id, amount=Decimal("120000"))
+
+    budgets = budget_service.get_budgets_for_month(db, ym)
+    assert budgets[food.id] == Decimal("120000")
 
 
 def test_copy_from_previous_month_skips_existing(seeded_db):

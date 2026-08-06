@@ -20,6 +20,22 @@ export interface RecurringFormValues {
   reminder_days_before: string;
 }
 
+/** RecurringFormValues -> API 생성/수정 페이로드. 폼을 쓰는 모든 곳(반복 내역 관리 시트,
+ * 현금흐름계획의 "반복내역으로 등록" 흐름)이 이 변환을 공유해 로직이 갈라지지 않게 한다. */
+export function buildRecurringPayload(values: RecurringFormValues) {
+  return {
+    name: values.name,
+    category_id: Number(values.category_id),
+    amount: values.amount,
+    type: values.type,
+    frequency: values.frequency,
+    days_of_month: values.frequency === "monthly" && values.days_of_month.length > 0 ? values.days_of_month : null,
+    start_date: values.start_date,
+    end_date: values.end_date || null,
+    reminder_days_before: Number(values.reminder_days_before),
+  };
+}
+
 const FREQUENCY_LABEL: Record<RecurringFrequency, string> = {
   weekly: "매주",
   monthly: "매월",

@@ -1,5 +1,6 @@
 import { useState } from "react";
 import type { FormEvent } from "react";
+import { Link } from "react-router-dom";
 import Button from "@/components/common/Button";
 import CategoryPicker from "@/components/common/CategoryPicker";
 import FormInput from "@/components/common/FormInput";
@@ -23,6 +24,8 @@ interface Props {
   initialValues?: Partial<CashflowPlanItemFormValues>;
   submitLabel: string;
   submitting?: boolean;
+  /** 반복거래에 연동된 항목이면 금액/카테고리는 연동된 반복거래 값을 그대로 따라가므로 여기서 수정할 수 없다. */
+  isRecurringLinked?: boolean;
   onSubmit: (values: CashflowPlanItemFormValues) => void;
 }
 
@@ -34,6 +37,7 @@ export default function CashflowPlanItemForm({
   initialValues,
   submitLabel,
   submitting,
+  isRecurringLinked,
   onSubmit,
 }: Props) {
   const [values, setValues] = useState<CashflowPlanItemFormValues>({
@@ -54,8 +58,22 @@ export default function CashflowPlanItemForm({
 
   return (
     <form onSubmit={handleSubmit} className="flex flex-col gap-3">
+      {isRecurringLinked && (
+        <p className="text-xs text-amber-600 dark:text-amber-400">
+          반복 거래에 연동된 항목이라 금액/카테고리는 반복 거래 규칙을 그대로 따라가요.{" "}
+          <Link to="/transactions?recurring=manage" className="underline font-medium">
+            반복 거래 규칙 수정하기
+          </Link>
+        </p>
+      )}
       {section !== "income" && sectionCategories.length > 0 && (
         <div>
+          {!isRecurringLinked && (
+            <p className="mb-1 text-xs text-gray-500 dark:text-gray-400">
+              카테고리를 고르면 이 항목이 가계부의 실제 지출과 자동으로 비교되고, 대시보드 초과지출
+              코칭에도 반영돼요.
+            </p>
+          )}
           <CategoryPicker
             categories={sectionCategories}
             value={values.category_id}
@@ -68,18 +86,16 @@ export default function CashflowPlanItemForm({
                   : v.name,
               }))
             }
-            label="카테고리 (선택)"
-            placeholder="카테고리 없이 자유 입력"
+            label="카테고리"
+            placeholder="선택 안 함 (자유 입력 항목)"
             className="w-full"
+            disabled={isRecurringLinked}
           />
           {plannedForSelected !== undefined && Number(plannedForSelected) > 0 && (
             <p className="mt-1 text-xs text-gray-400 dark:text-gray-500">
               이 카테고리에 이미 계획된 금액: {formatKrw(plannedForSelected)}
             </p>
           )}
-          <p className="mt-1 text-xs text-gray-400 dark:text-gray-500">
-            카테고리를 고르면 대시보드 코칭 인사이트가 이 항목을 실제 지출과 비교해줘요.
-          </p>
         </div>
       )}
       <FormInput
@@ -112,6 +128,7 @@ export default function CashflowPlanItemForm({
         value={values.amount}
         onChange={(e) => setValues((v) => ({ ...v, amount: e.target.value }))}
         required
+        disabled={isRecurringLinked}
         preview={Number(values.amount) > 0 ? formatKrwPreview(Number(values.amount)) : undefined}
       />
       <Button type="submit" loading={submitting} className="w-full justify-center">

@@ -1,5 +1,5 @@
 export const QUERY_KEYS = {
-  dashboard: (period: string) => ["dashboard", period] as const,
+  dashboard: (period: string, anchor: string) => ["dashboard", period, anchor] as const,
   /** Prefix for invalidating every dashboard period variant at once. */
   dashboardAll: ["dashboard"] as const,
   monthlyRetrospective: ["monthly-retrospective"] as const,

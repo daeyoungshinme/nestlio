@@ -15,8 +15,8 @@ class FinancialGoalOut(BaseModel):
     current_amount: Decimal
     progress_pct: Decimal
     sort_order: int
-    primary_savings_product_id: int | None = None
-    primary_savings_product_name: str | None = None
+    funding_source_ids: list[int] = []
+    funding_source_names: list[str] = []
 
 
 class FinancialGoalCreateIn(BaseModel):
@@ -26,7 +26,7 @@ class FinancialGoalCreateIn(BaseModel):
     required_amount: Decimal = Decimal("0")
     monthly_saving_amount: Decimal = Decimal("0")
     current_amount: Decimal = Decimal("0")
-    primary_savings_product_id: int | None = None
+    savings_product_ids: list[int] = []
 
 
 class FinancialGoalUpdateIn(BaseModel):
@@ -36,4 +36,4 @@ class FinancialGoalUpdateIn(BaseModel):
     required_amount: Decimal
     monthly_saving_amount: Decimal
     current_amount: Decimal = Decimal("0")
-    primary_savings_product_id: int | None = None
+    savings_product_ids: list[int] = []

@@ -135,7 +135,7 @@ export default function SavingsProductsSection() {
       ) : (
         <div className="space-y-2">
           {data.map((product) => {
-            const linkedGoal = goals?.find((g) => g.primary_savings_product_id === product.id);
+            const linkedGoals = goals?.filter((g) => g.funding_source_ids.includes(product.id)) ?? [];
             return (
             <div key={product.id} className="card flex items-center justify-between gap-3">
               <div className="min-w-0">
@@ -152,9 +152,9 @@ export default function SavingsProductsSection() {
                       growlio 연동
                     </span>
                   )}
-                  {linkedGoal && (
+                  {linkedGoals.length > 0 && (
                     <span className="shrink-0 px-1.5 py-0.5 rounded text-[11px] font-medium bg-emerald-50 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300">
-                      목표: {linkedGoal.name}
+                      목표: {linkedGoals.map((g) => g.name).join(", ")}
                     </span>
                   )}
                   {product.return_rate_pct !== null && (

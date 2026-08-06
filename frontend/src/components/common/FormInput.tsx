@@ -36,7 +36,7 @@ export default function FormInput({
       </label>
       <input
         id={inputId}
-        className={`w-full ${baseClass} ${error ? errorClass : ""} ${className ?? ""}`}
+        className={`w-full disabled:opacity-60 disabled:cursor-not-allowed ${baseClass} ${error ? errorClass : ""} ${className ?? ""}`}
         required={required}
         aria-invalid={!!error}
         aria-describedby={errorId ?? hintId}

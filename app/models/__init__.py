@@ -4,6 +4,7 @@ from app.models.category import Category
 from app.models.challenge import Challenge
 from app.models.event import Event
 from app.models.financial_goal import FinancialGoal
+from app.models.goal_funding_source import GoalFundingSource
 from app.models.google_oauth_token import GoogleOAuthToken
 from app.models.invite import Invite
 from app.models.loan import Loan
@@ -23,6 +24,7 @@ __all__ = [
     "Challenge",
     "Event",
     "FinancialGoal",
+    "GoalFundingSource",
     "GoogleOAuthToken",
     "Invite",
     "Loan",

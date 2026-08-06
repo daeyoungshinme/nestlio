@@ -43,8 +43,8 @@ def upsert_item(
             year_month=year_month,
             owner_user_id=owner_user_id,
             name=name,
-            amount=amount,
-            category_id=category_id,
+            own_amount=amount,
+            own_category_id=category_id,
             sort_order=sort_order,
             updated_by=updated_by,
         )
@@ -53,8 +53,8 @@ def upsert_item(
         item.section = section
         item.owner_user_id = owner_user_id
         item.name = name
-        item.amount = amount
-        item.category_id = category_id
+        item.own_amount = amount
+        item.own_category_id = category_id
         item.sort_order = sort_order
         item.updated_by = updated_by
     db.commit()
@@ -90,8 +90,8 @@ def split_item_into_months(
             year_month=year_month_str(shift_month(start, i)),
             owner_user_id=owner_user_id,
             name=name,
-            amount=amount,
-            category_id=category_id,
+            own_amount=amount,
+            own_category_id=category_id,
             sort_order=sort_order,
             installment_no=i + 1,
             installment_total=months,
@@ -107,8 +107,9 @@ def split_item_into_months(
 
 
 def link_recurring(db: Session, item_id: int, recurring_expense_id: int) -> CashflowPlanItem | None:
-    """계획 항목을 이미 존재하는 반복거래에 연결한다 — 값은 프론트가 반복거래 생성 시 이미 복사해 넣었으므로
-    여기서는 FK만 세팅한다(계속 동기화하지 않음, 최초 연결 시점의 값으로 고정)."""
+    """계획 항목을 이미 존재하는 반복거래에 연결한다. FK만 세팅하면 이후 item.amount/category_id는
+    연동된 RecurringExpense의 값을 계속 read-through로 반영한다(CashflowPlanItem.amount 프로퍼티 참고) —
+    반복거래 금액을 바꾸면 별도 동기화 없이 계획에도 즉시 반영된다."""
     item = db.get(CashflowPlanItem, item_id)
     if item is None:
         return None
@@ -155,8 +156,8 @@ def copy_from_previous_month(db: Session, year_month: str, updated_by: uuid.UUID
                 year_month=year_month,
                 owner_user_id=item.owner_user_id,
                 name=item.name,
-                amount=item.amount,
-                category_id=item.category_id,
+                own_amount=item.amount,
+                own_category_id=item.category_id,
                 sort_order=item.sort_order,
                 recurring_expense_id=item.recurring_expense_id,
                 updated_by=updated_by,

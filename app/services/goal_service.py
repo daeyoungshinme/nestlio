@@ -3,6 +3,7 @@ from decimal import Decimal
 from sqlalchemy.orm import Session
 
 from app.models.financial_goal import FinancialGoal
+from app.models.goal_funding_source import GoalFundingSource
 
 
 def list_goals(db: Session) -> list[FinancialGoal]:
@@ -13,6 +14,12 @@ def get_goal(db: Session, goal_id: int) -> FinancialGoal | None:
     return db.get(FinancialGoal, goal_id)
 
 
+def _apply_funding_sources(goal: FinancialGoal, savings_product_ids: list[int] | None) -> None:
+    goal.funding_sources = [
+        GoalFundingSource(savings_product_id=pid) for pid in dict.fromkeys(savings_product_ids or [])
+    ]
+
+
 def create_goal(
     db: Session,
     priority: int,
@@ -21,7 +28,7 @@ def create_goal(
     required_amount: Decimal,
     monthly_saving_amount: Decimal,
     current_amount: Decimal = Decimal("0"),
-    primary_savings_product_id: int | None = None,
+    savings_product_ids: list[int] | None = None,
 ) -> FinancialGoal:
     goal = FinancialGoal(
         priority=priority,
@@ -30,9 +37,9 @@ def create_goal(
         required_amount=required_amount,
         monthly_saving_amount=monthly_saving_amount,
         manual_current_amount=current_amount,
-        primary_savings_product_id=primary_savings_product_id,
         sort_order=999,
     )
+    _apply_funding_sources(goal, savings_product_ids)
     db.add(goal)
     db.commit()
     db.refresh(goal)
@@ -48,7 +55,7 @@ def update_goal(
     required_amount: Decimal,
     monthly_saving_amount: Decimal,
     current_amount: Decimal = Decimal("0"),
-    primary_savings_product_id: int | None = None,
+    savings_product_ids: list[int] | None = None,
 ) -> FinancialGoal | None:
     goal = db.get(FinancialGoal, goal_id)
     if goal is None:
@@ -59,7 +66,7 @@ def update_goal(
     goal.required_amount = required_amount
     goal.monthly_saving_amount = monthly_saving_amount
     goal.manual_current_amount = current_amount
-    goal.primary_savings_product_id = primary_savings_product_id
+    _apply_funding_sources(goal, savings_product_ids)
     db.commit()
     db.refresh(goal)
     return goal

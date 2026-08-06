@@ -55,3 +55,10 @@ export function formatYearMonth(yearMonth: string): string {
   const [year, month] = yearMonth.split("-");
   return `${year}년 ${Number(month)}월`;
 }
+
+/** "2026-07-28", "2026-08-03" -> "7/28 - 8/3" */
+export function formatWeekRange(mondayIso: string, sundayIso: string): string {
+  const [, m1, d1] = mondayIso.split("-").map(Number);
+  const [, m2, d2] = sundayIso.split("-").map(Number);
+  return `${m1}/${d1} - ${m2}/${d2}`;
+}

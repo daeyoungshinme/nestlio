@@ -14,7 +14,7 @@ import { fetchDashboard } from "@/api/dashboard";
 import { createGoal, deleteGoal, fetchGoals, updateGoal } from "@/api/goals";
 import { fetchSavingsProducts } from "@/api/savingsProducts";
 import { fetchSettings, setEmergencyFund } from "@/api/settings";
-import { FORM_LABEL, INLINE_BUTTON_OFFSET, SELECT_SM } from "@/constants/inputStyles";
+import { FORM_LABEL, INLINE_BUTTON_OFFSET } from "@/constants/inputStyles";
 import { QUERY_KEYS } from "@/constants/queryKeys";
 import { STALE_TIME } from "@/constants/queryConfig";
 import { useCrudMutations } from "@/hooks/useCrudMutations";
@@ -31,7 +31,7 @@ interface Draft {
   required_amount: string;
   monthly_saving_amount: string;
   current_amount: string;
-  primary_savings_product_id: string;
+  savings_product_ids: string[];
 }
 
 const EMPTY_DRAFT: Draft = {
@@ -41,7 +41,7 @@ const EMPTY_DRAFT: Draft = {
   required_amount: "0",
   monthly_saving_amount: "0",
   current_amount: "0",
-  primary_savings_product_id: "",
+  savings_product_ids: [],
 };
 
 function draftFromGoal(goal: FinancialGoalOut): Draft {
@@ -52,8 +52,7 @@ function draftFromGoal(goal: FinancialGoalOut): Draft {
     required_amount: toAmountInputValue(goal.required_amount),
     monthly_saving_amount: toAmountInputValue(goal.monthly_saving_amount),
     current_amount: toAmountInputValue(goal.current_amount),
-    primary_savings_product_id:
-      goal.primary_savings_product_id !== null ? String(goal.primary_savings_product_id) : "",
+    savings_product_ids: goal.funding_source_ids.map(String),
   };
 }
 
@@ -65,8 +64,7 @@ function toPayload(draft: Draft) {
     required_amount: draft.required_amount,
     monthly_saving_amount: draft.monthly_saving_amount,
     current_amount: draft.current_amount,
-    primary_savings_product_id:
-      draft.primary_savings_product_id === "" ? null : Number(draft.primary_savings_product_id),
+    savings_product_ids: draft.savings_product_ids.map(Number),
   };
 }
 
@@ -202,16 +200,17 @@ export default function FinancialGoalsSection() {
                     </p>
                     <div className="flex items-center gap-1.5">
                       <p className="text-sm font-semibold text-gray-900 dark:text-gray-50 truncate">{goal.name}</p>
-                      {goal.primary_savings_product_name && (
+                      {goal.funding_source_names.length > 0 && (
                         <span className="shrink-0 flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[11px] font-medium bg-blue-50 text-blue-700 dark:bg-blue-950 dark:text-blue-300">
                           <Link2 size={11} />
-                          {goal.primary_savings_product_name}
+                          {goal.funding_source_names.join(", ")}
                         </span>
                       )}
                     </div>
                     <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5 truncate">
-                      {goal.primary_savings_product_name ? "실제 잔액" : "현재 저축액"} {formatKrw(goal.current_amount)} / 목표{" "}
-                      {formatKrw(goal.required_amount)} · 월 {formatKrw(goal.monthly_saving_amount)}
+                      {goal.funding_source_names.length > 0 ? "연동 상품 잔액 합계" : "현재 저축액"}{" "}
+                      {formatKrw(goal.current_amount)} / 목표 {formatKrw(goal.required_amount)} · 월{" "}
+                      {formatKrw(goal.monthly_saving_amount)}
                     </p>
                   </div>
                   <RowActionButtons onEdit={() => setFormTarget(goal)} onDelete={() => setDeleteTarget(goal.id)} />
@@ -280,7 +279,16 @@ function GoalFormModal({
 }) {
   const [draft, setDraft] = useState<Draft>(initial);
   const [currentAge, setCurrentAge] = useState("");
-  const isLinked = draft.primary_savings_product_id !== "";
+  const isLinked = draft.savings_product_ids.length > 0;
+
+  const toggleProduct = (id: string) => {
+    setDraft((d) => ({
+      ...d,
+      savings_product_ids: d.savings_product_ids.includes(id)
+        ? d.savings_product_ids.filter((pid) => pid !== id)
+        : [...d.savings_product_ids, id],
+    }));
+  };
 
   const handleSubmit = (e: FormEvent) => {
     e.preventDefault();
@@ -331,26 +339,40 @@ function GoalFormModal({
           preview={Number(draft.required_amount) > 0 ? formatKrwPreview(Number(draft.required_amount)) : undefined}
         />
         <div>
-          <label className={FORM_LABEL}>연동할 저축/투자 상품</label>
-          <select
-            value={draft.primary_savings_product_id}
-            onChange={(e) => setDraft((d) => ({ ...d, primary_savings_product_id: e.target.value }))}
-            className={`w-full ${SELECT_SM}`}
-          >
-            <option value="">연동 안 함 (직접 입력)</option>
-            {savingsProducts.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.name} ({formatKrw(p.current_balance)})
-              </option>
-            ))}
-          </select>
+          <label className={FORM_LABEL}>연동할 저축/투자 상품 (복수 선택 가능)</label>
+          {savingsProducts.length === 0 ? (
+            <p className="text-xs text-gray-400 dark:text-gray-500">등록된 저축/투자 상품이 없어요.</p>
+          ) : (
+            <div className="rounded-lg border border-gray-200 dark:border-gray-700 divide-y divide-gray-100 dark:divide-gray-800 max-h-40 overflow-y-auto">
+              {savingsProducts.map((p) => (
+                <label
+                  key={p.id}
+                  className="flex items-center justify-between gap-2 px-3 py-2 text-sm cursor-pointer"
+                >
+                  <span className="flex items-center gap-2 min-w-0">
+                    <input
+                      type="checkbox"
+                      checked={draft.savings_product_ids.includes(String(p.id))}
+                      onChange={() => toggleProduct(String(p.id))}
+                      className="h-4 w-4 rounded border-gray-300 shrink-0"
+                    />
+                    <span className="truncate text-gray-900 dark:text-gray-50">{p.name}</span>
+                  </span>
+                  <span className="text-xs text-gray-500 dark:text-gray-400 shrink-0">
+                    {formatKrw(p.current_balance)}
+                  </span>
+                </label>
+              ))}
+            </div>
+          )}
           <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
-            상품을 연동하면 현재 저축액이 그 상품의 실제 잔액으로 자동 계산돼요.
+            상품을 연동하면 현재 저축액이 연동된 상품들의 잔액 합으로 자동 계산돼요. 부부가 각자 다른
+            상품으로 한 목표를 함께 모을 때 여러 개를 선택하세요.
           </p>
         </div>
         {isLinked ? (
           <div className="rounded-lg border border-gray-200 dark:border-gray-700 px-3 py-2.5 text-sm text-gray-500 dark:text-gray-400">
-            현재 저축액은 연동된 상품 잔액으로 자동 계산돼요.
+            현재 저축액은 연동된 상품들의 잔액 합으로 자동 계산돼요.
           </div>
         ) : (
           <FormInput

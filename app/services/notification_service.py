@@ -12,15 +12,13 @@ from app.services import (
     coaching_engine,
     gmail_service,
     goal_service,
+    milestone_service,
     transaction_service,
 )
 from app.services.google_auth import is_connected
 from app.utils.dates import month_bounds, week_bounds, year_month_str
 
 logger = logging.getLogger(__name__)
-
-# progress-percent thresholds that trigger a "milestone reached" celebration email, ascending
-GOAL_MILESTONES = (25, 50, 75, 100)
 
 
 class NotificationError(Exception):
@@ -154,17 +152,14 @@ def check_and_alert_budget_threshold(db: Session, category_id: int, year_month: 
 def _celebrate_goal_milestone(db: Session, goal) -> bool:
     """Send a celebration email the first time this goal's progress crosses a milestone
     (25/50/75/100%), deduped per goal per milestone so re-saving the same goal doesn't
-    re-send. If progress jumped past multiple milestones at once, only the highest is sent."""
+    re-send. If progress jumped past multiple milestones at once, only the highest is sent.
+    Milestone-crossing + dedup bookkeeping lives in milestone_service (shared with challenges)."""
     if goal is None or not goal.required_amount:
         return False
-    goal_id = goal.id
-    progress = float(goal.progress_pct)
-    reached = [m for m in GOAL_MILESTONES if progress >= m]
-    if not reached:
+    milestone = milestone_service.highest_crossed(goal.progress_pct)
+    if milestone is None:
         return False
-    milestone = max(reached)
-    period_key = str(milestone)
-    if _already_sent(db, "goal_milestone", period_key, related_id=goal_id):
+    if milestone_service.already_logged(db, "goal_milestone", goal.id, milestone):
         return False
     congrats = "드디어 목표를 이뤘어요! 두 분이 함께 만든 결과예요." if milestone >= 100 else "두 분이 함께 여기까지 왔어요, 축하해요!"
     body = (
@@ -174,7 +169,7 @@ def _celebrate_goal_milestone(db: Session, goal) -> bool:
     )
     if is_connected():
         gmail_service.send_email(f"[Nestlio] 우리 부부 목표 달성 축하 - {goal.name} {milestone}%", body)
-    _log_sent(db, "goal_milestone", period_key, related_id=goal_id, related_type="goal", detail=body[:200])
+    milestone_service.log(db, "goal_milestone", "goal", goal.id, milestone, body)
     return True
 
 
@@ -183,13 +178,15 @@ def check_and_celebrate_goal_milestone(db: Session, goal_id: int) -> bool:
 
 
 def check_and_celebrate_challenge(db: Session, challenge_id: int) -> bool:
-    """챌린지가 목표 금액에 도달해 succeeded로 전환된 첫 순간에 축하 이메일을 보낸다,
-    goal milestone과 동일한 dedup 패턴(챌린지당 1회)."""
+    """챌린지가 목표 금액에 도달해 succeeded로 전환된 첫 순간에 축하 이메일을 보낸다. goal milestone과
+    동일한 milestone_service 크로싱/중복방지 로직을 쓰되, 챌린지는 25/50/75% 없이 100% 한 번만 축하한다."""
     challenge = challenge_service.get_challenge(db, challenge_id)
     if challenge.status != "succeeded":
         return False
-    period_key = str(challenge_id)
-    if _already_sent(db, "challenge_success", period_key, related_id=challenge_id):
+    milestone = milestone_service.highest_crossed(challenge.progress_pct, milestones=(100,))
+    if milestone is None:
+        return False
+    if milestone_service.already_logged(db, "challenge_success", challenge.id, milestone):
         return False
     body = (
         f'\U0001F389 "{challenge.title}" 챌린지 성공! \U0001F389\n\n'
@@ -198,7 +195,7 @@ def check_and_celebrate_challenge(db: Session, challenge_id: int) -> bool:
     )
     if is_connected():
         gmail_service.send_email(f"[Nestlio] 챌린지 성공 - {challenge.title}", body)
-    _log_sent(db, "challenge_success", period_key, related_id=challenge_id, related_type="challenge", detail=body[:200])
+    milestone_service.log(db, "challenge_success", "challenge", challenge.id, milestone, body)
     return True
 
 
