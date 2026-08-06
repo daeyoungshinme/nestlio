@@ -10,6 +10,7 @@ import Modal from "@/components/common/Modal";
 import ProgressBar from "@/components/common/ProgressBar";
 import RowActionButtons from "@/components/common/RowActionButtons";
 import SkeletonCard from "@/components/common/SkeletonCard";
+import { currentYearMonth } from "@/components/common/MonthPicker";
 import { fetchDashboard } from "@/api/dashboard";
 import { createGoal, deleteGoal, fetchGoals, updateGoal } from "@/api/goals";
 import { fetchSavingsProducts } from "@/api/savingsProducts";
@@ -94,8 +95,8 @@ export default function FinancialGoalsSection() {
     staleTime: STALE_TIME.MEDIUM,
   });
   const { data: dashboard } = useQuery({
-    queryKey: QUERY_KEYS.dashboard("month"),
-    queryFn: () => fetchDashboard("month"),
+    queryKey: QUERY_KEYS.dashboard("month", currentYearMonth()),
+    queryFn: () => fetchDashboard("month", currentYearMonth()),
     staleTime: STALE_TIME.SHORT,
   });
 

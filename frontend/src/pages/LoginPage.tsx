@@ -5,6 +5,7 @@ import { useNavigate } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import { useAuthStore } from "@/stores/authStore";
 import { INPUT_SM } from "@/constants/inputStyles";
+import { currentYearMonth } from "@/components/common/MonthPicker";
 import { fetchDashboard } from "@/api/dashboard";
 import { fetchAccounts } from "@/api/accounts";
 import { QUERY_KEYS } from "@/constants/queryKeys";
@@ -25,7 +26,11 @@ export default function LoginPage() {
     try {
       await login(email, password);
       // 로그인 직후 대시보드 데이터를 백그라운드에서 미리 가져온다.
-      void queryClient.prefetchQuery({ queryKey: QUERY_KEYS.dashboard("month"), queryFn: () => fetchDashboard("month") });
+      const yearMonth = currentYearMonth();
+      void queryClient.prefetchQuery({
+        queryKey: QUERY_KEYS.dashboard("month", yearMonth),
+        queryFn: () => fetchDashboard("month", yearMonth),
+      });
       void queryClient.prefetchQuery({ queryKey: QUERY_KEYS.accounts, queryFn: fetchAccounts });
       navigate("/");
     } catch (err) {
