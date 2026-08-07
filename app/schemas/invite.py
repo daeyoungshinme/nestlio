@@ -22,3 +22,4 @@ class InviteOut(BaseModel):
     expires_at: datetime
     accepted_at: datetime | None
     accept_url: str
+    email_sent: bool | None = None

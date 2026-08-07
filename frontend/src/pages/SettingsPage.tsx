@@ -11,12 +11,13 @@ import {
   deleteCouplePhoto,
   fetchSettings,
   setCoachingThresholds,
+  setNotifyEmails,
   testMonthlyEmail,
   testWeeklyEmail,
   uploadCouplePhoto,
 } from "@/api/settings";
 import { cancelInvite, createInvite, fetchInvites } from "@/api/invites";
-import { fetchMe, fetchUsers, updateMe } from "@/api/users";
+import { fetchMe, fetchUsers, updateMe, updateUser } from "@/api/users";
 import type { CoachingThresholdsOut, InviteOut } from "@/types";
 import { QUERY_KEYS } from "@/constants/queryKeys";
 import { INPUT_SM } from "@/constants/inputStyles";
@@ -49,6 +50,8 @@ export default function SettingsPage() {
   const [thresholdEdits, setThresholdEdits] = useState<Partial<CoachingThresholdsOut>>({});
   const [thresholdsOpen, setThresholdsOpen] = useState(false);
   const [displayNameEdit, setDisplayNameEdit] = useState<string | null>(null);
+  const [spouseDisplayNameEdit, setSpouseDisplayNameEdit] = useState<string | null>(null);
+  const [newNotifyEmail, setNewNotifyEmail] = useState("");
   const queryClient = useQueryClient();
   const logout = useLogout();
   const { isDark, toggle: toggleTheme } = useThemeStore();
@@ -57,6 +60,7 @@ export default function SettingsPage() {
   const meQuery = useQuery({ queryKey: QUERY_KEYS.me, queryFn: fetchMe });
   const usersQuery = useQuery({ queryKey: QUERY_KEYS.users, queryFn: fetchUsers });
   const invitesQuery = useQuery({ queryKey: QUERY_KEYS.invites, queryFn: fetchInvites });
+  const spouse = meQuery.data && usersQuery.data?.find((u) => u.id !== meQuery.data!.id);
 
   const uploadPhotoMutation = useMutation({
     mutationFn: uploadCouplePhoto,
@@ -91,6 +95,18 @@ export default function SettingsPage() {
     onError: (err) => toast(extractErrorMessage(err), "error"),
   });
 
+  const updateSpouseDisplayNameMutation = useMutation({
+    mutationFn: (display_name: string) => updateUser(spouse!.id, display_name),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.users });
+      void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.dashboardAll });
+      void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.monthlyRetrospective });
+      setSpouseDisplayNameEdit(null);
+      toast("배우자 표시 이름을 저장했습니다.", "success");
+    },
+    onError: (err) => toast(extractErrorMessage(err), "error"),
+  });
+
   const weeklyEmailMutation = useMutation({
     mutationFn: testWeeklyEmail,
     onSuccess: (res) => toast(res.message, res.sent ? "success" : "info"),
@@ -114,12 +130,25 @@ export default function SettingsPage() {
     onError: (err) => toast(extractErrorMessage(err), "error"),
   });
 
+  const notifyEmailsMutation = useMutation({
+    mutationFn: setNotifyEmails,
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.settings });
+      setNewNotifyEmail("");
+    },
+    onError: (err) => toast(extractErrorMessage(err), "error"),
+  });
+
   const createInviteMutation = useMutation({
     mutationFn: createInvite,
-    onSuccess: () => {
+    onSuccess: (res) => {
       void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.invites });
       setInviteEmail("");
-      toast("배우자에게 초대를 보냈습니다.", "success");
+      if (res.email_sent) {
+        toast("배우자에게 초대 메일을 보냈습니다.", "success");
+      } else {
+        toast("초대를 생성했지만 메일 발송에 실패했습니다. 아래 목록에서 링크를 복사해 직접 전달해주세요.", "info");
+      }
     },
     onError: (err) => toast(extractErrorMessage(err), "error"),
   });
@@ -147,6 +176,8 @@ export default function SettingsPage() {
   if (isLoading || !data) {
     return <SkeletonCard rows={4} />;
   }
+
+  const notifyEmails = data.notify_emails;
 
   return (
     <div className="max-w-lg space-y-4">
@@ -179,6 +210,33 @@ export default function SettingsPage() {
             저장
           </Button>
         </div>
+        {spouse && (
+          <div className="flex gap-2 items-end">
+            <div className="flex-1">
+              <FormInput
+                label="배우자 표시 이름"
+                value={spouseDisplayNameEdit ?? spouse.display_name}
+                onChange={(e) => setSpouseDisplayNameEdit(e.target.value)}
+                hint="배우자를 대신해 별칭을 정할 수 있어요. 배우자에게도 그대로 보여요."
+                maxLength={100}
+              />
+            </div>
+            <Button
+              size="sm"
+              disabled={
+                spouseDisplayNameEdit === null ||
+                spouseDisplayNameEdit.trim() === "" ||
+                spouseDisplayNameEdit === spouse.display_name
+              }
+              loading={updateSpouseDisplayNameMutation.isPending}
+              onClick={() =>
+                spouseDisplayNameEdit && updateSpouseDisplayNameMutation.mutate(spouseDisplayNameEdit.trim())
+              }
+            >
+              저장
+            </Button>
+          </div>
+        )}
       </div>
 
       <div className="card space-y-3">
@@ -334,7 +392,59 @@ export default function SettingsPage() {
             </>
           )}
         </div>
-        <p className="text-xs text-gray-500 dark:text-gray-400">알림 수신 이메일: {data.notify_email_to}</p>
+        <div className="space-y-2">
+          <p className="text-xs text-gray-500 dark:text-gray-400">
+            알림 수신 이메일 — 기본값은 가입한 이메일이며, 직접 추가·삭제할 수 있어요. 변경 즉시 반영돼요.
+          </p>
+          <ul className="space-y-2">
+            {notifyEmails.map((email) => (
+              <li
+                key={email}
+                className="flex items-center justify-between gap-2 text-sm px-3 py-2 rounded-lg bg-gray-50 dark:bg-gray-800"
+              >
+                <span className="truncate text-gray-700 dark:text-gray-300">{email}</span>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  aria-label="알림 이메일 삭제"
+                  disabled={notifyEmails.length <= 1 || notifyEmailsMutation.isPending}
+                  loading={notifyEmailsMutation.isPending}
+                  onClick={() =>
+                    notifyEmailsMutation.mutate(
+                      notifyEmails.filter((e) => e !== email),
+                      { onSuccess: () => toast("알림 이메일을 삭제했습니다.", "success") },
+                    )
+                  }
+                >
+                  <X size={14} />
+                </Button>
+              </li>
+            ))}
+          </ul>
+          <div className="flex gap-2">
+            <input
+              type="email"
+              value={newNotifyEmail}
+              onChange={(e) => setNewNotifyEmail(e.target.value)}
+              placeholder="추가할 이메일"
+              className={`flex-1 ${INPUT_SM}`}
+            />
+            <Button
+              size="sm"
+              icon={<UserPlus size={14} />}
+              disabled={!newNotifyEmail || notifyEmails.length >= 5 || notifyEmailsMutation.isPending}
+              loading={notifyEmailsMutation.isPending}
+              onClick={() =>
+                notifyEmailsMutation.mutate(
+                  [...notifyEmails, newNotifyEmail.trim().toLowerCase()],
+                  { onSuccess: () => toast("알림 이메일을 추가했습니다.", "success") },
+                )
+              }
+            >
+              추가
+            </Button>
+          </div>
+        </div>
         <div className="flex gap-2">
           <Button
             variant="secondary"

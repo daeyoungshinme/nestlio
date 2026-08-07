@@ -25,10 +25,20 @@ def test_create_and_list_invite(mock_connected, client):
     assert body["email"] == "spouse2@example.com"
     assert body["accepted_at"] is None
     assert "accept_url" in body
+    assert body["email_sent"] is False
 
     resp = client.get("/api/v1/invites")
     assert resp.status_code == 200
     assert len(resp.json()) == 1
+
+
+@patch("app.services.invite_service.gmail_service.send_email")
+@patch("app.services.invite_service.is_connected", return_value=True)
+def test_create_invite_reports_email_sent(mock_connected, mock_send_email, client):
+    resp = client.post("/api/v1/invites", json={"email": "spouse2@example.com"})
+    assert resp.status_code == 201
+    assert resp.json()["email_sent"] is True
+    mock_send_email.assert_called_once()
 
 
 @patch("app.services.invite_service.is_connected", return_value=False)

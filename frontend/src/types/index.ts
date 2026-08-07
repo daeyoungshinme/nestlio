@@ -15,6 +15,7 @@ export interface InviteOut {
   expires_at: string;
   accepted_at: string | null;
   accept_url: string;
+  email_sent: boolean | null;
 }
 
 export interface InviteCreateIn {
@@ -334,10 +335,14 @@ export type CoachingThresholdsIn = CoachingThresholdsOut;
 
 export interface SettingsOut {
   google_connected: boolean;
-  notify_email_to: string;
+  notify_emails: string[];
   coaching_thresholds: CoachingThresholdsOut;
   emergency_fund_balance: string | null;
   couple_photo_url: string | null;
+}
+
+export interface NotifyEmailsIn {
+  emails: string[];
 }
 
 export interface TestEmailResultOut {

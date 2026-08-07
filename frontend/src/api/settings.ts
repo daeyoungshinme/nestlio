@@ -1,10 +1,13 @@
 import { apiDelete, apiGet, apiPost, apiPut } from "@/api/client";
-import type { CoachingThresholdsIn, SettingsOut, TestEmailResultOut } from "@/types";
+import type { CoachingThresholdsIn, NotifyEmailsIn, SettingsOut, TestEmailResultOut } from "@/types";
 
 export const fetchSettings = () => apiGet<SettingsOut>("/settings");
 
 export const setEmergencyFund = (balance: string) =>
   apiPut<SettingsOut>("/settings/emergency-fund", { balance });
+
+export const setNotifyEmails = (emails: string[]) =>
+  apiPut<SettingsOut>("/settings/notify-emails", { emails } satisfies NotifyEmailsIn);
 
 export const setCoachingThresholds = (payload: CoachingThresholdsIn) =>
   apiPut<SettingsOut>("/settings/coaching-thresholds", payload);

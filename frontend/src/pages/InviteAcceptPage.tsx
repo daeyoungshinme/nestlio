@@ -49,6 +49,9 @@ export default function InviteAcceptPage() {
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [awaitingConfirmation, setAwaitingConfirmation] = useState(false);
+  // 초대 이메일이 growlio 등 같은 Supabase 프로젝트에 이미 가입돼 있는 경우 -
+  // signUp이 아니라 기존 비밀번호로 로그인해서 초대를 수락하는 폼으로 전환한다.
+  const [alreadyRegistered, setAlreadyRegistered] = useState(false);
 
   const inviteQuery = useQuery({
     queryKey: QUERY_KEYS.inviteToken(token),
@@ -61,9 +64,36 @@ export default function InviteAcceptPage() {
     mutationFn: (vars: { displayName: string }) => acceptInvite(token, { display_name: vars.displayName }),
   });
 
+  const handleSignInAndAccept = async () => {
+    if (!inviteQuery.data) return;
+    setSubmitting(true);
+    try {
+      const { data, error: signInError } = await supabase.auth.signInWithPassword({
+        email: inviteQuery.data.email,
+        password,
+      });
+      if (signInError || !data.user) {
+        setError("비밀번호가 일치하지 않습니다");
+        return;
+      }
+      await acceptMutation.mutateAsync({ displayName });
+      await checkAuth();
+      navigate("/");
+    } catch (err) {
+      setError(extractErrorMessage(err, "초대 수락 중 오류가 발생했습니다"));
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     setError("");
+
+    if (alreadyRegistered) {
+      await handleSignInAndAccept();
+      return;
+    }
 
     if (password.length < 8) {
       setError("비밀번호는 8자 이상이어야 합니다");
@@ -91,7 +121,10 @@ export default function InviteAcceptPage() {
       if (signUpError || !data.user) {
         const msg = (signUpError?.message ?? "").toLowerCase();
         if (msg.includes("already registered") || msg.includes("already been registered")) {
-          setError("이미 사용 중인 이메일입니다");
+          setAlreadyRegistered(true);
+          setPassword("");
+          setPasswordConfirm("");
+          setError("이미 가입된 계정이에요. 기존 비밀번호를 입력해서 초대를 수락해주세요.");
         } else if (msg.includes("should not be too common") || msg.includes("data breach")) {
           setError("유출된 적 있는 비밀번호입니다. 다른 비밀번호를 사용해주세요.");
         } else {
@@ -140,7 +173,9 @@ export default function InviteAcceptPage() {
   return (
     <AuthCard>
       <p className="text-sm text-gray-500 dark:text-gray-400 text-center mb-6">
-        배우자로부터 초대받았어요. 계정을 만들어주세요.
+        {alreadyRegistered
+          ? "이미 가입된 계정이에요. 기존 비밀번호로 로그인해서 초대를 수락해주세요."
+          : "배우자로부터 초대받았어요. 계정을 만들어주세요."}
       </p>
 
       <form onSubmit={handleSubmit} className="space-y-4">
@@ -175,7 +210,7 @@ export default function InviteAcceptPage() {
             htmlFor="invite-password"
             className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1"
           >
-            비밀번호
+            {alreadyRegistered ? "기존 비밀번호" : "비밀번호"}
           </label>
           <input
             id="invite-password"
@@ -184,33 +219,35 @@ export default function InviteAcceptPage() {
             onChange={(e) => setPassword(e.target.value)}
             required
             className={`w-full ${INPUT_SM}`}
-            placeholder="8자 이상"
+            placeholder={alreadyRegistered ? "기존 비밀번호" : "8자 이상"}
           />
         </div>
-        <div>
-          <label
-            htmlFor="invite-password-confirm"
-            className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1"
-          >
-            비밀번호 확인
-          </label>
-          <input
-            id="invite-password-confirm"
-            type="password"
-            value={passwordConfirm}
-            onChange={(e) => setPasswordConfirm(e.target.value)}
-            required
-            className={`w-full ${INPUT_SM}`}
-            placeholder="••••••••"
-          />
-        </div>
+        {!alreadyRegistered && (
+          <div>
+            <label
+              htmlFor="invite-password-confirm"
+              className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1"
+            >
+              비밀번호 확인
+            </label>
+            <input
+              id="invite-password-confirm"
+              type="password"
+              value={passwordConfirm}
+              onChange={(e) => setPasswordConfirm(e.target.value)}
+              required
+              className={`w-full ${INPUT_SM}`}
+              placeholder="••••••••"
+            />
+          </div>
+        )}
         {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
         <button
           type="submit"
           disabled={submitting}
           className="w-full bg-blue-600 text-white rounded-lg py-2 text-sm font-medium hover:bg-blue-700 disabled:opacity-50 transition-colors"
         >
-          {submitting ? "가입 중..." : "가입하기"}
+          {submitting ? "처리 중..." : alreadyRegistered ? "로그인하고 초대 수락" : "가입하기"}
         </button>
       </form>
 

@@ -1,6 +1,10 @@
+import re
 from decimal import Decimal
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field, field_validator
+
+MAX_NOTIFY_RECIPIENTS = 5
+_EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 
 
 class CoachingThresholdsOut(BaseModel):
@@ -20,7 +24,7 @@ class CoachingThresholdsIn(CoachingThresholdsOut):
 
 class SettingsOut(BaseModel):
     google_connected: bool
-    notify_email_to: str
+    notify_emails: list[str]
     coaching_thresholds: CoachingThresholdsOut
     emergency_fund_balance: str | None = None
     couple_photo_url: str | None = None
@@ -28,6 +32,21 @@ class SettingsOut(BaseModel):
 
 class EmergencyFundIn(BaseModel):
     balance: Decimal
+
+
+class NotifyEmailsIn(BaseModel):
+    emails: list[str] = Field(min_length=1, max_length=MAX_NOTIFY_RECIPIENTS)
+
+    @field_validator("emails")
+    @classmethod
+    def _normalize(cls, emails: list[str]) -> list[str]:
+        normalized: dict[str, None] = {}
+        for raw in emails:
+            email = raw.strip().lower()
+            if not _EMAIL_RE.match(email):
+                raise ValueError(f"'{raw}'는 올바른 이메일 형식이 아닙니다.")
+            normalized.setdefault(email, None)
+        return list(normalized)
 
 
 class TestEmailResultOut(BaseModel):

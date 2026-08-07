@@ -1,12 +1,18 @@
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
 from sqlalchemy.orm import Session
 
-from app.config import settings as app_settings
 from app.database import get_db
 from app.dependencies import get_current_user
 from app.models.user import User
-from app.schemas.settings import CoachingThresholdsIn, EmergencyFundIn, SettingsOut, TestEmailResultOut
-from app.services import coaching_settings_service, couple_photo_service, notification_service, user_setting_service
+from app.schemas.settings import CoachingThresholdsIn, EmergencyFundIn, NotifyEmailsIn, SettingsOut, TestEmailResultOut
+from app.services import (
+    coaching_settings_service,
+    couple_photo_service,
+    notification_service,
+    notify_recipients_service,
+    user_setting_service,
+)
+from app.services.gmail_service import GmailSendError
 from app.services.google_auth import is_connected
 
 router = APIRouter(prefix="/settings", tags=["settings"])
@@ -15,7 +21,7 @@ router = APIRouter(prefix="/settings", tags=["settings"])
 def _settings_out(db: Session) -> dict:
     return {
         "google_connected": is_connected(),
-        "notify_email_to": app_settings.notify_email_to,
+        "notify_emails": notify_recipients_service.get_recipients(db),
         "coaching_thresholds": coaching_settings_service.get_thresholds(db),
         "emergency_fund_balance": user_setting_service.get_shared_setting(
             db, user_setting_service.EMERGENCY_FUND_BALANCE_KEY, None
@@ -38,6 +44,16 @@ def set_emergency_fund(
     user_setting_service.set_shared_setting(
         db, user_setting_service.EMERGENCY_FUND_BALANCE_KEY, str(payload.balance), current_user.id
     )
+    return _settings_out(db)
+
+
+@router.put("/notify-emails", response_model=SettingsOut)
+def set_notify_emails(
+    payload: NotifyEmailsIn,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    notify_recipients_service.set_recipients(db, payload.emails, current_user.id)
     return _settings_out(db)
 
 
@@ -77,7 +93,10 @@ def test_weekly(db: Session = Depends(get_db), _: User = Depends(get_current_use
     # 알림 파이프라인과 달리 미연동 상태에서는 조용히 건너뛰지 않고 409로 알린다.
     if not is_connected():
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Google 계정이 연결되어 있지 않습니다.")
-    sent = notification_service.send_weekly_summary(db, force=True)
+    try:
+        sent = notification_service.send_weekly_summary(db, force=True)
+    except GmailSendError as exc:
+        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc)) from None
     return {"sent": sent, "message": "주간 요약 이메일을 발송했습니다." if sent else "발송하지 못했습니다."}
 
 
@@ -85,5 +104,8 @@ def test_weekly(db: Session = Depends(get_db), _: User = Depends(get_current_use
 def test_monthly(db: Session = Depends(get_db), _: User = Depends(get_current_user)):
     if not is_connected():
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Google 계정이 연결되어 있지 않습니다.")
-    sent = notification_service.send_monthly_summary(db, force=True)
+    try:
+        sent = notification_service.send_monthly_summary(db, force=True)
+    except GmailSendError as exc:
+        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc)) from None
     return {"sent": sent, "message": "월간 요약 이메일을 발송했습니다." if sent else "발송하지 못했습니다."}

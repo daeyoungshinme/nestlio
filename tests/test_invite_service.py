@@ -32,20 +32,22 @@ def test_create_invite_creates_pending_invite(mock_connected, seeded_db):
 @patch("app.services.invite_service.is_connected", return_value=True)
 def test_create_invite_sends_email_when_connected(mock_connected, mock_send_email, seeded_db):
     db, user = seeded_db["db"], seeded_db["user"]
-    invite_service.create_invite(db, user.id, "spouse2@example.com", now=NOW)
+    invite = invite_service.create_invite(db, user.id, "spouse2@example.com", now=NOW)
 
     mock_send_email.assert_called_once()
     _, kwargs = mock_send_email.call_args
     assert kwargs["to"] == "spouse2@example.com"
+    assert invite.email_sent is True
 
 
 @patch("app.services.invite_service.gmail_service.send_email")
 @patch("app.services.invite_service.is_connected", return_value=False)
 def test_create_invite_skips_email_when_not_connected(mock_connected, mock_send_email, seeded_db):
     db, user = seeded_db["db"], seeded_db["user"]
-    invite_service.create_invite(db, user.id, "spouse2@example.com", now=NOW)
+    invite = invite_service.create_invite(db, user.id, "spouse2@example.com", now=NOW)
 
     mock_send_email.assert_not_called()
+    assert invite.email_sent is False
 
 
 @patch("app.services.invite_service.is_connected", return_value=False)

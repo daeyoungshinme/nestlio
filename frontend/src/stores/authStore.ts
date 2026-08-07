@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import { supabase } from "@/lib/supabase";
 import { fetchMe } from "@/api/users";
+import { extractErrorMessage } from "@/utils/error";
 
 export const AUTH_ME_CACHE_KEY = "nestlio:auth-me";
 const AUTH_ME_TTL = 30 * 60 * 1000;
@@ -82,7 +83,9 @@ export const useAuthStore = create<AuthState>((set) => {
         me = await fetchMe();
       } catch (fetchMeError) {
         console.error("post-login fetchMe failed", fetchMeError);
-        throw new Error("로그인 후 사용자 정보를 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.");
+        throw new Error(
+          extractErrorMessage(fetchMeError, "로그인 후 사용자 정보를 불러오지 못했습니다. 잠시 후 다시 시도해 주세요."),
+        );
       }
       setLoggedIn(data.user.id, data.user.email ?? null, me.display_name);
       localStorage.setItem(

@@ -10,9 +10,11 @@ from app.services import (
     budget_service,
     challenge_service,
     coaching_engine,
+    email_templates,
     gmail_service,
     goal_service,
     milestone_service,
+    notify_recipients_service,
     transaction_service,
 )
 from app.services.google_auth import is_connected
@@ -91,7 +93,10 @@ def send_weekly_summary(db: Session, today: date | None = None, force: bool = Fa
     breakdown = transaction_service.category_breakdown(db, start, end, "expense")
     body = _format_summary("주간 가계부 요약", start, end, totals, breakdown)
     if is_connected():
-        gmail_service.send_email(f"[Nestlio] 주간 요약 ({start} ~ {end})", body)
+        html = email_templates.build_weekly_summary_html(start, end, totals, breakdown)
+        gmail_service.send_email(
+            f"[Nestlio] 주간 요약 ({start} ~ {end})", body, to=notify_recipients_service.get_recipients(db), html_body=html
+        )
     _log_sent(db, "email_weekly", period_key, detail=body[:500])
     return True
 
@@ -113,7 +118,10 @@ def send_monthly_summary(db: Session, today: date | None = None, force: bool = F
         body += "\n".join(f"  - [{i.severity}] {i.message}" for i in insights)
 
     if is_connected():
-        gmail_service.send_email(f"[Nestlio] {period_key} 월간 요약", body)
+        html = email_templates.build_monthly_summary_html(start, end, totals, breakdown, insights)
+        gmail_service.send_email(
+            f"[Nestlio] {period_key} 월간 요약", body, to=notify_recipients_service.get_recipients(db), html_body=html
+        )
     _log_sent(db, "email_monthly", period_key, detail=body[:500])
     return True
 
@@ -134,7 +142,9 @@ def _send_threshold_alert(db: Session, row: dict, year_month: str) -> bool:
         f"실제 지출: {row['actual']:,.0f}원 ({row['pct']:.0f}%)"
     )
     if is_connected():
-        gmail_service.send_email(f"[Nestlio] 예산 {level} - {row['name']}", body)
+        gmail_service.send_email(
+            f"[Nestlio] 예산 {level} - {row['name']}", body, to=notify_recipients_service.get_recipients(db)
+        )
     _log_sent(db, "threshold_alert", period_key, related_id=category_id, detail=body[:200])
     return True
 
@@ -168,7 +178,9 @@ def _celebrate_goal_milestone(db: Session, goal) -> bool:
         f"현재 저축액: {goal.current_amount:,.0f}원 / 목표 {goal.required_amount:,.0f}원"
     )
     if is_connected():
-        gmail_service.send_email(f"[Nestlio] 우리 부부 목표 달성 축하 - {goal.name} {milestone}%", body)
+        gmail_service.send_email(
+            f"[Nestlio] 우리 부부 목표 달성 축하 - {goal.name} {milestone}%", body, to=notify_recipients_service.get_recipients(db)
+        )
     milestone_service.log(db, "goal_milestone", "goal", goal.id, milestone, body)
     return True
 
@@ -194,7 +206,9 @@ def check_and_celebrate_challenge(db: Session, challenge_id: int) -> bool:
         f"현재: {challenge.current_amount:,.0f}원 / 목표 {challenge.target_amount:,.0f}원"
     )
     if is_connected():
-        gmail_service.send_email(f"[Nestlio] 챌린지 성공 - {challenge.title}", body)
+        gmail_service.send_email(
+            f"[Nestlio] 챌린지 성공 - {challenge.title}", body, to=notify_recipients_service.get_recipients(db)
+        )
     milestone_service.log(db, "challenge_success", "challenge", challenge.id, milestone, body)
     return True
 

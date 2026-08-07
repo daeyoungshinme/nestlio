@@ -22,6 +22,17 @@ def test_weekly_summary_sent_once_per_week(mock_send, mock_connected, seeded_db)
     assert mock_send.call_count == 1
 
 
+@patch("app.services.notification_service.is_connected", return_value=True)
+@patch("app.services.notification_service.gmail_service.send_email")
+def test_weekly_summary_sends_to_resolved_recipients(mock_send, mock_connected, seeded_db):
+    db, user = seeded_db["db"], seeded_db["user"]
+    spouse = _second_user(db)
+
+    notification_service.send_weekly_summary(db, today=date(2026, 7, 29))
+
+    assert mock_send.call_args.kwargs["to"] == [user.email, spouse.email]
+
+
 @patch("app.services.notification_service.is_connected", return_value=False)
 @patch("app.services.notification_service.gmail_service.send_email")
 def test_weekly_summary_logs_even_when_google_not_connected(mock_send, mock_connected, seeded_db):

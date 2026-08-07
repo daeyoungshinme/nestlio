@@ -1,3 +1,6 @@
+from app.models.user import User
+
+
 def test_list_categories(client):
     resp = client.get("/api/v1/categories")
     assert resp.status_code == 200
@@ -83,3 +86,26 @@ def test_update_my_display_name(client, seeded_db):
 def test_update_my_display_name_rejects_blank(client, seeded_db):
     resp = client.put("/api/v1/users/me", json={"display_name": ""})
     assert resp.status_code == 422
+
+
+def test_update_other_users_display_name(client, seeded_db):
+    db = seeded_db["db"]
+    spouse = User(email="spouse2@example.com", display_name="Spouse 2")
+    db.add(spouse)
+    db.commit()
+    db.refresh(spouse)
+
+    resp = client.put(f"/api/v1/users/{spouse.id}", json={"display_name": "아내"})
+    assert resp.status_code == 200
+    assert resp.json()["display_name"] == "아내"
+
+    list_resp = client.get("/api/v1/users")
+    names = {u["display_name"] for u in list_resp.json()}
+    assert "아내" in names
+
+
+def test_update_user_not_found(client, seeded_db):
+    resp = client.put(
+        "/api/v1/users/00000000-0000-0000-0000-000000000000", json={"display_name": "누구"}
+    )
+    assert resp.status_code == 404

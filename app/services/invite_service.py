@@ -51,17 +51,19 @@ def to_out(invite: Invite) -> dict:
         "expires_at": invite.expires_at,
         "accepted_at": invite.accepted_at,
         "accept_url": _accept_url(invite.token),
+        "email_sent": getattr(invite, "email_sent", None),
     }
 
 
-def _send_invite_email(invite: Invite) -> None:
+def _send_invite_email(invite: Invite) -> bool:
     if not is_connected():
-        return
+        return False
     body = (
         "nestlio에 배우자로 초대되었습니다.\n\n"
         f"아래 링크에서 계정을 만들어주세요 (7일 이내 유효):\n{_accept_url(invite.token)}"
     )
     gmail_service.send_email("[Nestlio] 배우자 초대", body, to=invite.email)
+    return True
 
 
 def create_invite(db: Session, invited_by_id: uuid.UUID, email: str, now: datetime | None = None) -> Invite:
@@ -86,7 +88,7 @@ def create_invite(db: Session, invited_by_id: uuid.UUID, email: str, now: dateti
     db.commit()
     db.refresh(invite)
 
-    _send_invite_email(invite)
+    invite.email_sent = _send_invite_email(invite)
     return invite
 
 

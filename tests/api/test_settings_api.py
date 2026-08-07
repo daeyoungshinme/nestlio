@@ -12,6 +12,42 @@ def test_get_settings_reflects_config(mock_is_connected, client):
 
 
 @patch("app.routers.settings.is_connected", return_value=False)
+def test_get_settings_defaults_notify_emails_to_signup_email(mock_is_connected, client, seeded_db):
+    resp = client.get("/api/v1/settings")
+    assert resp.status_code == 200
+    assert resp.json()["notify_emails"] == [seeded_db["user"].email]
+
+
+@patch("app.routers.settings.is_connected", return_value=False)
+def test_set_notify_emails_overrides_and_persists(mock_is_connected, client):
+    resp = client.put("/api/v1/settings/notify-emails", json={"emails": ["a@example.com", "b@example.com"]})
+    assert resp.status_code == 200
+    assert resp.json()["notify_emails"] == ["a@example.com", "b@example.com"]
+
+    # persists across a fresh GET
+    assert client.get("/api/v1/settings").json()["notify_emails"] == ["a@example.com", "b@example.com"]
+
+
+@patch("app.routers.settings.is_connected", return_value=False)
+def test_set_notify_emails_rejects_empty_list(mock_is_connected, client):
+    resp = client.put("/api/v1/settings/notify-emails", json={"emails": []})
+    assert resp.status_code == 422
+
+
+@patch("app.routers.settings.is_connected", return_value=False)
+def test_set_notify_emails_rejects_invalid_format(mock_is_connected, client):
+    resp = client.put("/api/v1/settings/notify-emails", json={"emails": ["not-an-email"]})
+    assert resp.status_code == 422
+
+
+@patch("app.routers.settings.is_connected", return_value=False)
+def test_set_notify_emails_normalizes_case_and_dedupes(mock_is_connected, client):
+    resp = client.put("/api/v1/settings/notify-emails", json={"emails": ["A@example.com", " a@example.com "]})
+    assert resp.status_code == 200
+    assert resp.json()["notify_emails"] == ["a@example.com"]
+
+
+@patch("app.routers.settings.is_connected", return_value=False)
 def test_set_coaching_thresholds_overrides_and_persists(mock_is_connected, client):
     payload = {
         "savings_rate_warn": 25,
