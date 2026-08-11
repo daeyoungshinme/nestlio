@@ -42,6 +42,12 @@ def months_remaining_in_year(d: date) -> int:
     return 13 - d.month
 
 
+def months_between(start: date, end: date) -> int:
+    """`start`에서 `end`까지의 전체 개월 수(음수 가능). 일(day) 차이는 무시하고 연/월만 비교한다
+    (예: 1월 31일 -> 2월 1일도 1개월로 센다) — 목표 남은 개월 수 계산처럼 대략적인 페이스 계산에 쓰인다."""
+    return (end.year - start.year) * 12 + (end.month - start.month)
+
+
 def add_months_with_day(d: date, months: int, day: int) -> date:
     """Advance `d` by `months`, landing on `day` (clamped to the target month's length).
 

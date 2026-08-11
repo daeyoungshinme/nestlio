@@ -1,4 +1,5 @@
 from app.models.account import Account
+from app.models.annual_savings_goal import AnnualSavingsGoal
 from app.models.cashflow_plan_item import CashflowPlanItem
 from app.models.category import Category
 from app.models.challenge import Challenge
@@ -19,6 +20,7 @@ from app.models.user_setting import UserSetting
 
 __all__ = [
     "Account",
+    "AnnualSavingsGoal",
     "CashflowPlanItem",
     "Category",
     "Challenge",

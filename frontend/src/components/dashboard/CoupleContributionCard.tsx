@@ -27,6 +27,10 @@ export default function CoupleContributionCard({ title, byUser, totalUserSavings
             <ProgressBar
               pct={totalUserSavings > 0 ? (Math.max(0, Number(u.savings)) / totalUserSavings) * 100 : 0}
             />
+            <div className="mt-1 flex items-center gap-3 text-xs text-gray-400 dark:text-gray-500">
+              <span>수입 {formatKrw(u.income)}</span>
+              <span>지출 {formatKrw(u.expense)}</span>
+            </div>
           </div>
         ))}
       </div>

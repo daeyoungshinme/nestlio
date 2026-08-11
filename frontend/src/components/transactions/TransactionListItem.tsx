@@ -10,10 +10,11 @@ interface Props {
   onEdit: (tx: TransactionOut) => void;
   onDelete: (tx: TransactionOut) => void;
   showDate?: boolean;
+  showUser?: boolean;
   hideCategoryBadge?: boolean;
 }
 
-export default function TransactionListItem({ tx, onEdit, onDelete, showDate, hideCategoryBadge }: Props) {
+export default function TransactionListItem({ tx, onEdit, onDelete, showDate, showUser, hideCategoryBadge }: Props) {
   return (
     <div className="card flex items-center justify-between gap-3">
       <div className="min-w-0">
@@ -22,6 +23,9 @@ export default function TransactionListItem({ tx, onEdit, onDelete, showDate, hi
           {!hideCategoryBadge && <Badge type={tx.category.type} label={tx.category.name} />}
           {tx.savings_product && (
             <span className="text-xs text-gray-400 dark:text-gray-500">→ {tx.savings_product.name}</span>
+          )}
+          {showUser && (
+            <span className="text-xs text-gray-400 dark:text-gray-500">{tx.user.display_name}</span>
           )}
           {showDate && (
             <span className="text-xs text-gray-400 dark:text-gray-500">{formatDate(tx.transaction_date)}</span>

@@ -145,7 +145,9 @@ export default function SavingsProductsSection() {
       ) : (
         <div className="space-y-2">
           {data.map((product) => {
-            const linkedGoals = goals?.filter((g) => g.funding_source_ids.includes(product.id)) ?? [];
+            const linkedGoals =
+              goals?.filter((g) => g.funding_sources.some((fs) => fs.type === "savings_product" && fs.id === product.id)) ??
+              [];
             return (
             <div key={product.id} className="card flex items-center justify-between gap-3">
               <div className="min-w-0">

@@ -9,9 +9,9 @@ from app.models.invite import Invite
 from app.models.user import User
 from app.services import gmail_service, user_service
 from app.services.google_auth import is_connected
+from app.services.user_service import MAX_HOUSEHOLD_USERS
 
 INVITE_EXPIRY_DAYS = 7
-MAX_HOUSEHOLD_USERS = 2
 
 
 class InviteError(Exception):

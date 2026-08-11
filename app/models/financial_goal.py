@@ -1,7 +1,7 @@
-from datetime import datetime
+from datetime import date, datetime
 from decimal import Decimal
 
-from sqlalchemy import DateTime, Integer, Numeric, String, func
+from sqlalchemy import Date, DateTime, Integer, Numeric, String, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
@@ -15,6 +15,10 @@ class FinancialGoal(Base):
     priority: Mapped[int] = mapped_column(Integer, default=1)
     name: Mapped[str] = mapped_column(String(100))
     target_age: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    # 나이 기반(target_age) 입력의 보완 — 부부 공동 목표에서 "나이"는 누구 기준인지 모호하고
+    # 매번 현재 나이를 재입력해야 계산되던 방식을, 오늘 날짜 기준 결정론적 계산으로 대체한다
+    # (app/services/goal_service.py::to_out 참고). target_age와 공존하며 둘 다 선택 입력이다.
+    target_date: Mapped[date | None] = mapped_column(Date, nullable=True)
     required_amount: Mapped[Decimal] = mapped_column(Numeric(14, 2), default=0)
     monthly_saving_amount: Mapped[Decimal] = mapped_column(Numeric(12, 2), default=0)
     # 실제 컬럼명은 그대로 current_amount(하위호환) — 연동된 저축상품(funding_sources)이 하나라도
@@ -27,23 +31,5 @@ class FinancialGoal(Base):
         lazy="joined", order_by="GoalFundingSource.id", cascade="all, delete-orphan"
     )
 
-    @property
-    def current_amount(self) -> Decimal:
-        """연동된 저축상품이 하나 이상 있으면 그 잔액 합을, 없으면 수동 입력값을 반환한다."""
-        if self.funding_sources:
-            return sum((fs.savings_product.current_balance for fs in self.funding_sources), Decimal("0"))
-        return self.manual_current_amount
-
-    @property
-    def funding_source_ids(self) -> list[int]:
-        return [fs.savings_product_id for fs in self.funding_sources]
-
-    @property
-    def funding_source_names(self) -> list[str]:
-        return [fs.savings_product.name for fs in self.funding_sources]
-
-    @property
-    def progress_pct(self) -> Decimal:
-        if not self.required_amount:
-            return Decimal("0")
-        return min(self.current_amount / self.required_amount * 100, Decimal("100"))
+    # current_amount/progress_pct는 연동된 계좌 잔액이 거래내역 기반 파생값이라 DB 세션 없이는
+    # 계산할 수 없다 — app/services/goal_service.py의 compute_current_amount/compute_progress_pct 참고.

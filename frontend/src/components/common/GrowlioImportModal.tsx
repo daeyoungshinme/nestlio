@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { QueryKey } from "@tanstack/react-query";
 import Button from "@/components/common/Button";
 import Modal from "@/components/common/Modal";
+import { growlioAssetTypeLabel } from "@/constants/growlio";
 import { formatKrw } from "@/utils/format";
 import { extractErrorMessage } from "@/utils/error";
 import { toast } from "@/utils/toast";
@@ -104,6 +105,9 @@ export default function GrowlioImportModal<T>({
                       className="rounded shrink-0"
                     />
                     <span className="truncate">{account.name}</span>
+                    <span className="shrink-0 px-1.5 py-0.5 rounded text-[11px] font-medium bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400">
+                      {growlioAssetTypeLabel(account.asset_type)}
+                    </span>
                   </span>
                   <span className="shrink-0 text-gray-500 dark:text-gray-400">{formatKrw(account.current_value_krw)}</span>
                 </label>

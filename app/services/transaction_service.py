@@ -1,5 +1,6 @@
 import csv
 import io
+import logging
 import uuid
 from datetime import date, timedelta
 from decimal import Decimal, InvalidOperation
@@ -8,10 +9,13 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.models.category import Category
+from app.models.savings_product import SavingsProduct
 from app.models.transaction import Transaction
 from app.models.user import User
-from app.services import savings_product_service
+from app.services import growlio_client, savings_product_service
 from app.utils.dates import month_bounds, shift_month, year_bounds, year_month_str
+
+logger = logging.getLogger(__name__)
 
 CSV_HEADER = ["날짜", "구분", "카테고리", "금액", "메모", "입력자"]
 CSV_TYPE_LABELS = {"income": "수입", "expense": "지출"}
@@ -28,6 +32,41 @@ def _validate_savings_link(db: Session, category_id: int, type_: str, savings_pr
         raise ValueError("저축상품은 저축 전용 카테고리에서만 연결할 수 있습니다.")
 
 
+def _push_growlio(
+    db: Session,
+    tx: Transaction,
+    savings_product_id: int,
+    transaction_type: str,
+    amount: Decimal,
+    transaction_date: date,
+    bearer_token: str | None,
+) -> None:
+    """저축/투자 잔액 조정을 growlio 쪽에도 best-effort로 반영한다.
+
+    growlio가 잠들어있거나 응답하지 않아도 가계부 저장 자체는 이미 끝난 뒤이므로 절대
+    raise하지 않는다 — 실패 시 로그만 남기고 tx에 비영속 플래그(growlio_sync_failed)를 얹어
+    라우터가 응답 헤더로 경고를 알릴 수 있게 한다(TransactionOut 스키마 변경 없이 소비).
+    """
+    if not bearer_token:
+        return
+    product = db.get(SavingsProduct, savings_product_id)
+    if product is None or not product.growlio_account_id:
+        return
+    try:
+        growlio_client.push_transaction(
+            bearer_token, product.growlio_account_id, transaction_type, amount, transaction_date
+        )
+    except (growlio_client.GrowlioNotConfiguredError, growlio_client.GrowlioRequestError):
+        logger.warning(
+            "growlio_push_failed savings_product_id=%s type=%s amount=%s (거래는 정상 저장됨)",
+            savings_product_id,
+            transaction_type,
+            amount,
+            exc_info=True,
+        )
+        tx.growlio_sync_failed = True
+
+
 def create_transaction(
     db: Session,
     user_id: uuid.UUID,
@@ -40,6 +79,7 @@ def create_transaction(
     recurring_expense_id: int | None = None,
     account_id: int | None = None,
     savings_product_id: int | None = None,
+    bearer_token: str | None = None,
 ) -> Transaction:
     _validate_savings_link(db, category_id, type_, savings_product_id)
     tx = Transaction(
@@ -60,6 +100,7 @@ def create_transaction(
     if savings_product_id is not None:
         savings_product_service.adjust_balance(db, savings_product_id, amount)
         db.refresh(tx)
+        _push_growlio(db, tx, savings_product_id, "DEPOSIT", amount, transaction_date, bearer_token)
     return tx
 
 
@@ -67,7 +108,7 @@ def get_transaction(db: Session, tx_id: int) -> Transaction | None:
     return db.get(Transaction, tx_id)
 
 
-def update_transaction(db: Session, tx_id: int, **fields) -> Transaction | None:
+def update_transaction(db: Session, tx_id: int, bearer_token: str | None = None, **fields) -> Transaction | None:
     tx = db.get(Transaction, tx_id)
     if tx is None:
         return None
@@ -78,6 +119,7 @@ def update_transaction(db: Session, tx_id: int, **fields) -> Transaction | None:
 
     old_amount = tx.amount
     old_savings_product_id = tx.savings_product_id
+    old_transaction_date = tx.transaction_date
     for key, value in fields.items():
         setattr(tx, key, value)
     db.commit()
@@ -89,15 +131,21 @@ def update_transaction(db: Session, tx_id: int, **fields) -> Transaction | None:
         savings_product_service.adjust_balance(db, new_savings_product_id, tx.amount)
     if old_savings_product_id is not None or new_savings_product_id is not None:
         db.refresh(tx)
+
+    if old_savings_product_id is not None:
+        _push_growlio(db, tx, old_savings_product_id, "WITHDRAWAL", old_amount, old_transaction_date, bearer_token)
+    if new_savings_product_id is not None:
+        _push_growlio(db, tx, new_savings_product_id, "DEPOSIT", tx.amount, tx.transaction_date, bearer_token)
     return tx
 
 
-def delete_transaction(db: Session, tx_id: int) -> bool:
+def delete_transaction(db: Session, tx_id: int, bearer_token: str | None = None) -> bool:
     tx = db.get(Transaction, tx_id)
     if tx is None:
         return False
     if tx.savings_product_id is not None:
         savings_product_service.adjust_balance(db, tx.savings_product_id, -tx.amount)
+        _push_growlio(db, tx, tx.savings_product_id, "WITHDRAWAL", tx.amount, tx.transaction_date, bearer_token)
     db.delete(tx)
     db.commit()
     return True
@@ -218,8 +266,11 @@ def totals_by_user(db: Session, date_from: date, date_to: date) -> list[dict]:
     return sorted(result, key=lambda r: r["display_name"])
 
 
-def category_breakdown(db: Session, date_from: date, date_to: date, type_: str = "expense") -> list[dict]:
-    rows = (
+def category_breakdown(
+    db: Session, date_from: date, date_to: date, type_: str = "expense", user_id: uuid.UUID | None = None
+) -> list[dict]:
+    """user_id를 지정하면 해당 사용자의 거래만 집계한다 (배우자별 카테고리 지출 비교용)."""
+    query = (
         db.query(
             Category.id,
             Category.name,
@@ -236,10 +287,10 @@ def category_breakdown(db: Session, date_from: date, date_to: date, type_: str =
             Transaction.transaction_date <= date_to,
             Transaction.savings_product_id.is_(None),
         )
-        .group_by(Category.id)
-        .order_by(func.sum(Transaction.amount).desc())
-        .all()
     )
+    if user_id is not None:
+        query = query.filter(Transaction.user_id == user_id)
+    rows = query.group_by(Category.id).order_by(func.sum(Transaction.amount).desc()).all()
     return [
         {
             "category_id": r[0],
@@ -370,6 +421,15 @@ def trailing_average_by_category(db: Session, anchor: date, months: int = 3, typ
     return {cat_id: total / months for cat_id, total in totals.items()}
 
 
+def trailing_average_savings(db: Session, anchor: date, months: int = 3) -> Decimal:
+    """Average household net savings (income-expense) over the `months` immediately before
+    anchor's month (excludes anchor's month)."""
+    month_starts = [shift_month(anchor, -offset) for offset in range(1, months + 1)]
+    totals_by_month = _monthly_totals_map(db, month_starts)
+    total = sum((totals["savings"] for totals in totals_by_month.values()), Decimal("0"))
+    return total / months
+
+
 def category_monthly_trend(
     db: Session, months: int = 6, anchor: date | None = None, type_: str = "expense", top_n: int = 6
 ) -> dict:
@@ -454,13 +514,13 @@ def export_csv(transactions: list[Transaction]) -> str:
     return buffer.getvalue()
 
 
-def import_csv(db: Session, content: str, user_id: uuid.UUID) -> dict:
-    """Bulk-create transactions from a CSV matching export_csv's column layout.
+def import_rows(db: Session, rows: list[list[str]], user_id: uuid.UUID) -> dict:
+    """Bulk-create transactions from already-split rows matching export_csv's column
+    layout (날짜,구분,카테고리,금액,메모,입력자). Shared core for import_csv (CSV 파일)
+    and the Google Sheets import paths (google_sheets_service가 이미 셀 단위로 분리해서 준다).
     Unknown categories or malformed rows are skipped and reported, not raised,
     so one bad row doesn't abort an otherwise-good import."""
     categories_by_name = {c.name: c for c in db.query(Category).all()}
-    reader = csv.reader(io.StringIO(content))
-    rows = list(reader)
     if rows and rows[0] and rows[0][0].strip() in ("날짜", CSV_HEADER[0]):
         rows = rows[1:]  # skip header if present
 
@@ -491,3 +551,31 @@ def import_csv(db: Session, content: str, user_id: uuid.UUID) -> dict:
             skipped.append({"line": line_no, "row": row, "reason": str(exc)})
     db.commit()
     return {"created": created, "skipped": skipped}
+
+
+def import_csv(db: Session, content: str, user_id: uuid.UUID) -> dict:
+    rows = list(csv.reader(io.StringIO(content)))
+    return import_rows(db, rows, user_id)
+
+
+def import_from_sheet_url(db: Session, sheet_url: str, user_id: uuid.UUID) -> dict:
+    """공개 링크(링크가 있는 모든 사용자로 공유된 시트)의 CSV 내보내기를 읽어 가져온다."""
+    from app.services import google_sheets_service
+
+    csv_text = google_sheets_service.read_public_csv(sheet_url)
+    rows = list(csv.reader(io.StringIO(csv_text)))
+    return import_rows(db, rows, user_id)
+
+
+def import_from_spreadsheet(
+    db: Session, spreadsheet_id: str, sheet_name: str | None, user_id: uuid.UUID
+) -> dict:
+    """구글 계정 연동(OAuth)으로 비공개 시트를 Sheets API로 읽어 가져온다."""
+    from app.services import google_auth, google_sheets_service
+
+    if not google_auth.is_connected():
+        raise google_auth.GoogleNotConnectedError(
+            "구글 계정이 연동되어 있지 않습니다. scripts/google_auth_setup.py를 먼저 실행하세요."
+        )
+    rows = google_sheets_service.read_values(spreadsheet_id, sheet_name)
+    return import_rows(db, rows, user_id)

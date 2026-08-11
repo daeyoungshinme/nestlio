@@ -1,12 +1,13 @@
 from datetime import date
 from decimal import Decimal
+from unittest.mock import patch
 
 import pytest
 
 from app.models.category import Category
 from app.models.savings_product import SavingsProduct
 from app.models.user import User
-from app.services import transaction_service
+from app.services import growlio_client, transaction_service
 
 
 def test_period_totals_splits_fixed_and_variable(seeded_db):
@@ -132,9 +133,14 @@ def test_category_monthly_trend_folds_extra_categories_into_other(seeded_db):
     assert other_series["amounts"] == [Decimal("100000")]
 
 
-def _add_savings_category_and_product(db):
+def _add_savings_category_and_product(db, growlio_account_id=None):
     category = Category(name="저축/투자", type="fixed", color="#10b981", is_savings=True, sort_order=0)
-    product = SavingsProduct(name="적금", current_balance=Decimal("100000"), monthly_saving_amount=Decimal("0"))
+    product = SavingsProduct(
+        name="적금",
+        current_balance=Decimal("100000"),
+        monthly_saving_amount=Decimal("0"),
+        growlio_account_id=growlio_account_id,
+    )
     db.add_all([category, product])
     db.commit()
     db.refresh(category)
@@ -303,6 +309,23 @@ def test_category_breakdown_excludes_savings_linked_transactions(seeded_db):
     assert breakdown == []
 
 
+def test_category_breakdown_filters_by_user(seeded_db):
+    db, user, food, rent = seeded_db["db"], seeded_db["user"], seeded_db["food"], seeded_db["rent"]
+    spouse2 = User(email="spouse2@example.com", display_name="Spouse 2")
+    db.add(spouse2)
+    db.commit()
+    db.refresh(spouse2)
+
+    transaction_service.create_transaction(db, user.id, food.id, "expense", Decimal("50000"), date(2026, 7, 5))
+    transaction_service.create_transaction(db, spouse2.id, rent.id, "expense", Decimal("800000"), date(2026, 7, 1))
+
+    breakdown = transaction_service.category_breakdown(db, date(2026, 7, 1), date(2026, 7, 31), "expense", user.id)
+
+    assert len(breakdown) == 1
+    assert breakdown[0]["category_id"] == food.id
+    assert breakdown[0]["amount"] == Decimal("50000")
+
+
 def test_frequent_unique_transactions_dedupes_same_combo_keeping_latest(seeded_db):
     db, user, food = seeded_db["db"], seeded_db["user"], seeded_db["food"]
     transaction_service.create_transaction(
@@ -383,3 +406,159 @@ def test_frequent_unique_transactions_ignores_entries_outside_since_days_window(
     )
 
     assert ranked == []
+
+
+def test_trailing_average_savings_averages_months_before_anchor(seeded_db):
+    db, user, salary, food = seeded_db["db"], seeded_db["user"], seeded_db["salary"], seeded_db["food"]
+    transaction_service.create_transaction(db, user.id, salary.id, "income", Decimal("3000000"), date(2026, 5, 15))
+    transaction_service.create_transaction(db, user.id, food.id, "expense", Decimal("1000000"), date(2026, 5, 20))
+    transaction_service.create_transaction(db, user.id, salary.id, "income", Decimal("3000000"), date(2026, 6, 15))
+    transaction_service.create_transaction(db, user.id, food.id, "expense", Decimal("2000000"), date(2026, 6, 20))
+    # anchor 월(7월) 거래는 평균 계산에서 제외돼야 한다
+    transaction_service.create_transaction(db, user.id, salary.id, "income", Decimal("9000000"), date(2026, 7, 1))
+
+    avg = transaction_service.trailing_average_savings(db, anchor=date(2026, 7, 15), months=2)
+
+    assert avg == Decimal("1500000")  # (2M + 1M) / 2
+
+
+def test_trailing_average_savings_is_zero_with_no_transactions(seeded_db):
+    db = seeded_db["db"]
+    avg = transaction_service.trailing_average_savings(db, anchor=date(2026, 7, 15), months=3)
+    assert avg == Decimal("0")
+
+
+def test_create_transaction_pushes_deposit_to_linked_growlio_account(seeded_db):
+    db, user = seeded_db["db"], seeded_db["user"]
+    savings_category, product = _add_savings_category_and_product(db, growlio_account_id="growlio-acct-1")
+
+    with patch.object(growlio_client, "push_transaction") as mock_push:
+        tx = transaction_service.create_transaction(
+            db,
+            user.id,
+            savings_category.id,
+            "expense",
+            Decimal("50000"),
+            date(2026, 7, 1),
+            savings_product_id=product.id,
+            bearer_token="token-abc",
+        )
+
+    mock_push.assert_called_once_with("token-abc", "growlio-acct-1", "DEPOSIT", Decimal("50000"), date(2026, 7, 1))
+    assert getattr(tx, "growlio_sync_failed", False) is False
+
+
+def test_create_transaction_without_bearer_token_skips_growlio_push(seeded_db):
+    db, user = seeded_db["db"], seeded_db["user"]
+    savings_category, product = _add_savings_category_and_product(db, growlio_account_id="growlio-acct-1")
+
+    with patch.object(growlio_client, "push_transaction") as mock_push:
+        transaction_service.create_transaction(
+            db,
+            user.id,
+            savings_category.id,
+            "expense",
+            Decimal("50000"),
+            date(2026, 7, 1),
+            savings_product_id=product.id,
+        )
+
+    mock_push.assert_not_called()
+
+
+def test_create_transaction_savings_product_without_growlio_link_skips_push(seeded_db):
+    db, user = seeded_db["db"], seeded_db["user"]
+    savings_category, product = _add_savings_category_and_product(db)  # growlio_account_id=None
+
+    with patch.object(growlio_client, "push_transaction") as mock_push:
+        transaction_service.create_transaction(
+            db,
+            user.id,
+            savings_category.id,
+            "expense",
+            Decimal("50000"),
+            date(2026, 7, 1),
+            savings_product_id=product.id,
+            bearer_token="token-abc",
+        )
+
+    mock_push.assert_not_called()
+
+
+def test_create_transaction_growlio_push_failure_does_not_raise_and_flags_tx(seeded_db):
+    db, user = seeded_db["db"], seeded_db["user"]
+    savings_category, product = _add_savings_category_and_product(db, growlio_account_id="growlio-acct-1")
+
+    with patch.object(
+        growlio_client, "push_transaction", side_effect=growlio_client.GrowlioRequestError("boom")
+    ):
+        tx = transaction_service.create_transaction(
+            db,
+            user.id,
+            savings_category.id,
+            "expense",
+            Decimal("50000"),
+            date(2026, 7, 1),
+            savings_product_id=product.id,
+            bearer_token="token-abc",
+        )
+
+    db.refresh(product)
+    assert product.current_balance == Decimal("150000")  # 로컬 저장/잔액 조정은 정상 완료
+    assert tx.growlio_sync_failed is True
+
+
+def test_update_transaction_pushes_withdrawal_then_deposit_symmetrically(seeded_db):
+    db, user = seeded_db["db"], seeded_db["user"]
+    savings_category, product = _add_savings_category_and_product(db, growlio_account_id="growlio-acct-1")
+    with patch.object(growlio_client, "push_transaction"):
+        tx = transaction_service.create_transaction(
+            db,
+            user.id,
+            savings_category.id,
+            "expense",
+            Decimal("50000"),
+            date(2026, 7, 1),
+            savings_product_id=product.id,
+            bearer_token="token-abc",
+        )
+
+    with patch.object(growlio_client, "push_transaction") as mock_push:
+        transaction_service.update_transaction(
+            db,
+            tx.id,
+            bearer_token="token-abc",
+            amount=Decimal("80000"),
+            type="expense",
+            category_id=savings_category.id,
+            transaction_date=date(2026, 7, 2),
+            description=None,
+            payment_method=None,
+            account_id=None,
+            savings_product_id=product.id,
+        )
+
+    assert mock_push.call_count == 2
+    mock_push.assert_any_call("token-abc", "growlio-acct-1", "WITHDRAWAL", Decimal("50000"), date(2026, 7, 1))
+    mock_push.assert_any_call("token-abc", "growlio-acct-1", "DEPOSIT", Decimal("80000"), date(2026, 7, 2))
+
+
+def test_delete_transaction_pushes_withdrawal(seeded_db):
+    db, user = seeded_db["db"], seeded_db["user"]
+    savings_category, product = _add_savings_category_and_product(db, growlio_account_id="growlio-acct-1")
+    with patch.object(growlio_client, "push_transaction"):
+        tx = transaction_service.create_transaction(
+            db,
+            user.id,
+            savings_category.id,
+            "expense",
+            Decimal("50000"),
+            date(2026, 7, 1),
+            savings_product_id=product.id,
+            bearer_token="token-abc",
+        )
+
+    with patch.object(growlio_client, "push_transaction") as mock_push:
+        transaction_service.delete_transaction(db, tx.id, bearer_token="token-abc")
+
+    mock_push.assert_called_once_with("token-abc", "growlio-acct-1", "WITHDRAWAL", Decimal("50000"), date(2026, 7, 1))

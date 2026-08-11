@@ -2,6 +2,7 @@ import { useState } from "react";
 import type { FormEvent } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ExternalLink, Link2, Plus } from "lucide-react";
+import AnnualSavingsGoalCard from "@/components/financialPlan/AnnualSavingsGoalCard";
 import Button from "@/components/common/Button";
 import ChallengesSection from "@/components/financialPlan/ChallengesSection";
 import ConfirmModal from "@/components/common/ConfirmModal";
@@ -12,8 +13,10 @@ import ProgressBar from "@/components/common/ProgressBar";
 import RowActionButtons from "@/components/common/RowActionButtons";
 import SkeletonCard from "@/components/common/SkeletonCard";
 import { currentYearMonth } from "@/components/common/MonthPicker";
+import { fetchAccounts } from "@/api/accounts";
 import { fetchDashboard } from "@/api/dashboard";
 import { createGoal, deleteGoal, fetchGoals, updateGoal } from "@/api/goals";
+import { fetchLoans } from "@/api/loans";
 import { fetchSavingsProducts } from "@/api/savingsProducts";
 import { fetchSettings, setEmergencyFund } from "@/api/settings";
 import { FORM_LABEL, INLINE_BUTTON_OFFSET } from "@/constants/inputStyles";
@@ -25,7 +28,7 @@ import { formatKrw, formatKrwPreview, formatPercent, toAmountInputValue } from "
 import { extractErrorMessage } from "@/utils/error";
 import { toast } from "@/utils/toast";
 import { GROWLIO_APP_URL, growlioPortfolioUrl, isGrowlioLinkedInvestment } from "@/constants/growlio";
-import type { FinancialGoalOut, SavingsProductOut } from "@/types";
+import type { AccountWithBalanceOut, FinancialGoalOut, FundingSourceIn, LoanOut, SavingsProductOut } from "@/types";
 
 /** 목표에 연동된 저축/투자 상품 중 growlio에 연동된 투자 상품(가장 우선순위 높은 것)을 찾는다.
  * 이 목표를 위해 모은 투자금을 growlio 포트폴리오 화면으로 바로 이어주는 딥링크에 쓰인다. */
@@ -33,9 +36,10 @@ function findGrowlioInvestmentLink(
   goal: FinancialGoalOut,
   savingsProducts: SavingsProductOut[],
 ): string | null {
-  const linked = savingsProducts.find(
-    (p) => goal.funding_source_ids.includes(p.id) && isGrowlioLinkedInvestment(p),
+  const linkedIds = new Set(
+    goal.funding_sources.filter((fs) => fs.type === "savings_product").map((fs) => fs.id),
   );
+  const linked = savingsProducts.find((p) => linkedIds.has(p.id) && isGrowlioLinkedInvestment(p));
   return linked?.growlio_account_id ?? null;
 }
 
@@ -43,20 +47,26 @@ interface Draft {
   priority: string;
   name: string;
   target_age: string;
+  target_date: string;
   required_amount: string;
   monthly_saving_amount: string;
   current_amount: string;
   savings_product_ids: string[];
+  account_ids: string[];
+  loan_ids: string[];
 }
 
 const EMPTY_DRAFT: Draft = {
   priority: "1",
   name: "",
   target_age: "",
+  target_date: "",
   required_amount: "0",
   monthly_saving_amount: "0",
   current_amount: "0",
   savings_product_ids: [],
+  account_ids: [],
+  loan_ids: [],
 };
 
 function draftFromGoal(goal: FinancialGoalOut): Draft {
@@ -64,22 +74,31 @@ function draftFromGoal(goal: FinancialGoalOut): Draft {
     priority: String(goal.priority),
     name: goal.name,
     target_age: goal.target_age !== null ? String(goal.target_age) : "",
+    target_date: goal.target_date ?? "",
     required_amount: toAmountInputValue(goal.required_amount),
     monthly_saving_amount: toAmountInputValue(goal.monthly_saving_amount),
     current_amount: toAmountInputValue(goal.current_amount),
-    savings_product_ids: goal.funding_source_ids.map(String),
+    savings_product_ids: goal.funding_sources.filter((fs) => fs.type === "savings_product").map((fs) => String(fs.id)),
+    account_ids: goal.funding_sources.filter((fs) => fs.type === "account").map((fs) => String(fs.id)),
+    loan_ids: goal.funding_sources.filter((fs) => fs.type === "loan").map((fs) => String(fs.id)),
   };
 }
 
 function toPayload(draft: Draft) {
+  const funding_sources: FundingSourceIn[] = [
+    ...draft.savings_product_ids.map((id) => ({ type: "savings_product" as const, id: Number(id) })),
+    ...draft.account_ids.map((id) => ({ type: "account" as const, id: Number(id) })),
+    ...draft.loan_ids.map((id) => ({ type: "loan" as const, id: Number(id) })),
+  ];
   return {
     priority: Number(draft.priority) || 1,
     name: draft.name,
     target_age: draft.target_age === "" ? null : Number(draft.target_age),
+    target_date: draft.target_date === "" ? null : draft.target_date,
     required_amount: draft.required_amount,
     monthly_saving_amount: draft.monthly_saving_amount,
     current_amount: draft.current_amount,
-    savings_product_ids: draft.savings_product_ids.map(Number),
+    funding_sources,
   };
 }
 
@@ -89,6 +108,19 @@ const GOAL_MILESTONES = [25, 50, 75, 100];
 function crossedMilestone(oldPct: number, newPct: number): number | null {
   const crossed = GOAL_MILESTONES.filter((m) => oldPct < m && newPct >= m);
   return crossed.length > 0 ? Math.max(...crossed) : null;
+}
+
+/** 오늘부터 목표일까지 남은 일수 (음수면 이미 지난 목표일). */
+function daysUntil(targetDate: string): number {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const target = new Date(targetDate);
+  return Math.round((target.getTime() - today.getTime()) / 86_400_000);
+}
+
+/** start~end 사이 전체 개월 수 — 백엔드 app/utils/dates.py::months_between과 동일한 규칙(일 차이는 무시). */
+function monthsBetween(start: Date, end: Date): number {
+  return (end.getFullYear() - start.getFullYear()) * 12 + (end.getMonth() - start.getMonth());
 }
 
 export default function FinancialGoalsSection() {
@@ -101,6 +133,16 @@ export default function FinancialGoalsSection() {
   const { data: savingsProducts } = useQuery({
     queryKey: QUERY_KEYS.savingsProducts,
     queryFn: fetchSavingsProducts,
+    staleTime: STALE_TIME.MEDIUM,
+  });
+  const { data: accounts } = useQuery({
+    queryKey: QUERY_KEYS.accounts,
+    queryFn: fetchAccounts,
+    staleTime: STALE_TIME.MEDIUM,
+  });
+  const { data: loans } = useQuery({
+    queryKey: QUERY_KEYS.loans,
+    queryFn: fetchLoans,
     staleTime: STALE_TIME.MEDIUM,
   });
   const { data: settingsData } = useQuery({
@@ -173,6 +215,8 @@ export default function FinancialGoalsSection() {
 
   return (
     <div className="space-y-4">
+      <AnnualSavingsGoalCard />
+
       <div className="card space-y-3">
         <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300">비상금</h3>
         <p className="text-xs text-gray-500 dark:text-gray-400">
@@ -213,26 +257,33 @@ export default function FinancialGoalsSection() {
             const growlioAccountId = findGrowlioInvestmentLink(goal, savingsProducts ?? []);
             const showSurplusHint =
               goal.id === firstGrowlioLinkedGoalId && GROWLIO_APP_URL && Number(investableSurplus) > 0;
+            const hasLoanSource = goal.funding_sources.some((fs) => fs.type === "loan");
             return (
               <div key={goal.id} className="card space-y-2">
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
                     <p className="text-xs text-gray-500 dark:text-gray-400 truncate">
-                      {goal.priority}순위{goal.target_age !== null ? ` · ${goal.target_age}세까지` : ""}
+                      {goal.priority}순위
+                      {goal.target_date !== null
+                        ? ` · D-${daysUntil(goal.target_date)}`
+                        : goal.target_age !== null
+                          ? ` · ${goal.target_age}세까지`
+                          : ""}
                     </p>
                     <div className="flex items-center gap-1.5">
                       <p className="text-sm font-semibold text-gray-900 dark:text-gray-50 truncate">{goal.name}</p>
-                      {goal.funding_source_names.length > 0 && (
+                      {goal.funding_sources.length > 0 && (
                         <span className="shrink-0 flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[11px] font-medium bg-blue-50 text-blue-700 dark:bg-blue-950 dark:text-blue-300">
                           <Link2 size={11} />
-                          {goal.funding_source_names.join(", ")}
+                          {goal.funding_sources.map((fs) => fs.name).join(", ")}
                         </span>
                       )}
                     </div>
                     <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5 truncate">
-                      {goal.funding_source_names.length > 0 ? "연동 상품 잔액 합계" : "현재 저축액"}{" "}
+                      {goal.funding_sources.length > 0 ? "연동 항목 잔액 합계" : "현재 저축액"}{" "}
                       {formatKrw(goal.current_amount)} / 목표 {formatKrw(goal.required_amount)} · 월{" "}
                       {formatKrw(goal.monthly_saving_amount)}
+                      {hasLoanSource && " (대출 차감 반영)"}
                     </p>
                   </div>
                   <RowActionButtons onEdit={() => setFormTarget(goal)} onDelete={() => setDeleteTarget(goal.id)} />
@@ -291,6 +342,8 @@ export default function FinancialGoalsSection() {
           submitLabel={formTarget === "new" ? "추가" : "저장"}
           submitting={isSaving}
           savingsProducts={savingsProducts ?? []}
+          accounts={accounts ?? []}
+          loans={loans ?? []}
           onClose={() => setFormTarget(null)}
           onSubmit={handleSubmit}
         />
@@ -313,6 +366,8 @@ function GoalFormModal({
   submitLabel,
   submitting,
   savingsProducts,
+  accounts,
+  loans,
   onClose,
   onSubmit,
 }: {
@@ -321,19 +376,20 @@ function GoalFormModal({
   submitLabel: string;
   submitting: boolean;
   savingsProducts: SavingsProductOut[];
+  accounts: AccountWithBalanceOut[];
+  loans: LoanOut[];
   onClose: () => void;
   onSubmit: (draft: Draft) => void;
 }) {
   const [draft, setDraft] = useState<Draft>(initial);
   const [currentAge, setCurrentAge] = useState("");
-  const isLinked = draft.savings_product_ids.length > 0;
+  const isLinked =
+    draft.savings_product_ids.length > 0 || draft.account_ids.length > 0 || draft.loan_ids.length > 0;
 
-  const toggleProduct = (id: string) => {
+  const toggleId = (field: "savings_product_ids" | "account_ids" | "loan_ids", id: string) => {
     setDraft((d) => ({
       ...d,
-      savings_product_ids: d.savings_product_ids.includes(id)
-        ? d.savings_product_ids.filter((pid) => pid !== id)
-        : [...d.savings_product_ids, id],
+      [field]: d[field].includes(id) ? d[field].filter((v) => v !== id) : [...d[field], id],
     }));
   };
 
@@ -343,8 +399,10 @@ function GoalFormModal({
     onSubmit(draft);
   };
 
-  const monthsRemaining =
+  const monthsRemainingFromDate = draft.target_date !== "" ? monthsBetween(new Date(), new Date(draft.target_date)) : null;
+  const monthsRemainingFromAge =
     currentAge !== "" && draft.target_age !== "" ? (Number(draft.target_age) - Number(currentAge)) * 12 : null;
+  const monthsRemaining = monthsRemainingFromDate ?? monthsRemainingFromAge;
   const suggestedMonthly =
     monthsRemaining !== null && monthsRemaining > 0
       ? Math.max(0, Math.round((Number(draft.required_amount) - Number(draft.current_amount)) / monthsRemaining))
@@ -369,13 +427,22 @@ function GoalFormModal({
             className="w-full"
           />
           <FormInput
-            label="필요한 나이"
+            label="목표일 (두 분이 함께 정한 날짜)"
+            type="date"
+            value={draft.target_date}
+            onChange={(e) => setDraft((d) => ({ ...d, target_date: e.target.value }))}
+            className="w-full"
+          />
+        </div>
+        {draft.target_date === "" && (
+          <FormInput
+            label="필요한 나이 (목표일 대신 나이로 정할 때)"
             type="number"
             value={draft.target_age}
             onChange={(e) => setDraft((d) => ({ ...d, target_age: e.target.value }))}
             className="w-full"
           />
-        </div>
+        )}
         <FormInput
           label="필요금액"
           type="number"
@@ -400,7 +467,7 @@ function GoalFormModal({
                     <input
                       type="checkbox"
                       checked={draft.savings_product_ids.includes(String(p.id))}
-                      onChange={() => toggleProduct(String(p.id))}
+                      onChange={() => toggleId("savings_product_ids", String(p.id))}
                       className="h-4 w-4 rounded border-gray-300 shrink-0"
                     />
                     <span className="truncate text-gray-900 dark:text-gray-50">{p.name}</span>
@@ -412,14 +479,66 @@ function GoalFormModal({
               ))}
             </div>
           )}
+        </div>
+        <div>
+          <label className={FORM_LABEL}>연동할 계좌 (복수 선택 가능)</label>
+          {accounts.length === 0 ? (
+            <p className="text-xs text-gray-400 dark:text-gray-500">등록된 계좌가 없어요.</p>
+          ) : (
+            <div className="rounded-lg border border-gray-200 dark:border-gray-700 divide-y divide-gray-100 dark:divide-gray-800 max-h-40 overflow-y-auto">
+              {accounts.map(({ account, balance }) => (
+                <label
+                  key={account.id}
+                  className="flex items-center justify-between gap-2 px-3 py-2 text-sm cursor-pointer"
+                >
+                  <span className="flex items-center gap-2 min-w-0">
+                    <input
+                      type="checkbox"
+                      checked={draft.account_ids.includes(String(account.id))}
+                      onChange={() => toggleId("account_ids", String(account.id))}
+                      className="h-4 w-4 rounded border-gray-300 shrink-0"
+                    />
+                    <span className="truncate text-gray-900 dark:text-gray-50">{account.name}</span>
+                  </span>
+                  <span className="text-xs text-gray-500 dark:text-gray-400 shrink-0">{formatKrw(balance)}</span>
+                </label>
+              ))}
+            </div>
+          )}
+        </div>
+        <div>
+          <label className={FORM_LABEL}>연동할 대출 (연동 시 금액에서 차감돼요)</label>
+          {loans.length === 0 ? (
+            <p className="text-xs text-gray-400 dark:text-gray-500">등록된 대출이 없어요.</p>
+          ) : (
+            <div className="rounded-lg border border-gray-200 dark:border-gray-700 divide-y divide-gray-100 dark:divide-gray-800 max-h-40 overflow-y-auto">
+              {loans.map((loan) => (
+                <label
+                  key={loan.id}
+                  className="flex items-center justify-between gap-2 px-3 py-2 text-sm cursor-pointer"
+                >
+                  <span className="flex items-center gap-2 min-w-0">
+                    <input
+                      type="checkbox"
+                      checked={draft.loan_ids.includes(String(loan.id))}
+                      onChange={() => toggleId("loan_ids", String(loan.id))}
+                      className="h-4 w-4 rounded border-gray-300 shrink-0"
+                    />
+                    <span className="truncate text-gray-900 dark:text-gray-50">{loan.name}</span>
+                  </span>
+                  <span className="text-xs text-red-500 dark:text-red-400 shrink-0">-{formatKrw(loan.balance)}</span>
+                </label>
+              ))}
+            </div>
+          )}
           <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
-            상품을 연동하면 현재 저축액이 연동된 상품들의 잔액 합으로 자동 계산돼요. 부부가 각자 다른
-            상품으로 한 목표를 함께 모을 때 여러 개를 선택하세요.
+            상품·계좌·대출을 연동하면 현재 저축액이 (연동된 상품·계좌 잔액 합) − (연동된 대출 잔액)으로
+            자동 계산돼요. 부부가 각자 다른 상품/계좌로 한 목표를 함께 모을 때 여러 개를 선택하세요.
           </p>
         </div>
         {isLinked ? (
           <div className="rounded-lg border border-gray-200 dark:border-gray-700 px-3 py-2.5 text-sm text-gray-500 dark:text-gray-400">
-            현재 저축액은 연동된 상품들의 잔액 합으로 자동 계산돼요.
+            현재 저축액은 연동된 항목들의 잔액 합(대출은 차감)으로 자동 계산돼요.
           </div>
         ) : (
           <FormInput
@@ -434,27 +553,29 @@ function GoalFormModal({
         )}
         <div className="rounded-lg border border-gray-200 dark:border-gray-700 p-3 space-y-2">
           <p className="text-xs font-medium text-gray-500 dark:text-gray-400">필요 저축액 자동 계산</p>
-          <div className="flex items-end gap-2">
-            <FormInput
-              label="현재 나이"
-              type="number"
-              value={currentAge}
-              onChange={(e) => setCurrentAge(e.target.value)}
-              className="w-24"
-            />
-            {suggestedMonthly !== null && (
-              <Button
-                type="button"
-                variant="secondary"
-                size="sm"
-                onClick={() => setDraft((d) => ({ ...d, monthly_saving_amount: String(suggestedMonthly) }))}
-              >
-                제안 적용: 월 {formatKrw(suggestedMonthly)}
-              </Button>
-            )}
-          </div>
-          {currentAge !== "" && draft.target_age !== "" && monthsRemaining !== null && monthsRemaining <= 0 && (
-            <p className="text-xs text-red-500">필요한 나이가 현재 나이보다 이후여야 계산할 수 있어요.</p>
+          {draft.target_date === "" && (
+            <div className="flex items-end gap-2">
+              <FormInput
+                label="현재 나이"
+                type="number"
+                value={currentAge}
+                onChange={(e) => setCurrentAge(e.target.value)}
+                className="w-24"
+              />
+            </div>
+          )}
+          {suggestedMonthly !== null && (
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              onClick={() => setDraft((d) => ({ ...d, monthly_saving_amount: String(suggestedMonthly) }))}
+            >
+              제안 적용: 월 {formatKrw(suggestedMonthly)}
+            </Button>
+          )}
+          {monthsRemaining !== null && monthsRemaining <= 0 && (
+            <p className="text-xs text-red-500">목표일(또는 필요한 나이)이 지금보다 이후여야 계산할 수 있어요.</p>
           )}
           <p className="text-xs text-gray-400 dark:text-gray-500">
             (필요금액 - 현재 저축액) ÷ 남은 개월 수로 월 저축금액을 제안해요. 저장되지 않고 계산에만 쓰여요.

@@ -1,4 +1,5 @@
 import logging
+from datetime import date
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
@@ -15,7 +16,8 @@ logger = logging.getLogger(__name__)
 
 @router.get("", response_model=list[FinancialGoalOut])
 def list_goals(db: Session = Depends(get_db), _: User = Depends(get_current_user)):
-    return goal_service.list_goals(db)
+    today = date.today()
+    return [goal_service.to_out(db, goal, today) for goal in goal_service.list_goals(db)]
 
 
 @router.post("", response_model=FinancialGoalOut, status_code=status.HTTP_201_CREATED)
@@ -28,13 +30,14 @@ def create_goal(payload: FinancialGoalCreateIn, db: Session = Depends(get_db), _
         payload.required_amount,
         payload.monthly_saving_amount,
         payload.current_amount,
-        payload.savings_product_ids,
+        [fs.model_dump() for fs in payload.funding_sources],
+        payload.target_date,
     )
     try:
         notification_service.check_and_celebrate_goal_milestone(db, goal.id)
     except Exception:
         logger.exception("목표 달성 축하 알림 처리 실패 (목표는 정상 저장됨)")
-    return goal
+    return goal_service.to_out(db, goal, date.today())
 
 
 @router.put("/{goal_id}", response_model=FinancialGoalOut)
@@ -53,7 +56,8 @@ def update_goal(
         payload.required_amount,
         payload.monthly_saving_amount,
         payload.current_amount,
-        payload.savings_product_ids,
+        [fs.model_dump() for fs in payload.funding_sources],
+        payload.target_date,
     )
     if goal is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "재무목표를 찾을 수 없습니다.")
@@ -61,7 +65,7 @@ def update_goal(
         notification_service.check_and_celebrate_goal_milestone(db, goal.id)
     except Exception:
         logger.exception("목표 달성 축하 알림 처리 실패 (목표는 정상 저장됨)")
-    return goal
+    return goal_service.to_out(db, goal, date.today())
 
 
 @router.delete("/{goal_id}", status_code=status.HTTP_204_NO_CONTENT)

@@ -22,16 +22,18 @@ import TransactionFilterSheet, {
   filterSummaryLabel,
   type ExpenseTypeFilter,
   type TopFilter,
+  type UserFilter,
 } from "@/components/transactions/TransactionFilterSheet";
 import { fetchCategories } from "@/api/categories";
 import { fetchAccounts } from "@/api/accounts";
 import { fetchSavingsProducts } from "@/api/savingsProducts";
+import { fetchMe, fetchUsers } from "@/api/users";
 import {
   createTransaction,
   deleteTransaction,
-  exportTransactionsCsvUrl,
   fetchCategoryBreakdown,
   fetchTransactions,
+  fetchTransactionsCsv,
   updateTransaction,
 } from "@/api/transactions";
 import { createEvent, deleteEvent, fetchEvents, updateEvent } from "@/api/events";
@@ -43,6 +45,7 @@ import { TOUCH_TARGET_COMPACT_MOBILE_ONLY } from "@/constants/uiSizes";
 import { formatKrw } from "@/utils/format";
 import { extractErrorMessage } from "@/utils/error";
 import { toast } from "@/utils/toast";
+import { triggerBlobDownload } from "@/utils/download";
 import type { CategoryOut, EventOut, RecurringOut, TransactionOut } from "@/types";
 
 const EMPTY_TRANSACTIONS: TransactionOut[] = [];
@@ -73,7 +76,9 @@ function matchesFilter(
   topFilter: TopFilter,
   categoryFilter: number | "all",
   expenseTypeFilter: ExpenseTypeFilter,
+  userFilter: UserFilter,
 ): boolean {
+  if (userFilter !== "all" && tx.user.id !== userFilter) return false;
   if (topFilter === "savings") return tx.category.is_savings;
   if (topFilter !== "all" && tx.type !== topFilter) return false;
   if (topFilter === "expense" && tx.category.is_savings) return false;
@@ -87,6 +92,7 @@ export default function TransactionsPage() {
   const [topFilter, setTopFilter] = useState<TopFilter>("all");
   const [categoryFilter, setCategoryFilter] = useState<number | "all">("all");
   const [expenseTypeFilter, setExpenseTypeFilter] = useState<ExpenseTypeFilter>("all");
+  const [userFilter, setUserFilter] = useState<UserFilter>("all");
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [formTarget, setFormTarget] = useState<"new" | TransactionOut | null>(null);
   const [createDate, setCreateDate] = useState(todayIso());
@@ -135,6 +141,15 @@ export default function TransactionsPage() {
     queryFn: fetchSavingsProducts,
     staleTime: STALE_TIME.MEDIUM,
   });
+  const { data: me } = useQuery({ queryKey: QUERY_KEYS.me, queryFn: fetchMe, staleTime: STALE_TIME.LONG });
+  const { data: users } = useQuery({ queryKey: QUERY_KEYS.users, queryFn: fetchUsers, staleTime: STALE_TIME.LONG });
+  const userOptions = useMemo(() => {
+    if (!me || !users) return [];
+    return [
+      { value: "all", label: "전체" },
+      ...users.map((u) => ({ value: u.id, label: u.id === me.id ? "나" : u.display_name })),
+    ];
+  }, [me, users]);
   const { data, isLoading } = useQuery({
     queryKey: QUERY_KEYS.transactions({ date_from, date_to }),
     queryFn: () => fetchTransactions({ date_from, date_to }),
@@ -142,8 +157,14 @@ export default function TransactionsPage() {
   });
   const showExpenseGroups = topFilter === "expense" && categoryFilter === "all";
   const { data: breakdown, isLoading: breakdownLoading } = useQuery({
-    queryKey: QUERY_KEYS.categoryBreakdown({ date_from, date_to, type: "expense" }),
-    queryFn: () => fetchCategoryBreakdown({ date_from, date_to, type: "expense" }),
+    queryKey: QUERY_KEYS.categoryBreakdown({ date_from, date_to, type: "expense", user_id: userFilter }),
+    queryFn: () =>
+      fetchCategoryBreakdown({
+        date_from,
+        date_to,
+        type: "expense",
+        user_id: userFilter === "all" ? undefined : userFilter,
+      }),
     placeholderData: keepPreviousData,
     enabled: showExpenseGroups,
   });
@@ -165,10 +186,10 @@ export default function TransactionsPage() {
 
   const filteredTransactions = useMemo(() => {
     return (data?.items ?? [])
-      .filter((tx) => matchesFilter(tx, topFilter, categoryFilter, expenseTypeFilter))
+      .filter((tx) => matchesFilter(tx, topFilter, categoryFilter, expenseTypeFilter, userFilter))
       .slice()
       .sort((a, b) => b.transaction_date.localeCompare(a.transaction_date) || b.id - a.id);
-  }, [data, topFilter, categoryFilter, expenseTypeFilter]);
+  }, [data, topFilter, categoryFilter, expenseTypeFilter, userFilter]);
 
   const transactionsByCategory = useMemo(() => {
     const map = new Map<number, TransactionOut[]>();
@@ -189,7 +210,9 @@ export default function TransactionsPage() {
     if (topFilter === "all" || topFilter === "savings") return [];
     const byId = new Map<number, CategoryOut>();
     for (const tx of data?.items ?? []) {
-      if (tx.type === topFilter && !tx.category.is_savings) byId.set(tx.category.id, tx.category);
+      if (tx.type !== topFilter || tx.category.is_savings) continue;
+      if (userFilter !== "all" && tx.user.id !== userFilter) continue;
+      byId.set(tx.category.id, tx.category);
     }
     const options = Array.from(byId.values());
     const scoped =
@@ -197,7 +220,7 @@ export default function TransactionsPage() {
         ? options.filter((c) => c.type === expenseTypeFilter)
         : options;
     return scoped.sort((a, b) => a.sort_order - b.sort_order);
-  }, [data, topFilter, expenseTypeFilter]);
+  }, [data, topFilter, expenseTypeFilter, userFilter]);
 
   const expenseGroups = useMemo(() => {
     if (!breakdown) return breakdown;
@@ -294,6 +317,12 @@ export default function TransactionsPage() {
     onError: (err) => toast(extractErrorMessage(err), "error"),
   });
 
+  const exportCsvMutation = useMutation({
+    mutationFn: () => fetchTransactionsCsv({ date_from, date_to }),
+    onSuccess: (blob) => triggerBlobDownload(blob, `transactions_${date_from}_${date_to}.csv`),
+    onError: (err) => toast(extractErrorMessage(err), "error"),
+  });
+
   const openCreate = (dateHint?: string) => {
     setSelectedDate(null);
     setCreateDate(dateHint ?? defaultDateHint(yearMonth));
@@ -381,7 +410,9 @@ export default function TransactionsPage() {
           className="flex-1 flex items-center gap-2 min-w-0 px-3 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-800 rounded-lg"
         >
           <SlidersHorizontal size={14} className="shrink-0" aria-hidden="true" />
-          <span className="truncate">{filterSummaryLabel(topFilter, expenseTypeFilter, categoryFilter, categoryOptions)}</span>
+          <span className="truncate">
+            {filterSummaryLabel(topFilter, expenseTypeFilter, categoryFilter, categoryOptions, userFilter, userOptions)}
+          </span>
         </button>
         <Link
           to="/categories"
@@ -420,7 +451,14 @@ export default function TransactionsPage() {
       ) : (
         <div className="space-y-2">
           {filteredTransactions.map((tx) => (
-            <TransactionListItem key={tx.id} tx={tx} onEdit={openEdit} onDelete={setDeleteTarget} showDate />
+            <TransactionListItem
+              key={tx.id}
+              tx={tx}
+              onEdit={openEdit}
+              onDelete={setDeleteTarget}
+              showDate
+              showUser={userOptions.length > 2}
+            />
           ))}
         </div>
       )}
@@ -547,13 +585,15 @@ export default function TransactionsPage() {
             >
               <CalendarDays size={18} aria-hidden="true" /> 새 일정
             </button>
-            <a
-              href={exportTransactionsCsvUrl({ date_from, date_to })}
-              onClick={() => setShowMoreMenu(false)}
+            <button
+              onClick={() => {
+                setShowMoreMenu(false);
+                exportCsvMutation.mutate();
+              }}
               className="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
             >
               <Download size={18} aria-hidden="true" /> CSV 내보내기
-            </a>
+            </button>
             <Link
               to="/transactions/import"
               onClick={() => setShowMoreMenu(false)}
@@ -580,6 +620,8 @@ export default function TransactionsPage() {
           expenseTypeFilter={expenseTypeFilter}
           categoryFilter={categoryFilter}
           categoryOptions={categoryOptions}
+          userFilter={userFilter}
+          userOptions={userOptions}
           onChangeTopFilter={(value) => {
             setTopFilter(value);
             setCategoryFilter("all");
@@ -590,6 +632,10 @@ export default function TransactionsPage() {
             setCategoryFilter("all");
           }}
           onChangeCategoryFilter={setCategoryFilter}
+          onChangeUserFilter={(value) => {
+            setUserFilter(value);
+            setCategoryFilter("all");
+          }}
           onClose={() => setShowFilterSheet(false)}
         />
       )}

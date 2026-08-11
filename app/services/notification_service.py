@@ -166,7 +166,9 @@ def _celebrate_goal_milestone(db: Session, goal) -> bool:
     Milestone-crossing + dedup bookkeeping lives in milestone_service (shared with challenges)."""
     if goal is None or not goal.required_amount:
         return False
-    milestone = milestone_service.highest_crossed(goal.progress_pct)
+    current_amount = goal_service.compute_current_amount(db, goal)
+    progress_pct = goal_service.compute_progress_pct(current_amount, goal.required_amount)
+    milestone = milestone_service.highest_crossed(progress_pct)
     if milestone is None:
         return False
     if milestone_service.already_logged(db, "goal_milestone", goal.id, milestone):
@@ -175,8 +177,13 @@ def _celebrate_goal_milestone(db: Session, goal) -> bool:
     body = (
         f'\U0001F389 "{goal.name}" 목표 {milestone}% 달성! \U0001F389\n\n'
         f"{congrats}\n\n"
-        f"현재 저축액: {goal.current_amount:,.0f}원 / 목표 {goal.required_amount:,.0f}원"
+        f"현재 저축액: {current_amount:,.0f}원 / 목표 {goal.required_amount:,.0f}원"
     )
+    if milestone < 100 and goal.target_date is not None:
+        remaining_amount = max(goal.required_amount - current_amount, 0)
+        remaining_days = (goal.target_date - date.today()).days
+        if remaining_days > 0:
+            body += f"\n목표일까지 D-{remaining_days}, 이제 {remaining_amount:,.0f}원만 더 모으면 돼요."
     if is_connected():
         gmail_service.send_email(
             f"[Nestlio] 우리 부부 목표 달성 축하 - {goal.name} {milestone}%", body, to=notify_recipients_service.get_recipients(db)

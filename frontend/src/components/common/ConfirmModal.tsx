@@ -11,6 +11,8 @@ interface Props {
   onConfirm: () => void;
   onCancel: () => void;
   danger?: boolean;
+  /** 타이핑 확인 등 추가 조건을 만족하기 전까지 확인 버튼을 잠글 때 사용한다. */
+  confirmDisabled?: boolean;
   children?: ReactNode;
 }
 
@@ -21,6 +23,7 @@ export default function ConfirmModal({
   onConfirm,
   onCancel,
   danger = true,
+  confirmDisabled = false,
   children,
 }: Props) {
   const msgId = useId();
@@ -57,7 +60,8 @@ export default function ConfirmModal({
           </button>
           <button
             onClick={onConfirm}
-            className={`${TOUCH_TARGET_MIN} px-4 text-sm font-medium rounded-lg transition-colors ${
+            disabled={confirmDisabled}
+            className={`${TOUCH_TARGET_MIN} px-4 text-sm font-medium rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${
               danger ? "bg-red-600 text-white hover:bg-red-700" : "bg-blue-600 text-white hover:bg-blue-700"
             }`}
           >

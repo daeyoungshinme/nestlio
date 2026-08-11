@@ -20,23 +20,33 @@ export const EXPENSE_TYPE_FILTER_OPTIONS: { value: ExpenseTypeFilter; label: str
   { value: "irregular", label: "비정기지출" },
 ];
 
+/** "all" | 사용자 id. 옵션 목록(누구를 "나"/표시명으로 부를지)은 호출부가 로그인 사용자 기준으로 만들어 넘긴다. */
+export type UserFilter = string;
+
 /** Human-readable summary of the current filter, shown on the pill when the sheet is closed. */
 export function filterSummaryLabel(
   topFilter: TopFilter,
   expenseTypeFilter: ExpenseTypeFilter,
   categoryFilter: number | "all",
   categoryOptions: CategoryOut[],
+  userFilter?: UserFilter,
+  userOptions?: { value: UserFilter; label: string }[],
 ): string {
-  if (topFilter === "all") return "전체";
-  const parts = [TOP_FILTER_OPTIONS.find((o) => o.value === topFilter)?.label ?? ""];
-  if (topFilter === "expense" && expenseTypeFilter !== "all") {
-    parts.push(EXPENSE_TYPE_FILTER_OPTIONS.find((o) => o.value === expenseTypeFilter)?.label ?? "");
+  const parts: string[] = [];
+  if (topFilter !== "all") {
+    parts.push(TOP_FILTER_OPTIONS.find((o) => o.value === topFilter)?.label ?? "");
+    if (topFilter === "expense" && expenseTypeFilter !== "all") {
+      parts.push(EXPENSE_TYPE_FILTER_OPTIONS.find((o) => o.value === expenseTypeFilter)?.label ?? "");
+    }
+    if (categoryFilter !== "all") {
+      const category = categoryOptions.find((c) => c.id === categoryFilter);
+      if (category) parts.push(category.name);
+    }
   }
-  if (categoryFilter !== "all") {
-    const category = categoryOptions.find((c) => c.id === categoryFilter);
-    if (category) parts.push(category.name);
+  if (userFilter && userFilter !== "all") {
+    parts.push(userOptions?.find((o) => o.value === userFilter)?.label ?? "");
   }
-  return parts.join(" · ");
+  return parts.length > 0 ? parts.join(" · ") : "전체";
 }
 
 interface Props {
@@ -44,9 +54,12 @@ interface Props {
   expenseTypeFilter: ExpenseTypeFilter;
   categoryFilter: number | "all";
   categoryOptions: CategoryOut[];
+  userFilter: UserFilter;
+  userOptions: { value: UserFilter; label: string }[];
   onChangeTopFilter: (value: TopFilter) => void;
   onChangeExpenseTypeFilter: (value: ExpenseTypeFilter) => void;
   onChangeCategoryFilter: (value: number | "all") => void;
+  onChangeUserFilter: (value: UserFilter) => void;
   onClose: () => void;
 }
 
@@ -85,9 +98,12 @@ export default function TransactionFilterSheet({
   expenseTypeFilter,
   categoryFilter,
   categoryOptions,
+  userFilter,
+  userOptions,
   onChangeTopFilter,
   onChangeExpenseTypeFilter,
   onChangeCategoryFilter,
+  onChangeUserFilter,
   onClose,
 }: Props) {
   return (
@@ -97,6 +113,13 @@ export default function TransactionFilterSheet({
           <p className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">구분</p>
           <PillGroup options={TOP_FILTER_OPTIONS} value={topFilter} onChange={onChangeTopFilter} />
         </div>
+
+        {userOptions.length > 2 && (
+          <div>
+            <p className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">누가</p>
+            <PillGroup options={userOptions} value={userFilter} onChange={onChangeUserFilter} />
+          </div>
+        )}
 
         {topFilter === "expense" && (
           <div>

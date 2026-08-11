@@ -21,7 +21,7 @@
 - 서비스 계층의 상세 컨벤션(함수 시그니처, Google 연동 가드, 결정론적 시간 처리 등)은 [app/services/CLAUDE.md](app/services/CLAUDE.md) 참고.
 - DB 세션은 `app/database.py`의 `get_db()` 의존성으로 요청 스코프에서 얻는다 (`Depends(get_db)`).
 - 설정값은 `app/config.py`의 모듈 전역 `settings` 인스턴스 하나를 어디서든 import해서 쓴다. 코칭엔진 임계값(저축률, 고정비 비율, 예산 경고/위험 %, 재량지출/부채 비율 등)도 여기 있다.
-- 부부 전용 앱이라 로컬 `users`는 최대 2명으로 제한된다. 공개 회원가입 폼은 없고, 계정은 (1) 최초 1명은 로컬 `users` 테이블이 완전히 비어 있는 상태에서 첫 인증된 요청 시 Supabase 사용자가 자동으로 로컬 `User` 행으로 미러링되거나(`app/dependencies.py`의 `get_current_user`) (2) 이미 등록된 사용자가 `app/services/invite_service.py`로 배우자를 초대해 늘어난다 — 초대 수락 시(`accept_invite`) 요청자의 검증된 JWT(`sub`/`email`)와 초대 이메일이 일치해야 표시 이름과 함께 `User` 행이 생성된다(클라이언트가 body로 보낸 `user_id`는 신뢰하지 않는다). `users`가 이미 1명 이상이면 자동 미러링은 403으로 거부되므로(두 번째 사용자는 반드시 초대를 거쳐야 함), 같은 Supabase 프로젝트를 쓰는 growlio 계정 등 무관한 계정이 통과되지 않는다.
+- 부부 전용 앱이라 로컬 `users`는 최대 2명(`app/services/user_service.py`의 `MAX_HOUSEHOLD_USERS`)으로 제한된다. 공개 회원가입 폼은 없지만, 인증된(Supabase JWT가 유효한) 요청이면 인원 상한에 도달하기 전까지는 첫 요청에서 바로 Supabase 사용자가 로컬 `User` 행으로 자동 미러링된다(`app/dependencies.py`의 `get_current_user`) — growlio처럼 같은 Supabase 프로젝트를 공유하는 계정도 이 두 자리 안에서는 초대 없이 로그인만으로 등록된다. 상한에 도달한 뒤에는 더 이상 새 계정이 생기지 않고 403이 반환된다. `app/services/invite_service.py`의 배우자 초대는 여전히 쓸 수 있지만 필수 경로는 아니다 — 표시 이름을 미리 지정해 초대장을 보내는 보조 수단으로, 초대 수락 시(`accept_invite`) 요청자의 검증된 JWT(`sub`/`email`)와 초대 이메일이 일치해야 표시 이름과 함께 `User` 행이 생성된다(클라이언트가 body로 보낸 `user_id`는 신뢰하지 않는다).
 
 ## 디렉토리별 컨벤션 (routers / schemas / models / utils)
 

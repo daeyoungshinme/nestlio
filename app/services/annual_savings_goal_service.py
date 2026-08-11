@@ -1,0 +1,88 @@
+from datetime import date
+from decimal import Decimal
+
+from sqlalchemy.orm import Session
+
+from app.models.annual_savings_goal import AnnualSavingsGoal
+from app.services import transaction_service
+
+
+def list_goals(db: Session) -> list[AnnualSavingsGoal]:
+    return db.query(AnnualSavingsGoal).order_by(AnnualSavingsGoal.year.desc()).all()
+
+
+def get_goal(db: Session, year: int) -> AnnualSavingsGoal | None:
+    return db.query(AnnualSavingsGoal).filter(AnnualSavingsGoal.year == year).first()
+
+
+def upsert_goal(
+    db: Session, year: int, target_amount_krw: Decimal, monthly_target_krw: Decimal | None
+) -> AnnualSavingsGoal:
+    goal = get_goal(db, year)
+    if goal is None:
+        goal = AnnualSavingsGoal(year=year)
+        db.add(goal)
+    goal.target_amount_krw = target_amount_krw
+    goal.monthly_target_krw = monthly_target_krw
+    db.commit()
+    db.refresh(goal)
+    return goal
+
+
+def delete_goal(db: Session, year: int) -> None:
+    goal = get_goal(db, year)
+    if goal is not None:
+        db.delete(goal)
+        db.commit()
+
+
+def compute_progress(db: Session, goal: AnnualSavingsGoal, today: date) -> dict:
+    """가구 전체 현금흐름 순저축(수입-지출, transaction_service.yearly_monthly_breakdown의
+    savings와 동일 정의 — goal_pace_insight가 이미 쓰는 "실제 저축액" 정의와 일치) 기준으로
+    연간/월간 달성률을 계산한다. growlio는 자기 자신의 거래내역으로 별도 계산하므로
+    이 함수의 결과는 nestlio 화면 표시 전용이며 growlio에 내려주지 않는다."""
+    breakdown = transaction_service.yearly_monthly_breakdown(db, goal.year)
+    if goal.year < today.year:
+        included = breakdown
+    elif goal.year == today.year:
+        included = breakdown[: today.month]
+    else:
+        included = []
+    net_savings_ytd = sum((row["savings"] for row in included), Decimal("0"))
+    annual_achievement_pct = (
+        net_savings_ytd / goal.target_amount_krw * 100 if goal.target_amount_krw else Decimal("0")
+    )
+
+    is_current_year = goal.year == today.year
+    current_month_savings = breakdown[today.month - 1]["savings"] if is_current_year else Decimal("0")
+    monthly_target = goal.monthly_target_krw or (goal.target_amount_krw / 12 if goal.target_amount_krw else None)
+    monthly_achievement_pct = (
+        current_month_savings / monthly_target * 100 if is_current_year and monthly_target else None
+    )
+
+    return {
+        "net_savings_ytd": net_savings_ytd,
+        "annual_achievement_pct": annual_achievement_pct,
+        "current_month_savings": current_month_savings,
+        "monthly_achievement_pct": monthly_achievement_pct,
+    }
+
+
+def suggested_targets(db: Session, today: date) -> dict:
+    """최근 3개월 가구 현금흐름 평균 저축액을 월/연 목표 입력값 제안으로 계산한다 (저장된
+    AnnualSavingsGoal row 유무와 무관 — 신규 연도에도 제안 가능해야 함)."""
+    suggested_monthly = transaction_service.trailing_average_savings(db, today, months=3)
+    return {
+        "suggested_monthly_target_krw": suggested_monthly,
+        "suggested_annual_target_krw": suggested_monthly * 12,
+    }
+
+
+def to_out(db: Session, goal: AnnualSavingsGoal, today: date) -> dict:
+    return {
+        "year": goal.year,
+        "target_amount_krw": goal.target_amount_krw,
+        "monthly_target_krw": goal.monthly_target_krw,
+        "updated_at": goal.updated_at,
+        **compute_progress(db, goal, today),
+    }

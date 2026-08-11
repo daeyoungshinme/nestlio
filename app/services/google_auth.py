@@ -8,6 +8,7 @@ from app.models.google_oauth_token import GoogleOAuthToken
 SCOPES = [
     "https://www.googleapis.com/auth/calendar.events",
     "https://www.googleapis.com/auth/gmail.send",
+    "https://www.googleapis.com/auth/spreadsheets.readonly",
 ]
 
 

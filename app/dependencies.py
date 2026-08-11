@@ -14,6 +14,7 @@ from sqlalchemy.orm import Session
 from app.config import settings
 from app.database import get_db
 from app.models.user import User
+from app.services import user_service
 
 logger = logging.getLogger(__name__)
 
@@ -88,16 +89,24 @@ def get_current_user(
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token payload")
     user_id = uuid.UUID(sub)
     user = db.get(User, user_id)
+    if user is not None and user.removed_at is not None:
+        # 배우자에게서 제거된 계정 - Supabase 세션 자체는 여전히 유효하므로 401이 아니라
+        # 403으로 거부한다 (401이면 프론트가 refreshSession()을 성공시킨 뒤 재요청이 조용히
+        # 실패해 로그아웃 처리로 이어지지 않는다). frontend/src/api/client.ts가
+        # user_service.REMOVED_USER_DETAIL 문자열을 매칭해 자동 로그아웃시킨다.
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=user_service.REMOVED_USER_DETAIL)
     if user is None:
-        # nestlio는 자체 회원가입이 없다 - 로컬 users 테이블이 완전히 비어 있는(=앱 최초 부팅)
-        # 경우에만 첫 인증된 요청에서 Supabase Auth 사용자를 로컬 User 행으로 미러링한다.
-        # 이미 사용자가 1명 이상 있으면, 그 이후의 계정 생성은 반드시 배우자 초대
-        # (invite_service.accept_invite)를 거쳐야 한다 - 그렇지 않으면 growlio 등 같은
-        # Supabase 프로젝트를 쓰는 무관한 계정도 여기서 통과되어 버린다.
-        if db.query(User).first() is not None:
+        # nestlio는 자체 회원가입이 없다 - 대신 인증된(=Supabase JWT가 유효한) 요청이면
+        # 로컬 users가 가구 인원 상한(MAX_HOUSEHOLD_USERS, 2명)에 도달할 때까지는 첫 요청에서
+        # 바로 Supabase Auth 사용자를 로컬 User 행으로 자동 미러링한다 - growlio처럼 같은
+        # Supabase 프로젝트를 공유하는 계정도 이 상한 안에서는 초대 없이 로그인만으로 등록된다.
+        # 상한에 도달한 뒤에는 더 이상 새 계정이 생기지 않는다. 배우자 초대(invite_service)는
+        # 여전히 쓸 수 있지만 필수 경로는 아니다 - 표시 이름을 미리 지정해 초대장을 보내는
+        # 보조 수단일 뿐, 계정 생성 자체를 막는 게이트가 아니다.
+        if len(user_service.list_users(db)) >= user_service.MAX_HOUSEHOLD_USERS:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail="가입되지 않은 계정입니다. 배우자 초대를 통해서만 가입할 수 있습니다.",
+                detail="이미 가구 인원(2명)이 모두 등록되어 있습니다.",
             )
         email = payload.get("email", "")
         user = User(id=user_id, email=email, display_name=email.split("@")[0] if email else "user")

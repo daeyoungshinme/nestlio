@@ -9,12 +9,14 @@ from fastapi.staticfiles import StaticFiles
 from app.config import settings as app_settings
 from app.routers import (
     accounts,
+    annual_savings_goals,
     budgets,
     cashflow_plan,
     categories,
     challenges,
     dashboard,
     events,
+    external,
     goals,
     internal_jobs,
     invites,
@@ -81,6 +83,8 @@ app.include_router(loans.router, prefix=API_PREFIX)
 app.include_router(net_worth.router, prefix=API_PREFIX)
 app.include_router(notifications.router, prefix=API_PREFIX)
 app.include_router(challenges.router, prefix=API_PREFIX)
+app.include_router(annual_savings_goals.router, prefix=API_PREFIX)
+app.include_router(external.router, prefix=API_PREFIX)
 app.include_router(internal_jobs.router)
 
 

@@ -1,7 +1,8 @@
-import { apiDelete, apiGet, apiPost, apiPut } from "@/api/client";
+import { api, apiDelete, apiGet, apiPost, apiPut } from "@/api/client";
 import type {
   CategoryAmountOut,
   ImportResultOut,
+  SheetImportIn,
   TransactionCreateIn,
   TransactionFilters,
   TransactionListOut,
@@ -17,6 +18,7 @@ export const fetchCategoryBreakdown = (filters: {
   date_from: string;
   date_to: string;
   type?: "income" | "expense";
+  user_id?: string;
 }) => apiGet<CategoryAmountOut[]>("/transactions/category-breakdown", { params: filters });
 
 export const fetchTransaction = (id: number) => apiGet<TransactionOut>(`/transactions/${id}`);
@@ -40,11 +42,10 @@ export const importTransactionsCsv = (file: File) => {
   });
 };
 
-export function exportTransactionsCsvUrl(filters: TransactionFilters): string {
-  const params = new URLSearchParams();
-  Object.entries(filters).forEach(([key, value]) => {
-    if (value !== undefined && value !== null && value !== "") params.set(key, String(value));
-  });
-  const qs = params.toString();
-  return `/api/v1/transactions/export.csv${qs ? `?${qs}` : ""}`;
-}
+export const importTransactionsFromSheet = (payload: SheetImportIn) =>
+  apiPost<ImportResultOut>("/transactions/import-sheet", payload);
+
+export const fetchTransactionsCsv = (filters: TransactionFilters) =>
+  api
+    .get<Blob>("/transactions/export.csv", { params: filters, responseType: "blob" })
+    .then((r) => r.data);

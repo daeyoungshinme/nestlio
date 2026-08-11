@@ -205,6 +205,13 @@ export interface ImportResultOut {
   skipped: SkippedRowOut[];
 }
 
+export interface SheetImportIn {
+  mode: "public" | "oauth";
+  sheet_url?: string;
+  spreadsheet_id?: string;
+  sheet_name?: string;
+}
+
 export type RecurringFrequency = "weekly" | "monthly" | "yearly";
 
 export interface RecurringOut {
@@ -461,31 +468,69 @@ export interface NotificationListOut {
   unread_count: number;
 }
 
+export type FundingSourceType = "savings_product" | "account" | "loan";
+
+export interface FundingSourceOut {
+  type: FundingSourceType;
+  id: number;
+  name: string;
+  amount: string;
+}
+
+export interface FundingSourceIn {
+  type: FundingSourceType;
+  id: number;
+}
+
 export interface FinancialGoalOut {
   id: number;
   priority: number;
   name: string;
   target_age: number | null;
+  target_date: string | null;
   required_amount: string;
   monthly_saving_amount: string;
   current_amount: string;
   progress_pct: string;
   sort_order: number;
-  funding_source_ids: number[];
-  funding_source_names: string[];
+  funding_sources: FundingSourceOut[];
+  months_remaining: number | null;
+  suggested_monthly_amount: string | null;
 }
 
 export interface FinancialGoalCreateIn {
   priority: number;
   name: string;
   target_age?: number | null;
+  target_date?: string | null;
   required_amount: string;
   monthly_saving_amount: string;
   current_amount?: string;
-  savings_product_ids?: number[];
+  funding_sources?: FundingSourceIn[];
 }
 
 export type FinancialGoalUpdateIn = FinancialGoalCreateIn;
+
+export interface AnnualSavingsGoalOut {
+  year: number;
+  target_amount_krw: string;
+  monthly_target_krw: string | null;
+  updated_at: string;
+  net_savings_ytd: string;
+  annual_achievement_pct: string;
+  current_month_savings: string;
+  monthly_achievement_pct: string | null;
+}
+
+export interface AnnualSavingsGoalUpsertIn {
+  target_amount_krw: string;
+  monthly_target_krw?: string | null;
+}
+
+export interface AnnualSavingsGoalSuggestionOut {
+  suggested_monthly_target_krw: string;
+  suggested_annual_target_krw: string;
+}
 
 export interface ChallengeOut {
   id: number;

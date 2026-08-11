@@ -31,6 +31,8 @@ export const QUERY_KEYS = {
   cashflowPlan: (yearMonth: string) => ["cashflow-plan", yearMonth] as const,
   budgets: (yearMonth: string) => ["budgets", yearMonth] as const,
   financialGoals: ["financial-goals"] as const,
+  annualSavingsGoals: ["annual-savings-goals"] as const,
+  annualSavingsGoalSuggestion: ["annual-savings-goals", "suggestion"] as const,
   challenges: ["challenges"] as const,
   savingsProducts: ["savings-products"] as const,
   growlioInvestmentAccounts: ["growlio-accounts", "savings-products"] as const,

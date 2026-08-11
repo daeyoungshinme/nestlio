@@ -109,3 +109,47 @@ def test_update_user_not_found(client, seeded_db):
         "/api/v1/users/00000000-0000-0000-0000-000000000000", json={"display_name": "누구"}
     )
     assert resp.status_code == 404
+
+
+def test_remove_spouse(client, seeded_db):
+    db = seeded_db["db"]
+    spouse = User(email="spouse2@example.com", display_name="Spouse 2")
+    db.add(spouse)
+    db.commit()
+    db.refresh(spouse)
+
+    resp = client.delete(f"/api/v1/users/{spouse.id}")
+    assert resp.status_code == 204
+
+    list_resp = client.get("/api/v1/users")
+    ids = {u["id"] for u in list_resp.json()}
+    assert str(spouse.id) not in ids
+
+
+def test_remove_self_rejected(client, seeded_db):
+    user = seeded_db["user"]
+    resp = client.delete(f"/api/v1/users/{user.id}")
+    assert resp.status_code == 400
+
+    list_resp = client.get("/api/v1/users")
+    ids = {u["id"] for u in list_resp.json()}
+    assert str(user.id) in ids
+
+
+def test_remove_user_not_found(client, seeded_db):
+    resp = client.delete("/api/v1/users/00000000-0000-0000-0000-000000000000")
+    assert resp.status_code == 404
+
+
+def test_remove_already_removed_user_returns_404(client, seeded_db):
+    db = seeded_db["db"]
+    spouse = User(email="spouse2@example.com", display_name="Spouse 2")
+    db.add(spouse)
+    db.commit()
+    db.refresh(spouse)
+
+    first = client.delete(f"/api/v1/users/{spouse.id}")
+    assert first.status_code == 204
+
+    second = client.delete(f"/api/v1/users/{spouse.id}")
+    assert second.status_code == 404

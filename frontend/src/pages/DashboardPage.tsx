@@ -201,7 +201,14 @@ export default function DashboardPage() {
               />
             ) : (
               <>
-                <p className="text-lg font-bold text-gray-900 dark:text-gray-50 mb-1">{topGoal.name}</p>
+                <div className="flex items-center gap-1.5 mb-1">
+                  <p className="text-lg font-bold text-gray-900 dark:text-gray-50">{topGoal.name}</p>
+                  {topGoal.target_date !== null && (
+                    <span className="shrink-0 px-1.5 py-0.5 rounded text-[11px] font-semibold bg-emerald-50 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300">
+                      D-{Math.round((new Date(topGoal.target_date).getTime() - new Date().setHours(0, 0, 0, 0)) / 86_400_000)}
+                    </span>
+                  )}
+                </div>
                 <p className="text-sm text-gray-500 dark:text-gray-400 mb-3">
                   {formatKrw(topGoal.current_amount)} / {formatKrw(topGoal.required_amount)}
                 </p>

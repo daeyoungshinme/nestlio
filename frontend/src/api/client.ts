@@ -10,6 +10,11 @@ interface RetryableConfig extends InternalAxiosRequestConfig {
 
 type QueueEntry = { resolve: (token: string) => void; reject: (err: unknown) => void };
 
+// app/services/user_service.py의 REMOVED_USER_DETAIL과 정확히 일치해야 한다 - 배우자에게서
+// 제거된 계정의 요청은 (다른 이유의 403과 구분하기 위해) 이 문자열을 가진 403으로만 온다.
+// 두 값이 어긋나면 제거된 계정이 자동 로그아웃되지 않고 화면에서 계속 에러만 반복된다.
+const REMOVED_USER_DETAIL = "가구에서 제외된 계정입니다. 다시 로그인해 주세요.";
+
 let isRefreshing = false;
 let failedQueue: QueueEntry[] = [];
 // 세션 토큰 캐시 — 매 요청마다 getSession() 호출을 피하기 위해 모듈 레벨에서 관리
@@ -58,7 +63,12 @@ api.interceptors.request.use(async (config) => {
 });
 
 api.interceptors.response.use(
-  (res) => res,
+  (res) => {
+    if (res.headers["x-growlio-sync-warning"]) {
+      toast("가계부에는 저장했지만 growlio 반영에는 실패했어요. growlio에서 나중에 다시 확인해 주세요.", "info");
+    }
+    return res;
+  },
   async (error) => {
     const config = error.config as RetryableConfig | undefined;
     const status = error.response?.status as number | undefined;
@@ -95,6 +105,13 @@ api.interceptors.response.use(
 
       if (window.location.pathname !== "/login") {
         toast("세션이 만료되었습니다. 다시 로그인해 주세요.", "error");
+        window.dispatchEvent(new CustomEvent("nestlio:session-expired"));
+      }
+    } else if (status === 403 && error.response?.data?.detail === REMOVED_USER_DETAIL) {
+      // refreshSession()이 성공해버리는 401 경로와 달리, 제거된 계정은 항상 이 403을 받으므로
+      // 재시도 없이 바로 같은 로그아웃 처리를 탄다.
+      if (window.location.pathname !== "/login") {
+        toast("배우자에 의해 가구에서 제외되었습니다. 다시 로그인해 주세요.", "error");
         window.dispatchEvent(new CustomEvent("nestlio:session-expired"));
       }
     } else if (status != null && status >= 500) {

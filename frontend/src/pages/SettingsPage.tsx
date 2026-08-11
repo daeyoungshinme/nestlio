@@ -1,8 +1,9 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { CheckCircle2, ChevronDown, Copy, Mail, Moon, Sun, UserPlus, X, XCircle } from "lucide-react";
+import { CheckCircle2, ChevronDown, Copy, Mail, Moon, Sun, UserMinus, UserPlus, X, XCircle } from "lucide-react";
 import { Link } from "react-router-dom";
 import Button from "@/components/common/Button";
+import ConfirmModal from "@/components/common/ConfirmModal";
 import FormInput from "@/components/common/FormInput";
 import SkeletonCard from "@/components/common/SkeletonCard";
 import { useLogout } from "@/hooks/useLogout";
@@ -17,7 +18,7 @@ import {
   uploadCouplePhoto,
 } from "@/api/settings";
 import { cancelInvite, createInvite, fetchInvites } from "@/api/invites";
-import { fetchMe, fetchUsers, updateMe, updateUser } from "@/api/users";
+import { fetchMe, fetchUsers, removeUser, updateMe, updateUser } from "@/api/users";
 import type { CoachingThresholdsOut, InviteOut } from "@/types";
 import { QUERY_KEYS } from "@/constants/queryKeys";
 import { INPUT_SM } from "@/constants/inputStyles";
@@ -52,6 +53,8 @@ export default function SettingsPage() {
   const [displayNameEdit, setDisplayNameEdit] = useState<string | null>(null);
   const [spouseDisplayNameEdit, setSpouseDisplayNameEdit] = useState<string | null>(null);
   const [newNotifyEmail, setNewNotifyEmail] = useState("");
+  const [removeSpouseOpen, setRemoveSpouseOpen] = useState(false);
+  const [removeSpouseConfirmText, setRemoveSpouseConfirmText] = useState("");
   const queryClient = useQueryClient();
   const logout = useLogout();
   const { isDark, toggle: toggleTheme } = useThemeStore();
@@ -103,6 +106,20 @@ export default function SettingsPage() {
       void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.monthlyRetrospective });
       setSpouseDisplayNameEdit(null);
       toast("배우자 표시 이름을 저장했습니다.", "success");
+    },
+    onError: (err) => toast(extractErrorMessage(err), "error"),
+  });
+
+  const removeSpouseMutation = useMutation({
+    mutationFn: () => removeUser(spouse!.id),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.users });
+      void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.me });
+      void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.dashboardAll });
+      void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.monthlyRetrospective });
+      setRemoveSpouseOpen(false);
+      setRemoveSpouseConfirmText("");
+      toast("배우자를 제거했습니다.", "success");
     },
     onError: (err) => toast(extractErrorMessage(err), "error"),
   });
@@ -307,7 +324,19 @@ export default function SettingsPage() {
       <div className="card space-y-3">
         <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300">배우자 초대</h3>
         {householdFull ? (
-          <p className="text-xs text-gray-500 dark:text-gray-400">이미 배우자가 등록되어 있어요.</p>
+          <div className="flex items-center justify-between gap-2">
+            <p className="text-xs text-gray-500 dark:text-gray-400">이미 배우자가 등록되어 있어요.</p>
+            {spouse && (
+              <Button
+                variant="danger"
+                size="sm"
+                icon={<UserMinus size={14} />}
+                onClick={() => setRemoveSpouseOpen(true)}
+              >
+                배우자 제거
+              </Button>
+            )}
+          </div>
         ) : (
           <>
             <p className="text-xs text-gray-500 dark:text-gray-400">
@@ -535,6 +564,28 @@ export default function SettingsPage() {
       <Button variant="secondary" onClick={() => void logout()}>
         로그아웃
       </Button>
+
+      {removeSpouseOpen && spouse && (
+        <ConfirmModal
+          message={`"${spouse.display_name}"님을 가구에서 제외할까요? 거래내역 등 기존 기록은 그대로 남지만, 이후 다른 계정으로 그 자리를 채울 수 있어요.`}
+          confirmLabel="제거"
+          confirmDisabled={removeSpouseConfirmText !== spouse.display_name || removeSpouseMutation.isPending}
+          onConfirm={() => removeSpouseMutation.mutate()}
+          onCancel={() => {
+            setRemoveSpouseOpen(false);
+            setRemoveSpouseConfirmText("");
+          }}
+        >
+          <div className="mt-3">
+            <FormInput
+              label={`확인을 위해 "${spouse.display_name}"을 입력하세요`}
+              value={removeSpouseConfirmText}
+              onChange={(e) => setRemoveSpouseConfirmText(e.target.value)}
+              autoComplete="off"
+            />
+          </div>
+        </ConfirmModal>
+      )}
     </div>
   );
 }

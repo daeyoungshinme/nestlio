@@ -44,3 +44,21 @@ def update_user(
     if user is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "사용자를 찾을 수 없습니다.")
     return user_service.update_display_name(db, user, payload.display_name)
+
+
+@router.delete("/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
+def remove_user(
+    user_id: uuid.UUID,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """가구 구성원 중 한쪽이 상대(배우자)를 제거한다 - 하드 삭제가 아니라 소프트 삭제이므로
+    거래내역 등 기존 데이터는 그대로 남는다 (app/services/user_service.py::remove_user 참고).
+    본인은 이 엔드포인트로 제거할 수 없다."""
+    user = db.get(User, user_id)
+    if user is None or user.removed_at is not None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "사용자를 찾을 수 없습니다.")
+    try:
+        user_service.remove_user(db, target=user, requested_by=current_user)
+    except user_service.CannotRemoveSelfError as exc:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, str(exc)) from None

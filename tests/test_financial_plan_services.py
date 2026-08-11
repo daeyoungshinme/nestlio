@@ -30,18 +30,21 @@ def test_goal_update_missing_returns_none(seeded_db):
 def test_goal_progress_pct(seeded_db):
     db = seeded_db["db"]
 
+    def progress_pct(goal):
+        return goal_service.compute_progress_pct(goal_service.compute_current_amount(db, goal), goal.required_amount)
+
     goal = goal_service.create_goal(
         db, 1, "내집마련", 40, Decimal("500000000"), Decimal("1500000"), Decimal("125000000")
     )
-    assert goal.progress_pct == Decimal("25")
+    assert progress_pct(goal) == Decimal("25")
 
     no_target = goal_service.create_goal(db, 2, "무제한목표", None, Decimal("0"), Decimal("0"), Decimal("100"))
-    assert no_target.progress_pct == Decimal("0")
+    assert progress_pct(no_target) == Decimal("0")
 
     overfunded = goal_service.create_goal(
         db, 3, "초과달성", None, Decimal("1000000"), Decimal("0"), Decimal("2000000")
     )
-    assert overfunded.progress_pct == Decimal("100")
+    assert progress_pct(overfunded) == Decimal("100")
 
 
 def test_savings_product_create_update_deactivate(seeded_db):
