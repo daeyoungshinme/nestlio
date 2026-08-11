@@ -1,5 +1,6 @@
 import Tabs from "@/components/common/Tabs";
 import AccountsSection from "@/components/accounts/AccountsSection";
+import AccountsSummaryCards from "@/components/accounts/AccountsSummaryCards";
 import EmergencyFundCard from "@/components/accounts/EmergencyFundCard";
 import SavingsProductsSection from "@/components/accounts/SavingsProductsSection";
 import LoansSection from "@/components/accounts/LoansSection";
@@ -13,6 +14,7 @@ export default function AccountsPage() {
 
   return (
     <div className="space-y-6">
+      <AccountsSummaryCards />
       <NetWorthTrendChart />
       <EmergencyFundCard />
 

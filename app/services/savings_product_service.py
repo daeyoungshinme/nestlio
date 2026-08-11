@@ -98,14 +98,16 @@ def set_growlio_link(
     return product
 
 
-def list_growlio_accounts(bearer_token: str) -> list[dict]:
-    """연동 대상 선택 UI를 위해 growlio 계좌 목록을 전달한다.
+def _is_importable_asset_type(asset_type: str) -> bool:
+    """은행 계좌(계좌 탭에서 별도로 가져옴)와 부동산(시세/담보대출 페어로 다뤄야 해서
+    real_estate_service의 전용 플로우로만 가져옴)은 이 일반 가져오기 대상에서 제외한다."""
+    return asset_type not in growlio_client.BANK_ASSET_TYPES and asset_type != growlio_client.REAL_ESTATE_ASSET_TYPE
 
-    은행 계좌(BANK_ACCOUNT)는 nestlio의 계좌 탭(account_service)에서 별도로 가져오므로 제외한다
-    — 저축상품과 계좌가 서로 다른 모델이라 같은 growlio 계좌가 양쪽에 중복 생성되는 것을 막는다.
-    """
+
+def list_growlio_accounts(bearer_token: str) -> list[dict]:
+    """연동 대상 선택 UI를 위해 growlio 계좌 목록을 전달한다."""
     accounts = growlio_client.fetch_account_balances(bearer_token)
-    return [a for a in accounts if a["asset_type"] not in growlio_client.BANK_ASSET_TYPES]
+    return [a for a in accounts if _is_importable_asset_type(a["asset_type"])]
 
 
 def sync_from_growlio(db: Session, product_id: int, bearer_token: str, *, now: datetime) -> SavingsProduct | None:
@@ -134,7 +136,7 @@ def import_from_growlio(
     accounts_by_id = {
         a["id"]: a
         for a in growlio_client.fetch_account_balances(bearer_token)
-        if a["asset_type"] not in growlio_client.BANK_ASSET_TYPES
+        if _is_importable_asset_type(a["asset_type"])
     }
     already_linked = {
         product_id

@@ -5,13 +5,30 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.dependencies import get_current_user
+from app.dependencies import get_bearer_token, get_current_user
 from app.models.user import User
-from app.schemas.financial_goal import FinancialGoalCreateIn, FinancialGoalOut, FinancialGoalUpdateIn
+from app.schemas.financial_goal import (
+    FinancialGoalCreateIn,
+    FinancialGoalOut,
+    FinancialGoalUpdateIn,
+    GrowlioGoalSettingsOut,
+)
 from app.services import goal_service, notification_service
+from app.services.growlio_client import GrowlioNotConfiguredError, GrowlioRequestError
 
 router = APIRouter(prefix="/financial-goals", tags=["financial-goals"])
 logger = logging.getLogger(__name__)
+
+
+@router.get("/growlio-goal", response_model=GrowlioGoalSettingsOut)
+def get_growlio_goal(bearer_token: str = Depends(get_bearer_token), _: User = Depends(get_current_user)):
+    """재무목표 신규 작성 폼을 미리 채우기 위해 growlio 투자목표 설정값을 프록시로 조회한다."""
+    try:
+        return goal_service.fetch_growlio_goal_settings(bearer_token)
+    except GrowlioNotConfiguredError as exc:
+        raise HTTPException(status.HTTP_501_NOT_IMPLEMENTED, str(exc)) from exc
+    except GrowlioRequestError as exc:
+        raise HTTPException(status.HTTP_502_BAD_GATEWAY, str(exc)) from exc
 
 
 @router.get("", response_model=list[FinancialGoalOut])

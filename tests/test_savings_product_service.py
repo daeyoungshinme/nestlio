@@ -168,6 +168,35 @@ def test_list_growlio_accounts_excludes_bank_accounts(db_session):
     assert [a["id"] for a in accounts] == ["growlio-acc-2"]
 
 
+def test_list_growlio_accounts_excludes_real_estate(db_session):
+    with patch(
+        "app.services.savings_product_service.growlio_client.fetch_account_balances",
+        return_value=[
+            {"id": "growlio-acc-1", "name": "강남 아파트", "asset_type": "REAL_ESTATE", "current_value_krw": 600000000.0},
+            {"id": "growlio-acc-2", "name": "국민 자유적금", "asset_type": "DEPOSIT", "current_value_krw": 1234500.0},
+        ],
+    ):
+        accounts = savings_product_service.list_growlio_accounts("token")
+
+    assert [a["id"] for a in accounts] == ["growlio-acc-2"]
+
+
+def test_import_from_growlio_skips_real_estate(db_session):
+    with patch(
+        "app.services.savings_product_service.growlio_client.fetch_account_balances",
+        return_value=[
+            {"id": "growlio-acc-1", "name": "강남 아파트", "asset_type": "REAL_ESTATE", "current_value_krw": 600000000.0},
+            {"id": "growlio-acc-2", "name": "국민 자유적금", "asset_type": "DEPOSIT", "current_value_krw": 1234500.0},
+        ],
+    ):
+        created = savings_product_service.import_from_growlio(
+            db_session, ["growlio-acc-1", "growlio-acc-2"], "token", now=datetime(2026, 8, 6)
+        )
+
+    assert len(created) == 1
+    assert created[0].growlio_account_id == "growlio-acc-2"
+
+
 def test_import_from_growlio_skips_bank_accounts(db_session):
     with patch(
         "app.services.savings_product_service.growlio_client.fetch_account_balances",

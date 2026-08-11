@@ -103,6 +103,62 @@ def test_list_growlio_accounts_proxies_bank_accounts_only(client):
     assert [a["id"] for a in resp.json()] == ["growlio-acc-1"]
 
 
+def test_sync_account_without_link_returns_409(client):
+    create_resp = client.post(
+        "/api/v1/accounts", json={"name": "월급통장", "account_type": "bank", "initial_balance": "0"}
+    )
+    account_id = create_resp.json()["id"]
+    _override_bearer_token()
+
+    resp = client.post(f"/api/v1/accounts/{account_id}/sync")
+
+    assert resp.status_code == 409
+
+
+def test_sync_account_updates_displayed_balance_and_last_synced_at(client, seeded_db):
+    db, user, food = seeded_db["db"], seeded_db["user"], seeded_db["food"]
+    create_resp = client.post(
+        "/api/v1/accounts", json={"name": "월급통장", "account_type": "bank", "initial_balance": "100000"}
+    )
+    account_id = create_resp.json()["id"]
+    _override_bearer_token()
+    with patch(
+        "app.services.account_service.growlio_client.fetch_account_balances",
+        return_value=[
+            {"id": "growlio-acc-1", "name": "국민은행 입출금", "asset_type": "BANK_ACCOUNT", "current_value_krw": 1500000.0},
+        ],
+    ):
+        import_resp = client.post(
+            "/api/v1/accounts/growlio-import",
+            json={"growlio_account_ids": ["growlio-acc-1"]},
+        )
+    assert import_resp.status_code == 200
+    imported_id = next(
+        r["account"]["id"]
+        for r in client.get("/api/v1/accounts").json()
+        if r["account"]["growlio_account_id"] == "growlio-acc-1"
+    )
+    transaction_service.create_transaction(
+        db, user.id, food.id, "expense", Decimal("20000"), date(2026, 7, 2), account_id=imported_id
+    )
+    # displayed balance before sync: 1500000 - 20000 = 1480000
+
+    with patch(
+        "app.services.account_service.growlio_client.fetch_account_balances",
+        return_value=[
+            {"id": "growlio-acc-1", "name": "국민은행 입출금", "asset_type": "BANK_ACCOUNT", "current_value_krw": 999000.0},
+        ],
+    ):
+        resp = client.post(f"/api/v1/accounts/{imported_id}/sync")
+
+    assert resp.status_code == 200
+    assert resp.json()["last_synced_at"] is not None
+
+    list_resp = client.get("/api/v1/accounts")
+    row = next(r for r in list_resp.json() if r["account"]["id"] == imported_id)
+    assert Decimal(row["balance"]) == Decimal("999000")
+
+
 def test_growlio_import_creates_one_account_per_selected_bank_account(client):
     _override_bearer_token()
 

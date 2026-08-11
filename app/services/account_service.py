@@ -1,3 +1,4 @@
+from datetime import datetime
 from decimal import Decimal
 
 from sqlalchemy import func
@@ -6,6 +7,10 @@ from sqlalchemy.orm import Session
 from app.models.account import Account
 from app.models.transaction import Transaction
 from app.services import growlio_client
+
+
+class GrowlioSyncError(Exception):
+    """동기화 요청이 사용자에게 보여줄 수 있는 사유로 실패했을 때 (연동 없음/계좌 못 찾음)."""
 
 
 def list_accounts(db: Session, active_only: bool = True) -> list[Account]:
@@ -95,6 +100,30 @@ def import_from_growlio(db: Session, growlio_account_ids: list[str], bearer_toke
     for account in created:
         db.refresh(account)
     return created
+
+
+def sync_account(db: Session, account_id: int, bearer_token: str, *, now: datetime) -> Account | None:
+    """연동된 growlio 계좌의 최신 잔액에 맞춰 initial_balance를 역산해 재조정한다.
+
+    계좌 잔액은 거래 내역으로 파생되므로(current_balance) growlio 값을 그대로 덮어쓰지 않고,
+    update_account의 "현재 잔액 직접 입력" 역산 로직과 동일하게 이미 반영된 거래 순증감액만큼
+    initial_balance를 계산해 화면상 잔액이 growlio 값과 정확히 일치하도록 만든다.
+    """
+    account = db.get(Account, account_id)
+    if account is None:
+        return None
+    if not account.growlio_account_id:
+        raise GrowlioSyncError("연동된 growlio 계좌가 없습니다.")
+    accounts = growlio_client.fetch_account_balances(bearer_token)
+    match = next((a for a in accounts if a["id"] == account.growlio_account_id), None)
+    if match is None:
+        raise GrowlioSyncError("growlio에서 연동된 계좌를 찾을 수 없습니다. 계좌가 삭제되었을 수 있습니다.")
+    net_transactions = current_balance(db, account) - account.initial_balance
+    account.initial_balance = Decimal(str(match["current_value_krw"])) - net_transactions
+    account.last_synced_at = now
+    db.commit()
+    db.refresh(account)
+    return account
 
 
 def current_balance(db: Session, account: Account) -> Decimal:

@@ -1,7 +1,7 @@
 import { useState } from "react";
 import type { FormEvent } from "react";
-import { useQuery } from "@tanstack/react-query";
-import { ExternalLink, Link2, Plus, Target } from "lucide-react";
+import { useMutation, useQuery } from "@tanstack/react-query";
+import { Download, ExternalLink, Link2, Plus, Target } from "lucide-react";
 import AnnualSavingsGoalCard from "@/components/financialPlan/AnnualSavingsGoalCard";
 import Button from "@/components/common/Button";
 import ChallengesSection from "@/components/financialPlan/ChallengesSection";
@@ -16,7 +16,7 @@ import SkeletonCard from "@/components/common/SkeletonCard";
 import { currentYearMonth } from "@/components/common/MonthPicker";
 import { fetchAccounts } from "@/api/accounts";
 import { fetchDashboard } from "@/api/dashboard";
-import { createGoal, deleteGoal, fetchGoals, updateGoal } from "@/api/goals";
+import { createGoal, deleteGoal, fetchGoals, fetchGrowlioGoalSettings, updateGoal } from "@/api/goals";
 import { fetchLoans } from "@/api/loans";
 import { fetchSavingsProducts } from "@/api/savingsProducts";
 import { FORM_LABEL } from "@/constants/inputStyles";
@@ -25,6 +25,7 @@ import { STALE_TIME } from "@/constants/queryConfig";
 import { useCrudMutations } from "@/hooks/useCrudMutations";
 import { fundingLinkBadgeStyle, insightSeverityStyle, progressStatusBadgeClass, progressStatusLabel } from "@/utils/colors";
 import { computeGoalStatus, daysUntil } from "@/utils/goalStatus";
+import { extractErrorMessage } from "@/utils/error";
 import { formatKrw, formatKrwPreview, formatPercent, toAmountInputValue } from "@/utils/format";
 import { toast } from "@/utils/toast";
 import { GROWLIO_APP_URL, growlioPortfolioUrl, isGrowlioLinkedInvestment } from "@/constants/growlio";
@@ -358,6 +359,34 @@ function GoalFormModal({
   const isLinked =
     draft.savings_product_ids.length > 0 || draft.account_ids.length > 0 || draft.loan_ids.length > 0;
 
+  const growlioGoalMutation = useMutation({
+    mutationFn: fetchGrowlioGoalSettings,
+    onSuccess: (data) => {
+      if (!data.is_configured || data.goal_amount === null) {
+        toast("growlio에 설정된 투자목표가 없어요.", "error");
+        return;
+      }
+      const growlioProductIds = savingsProducts.filter(isGrowlioLinkedInvestment).map((p) => String(p.id));
+      setDraft((d) => ({
+        ...d,
+        name: d.name.trim() === "" ? "growlio 투자목표" : d.name,
+        required_amount: String(Math.round(data.goal_amount as number)),
+        monthly_saving_amount:
+          data.annual_deposit_goal !== null
+            ? String(Math.round(data.annual_deposit_goal / 12))
+            : d.monthly_saving_amount,
+        savings_product_ids: growlioProductIds.length > 0 ? growlioProductIds : d.savings_product_ids,
+      }));
+      toast(
+        growlioProductIds.length > 0
+          ? "growlio 투자목표를 불러왔어요."
+          : "growlio 투자목표를 불러왔어요. 저축·투자 상품 탭에서 growlio 계좌를 먼저 가져오면 진행률이 자동 반영돼요.",
+        "success",
+      );
+    },
+    onError: (err) => toast(extractErrorMessage(err, "growlio 투자목표를 불러오지 못했습니다."), "error"),
+  });
+
   const toggleId = (field: "savings_product_ids" | "account_ids" | "loan_ids", id: string) => {
     setDraft((d) => ({
       ...d,
@@ -400,6 +429,18 @@ function GoalFormModal({
   return (
     <Modal onClose={onClose} title={title}>
       <form onSubmit={handleSubmit} className="p-6 overflow-y-auto flex flex-col gap-3">
+        {existingGoal === null && (
+          <Button
+            type="button"
+            variant="secondary"
+            size="sm"
+            icon={<Download size={14} />}
+            loading={growlioGoalMutation.isPending}
+            onClick={() => growlioGoalMutation.mutate()}
+          >
+            growlio 투자목표 불러오기
+          </Button>
+        )}
         <FormInput
           label="재무목표"
           value={draft.name}

@@ -62,3 +62,13 @@ export function formatWeekRange(mondayIso: string, sundayIso: string): string {
   const [, m2, d2] = sundayIso.split("-").map(Number);
   return `${m1}/${d1} - ${m2}/${d2}`;
 }
+
+/** growlio 연동 항목의 "마지막 동기화" 타임스탬프 표시. 예: "2026-08-11T09:00:00" -> "8/11 09:00" */
+export function formatSyncedAt(value: string): string {
+  return new Date(value).toLocaleString("ko-KR", {
+    month: "numeric",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}

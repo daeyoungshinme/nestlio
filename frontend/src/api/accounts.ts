@@ -17,6 +17,8 @@ export const updateAccount = (id: number, payload: AccountUpdateIn) =>
 
 export const deactivateAccount = (id: number) => apiPost(`/accounts/${id}/deactivate`);
 
+export const syncAccount = (id: number) => apiPost<AccountOut>(`/accounts/${id}/sync`);
+
 export const fetchGrowlioAccounts = () => apiGet<GrowlioAccountOut[]>("/accounts/growlio-accounts");
 
 export const importGrowlioAccounts = (payload: AccountGrowlioImportIn) =>

@@ -23,6 +23,7 @@ from app.routers import (
     loans,
     net_worth,
     notifications,
+    real_estate,
     recurring,
     reports,
     savings_products,
@@ -80,6 +81,7 @@ app.include_router(goals.router, prefix=API_PREFIX)
 app.include_router(invites.router, prefix=API_PREFIX)
 app.include_router(savings_products.router, prefix=API_PREFIX)
 app.include_router(loans.router, prefix=API_PREFIX)
+app.include_router(real_estate.router, prefix=API_PREFIX)
 app.include_router(net_worth.router, prefix=API_PREFIX)
 app.include_router(notifications.router, prefix=API_PREFIX)
 app.include_router(challenges.router, prefix=API_PREFIX)

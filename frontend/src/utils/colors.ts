@@ -64,21 +64,24 @@ export function planStatusTextClass(status: PlanStatus): string {
   return PLAN_STATUS_TEXT[status];
 }
 
-export type SavingsProductType = "savings" | "investment";
+export type SavingsProductType = "savings" | "investment" | "real_estate";
 
 const SAVINGS_PRODUCT_TYPE_BADGE_STYLE: Record<SavingsProductType, string> = {
   savings: "bg-emerald-50 dark:bg-emerald-950 text-emerald-600 dark:text-emerald-400",
   investment: "bg-blue-50 dark:bg-blue-950 text-blue-600 dark:text-blue-400",
+  real_estate: "bg-amber-50 dark:bg-amber-950 text-amber-600 dark:text-amber-400",
 };
 
 const SAVINGS_PRODUCT_TYPE_DOT: Record<SavingsProductType, string> = {
   savings: "bg-emerald-500",
   investment: "bg-blue-500",
+  real_estate: "bg-amber-500",
 };
 
 const SAVINGS_PRODUCT_TYPE_LABEL: Record<SavingsProductType, string> = {
   savings: "저축",
   investment: "투자",
+  real_estate: "부동산",
 };
 
 export function savingsProductTypeBadgeStyle(type: SavingsProductType): string {
@@ -119,6 +122,26 @@ export function inviteStatusTextClass(status: InviteStatus): string {
 
 export function inviteStatusLabel(status: InviteStatus): string {
   return INVITE_STATUS_LABEL[status];
+}
+
+export type ConnectionStatus = "connected" | "disconnected";
+
+const CONNECTION_STATUS_BADGE: Record<ConnectionStatus, string> = {
+  connected: "bg-emerald-50 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300",
+  disconnected: "bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400",
+};
+
+const CONNECTION_STATUS_LABEL: Record<ConnectionStatus, string> = {
+  connected: "연결됨",
+  disconnected: "연결 안 됨",
+};
+
+export function connectionStatusBadgeClass(status: ConnectionStatus): string {
+  return CONNECTION_STATUS_BADGE[status];
+}
+
+export function connectionStatusLabel(status: ConnectionStatus): string {
+  return CONNECTION_STATUS_LABEL[status];
 }
 
 /** 재무목표/챌린지가 공유하는 진행 상태 배지 타입 — 두 리소스가 각자 손으로 구현하던

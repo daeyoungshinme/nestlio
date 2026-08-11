@@ -5,8 +5,13 @@ from sqlalchemy.orm import Session
 
 from app.models.financial_goal import FinancialGoal
 from app.models.goal_funding_source import GoalFundingSource
-from app.services import account_service
+from app.services import account_service, growlio_client
 from app.utils.dates import months_between
+
+
+def fetch_growlio_goal_settings(bearer_token: str) -> dict:
+    """재무목표 신규 작성 폼을 미리 채우기 위해 growlio 투자목표 설정값을 전달한다."""
+    return growlio_client.fetch_investment_goal(bearer_token)
 
 
 def list_goals(db: Session) -> list[FinancialGoal]:

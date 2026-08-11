@@ -1,3 +1,4 @@
+from datetime import datetime
 from decimal import Decimal
 from typing import Literal
 
@@ -14,6 +15,7 @@ class AccountOut(BaseModel):
     is_active: bool
     sort_order: int
     growlio_account_id: str | None = None
+    last_synced_at: datetime | None = None
 
 
 class AccountWithBalanceOut(BaseModel):

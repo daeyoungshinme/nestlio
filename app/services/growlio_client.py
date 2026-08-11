@@ -3,8 +3,10 @@
 nestlio와 growlio는 같은 Supabase 프로젝트를 공유하므로, 사용자의 Supabase JWT를
 그대로 growlio에 전달한다(growlio의 get_current_user가 동일한 JWKS로 검증한다) —
 별도 서비스 API 키/시크릿은 쓰지 않는다. 저축상품 ↔ growlio 계좌 자동 동기화
-(app/services/savings_product_service.py), 저축/투자 내역의 growlio 입출금 반영
-(app/services/transaction_service.py)에서 사용한다.
+(app/services/savings_product_service.py), 부동산 자산+담보대출 자동 동기화
+(app/services/real_estate_service.py), 저축/투자 내역의 growlio 입출금 반영
+(app/services/transaction_service.py), 재무목표 신규 작성 시 growlio 투자목표
+프리필(app/services/goal_service.py)에서 사용한다.
 """
 
 from datetime import date
@@ -20,7 +22,11 @@ _TIMEOUT = 5.0
 BANK_ASSET_TYPES = {"BANK_ACCOUNT"}
 
 # growlio의 AssetType 중 증권/투자성 계좌 — nestlio의 저축상품(investment) 가져오기 대상.
-INVESTMENT_ASSET_TYPES = {"STOCK_KIS", "STOCK_KIWOOM", "STOCK_OTHER", "CASH_STOCK", "REAL_ESTATE"}
+# REAL_ESTATE는 여기 포함하지 않는다 — 시세/담보대출을 분리해서 다뤄야 해서 전용 플로우
+# (fetch_real_estate_items, app/services/real_estate_service.py)로 별도 처리한다.
+INVESTMENT_ASSET_TYPES = {"STOCK_KIS", "STOCK_KIWOOM", "STOCK_OTHER", "CASH_STOCK"}
+
+REAL_ESTATE_ASSET_TYPE = "REAL_ESTATE"
 
 
 class GrowlioNotConfiguredError(Exception):
@@ -36,6 +42,45 @@ def fetch_account_balances(bearer_token: str) -> list[dict]:
     if not settings.growlio_api_base_url:
         raise GrowlioNotConfiguredError("growlio 연동이 설정되지 않았습니다 (GROWLIO_API_BASE_URL).")
     url = f"{settings.growlio_api_base_url.rstrip('/')}/api/v1/external/accounts"
+    try:
+        response = httpx.get(url, headers={"Authorization": f"Bearer {bearer_token}"}, timeout=_TIMEOUT)
+        response.raise_for_status()
+    except httpx.HTTPStatusError as exc:
+        raise GrowlioRequestError(f"growlio API 오류 (status={exc.response.status_code})") from exc
+    except httpx.HTTPError as exc:
+        raise GrowlioRequestError("growlio 서버에 연결하지 못했습니다.") from exc
+    return response.json()
+
+
+def fetch_real_estate_items(bearer_token: str) -> list[dict]:
+    """현재 사용자의 growlio 부동산 계좌를 시세/담보대출 잔액 분리 형태로 조회한다.
+
+    fetch_account_balances(GET /external/accounts)는 부동산도 담보대출을 뺀 순액 하나만
+    주지만, nestlio가 "자산 항목"(저축/투자 상품)과 "대출 항목"을 각각 등록하려면 원본
+    시세와 대출잔액이 따로 필요하다 (GET /external/real-estate).
+    """
+    if not settings.growlio_api_base_url:
+        raise GrowlioNotConfiguredError("growlio 연동이 설정되지 않았습니다 (GROWLIO_API_BASE_URL).")
+    url = f"{settings.growlio_api_base_url.rstrip('/')}/api/v1/external/real-estate"
+    try:
+        response = httpx.get(url, headers={"Authorization": f"Bearer {bearer_token}"}, timeout=_TIMEOUT)
+        response.raise_for_status()
+    except httpx.HTTPStatusError as exc:
+        raise GrowlioRequestError(f"growlio API 오류 (status={exc.response.status_code})") from exc
+    except httpx.HTTPError as exc:
+        raise GrowlioRequestError("growlio 서버에 연결하지 못했습니다.") from exc
+    return response.json()
+
+
+def fetch_investment_goal(bearer_token: str) -> dict:
+    """현재 사용자가 growlio에 설정한 투자목표(목표금액/목표수익률/연 납입목표 등)를 조회한다.
+
+    nestlio 재무목표(FinancialGoal) 신규 작성 폼을 미리 채우는 용도로만 쓰인다 — 진행률은
+    이 값이 아니라 이미 가져온 growlio 연동 저축/투자 상품 잔액으로 nestlio가 직접 계산한다.
+    """
+    if not settings.growlio_api_base_url:
+        raise GrowlioNotConfiguredError("growlio 연동이 설정되지 않았습니다 (GROWLIO_API_BASE_URL).")
+    url = f"{settings.growlio_api_base_url.rstrip('/')}/api/v1/external/goal"
     try:
         response = httpx.get(url, headers={"Authorization": f"Bearer {bearer_token}"}, timeout=_TIMEOUT)
         response.raise_for_status()

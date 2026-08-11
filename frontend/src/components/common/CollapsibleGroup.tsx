@@ -4,7 +4,7 @@ import { ChevronDown } from "lucide-react";
 
 interface Props {
   header: ReactNode;
-  amount: ReactNode;
+  amount?: ReactNode;
   defaultOpen?: boolean;
   children: ReactNode;
 }
@@ -24,7 +24,9 @@ export default function CollapsibleGroup({ header, amount, defaultOpen = true, c
       >
         <div className="flex items-center gap-2 min-w-0">{header}</div>
         <div className="flex items-center gap-1.5 shrink-0">
-          <span className="text-sm font-bold text-gray-700 dark:text-gray-300">{amount}</span>
+          {amount !== undefined && (
+            <span className="text-sm font-bold text-gray-700 dark:text-gray-300">{amount}</span>
+          )}
           <ChevronDown
             size={16}
             className={`text-gray-400 transition-transform duration-200 ${open ? "rotate-180" : ""}`}

@@ -1,8 +1,9 @@
 import { useState } from "react";
 import type { FormEvent } from "react";
-import { useQuery } from "@tanstack/react-query";
-import { Download, Plus } from "lucide-react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Download, Link2, Plus, RefreshCw } from "lucide-react";
 import Button from "@/components/common/Button";
+import CollapsibleGroup from "@/components/common/CollapsibleGroup";
 import ConfirmModal from "@/components/common/ConfirmModal";
 import EmptyState from "@/components/common/EmptyState";
 import FormInput from "@/components/common/FormInput";
@@ -10,11 +11,22 @@ import GrowlioImportModal from "@/components/common/GrowlioImportModal";
 import Modal from "@/components/common/Modal";
 import RowActionButtons from "@/components/common/RowActionButtons";
 import SkeletonCard from "@/components/common/SkeletonCard";
+import SummaryCard from "@/components/common/SummaryCard";
 import { INPUT_SM, LABEL_SM } from "@/constants/inputStyles";
-import { createAccount, deactivateAccount, fetchAccounts, fetchGrowlioAccounts, importGrowlioAccounts, updateAccount } from "@/api/accounts";
+import {
+  createAccount,
+  deactivateAccount,
+  fetchAccounts,
+  fetchGrowlioAccounts,
+  importGrowlioAccounts,
+  syncAccount,
+  updateAccount,
+} from "@/api/accounts";
 import { QUERY_KEYS } from "@/constants/queryKeys";
 import { useCrudMutations } from "@/hooks/useCrudMutations";
-import { formatKrw, formatKrwPreview, toAmountInputValue } from "@/utils/format";
+import { formatKrw, formatKrwPreview, formatSyncedAt, toAmountInputValue } from "@/utils/format";
+import { extractErrorMessage } from "@/utils/error";
+import { toast } from "@/utils/toast";
 import type { AccountOut, AccountWithBalanceOut } from "@/types";
 
 const ACCOUNT_TYPE_LABEL: Record<AccountOut["account_type"], string> = {
@@ -22,6 +34,11 @@ const ACCOUNT_TYPE_LABEL: Record<AccountOut["account_type"], string> = {
   cash: "현금",
   card: "카드",
 };
+
+const ACCOUNT_TYPES: AccountOut["account_type"][] = ["bank", "cash", "card"];
+
+/** 항목이 적을 때 유형별로 접어두면 오히려 한눈에 보기 어려워지므로, 이 개수 이상일 때만 그룹핑한다. */
+const GROUP_THRESHOLD = 5;
 
 interface Draft {
   name: string;
@@ -44,6 +61,7 @@ export default function AccountsSection() {
   const [formTarget, setFormTarget] = useState<"new" | AccountWithBalanceOut | null>(null);
   const [deactivateTarget, setDeactivateTarget] = useState<number | null>(null);
   const [importOpen, setImportOpen] = useState(false);
+  const queryClient = useQueryClient();
 
   const { data, isLoading } = useQuery({ queryKey: QUERY_KEYS.accounts, queryFn: fetchAccounts });
 
@@ -54,6 +72,15 @@ export default function AccountsSection() {
     onCreateSuccess: () => setFormTarget(null),
     onUpdateSuccess: () => setFormTarget(null),
     onRemoveSuccess: () => setDeactivateTarget(null),
+  });
+
+  const syncMutation = useMutation({
+    mutationFn: syncAccount,
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.accounts });
+      toast("growlio 잔액을 동기화했습니다.", "success");
+    },
+    onError: (err) => toast(extractErrorMessage(err), "error"),
   });
 
   const isSaving = createMutation.isPending || updateMutation.isPending;
@@ -77,6 +104,28 @@ export default function AccountsSection() {
     data.map((row) => row.account.growlio_account_id).filter((id): id is string => !!id)
   );
 
+  const totalBalance = data.reduce((sum, { balance }) => sum + Number(balance), 0);
+  const balanceByType = ACCOUNT_TYPES.map((type) => ({
+    type,
+    rows: data.filter((row) => row.account.account_type === type),
+    total: data
+      .filter((row) => row.account.account_type === type)
+      .reduce((sum, row) => sum + Number(row.balance), 0),
+  })).filter((entry) => entry.rows.length > 0);
+
+  const shouldGroup = data.length >= GROUP_THRESHOLD;
+
+  const renderRow = (row: AccountWithBalanceOut) => (
+    <AccountRow
+      key={row.account.id}
+      row={row}
+      syncPending={syncMutation.isPending}
+      onSync={() => syncMutation.mutate(row.account.id)}
+      onEdit={() => setFormTarget(row)}
+      onDelete={() => setDeactivateTarget(row.account.id)}
+    />
+  );
+
   return (
     <div className="space-y-6">
       <div className="flex justify-end gap-2">
@@ -91,22 +140,36 @@ export default function AccountsSection() {
       {data.length === 0 ? (
         <EmptyState title="등록된 계좌가 없어요" compact />
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-          {data.map(({ account, balance }) => (
-            <div key={account.id} className="card flex items-center justify-between gap-3">
-              <div className="min-w-0">
-                <p className="text-sm font-medium text-gray-900 dark:text-gray-50 truncate">{account.name}</p>
-                <p className="text-xs text-gray-500 dark:text-gray-400">{ACCOUNT_TYPE_LABEL[account.account_type]}</p>
-                <p className="mt-1 text-base font-bold text-gray-900 dark:text-gray-50">{formatKrw(balance)}</p>
-              </div>
-              <RowActionButtons
-                onEdit={() => setFormTarget({ account, balance })}
-                onDelete={() => setDeactivateTarget(account.id)}
-                deleteLabel="비활성화"
-              />
+        <>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <SummaryCard label="계좌 합계" value={formatKrw(totalBalance)} />
+            {balanceByType.length > 1 &&
+              balanceByType.map(({ type, total }) => (
+                <SummaryCard key={type} label={ACCOUNT_TYPE_LABEL[type]} value={formatKrw(total)} />
+              ))}
+          </div>
+
+          {shouldGroup ? (
+            <div className="space-y-4">
+              {balanceByType.map(({ type, rows, total }) => (
+                <CollapsibleGroup
+                  key={type}
+                  header={
+                    <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                      {ACCOUNT_TYPE_LABEL[type]} ({rows.length})
+                    </span>
+                  }
+                  amount={formatKrw(total)}
+                  defaultOpen
+                >
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">{rows.map(renderRow)}</div>
+                </CollapsibleGroup>
+              ))}
             </div>
-          ))}
-        </div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">{data.map(renderRow)}</div>
+          )}
+        </>
       )}
 
       {formTarget && (
@@ -141,6 +204,57 @@ export default function AccountsSection() {
           onClose={() => setImportOpen(false)}
         />
       )}
+    </div>
+  );
+}
+
+function AccountRow({
+  row,
+  syncPending,
+  onSync,
+  onEdit,
+  onDelete,
+}: {
+  row: AccountWithBalanceOut;
+  syncPending: boolean;
+  onSync: () => void;
+  onEdit: () => void;
+  onDelete: () => void;
+}) {
+  const { account, balance } = row;
+  return (
+    <div className="card flex items-center justify-between gap-3">
+      <div className="min-w-0">
+        <div className="flex items-center gap-1.5 flex-wrap">
+          <p className="text-sm font-medium text-gray-900 dark:text-gray-50 truncate">{account.name}</p>
+          {account.growlio_account_id && (
+            <span className="shrink-0 flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[11px] font-medium bg-blue-50 text-blue-700 dark:bg-blue-950 dark:text-blue-300">
+              <Link2 size={11} />
+              growlio 연동
+            </span>
+          )}
+        </div>
+        <p className="text-xs text-gray-500 dark:text-gray-400">{ACCOUNT_TYPE_LABEL[account.account_type]}</p>
+        <p className="mt-1 text-base font-bold text-gray-900 dark:text-gray-50">{formatKrw(balance)}</p>
+        {account.growlio_account_id && (
+          <p className="text-[11px] text-gray-400 dark:text-gray-500 mt-0.5">
+            {account.last_synced_at ? `마지막 동기화 ${formatSyncedAt(account.last_synced_at)}` : "아직 동기화하지 않았어요"}
+          </p>
+        )}
+      </div>
+      <div className="flex items-center gap-1 shrink-0">
+        {account.growlio_account_id && (
+          <button
+            onClick={onSync}
+            disabled={syncPending}
+            className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-950 rounded-lg transition-colors disabled:opacity-50"
+            aria-label="growlio 동기화"
+          >
+            <RefreshCw size={16} className={syncPending ? "animate-spin" : ""} />
+          </button>
+        )}
+        <RowActionButtons onEdit={onEdit} onDelete={onDelete} deleteLabel="비활성화" />
+      </div>
     </div>
   );
 }

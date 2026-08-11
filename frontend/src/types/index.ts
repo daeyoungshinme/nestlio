@@ -59,6 +59,7 @@ export interface AccountOut {
   is_active: boolean;
   sort_order: number;
   growlio_account_id: string | null;
+  last_synced_at: string | null;
 }
 
 export interface AccountWithBalanceOut {
@@ -519,6 +520,16 @@ export interface FinancialGoalCreateIn {
 
 export type FinancialGoalUpdateIn = FinancialGoalCreateIn;
 
+export interface GrowlioGoalSettingsOut {
+  is_configured: boolean;
+  goal_amount: number | null;
+  goal_annual_return_pct: number | null;
+  goal_start_date: string | null;
+  goal_initial_amount: number | null;
+  annual_deposit_goal: number | null;
+  annual_dividend_goal: number | null;
+}
+
 export interface AnnualSavingsGoalOut {
   year: number;
   target_amount_krw: string;
@@ -573,7 +584,7 @@ export interface ChallengeProgressIn {
   current_amount: string;
 }
 
-export type SavingsProductType = "savings" | "investment";
+export type SavingsProductType = "savings" | "investment" | "real_estate";
 
 export interface SavingsProductOut {
   id: number;
@@ -618,6 +629,28 @@ export interface GrowlioAccountOut {
   as_of: string | null;
 }
 
+export interface GrowlioRealEstateOut {
+  id: string;
+  name: string;
+  address: string | null;
+  property_type: string | null;
+  market_value_krw: number;
+  mortgage_balance_krw: number;
+  net_equity_krw: number;
+  purchase_price_krw: number | null;
+  purchase_date: string | null;
+  as_of: string | null;
+}
+
+export interface RealEstateGrowlioImportIn {
+  growlio_account_ids: string[];
+}
+
+export interface RealEstateImportResultOut {
+  savings_product: SavingsProductOut;
+  loan: LoanOut | null;
+}
+
 export type RepaymentMethod = "equal_payment" | "equal_principal" | "bullet" | "grace_period" | "other";
 
 export interface LoanOut {
@@ -631,6 +664,9 @@ export interface LoanOut {
   repayment_method: RepaymentMethod | null;
   sort_order: number;
   is_active: boolean;
+  growlio_account_id: string | null;
+  auto_sync_enabled: boolean;
+  last_synced_at: string | null;
 }
 
 export interface LoanCreateIn {

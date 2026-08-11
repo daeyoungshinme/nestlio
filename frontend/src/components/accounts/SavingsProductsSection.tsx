@@ -3,41 +3,39 @@ import type { FormEvent } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Download, ExternalLink, Link2, Plus, RefreshCw, Unlink } from "lucide-react";
 import Button from "@/components/common/Button";
+import CollapsibleGroup from "@/components/common/CollapsibleGroup";
 import ConfirmModal from "@/components/common/ConfirmModal";
 import EmptyState from "@/components/common/EmptyState";
 import FormInput from "@/components/common/FormInput";
-import GrowlioImportModal from "@/components/common/GrowlioImportModal";
 import Modal from "@/components/common/Modal";
+import GrowlioSavingsImportModal from "@/components/accounts/GrowlioSavingsImportModal";
 import RowActionButtons from "@/components/common/RowActionButtons";
 import SkeletonCard from "@/components/common/SkeletonCard";
+import SummaryCard from "@/components/common/SummaryCard";
 import {
   createSavingsProduct,
   deactivateSavingsProduct,
   fetchGrowlioAccounts,
   fetchSavingsProducts,
-  importGrowlioAccounts,
   setGrowlioLink,
   syncSavingsProduct,
   updateSavingsProduct,
 } from "@/api/savingsProducts";
+import { syncRealEstate } from "@/api/realEstate";
 import { fetchGoals } from "@/api/goals";
 import { QUERY_KEYS } from "@/constants/queryKeys";
 import { useCrudMutations } from "@/hooks/useCrudMutations";
-import { formatKrw, formatKrwPreview, formatPercent, toAmountInputValue } from "@/utils/format";
+import { formatKrw, formatKrwPreview, formatPercent, formatSyncedAt, toAmountInputValue } from "@/utils/format";
 import { extractErrorMessage } from "@/utils/error";
 import { toast } from "@/utils/toast";
-import { returnRateTextColor, savingsProductTypeBadgeStyle, savingsProductTypeLabel } from "@/utils/colors";
+import {
+  returnRateTextColor,
+  savingsProductTypeBadgeStyle,
+  savingsProductTypeDotClass,
+  savingsProductTypeLabel,
+} from "@/utils/colors";
 import { GROWLIO_APP_URL, growlioPortfolioUrl } from "@/constants/growlio";
-import type { SavingsProductOut, SavingsProductType } from "@/types";
-
-function formatSyncedAt(value: string): string {
-  return new Date(value).toLocaleString("ko-KR", {
-    month: "numeric",
-    day: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-}
+import type { FinancialGoalOut, SavingsProductOut, SavingsProductType } from "@/types";
 
 interface Draft {
   name: string;
@@ -54,7 +52,10 @@ const EMPTY_DRAFT: Draft = {
   product_type: "savings",
   principal_amount: "",
 };
-const PRODUCT_TYPES: SavingsProductType[] = ["savings", "investment"];
+const PRODUCT_TYPES: SavingsProductType[] = ["savings", "investment", "real_estate"];
+
+/** 항목이 적을 때 유형별로 접어두면 오히려 한눈에 보기 어려워지므로, 이 개수 이상일 때만 그룹핑한다. */
+const GROUP_THRESHOLD = 5;
 
 function draftFromProduct(product: SavingsProductOut): Draft {
   return {
@@ -72,7 +73,8 @@ function toSavingsProductPayload(draft: Draft) {
     current_balance: draft.current_balance,
     monthly_saving_amount: draft.monthly_saving_amount,
     product_type: draft.product_type,
-    principal_amount: draft.product_type === "investment" && draft.principal_amount !== "" ? draft.principal_amount : null,
+    principal_amount:
+      draft.product_type !== "savings" && draft.principal_amount !== "" ? draft.principal_amount : null,
   };
 }
 
@@ -105,6 +107,18 @@ export default function SavingsProductsSection() {
     onError: (err) => toast(extractErrorMessage(err), "error"),
   });
 
+  // 부동산은 시세뿐 아니라 짝이 되는 담보대출 잔액도 함께 갱신되므로(app/services/real_estate_service.py),
+  // 일반 저축/투자 동기화와 별도 mutation으로 분리하고 loans 쿼리도 함께 무효화한다.
+  const syncRealEstateMutation = useMutation({
+    mutationFn: syncRealEstate,
+    onSuccess: () => {
+      void invalidate();
+      void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.loans });
+      toast("growlio 시세/담보대출을 동기화했습니다.", "success");
+    },
+    onError: (err) => toast(extractErrorMessage(err), "error"),
+  });
+
   if (isLoading || !data) {
     return <SkeletonCard rows={4} />;
   }
@@ -116,9 +130,28 @@ export default function SavingsProductsSection() {
   const totalMonthly = data.reduce((sum, p) => sum + Number(p.monthly_saving_amount), 0);
   const balanceByType = PRODUCT_TYPES.map((type) => ({
     type,
+    rows: data.filter((p) => p.product_type === type),
     total: data.filter((p) => p.product_type === type).reduce((sum, p) => sum + Number(p.current_balance), 0),
-  })).filter((entry) => entry.total > 0);
+  })).filter((entry) => entry.rows.length > 0);
+  const shouldGroup = data.length >= GROUP_THRESHOLD;
   const isSaving = createMutation.isPending || updateMutation.isPending;
+
+  const goalsFor = (product: SavingsProductOut) =>
+    goals?.filter((g) => g.funding_sources.some((fs) => fs.type === "savings_product" && fs.id === product.id)) ?? [];
+
+  const renderRow = (product: SavingsProductOut) => (
+    <SavingsProductRow
+      key={product.id}
+      product={product}
+      linkedGoals={goalsFor(product)}
+      syncPending={syncMutation.isPending}
+      syncRealEstatePending={syncRealEstateMutation.isPending}
+      onSync={() => syncMutation.mutate(product.id)}
+      onSyncRealEstate={() => syncRealEstateMutation.mutate(product.id)}
+      onEdit={() => setFormTarget(product)}
+      onDelete={() => setDeactivateTarget(product.id)}
+    />
+  );
 
   const handleSubmit = (draft: Draft) => {
     const payload = toSavingsProductPayload(draft);
@@ -131,7 +164,7 @@ export default function SavingsProductsSection() {
 
   return (
     <div className="space-y-4">
-      <div className="flex justify-end gap-2">
+      <div className="flex justify-end gap-2 flex-wrap">
         <Button size="sm" variant="secondary" icon={<Download size={14} />} onClick={() => setImportOpen(true)}>
           growlio에서 가져오기
         </Button>
@@ -143,105 +176,44 @@ export default function SavingsProductsSection() {
       {data.length === 0 ? (
         <EmptyState title="등록된 저축/투자 상품이 없어요" compact />
       ) : (
-        <div className="space-y-2">
-          {data.map((product) => {
-            const linkedGoals =
-              goals?.filter((g) => g.funding_sources.some((fs) => fs.type === "savings_product" && fs.id === product.id)) ??
-              [];
-            return (
-            <div key={product.id} className="card flex items-center justify-between gap-3">
-              <div className="min-w-0">
-                <div className="flex items-center gap-1.5 flex-wrap">
-                  <p className="text-sm font-medium text-gray-900 dark:text-gray-50 truncate">{product.name}</p>
-                  <span
-                    className={`shrink-0 px-1.5 py-0.5 rounded text-[11px] font-medium ${savingsProductTypeBadgeStyle(product.product_type)}`}
-                  >
-                    {savingsProductTypeLabel(product.product_type)}
-                  </span>
-                  {product.growlio_account_id && (
-                    <span className="shrink-0 flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[11px] font-medium bg-blue-50 text-blue-700 dark:bg-blue-950 dark:text-blue-300">
-                      <Link2 size={11} />
-                      growlio 연동
-                    </span>
-                  )}
-                  {linkedGoals.length > 0 && (
-                    <span
-                      className="shrink-0 max-w-[140px] sm:max-w-[220px] truncate px-1.5 py-0.5 rounded text-[11px] font-medium bg-emerald-50 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300"
-                      title={`목표: ${linkedGoals.map((g) => g.name).join(", ")}`}
-                    >
-                      목표: {linkedGoals.map((g) => g.name).join(", ")}
-                    </span>
-                  )}
-                  {product.return_rate_pct !== null && (
-                    <span className={`shrink-0 text-[11px] font-semibold ${returnRateTextColor(Number(product.return_rate_pct))}`}>
-                      {Number(product.return_rate_pct) > 0 ? "+" : ""}
-                      {formatPercent(Number(product.return_rate_pct), 1)}
-                    </span>
-                  )}
-                </div>
-                <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-                  {formatKrw(product.current_balance)} · 월 {formatKrw(product.monthly_saving_amount)}
-                  {product.return_amount !== null && (
-                    <span className={returnRateTextColor(Number(product.return_rate_pct))}>
-                      {" "}
-                      · 원금 {formatKrw(product.principal_amount)} ({Number(product.return_amount) > 0 ? "+" : ""}
-                      {formatKrw(product.return_amount)})
-                    </span>
-                  )}
-                </p>
-                {product.growlio_account_id && (
-                  <p className="text-[11px] text-gray-400 dark:text-gray-500 mt-0.5">
-                    {product.last_synced_at ? `마지막 동기화 ${formatSyncedAt(product.last_synced_at)}` : "아직 동기화하지 않았어요"}
-                  </p>
-                )}
-              </div>
-              <div className="flex items-center gap-1 shrink-0">
-                {product.growlio_account_id && (
-                  <button
-                    onClick={() => syncMutation.mutate(product.id)}
-                    disabled={syncMutation.isPending}
-                    className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-950 rounded-lg transition-colors disabled:opacity-50"
-                    aria-label="growlio 동기화"
-                  >
-                    <RefreshCw size={16} className={syncMutation.isPending ? "animate-spin" : ""} />
-                  </button>
-                )}
-                {product.product_type === "investment" && product.growlio_account_id && GROWLIO_APP_URL && (
-                  <a
-                    href={growlioPortfolioUrl(product.growlio_account_id)}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="p-2 text-gray-400 hover:text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-950 rounded-lg transition-colors"
-                    aria-label="growlio에서 포트폴리오 보기"
-                    title="growlio에서 포트폴리오 보기"
-                  >
-                    <ExternalLink size={16} />
-                  </a>
-                )}
-                <RowActionButtons
-                  onEdit={() => setFormTarget(product)}
-                  onDelete={() => setDeactivateTarget(product.id)}
-                  deleteLabel="비활성화"
-                />
-              </div>
-            </div>
-            );
-          })}
-          <div className="flex flex-col items-end gap-1 pt-1">
-            <div className="flex flex-col sm:flex-row sm:justify-end gap-1 sm:gap-6 text-sm font-semibold text-gray-900 dark:text-gray-50">
-              <span className="sm:text-right">현재 적립액 합계 {formatKrw(totalBalance)}</span>
-              <span className="sm:text-right">월 저축액 합계 {formatKrw(totalMonthly)}</span>
+        <div className="space-y-4">
+          <div className="space-y-3">
+            <div className="grid grid-cols-2 gap-3">
+              <SummaryCard label="현재 적립액 합계" value={formatKrw(totalBalance)} />
+              <SummaryCard label="월 저축액 합계" value={formatKrw(totalMonthly)} />
             </div>
             {balanceByType.length > 1 && (
-              <div className="flex justify-end gap-4 text-xs text-gray-500 dark:text-gray-400">
+              <div className="grid grid-cols-3 gap-3">
                 {balanceByType.map(({ type, total }) => (
-                  <span key={type}>
-                    {savingsProductTypeLabel(type)} {formatKrw(total)}
-                  </span>
+                  <SummaryCard key={type} label={savingsProductTypeLabel(type)} value={formatKrw(total)} />
                 ))}
               </div>
             )}
           </div>
+
+          {shouldGroup ? (
+            <div className="space-y-4">
+              {balanceByType.map(({ type, rows, total }) => (
+                <CollapsibleGroup
+                  key={type}
+                  header={
+                    <>
+                      <span className={`w-2 h-2 rounded-full shrink-0 ${savingsProductTypeDotClass(type)}`} />
+                      <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                        {savingsProductTypeLabel(type)} ({rows.length})
+                      </span>
+                    </>
+                  }
+                  amount={formatKrw(total)}
+                  defaultOpen
+                >
+                  {rows.map(renderRow)}
+                </CollapsibleGroup>
+              ))}
+            </div>
+          ) : (
+            <div className="space-y-2">{data.map(renderRow)}</div>
+          )}
         </div>
       )}
 
@@ -266,17 +238,121 @@ export default function SavingsProductsSection() {
       )}
 
       {importOpen && (
-        <GrowlioImportModal
-          title="growlio 계좌 가져오기"
-          queryKey={QUERY_KEYS.growlioInvestmentAccounts}
-          fetchAccounts={fetchGrowlioAccounts}
-          importAccounts={importGrowlioAccounts}
+        <GrowlioSavingsImportModal
           existingGrowlioAccountIds={existingGrowlioAccountIds}
-          invalidateKeys={[QUERY_KEYS.savingsProducts]}
-          getAmount={(product) => product.current_balance}
           onClose={() => setImportOpen(false)}
         />
       )}
+    </div>
+  );
+}
+
+function SavingsProductRow({
+  product,
+  linkedGoals,
+  syncPending,
+  syncRealEstatePending,
+  onSync,
+  onSyncRealEstate,
+  onEdit,
+  onDelete,
+}: {
+  product: SavingsProductOut;
+  linkedGoals: FinancialGoalOut[];
+  syncPending: boolean;
+  syncRealEstatePending: boolean;
+  onSync: () => void;
+  onSyncRealEstate: () => void;
+  onEdit: () => void;
+  onDelete: () => void;
+}) {
+  const isRealEstate = product.product_type === "real_estate";
+  return (
+    <div className="card flex items-center justify-between gap-3">
+      <div className="min-w-0">
+        <div className="flex items-center gap-1.5 flex-wrap">
+          <p className="text-sm font-medium text-gray-900 dark:text-gray-50 truncate">{product.name}</p>
+          <span
+            className={`shrink-0 px-1.5 py-0.5 rounded text-[11px] font-medium ${savingsProductTypeBadgeStyle(product.product_type)}`}
+          >
+            {savingsProductTypeLabel(product.product_type)}
+          </span>
+          {product.growlio_account_id && (
+            <span className="shrink-0 flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[11px] font-medium bg-blue-50 text-blue-700 dark:bg-blue-950 dark:text-blue-300">
+              <Link2 size={11} />
+              growlio 연동
+            </span>
+          )}
+          {linkedGoals.length > 0 && (
+            <span
+              className="shrink-0 max-w-[140px] sm:max-w-[220px] truncate px-1.5 py-0.5 rounded text-[11px] font-medium bg-emerald-50 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300"
+              title={`목표: ${linkedGoals.map((g) => g.name).join(", ")}`}
+            >
+              목표: {linkedGoals.map((g) => g.name).join(", ")}
+            </span>
+          )}
+          {product.return_rate_pct !== null && (
+            <span className={`shrink-0 text-[11px] font-semibold ${returnRateTextColor(Number(product.return_rate_pct))}`}>
+              {Number(product.return_rate_pct) > 0 ? "+" : ""}
+              {formatPercent(Number(product.return_rate_pct), 1)}
+            </span>
+          )}
+        </div>
+        <p className="mt-1 text-base font-bold text-gray-900 dark:text-gray-50">{formatKrw(product.current_balance)}</p>
+        {(!isRealEstate || product.return_amount !== null) && (
+          <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+            {!isRealEstate && `월 ${formatKrw(product.monthly_saving_amount)}`}
+            {product.return_amount !== null && (
+              <span className={returnRateTextColor(Number(product.return_rate_pct))}>
+                {!isRealEstate ? " · " : ""}원금 {formatKrw(product.principal_amount)} (
+                {Number(product.return_amount) > 0 ? "+" : ""}
+                {formatKrw(product.return_amount)})
+              </span>
+            )}
+          </p>
+        )}
+        {product.growlio_account_id && (
+          <p className="text-[11px] text-gray-400 dark:text-gray-500 mt-0.5">
+            {product.last_synced_at ? `마지막 동기화 ${formatSyncedAt(product.last_synced_at)}` : "아직 동기화하지 않았어요"}
+          </p>
+        )}
+      </div>
+      <div className="flex items-center gap-1 shrink-0">
+        {product.growlio_account_id && isRealEstate && (
+          <button
+            onClick={onSyncRealEstate}
+            disabled={syncRealEstatePending}
+            className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-950 rounded-lg transition-colors disabled:opacity-50"
+            aria-label="growlio 시세/담보대출 동기화"
+            title="시세/담보대출 동기화"
+          >
+            <RefreshCw size={16} className={syncRealEstatePending ? "animate-spin" : ""} />
+          </button>
+        )}
+        {product.growlio_account_id && !isRealEstate && (
+          <button
+            onClick={onSync}
+            disabled={syncPending}
+            className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-950 rounded-lg transition-colors disabled:opacity-50"
+            aria-label="growlio 동기화"
+          >
+            <RefreshCw size={16} className={syncPending ? "animate-spin" : ""} />
+          </button>
+        )}
+        {product.product_type === "investment" && product.growlio_account_id && GROWLIO_APP_URL && (
+          <a
+            href={growlioPortfolioUrl(product.growlio_account_id)}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="p-2 text-gray-400 hover:text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-950 rounded-lg transition-colors"
+            aria-label="growlio에서 포트폴리오 보기"
+            title="growlio에서 포트폴리오 보기"
+          >
+            <ExternalLink size={16} />
+          </a>
+        )}
+        <RowActionButtons onEdit={onEdit} onDelete={onDelete} deleteLabel="비활성화" />
+      </div>
     </div>
   );
 }
@@ -336,7 +412,7 @@ function SavingsProductFormModal({
           required
         />
         <FormInput
-          label="현재 적립된 금액"
+          label={draft.product_type === "real_estate" ? "현재 시세" : "현재 적립된 금액"}
           type="number"
           inputMode="decimal"
           value={draft.current_balance}
@@ -344,20 +420,22 @@ function SavingsProductFormModal({
           className="w-full"
           preview={Number(draft.current_balance) > 0 ? formatKrwPreview(Number(draft.current_balance)) : undefined}
         />
-        <FormInput
-          label="월 저축액"
-          type="number"
-          inputMode="decimal"
-          value={draft.monthly_saving_amount}
-          onChange={(e) => setDraft((d) => ({ ...d, monthly_saving_amount: e.target.value }))}
-          className="w-full"
-          preview={
-            Number(draft.monthly_saving_amount) > 0 ? formatKrwPreview(Number(draft.monthly_saving_amount)) : undefined
-          }
-        />
-        {draft.product_type === "investment" && (
+        {draft.product_type !== "real_estate" && (
           <FormInput
-            label="투자 원금 (선택)"
+            label="월 저축액"
+            type="number"
+            inputMode="decimal"
+            value={draft.monthly_saving_amount}
+            onChange={(e) => setDraft((d) => ({ ...d, monthly_saving_amount: e.target.value }))}
+            className="w-full"
+            preview={
+              Number(draft.monthly_saving_amount) > 0 ? formatKrwPreview(Number(draft.monthly_saving_amount)) : undefined
+            }
+          />
+        )}
+        {(draft.product_type === "investment" || draft.product_type === "real_estate") && (
+          <FormInput
+            label={draft.product_type === "real_estate" ? "매입가 (선택)" : "투자 원금 (선택)"}
             type="number"
             inputMode="decimal"
             value={draft.principal_amount}
@@ -366,7 +444,7 @@ function SavingsProductFormModal({
             preview={Number(draft.principal_amount) > 0 ? formatKrwPreview(Number(draft.principal_amount)) : undefined}
           />
         )}
-        {product && <GrowlioLinkSection product={product} onLinked={onClose} />}
+        {product && product.product_type !== "real_estate" && <GrowlioLinkSection product={product} onLinked={onClose} />}
         <Button type="submit" loading={submitting} className="mt-2">
           {submitLabel}
         </Button>

@@ -21,3 +21,9 @@ class Loan(Base):
     sort_order: Mapped[int] = mapped_column(Integer, default=0)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     updated_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), onupdate=func.now())
+
+    # growlio(자산관리) 부동산 담보대출 자동 동기화 연동 — growlio의 AssetAccount.id(UUID 문자열).
+    # SavingsProduct와 동일한 값을 공유해 부동산 자산과 짝을 맞춘다(app/services/real_estate_service.py).
+    growlio_account_id: Mapped[str | None] = mapped_column(String(36))
+    auto_sync_enabled: Mapped[bool] = mapped_column(Boolean, default=False)
+    last_synced_at: Mapped[datetime | None] = mapped_column(DateTime)

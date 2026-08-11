@@ -37,6 +37,8 @@ export const QUERY_KEYS = {
   savingsProducts: ["savings-products"] as const,
   growlioInvestmentAccounts: ["growlio-accounts", "savings-products"] as const,
   growlioBankAccounts: ["growlio-accounts", "accounts"] as const,
+  growlioRealEstateAccounts: ["growlio-accounts", "real-estate"] as const,
+  growlioInvestmentGoal: ["growlio-accounts", "investment-goal"] as const,
   loans: ["loans"] as const,
   netWorth: ["net-worth"] as const,
   recurring: ["recurring"] as const,

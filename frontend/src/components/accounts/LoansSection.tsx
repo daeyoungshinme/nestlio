@@ -1,7 +1,7 @@
 import { useState } from "react";
 import type { FormEvent } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Plus } from "lucide-react";
+import { Link2, Plus } from "lucide-react";
 import Button from "@/components/common/Button";
 import ConfirmModal from "@/components/common/ConfirmModal";
 import EmptyState from "@/components/common/EmptyState";
@@ -9,11 +9,12 @@ import FormInput from "@/components/common/FormInput";
 import Modal from "@/components/common/Modal";
 import RowActionButtons from "@/components/common/RowActionButtons";
 import SkeletonCard from "@/components/common/SkeletonCard";
+import SummaryCard from "@/components/common/SummaryCard";
 import { createLoan, deactivateLoan, fetchLoans, updateLoan } from "@/api/loans";
 import { QUERY_KEYS } from "@/constants/queryKeys";
 import { INPUT_SM, LABEL_SM } from "@/constants/inputStyles";
 import { useCrudMutations } from "@/hooks/useCrudMutations";
-import { formatKrw, formatKrwPreview, toAmountInputValue } from "@/utils/format";
+import { formatKrw, formatKrwPreview, formatSyncedAt, toAmountInputValue } from "@/utils/format";
 import type { LoanOut, RepaymentMethod } from "@/types";
 
 const REPAYMENT_METHOD_LABEL: Record<RepaymentMethod, string> = {
@@ -110,26 +111,44 @@ export default function LoansSection() {
       {data.length === 0 ? (
         <EmptyState title="등록된 대출이 없어요" compact />
       ) : (
-        <div className="space-y-2">
-          {data.map((loan) => (
-            <div key={loan.id} className="card flex items-center justify-between gap-3">
-              <div className="min-w-0">
-                <p className="text-sm font-medium text-gray-900 dark:text-gray-50 truncate">{loan.name}</p>
-                <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-                  잔액 {formatKrw(loan.balance)} · 월 {formatKrw(loan.monthly_payment)}
-                  {loan.repayment_method ? ` · ${REPAYMENT_METHOD_LABEL[loan.repayment_method]}` : ""}
-                </p>
+        <div className="space-y-4">
+          <div className="grid grid-cols-2 gap-3">
+            <SummaryCard label="대출잔액 합계" value={formatKrw(totalBalance)} tone="negative" />
+            <SummaryCard label="월납입금액 합계" value={formatKrw(totalMonthly)} tone="negative" />
+          </div>
+          <div className="space-y-2">
+            {data.map((loan) => (
+              <div key={loan.id} className="card flex items-center justify-between gap-3">
+                <div className="min-w-0">
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <p className="text-sm font-medium text-gray-900 dark:text-gray-50 truncate">{loan.name}</p>
+                    {loan.growlio_account_id && (
+                      <span className="shrink-0 flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[11px] font-medium bg-blue-50 text-blue-700 dark:bg-blue-950 dark:text-blue-300">
+                        <Link2 size={11} />
+                        growlio 연동
+                      </span>
+                    )}
+                  </div>
+                  {loan.repayment_method && (
+                    <p className="text-xs text-gray-500 dark:text-gray-400">{REPAYMENT_METHOD_LABEL[loan.repayment_method]}</p>
+                  )}
+                  <p className="mt-1 text-base font-bold text-gray-900 dark:text-gray-50">{formatKrw(loan.balance)}</p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">월 {formatKrw(loan.monthly_payment)}</p>
+                  {loan.growlio_account_id && (
+                    <p className="text-[11px] text-gray-400 dark:text-gray-500 mt-0.5">
+                      {loan.last_synced_at
+                        ? `마지막 동기화 ${formatSyncedAt(loan.last_synced_at)} · 저축·투자 탭의 부동산에서 동기화돼요`
+                        : "저축·투자 탭의 연동된 부동산에서 동기화돼요"}
+                    </p>
+                  )}
+                </div>
+                <RowActionButtons
+                  onEdit={() => setFormTarget(loan)}
+                  onDelete={() => setDeactivateTarget(loan.id)}
+                  deleteLabel="비활성화"
+                />
               </div>
-              <RowActionButtons
-                onEdit={() => setFormTarget(loan)}
-                onDelete={() => setDeactivateTarget(loan.id)}
-                deleteLabel="비활성화"
-              />
-            </div>
-          ))}
-          <div className="flex flex-col sm:flex-row sm:justify-end gap-1 sm:gap-6 pt-1 text-sm font-semibold text-gray-900 dark:text-gray-50">
-            <span className="sm:text-right">대출잔액 합계 {formatKrw(totalBalance)}</span>
-            <span className="sm:text-right">월납입금액 합계 {formatKrw(totalMonthly)}</span>
+            ))}
           </div>
         </div>
       )}

@@ -1,4 +1,5 @@
 import re
+from datetime import datetime
 from decimal import Decimal
 from typing import Literal
 
@@ -28,6 +29,9 @@ class LoanOut(BaseModel):
     repayment_method: RepaymentMethod | None
     sort_order: int
     is_active: bool
+    growlio_account_id: str | None = None
+    auto_sync_enabled: bool = False
+    last_synced_at: datetime | None = None
 
 
 class LoanCreateIn(BaseModel):

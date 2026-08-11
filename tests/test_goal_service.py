@@ -1,7 +1,11 @@
 from datetime import date
 from decimal import Decimal
+from unittest.mock import patch
+
+import pytest
 
 from app.services import account_service, goal_service, loan_service, savings_product_service
+from app.services.growlio_client import GrowlioNotConfiguredError
 
 
 def test_create_goal_uses_manual_current_amount_when_unlinked(seeded_db):
@@ -316,3 +320,23 @@ def test_to_out_investment_projection_is_none_without_investment_link(seeded_db)
     out = goal_service.to_out(db, goal, today=date(2026, 1, 1))
     assert out["weighted_return_rate_pct"] is None
     assert out["projected_months_with_growth"] is None
+
+
+# --- fetch_growlio_goal_settings: proxy for growlio 투자목표 프리필 -----------------------------
+
+
+def test_fetch_growlio_goal_settings_returns_growlio_response():
+    payload = {"is_configured": True, "goal_amount": 100000000.0}
+    with patch("app.services.goal_service.growlio_client.fetch_investment_goal", return_value=payload):
+        result = goal_service.fetch_growlio_goal_settings("token")
+
+    assert result == payload
+
+
+def test_fetch_growlio_goal_settings_propagates_not_configured_error():
+    with patch(
+        "app.services.goal_service.growlio_client.fetch_investment_goal",
+        side_effect=GrowlioNotConfiguredError("not configured"),
+    ):
+        with pytest.raises(GrowlioNotConfiguredError):
+            goal_service.fetch_growlio_goal_settings("token")

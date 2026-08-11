@@ -64,3 +64,16 @@ class FinancialGoalUpdateIn(BaseModel):
     monthly_saving_amount: Decimal
     current_amount: Decimal = Decimal("0")
     funding_sources: list[FundingSourceIn] = []
+
+
+class GrowlioGoalSettingsOut(BaseModel):
+    """growlio `/api/v1/external/goal` 응답을 그대로 전달하는 프록시용 스키마 — 재무목표
+    신규 작성 폼을 미리 채우는 용도. is_configured가 False면 나머지 필드는 모두 None이다."""
+
+    is_configured: bool
+    goal_amount: float | None = None
+    goal_annual_return_pct: float | None = None
+    goal_start_date: date | None = None
+    goal_initial_amount: float | None = None
+    annual_deposit_goal: float | None = None
+    annual_dividend_goal: float | None = None

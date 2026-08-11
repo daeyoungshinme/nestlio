@@ -1,11 +1,13 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { CheckCircle2, ChevronDown, Copy, Mail, Moon, Sun, UserMinus, UserPlus, X, XCircle } from "lucide-react";
-import { Link } from "react-router-dom";
+import { CheckCircle2, Copy, Mail, Moon, Sun, UserMinus, UserPlus, X, XCircle } from "lucide-react";
 import Button from "@/components/common/Button";
+import CollapsibleGroup from "@/components/common/CollapsibleGroup";
 import ConfirmModal from "@/components/common/ConfirmModal";
 import FormInput from "@/components/common/FormInput";
 import SkeletonCard from "@/components/common/SkeletonCard";
+import StatusBadge from "@/components/common/StatusBadge";
+import { SettingsLinkRow, SettingsSectionCard } from "@/components/settings/shared";
 import { useLogout } from "@/hooks/useLogout";
 import { useThemeStore } from "@/stores/themeStore";
 import {
@@ -24,7 +26,7 @@ import { QUERY_KEYS } from "@/constants/queryKeys";
 import { INPUT_SM } from "@/constants/inputStyles";
 import { TOUCH_TARGET_MIN_MOBILE_ONLY } from "@/constants/uiSizes";
 import { extractErrorMessage } from "@/utils/error";
-import { inviteStatusLabel, inviteStatusTextClass } from "@/utils/colors";
+import { connectionStatusBadgeClass, connectionStatusLabel, inviteStatusLabel, inviteStatusTextClass } from "@/utils/colors";
 import type { InviteStatus } from "@/utils/colors";
 import { toast } from "@/utils/toast";
 
@@ -49,7 +51,6 @@ export default function SettingsPage() {
   const [couplePhotoFile, setCouplePhotoFile] = useState<File | null>(null);
   const [inviteEmail, setInviteEmail] = useState("");
   const [thresholdEdits, setThresholdEdits] = useState<Partial<CoachingThresholdsOut>>({});
-  const [thresholdsOpen, setThresholdsOpen] = useState(false);
   const [displayNameEdit, setDisplayNameEdit] = useState<string | null>(null);
   const [spouseDisplayNameEdit, setSpouseDisplayNameEdit] = useState<string | null>(null);
   const [newNotifyEmail, setNewNotifyEmail] = useState("");
@@ -191,17 +192,25 @@ export default function SettingsPage() {
   const householdFull = (usersQuery.data?.length ?? 0) >= 2;
 
   if (isLoading || !data) {
-    return <SkeletonCard rows={4} />;
+    return (
+      <div className="max-w-lg space-y-4">
+        <SkeletonCard rows={3} />
+        <SkeletonCard rows={4} />
+        <SkeletonCard rows={2} />
+        <SkeletonCard rows={3} />
+        <SkeletonCard rows={3} />
+      </div>
+    );
   }
 
   const notifyEmails = data.notify_emails;
+  const connectionStatus = data.google_connected ? "connected" : "disconnected";
 
   return (
     <div className="max-w-lg space-y-4">
-      <p className="px-1 text-xs font-semibold text-gray-400 dark:text-gray-500">개인 설정</p>
+      <h1 className="text-xl font-bold text-gray-900 dark:text-gray-50">설정</h1>
 
-      <div className="card space-y-3">
-        <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300">표시 이름</h3>
+      <SettingsSectionCard title="계정">
         <div className="flex gap-2 items-end">
           <div className="flex-1">
             <FormInput
@@ -252,227 +261,228 @@ export default function SettingsPage() {
             </Button>
           </div>
         )}
-      </div>
-
-      <div className="card space-y-3">
-        <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300">화면 테마</h3>
-        <button
-          onClick={toggleTheme}
-          aria-label={isDark ? "라이트 모드로 전환" : "다크 모드로 전환"}
-          className="w-full flex items-center justify-between gap-3 px-3 py-2 rounded-lg text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
-        >
-          <span className="flex items-center gap-3">
-            {isDark ? <Sun size={18} aria-hidden="true" /> : <Moon size={18} aria-hidden="true" />}
-            {isDark ? "라이트 모드" : "다크 모드"}
-          </span>
-        </button>
-      </div>
-
-      <p className="px-1 pt-2 text-xs font-semibold text-gray-400 dark:text-gray-500">커플·초대</p>
-
-      <div className="card space-y-3">
-        <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300">부부 사진</h3>
-        <p className="text-xs text-gray-500 dark:text-gray-400">대시보드 상단에 배너로 표시됩니다.</p>
-        {data.couple_photo_url && (
-          <img
-            src={data.couple_photo_url}
-            alt="부부 사진"
-            className="w-full h-32 object-cover rounded-lg"
-          />
-        )}
-        <div className="flex items-center gap-3">
-          <label
-            htmlFor="couple-photo-input"
-            className={`${TOUCH_TARGET_MIN_MOBILE_ONLY} px-4 rounded-lg border border-gray-300 dark:border-gray-600 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 cursor-pointer transition-colors`}
+        <div className="border-t border-gray-100 dark:border-gray-800 pt-3">
+          <button
+            onClick={toggleTheme}
+            aria-label={isDark ? "라이트 모드로 전환" : "다크 모드로 전환"}
+            className="w-full flex items-center justify-between gap-3 px-3 py-2 rounded-lg text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
           >
-            파일 선택
-          </label>
-          <input
-            id="couple-photo-input"
-            type="file"
-            accept="image/jpeg,image/png,image/webp"
-            onChange={(e) => setCouplePhotoFile(e.target.files?.[0] ?? null)}
-            className="sr-only"
-          />
-          <span className="text-sm text-gray-500 dark:text-gray-400 truncate">
-            {couplePhotoFile ? couplePhotoFile.name : "선택된 파일 없음"}
-          </span>
+            <span className="flex items-center gap-3">
+              {isDark ? <Sun size={18} aria-hidden="true" /> : <Moon size={18} aria-hidden="true" />}
+              {isDark ? "라이트 모드" : "다크 모드"}
+            </span>
+          </button>
         </div>
-        <div className="flex gap-2">
-          <Button
-            size="sm"
-            disabled={!couplePhotoFile}
-            loading={uploadPhotoMutation.isPending}
-            onClick={() => couplePhotoFile && uploadPhotoMutation.mutate(couplePhotoFile)}
-          >
-            업로드
-          </Button>
-          <Button
-            variant="secondary"
-            size="sm"
-            disabled={!data.couple_photo_url}
-            loading={deletePhotoMutation.isPending}
-            onClick={() => deletePhotoMutation.mutate()}
-          >
-            삭제
-          </Button>
-        </div>
-      </div>
+      </SettingsSectionCard>
 
-      <div className="card space-y-3">
-        <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300">배우자 초대</h3>
-        {householdFull ? (
-          <div className="flex items-center justify-between gap-2">
-            <p className="text-xs text-gray-500 dark:text-gray-400">이미 배우자가 등록되어 있어요.</p>
-            {spouse && (
-              <Button
-                variant="danger"
-                size="sm"
-                icon={<UserMinus size={14} />}
-                onClick={() => setRemoveSpouseOpen(true)}
-              >
-                배우자 제거
-              </Button>
-            )}
-          </div>
-        ) : (
-          <>
-            <p className="text-xs text-gray-500 dark:text-gray-400">
-              이메일로 초대를 보내면, 배우자가 링크를 눌러 직접 계정을 만들 수 있어요.
-            </p>
-            <div className="flex gap-2">
-              <input
-                type="email"
-                value={inviteEmail}
-                onChange={(e) => setInviteEmail(e.target.value)}
-                placeholder="spouse@example.com"
-                className={`flex-1 ${INPUT_SM}`}
-              />
-              <Button
-                size="sm"
-                icon={<UserPlus size={14} />}
-                disabled={!inviteEmail}
-                loading={createInviteMutation.isPending}
-                onClick={() => createInviteMutation.mutate(inviteEmail)}
-              >
-                초대
-              </Button>
-            </div>
-          </>
-        )}
-
-        {!!invitesQuery.data?.length && (
-          <ul className="space-y-2">
-            {invitesQuery.data.map((invite) => {
-              const status = inviteStatus(invite);
-              return (
-                <li
-                  key={invite.id}
-                  className="flex items-center justify-between gap-2 text-sm px-3 py-2 rounded-lg bg-gray-50 dark:bg-gray-800"
-                >
-                  <div className="min-w-0">
-                    <p className="text-gray-700 dark:text-gray-300 truncate">{invite.email}</p>
-                    <p className={`text-xs ${inviteStatusTextClass(status)}`}>{inviteStatusLabel(status)}</p>
-                  </div>
-                  {status === "pending" && (
-                    <div className="flex items-center gap-1 shrink-0">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        aria-label="초대 링크 복사"
-                        onClick={() => void copyAcceptUrl(invite.accept_url)}
-                      >
-                        <Copy size={14} />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        aria-label="초대 취소"
-                        loading={cancelInviteMutation.isPending}
-                        onClick={() => cancelInviteMutation.mutate(invite.id)}
-                      >
-                        <X size={14} />
-                      </Button>
-                    </div>
-                  )}
-                </li>
-              );
-            })}
-          </ul>
-        )}
-      </div>
-
-      <p className="px-1 pt-2 text-xs font-semibold text-gray-400 dark:text-gray-500">연동</p>
-
-      <div className="card space-y-3">
-        <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300">Google 연동</h3>
-        <div className="flex items-center gap-2 text-sm">
-          {data.google_connected ? (
-            <>
-              <CheckCircle2 size={16} className="text-emerald-600" />
-              <span className="text-gray-700 dark:text-gray-300">연결됨</span>
-            </>
-          ) : (
-            <>
-              <XCircle size={16} className="text-gray-400" />
-              <span className="text-gray-500 dark:text-gray-400">연결되지 않음 (scripts/google_auth_setup.py 실행 필요)</span>
-            </>
-          )}
-        </div>
-        <div className="space-y-2">
-          <p className="text-xs text-gray-500 dark:text-gray-400">
-            알림 수신 이메일 — 기본값은 가입한 이메일이며, 직접 추가·삭제할 수 있어요. 변경 즉시 반영돼요.
-          </p>
-          <ul className="space-y-2">
-            {notifyEmails.map((email) => (
-              <li
-                key={email}
-                className="flex items-center justify-between gap-2 text-sm px-3 py-2 rounded-lg bg-gray-50 dark:bg-gray-800"
-              >
-                <span className="truncate text-gray-700 dark:text-gray-300">{email}</span>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  aria-label="알림 이메일 삭제"
-                  disabled={notifyEmails.length <= 1 || notifyEmailsMutation.isPending}
-                  loading={notifyEmailsMutation.isPending}
-                  onClick={() =>
-                    notifyEmailsMutation.mutate(
-                      notifyEmails.filter((e) => e !== email),
-                      { onSuccess: () => toast("알림 이메일을 삭제했습니다.", "success") },
-                    )
-                  }
-                >
-                  <X size={14} />
-                </Button>
-              </li>
-            ))}
-          </ul>
-          <div className="flex gap-2">
-            <input
-              type="email"
-              value={newNotifyEmail}
-              onChange={(e) => setNewNotifyEmail(e.target.value)}
-              placeholder="추가할 이메일"
-              className={`flex-1 ${INPUT_SM}`}
+      <SettingsSectionCard title="가구·초대">
+        <div className="space-y-3">
+          <p className="text-xs text-gray-500 dark:text-gray-400">부부 사진 — 대시보드 상단에 배너로 표시됩니다.</p>
+          {data.couple_photo_url && (
+            <img
+              src={data.couple_photo_url}
+              alt="부부 사진"
+              className="w-full h-32 object-cover rounded-lg"
             />
+          )}
+          <div className="flex items-center gap-3">
+            <label
+              htmlFor="couple-photo-input"
+              className={`${TOUCH_TARGET_MIN_MOBILE_ONLY} px-4 rounded-lg border border-gray-300 dark:border-gray-600 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 cursor-pointer transition-colors`}
+            >
+              파일 선택
+            </label>
+            <input
+              id="couple-photo-input"
+              type="file"
+              accept="image/jpeg,image/png,image/webp"
+              onChange={(e) => setCouplePhotoFile(e.target.files?.[0] ?? null)}
+              className="sr-only"
+            />
+            <span className="text-sm text-gray-500 dark:text-gray-400 truncate">
+              {couplePhotoFile ? couplePhotoFile.name : "선택된 파일 없음"}
+            </span>
+          </div>
+          <div className="flex gap-2">
             <Button
               size="sm"
-              icon={<UserPlus size={14} />}
-              disabled={!newNotifyEmail || notifyEmails.length >= 5 || notifyEmailsMutation.isPending}
-              loading={notifyEmailsMutation.isPending}
-              onClick={() =>
-                notifyEmailsMutation.mutate(
-                  [...notifyEmails, newNotifyEmail.trim().toLowerCase()],
-                  { onSuccess: () => toast("알림 이메일을 추가했습니다.", "success") },
-                )
-              }
+              disabled={!couplePhotoFile}
+              loading={uploadPhotoMutation.isPending}
+              onClick={() => couplePhotoFile && uploadPhotoMutation.mutate(couplePhotoFile)}
             >
-              추가
+              업로드
+            </Button>
+            <Button
+              variant="secondary"
+              size="sm"
+              disabled={!data.couple_photo_url}
+              loading={deletePhotoMutation.isPending}
+              onClick={() => deletePhotoMutation.mutate()}
+            >
+              삭제
             </Button>
           </div>
         </div>
+
+        <div className="border-t border-gray-100 dark:border-gray-800 pt-3 space-y-3">
+          {householdFull ? (
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-xs text-gray-500 dark:text-gray-400">이미 배우자가 등록되어 있어요.</p>
+              {spouse && (
+                <Button
+                  variant="danger"
+                  size="sm"
+                  icon={<UserMinus size={14} />}
+                  onClick={() => setRemoveSpouseOpen(true)}
+                >
+                  배우자 제거
+                </Button>
+              )}
+            </div>
+          ) : (
+            <>
+              <p className="text-xs text-gray-500 dark:text-gray-400">
+                이메일로 초대를 보내면, 배우자가 링크를 눌러 직접 계정을 만들 수 있어요.
+              </p>
+              <div className="flex gap-2">
+                <input
+                  type="email"
+                  value={inviteEmail}
+                  onChange={(e) => setInviteEmail(e.target.value)}
+                  placeholder="spouse@example.com"
+                  className={`flex-1 ${INPUT_SM}`}
+                />
+                <Button
+                  size="sm"
+                  icon={<UserPlus size={14} />}
+                  disabled={!inviteEmail}
+                  loading={createInviteMutation.isPending}
+                  onClick={() => createInviteMutation.mutate(inviteEmail)}
+                >
+                  초대
+                </Button>
+              </div>
+            </>
+          )}
+
+          {!!invitesQuery.data?.length && (
+            <ul className="space-y-2">
+              {invitesQuery.data.map((invite) => {
+                const status = inviteStatus(invite);
+                return (
+                  <li
+                    key={invite.id}
+                    className="flex items-center justify-between gap-2 text-sm px-3 py-2 rounded-lg bg-gray-50 dark:bg-gray-800"
+                  >
+                    <div className="min-w-0">
+                      <p className="text-gray-700 dark:text-gray-300 truncate">{invite.email}</p>
+                      <p className={`text-xs ${inviteStatusTextClass(status)}`}>{inviteStatusLabel(status)}</p>
+                    </div>
+                    {status === "pending" && (
+                      <div className="flex items-center gap-1 shrink-0">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          aria-label="초대 링크 복사"
+                          onClick={() => void copyAcceptUrl(invite.accept_url)}
+                        >
+                          <Copy size={14} />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          aria-label="초대 취소"
+                          loading={cancelInviteMutation.isPending}
+                          onClick={() => cancelInviteMutation.mutate(invite.id)}
+                        >
+                          <X size={14} />
+                        </Button>
+                      </div>
+                    )}
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </div>
+      </SettingsSectionCard>
+
+      <SettingsSectionCard
+        title="Google 계정 연동"
+        badge={
+          <StatusBadge
+            label={connectionStatusLabel(connectionStatus)}
+            toneClassName={connectionStatusBadgeClass(connectionStatus)}
+            icon={
+              connectionStatus === "connected" ? (
+                <CheckCircle2 size={12} aria-hidden="true" />
+              ) : (
+                <XCircle size={12} aria-hidden="true" />
+              )
+            }
+          />
+        }
+      >
+        <p className="text-xs text-gray-500 dark:text-gray-400">
+          {connectionStatus === "connected"
+            ? "주간/월간 요약 메일 발송에 사용되는 Google 계정이 연결되어 있어요."
+            : "주간/월간 요약 메일 발송에 사용할 Google 계정이 아직 연결되지 않았어요."}
+        </p>
+      </SettingsSectionCard>
+
+      <SettingsSectionCard title="이메일 알림">
+        <p className="text-xs text-gray-500 dark:text-gray-400">
+          알림 수신 이메일 — 기본값은 가입한 이메일이며, 직접 추가·삭제할 수 있어요. 변경 즉시 반영돼요.
+        </p>
+        <ul className="space-y-2">
+          {notifyEmails.map((email) => (
+            <li
+              key={email}
+              className="flex items-center justify-between gap-2 text-sm px-3 py-2 rounded-lg bg-gray-50 dark:bg-gray-800"
+            >
+              <span className="truncate text-gray-700 dark:text-gray-300">{email}</span>
+              <Button
+                variant="ghost"
+                size="sm"
+                aria-label="알림 이메일 삭제"
+                disabled={notifyEmails.length <= 1 || notifyEmailsMutation.isPending}
+                loading={notifyEmailsMutation.isPending}
+                onClick={() =>
+                  notifyEmailsMutation.mutate(
+                    notifyEmails.filter((e) => e !== email),
+                    { onSuccess: () => toast("알림 이메일을 삭제했습니다.", "success") },
+                  )
+                }
+              >
+                <X size={14} />
+              </Button>
+            </li>
+          ))}
+        </ul>
         <div className="flex gap-2">
+          <input
+            type="email"
+            value={newNotifyEmail}
+            onChange={(e) => setNewNotifyEmail(e.target.value)}
+            placeholder="추가할 이메일"
+            className={`flex-1 ${INPUT_SM}`}
+          />
+          <Button
+            size="sm"
+            icon={<UserPlus size={14} />}
+            disabled={!newNotifyEmail || notifyEmails.length >= 5 || notifyEmailsMutation.isPending}
+            loading={notifyEmailsMutation.isPending}
+            onClick={() =>
+              notifyEmailsMutation.mutate(
+                [...notifyEmails, newNotifyEmail.trim().toLowerCase()],
+                { onSuccess: () => toast("알림 이메일을 추가했습니다.", "success") },
+              )
+            }
+          >
+            추가
+          </Button>
+        </div>
+        <div className="border-t border-gray-100 dark:border-gray-800 pt-3 flex gap-2">
           <Button
             variant="secondary"
             size="sm"
@@ -492,76 +502,59 @@ export default function SettingsPage() {
             월간 요약 테스트
           </Button>
         </div>
-      </div>
+      </SettingsSectionCard>
 
-      <p className="px-1 pt-2 text-xs font-semibold text-gray-400 dark:text-gray-500">코칭 알림 설정</p>
-
-      <div className="card space-y-3">
-        <button
-          type="button"
-          onClick={() => setThresholdsOpen((prev) => !prev)}
-          aria-expanded={thresholdsOpen}
-          className="w-full flex items-center justify-between gap-2 min-h-[44px]"
+      <SettingsSectionCard title="고급 설정">
+        <CollapsibleGroup
+          header={<span className="text-sm font-semibold text-gray-700 dark:text-gray-300">고급: 코칭 기준값</span>}
+          defaultOpen={false}
         >
-          <span className="text-sm font-semibold text-gray-700 dark:text-gray-300">고급: 코칭 기준값</span>
-          <ChevronDown
-            size={16}
-            className={`text-gray-400 transition-transform duration-200 ${thresholdsOpen ? "rotate-180" : ""}`}
-          />
-        </button>
-        {thresholdsOpen && (
-          <>
-            <p className="text-xs text-gray-500 dark:text-gray-400">
-              대시보드 코칭 인사이트가 발동하는 기준(%)이에요. 두 분의 소비 성향에 맞게 조정할 수 있어요.
-            </p>
-            <div className="grid grid-cols-2 gap-3">
-              {THRESHOLD_FIELDS.map(({ key, label }) => (
-                <FormInput
-                  key={key}
-                  label={label}
-                  type="number"
-                  min={0}
-                  max={999}
-                  step={1}
-                  value={thresholdEdits[key] ?? data.coaching_thresholds[key]}
-                  onChange={(e) =>
-                    setThresholdEdits((prev) => ({ ...prev, [key]: Number(e.target.value) }))
-                  }
-                />
-              ))}
-            </div>
-            <Button
-              size="sm"
-              disabled={Object.keys(thresholdEdits).length === 0}
-              loading={thresholdsMutation.isPending}
-              onClick={() =>
-                thresholdsMutation.mutate({ ...data.coaching_thresholds, ...thresholdEdits })
-              }
-            >
-              저장
-            </Button>
-          </>
-        )}
+          <p className="text-xs text-gray-500 dark:text-gray-400">
+            대시보드 코칭 인사이트가 발동하는 기준(%)이에요. 두 분의 소비 성향에 맞게 조정할 수 있어요.
+          </p>
+          <div className="grid grid-cols-2 gap-3">
+            {THRESHOLD_FIELDS.map(({ key, label }) => (
+              <FormInput
+                key={key}
+                label={label}
+                type="number"
+                min={0}
+                max={999}
+                step={1}
+                value={thresholdEdits[key] ?? data.coaching_thresholds[key]}
+                onChange={(e) =>
+                  setThresholdEdits((prev) => ({ ...prev, [key]: Number(e.target.value) }))
+                }
+              />
+            ))}
+          </div>
+          <Button
+            size="sm"
+            disabled={Object.keys(thresholdEdits).length === 0}
+            loading={thresholdsMutation.isPending}
+            onClick={() =>
+              thresholdsMutation.mutate({ ...data.coaching_thresholds, ...thresholdEdits })
+            }
+          >
+            저장
+          </Button>
+        </CollapsibleGroup>
+
+        <div className="border-t border-gray-100 dark:border-gray-800 pt-3 space-y-1">
+          <SettingsLinkRow to="/accounts" label="비상금 관리" hint="현재 잔액은 자산현황에서 기록해요" />
+          <SettingsLinkRow to="/categories" label="카테고리 관리" hint="고정·변동·비정기지출 카테고리 추가/수정" />
+        </div>
+      </SettingsSectionCard>
+
+      <div className="border-t border-gray-200 dark:border-gray-700 pt-4">
+        <Button
+          variant="secondary"
+          className="w-full sm:w-auto text-gray-500 hover:text-red-600 hover:border-red-300 hover:bg-red-50 dark:hover:bg-red-950"
+          onClick={() => void logout()}
+        >
+          로그아웃
+        </Button>
       </div>
-
-      <p className="text-xs text-gray-500 dark:text-gray-400 px-1">
-        비상금은{" "}
-        <Link to="/financial-plan?tab=재무목표" className="text-blue-600 dark:text-blue-400 hover:underline">
-          목표 탭
-        </Link>
-        에서 관리해요.
-      </p>
-
-      <p className="text-xs text-gray-500 dark:text-gray-400 px-1">
-        <Link to="/categories" className="text-blue-600 dark:text-blue-400 hover:underline">
-          카테고리 관리
-        </Link>
-        에서 고정·변동·비정기지출 카테고리를 추가/수정할 수 있어요.
-      </p>
-
-      <Button variant="secondary" onClick={() => void logout()}>
-        로그아웃
-      </Button>
 
       {removeSpouseOpen && spouse && (
         <ConfirmModal

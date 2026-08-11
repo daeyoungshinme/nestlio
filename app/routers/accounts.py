@@ -1,3 +1,5 @@
+from datetime import datetime
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
@@ -69,6 +71,26 @@ def update_account(
     account = account_service.update_account(
         db, account_id, payload.name, payload.account_type, payload.current_balance
     )
+    if account is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "계좌를 찾을 수 없습니다.")
+    return account
+
+
+@router.post("/{account_id}/sync", response_model=AccountOut)
+def sync_account(
+    account_id: int,
+    db: Session = Depends(get_db),
+    bearer_token: str = Depends(get_bearer_token),
+    _: User = Depends(get_current_user),
+):
+    try:
+        account = account_service.sync_account(db, account_id, bearer_token, now=datetime.now())
+    except GrowlioNotConfiguredError as exc:
+        raise HTTPException(status.HTTP_501_NOT_IMPLEMENTED, str(exc)) from exc
+    except GrowlioRequestError as exc:
+        raise HTTPException(status.HTTP_502_BAD_GATEWAY, str(exc)) from exc
+    except account_service.GrowlioSyncError as exc:
+        raise HTTPException(status.HTTP_409_CONFLICT, str(exc)) from exc
     if account is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "계좌를 찾을 수 없습니다.")
     return account
