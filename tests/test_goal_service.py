@@ -202,3 +202,117 @@ def test_to_out_derived_fields_are_none_without_target_date(seeded_db):
     assert out["target_date"] is None
     assert out["months_remaining"] is None
     assert out["suggested_monthly_amount"] is None
+
+
+# --- weighted_return_rate_pct: balance-weighted average of linked investment products' return -----
+
+def test_weighted_return_rate_pct_none_without_linked_products(seeded_db):
+    db = seeded_db["db"]
+    goal = goal_service.create_goal(db, 1, "여행자금", None, Decimal("5000000"), Decimal("200000"))
+    assert goal_service.compute_weighted_return_rate_pct(goal) is None
+
+
+def test_weighted_return_rate_pct_ignores_savings_type_and_no_principal(seeded_db):
+    db = seeded_db["db"]
+    savings = savings_product_service.create_product(db, "적금", Decimal("1000000"), Decimal("100000"), "savings")
+    no_principal = savings_product_service.create_product(
+        db, "주식(원금 미입력)", Decimal("1000000"), Decimal("0"), "investment"
+    )
+    goal = goal_service.create_goal(
+        db,
+        1,
+        "여행자금",
+        None,
+        Decimal("5000000"),
+        Decimal("200000"),
+        funding_sources=[
+            {"type": "savings_product", "id": savings.id},
+            {"type": "savings_product", "id": no_principal.id},
+        ],
+    )
+    assert goal_service.compute_weighted_return_rate_pct(goal) is None
+
+
+def test_weighted_return_rate_pct_averages_by_balance(seeded_db):
+    db = seeded_db["db"]
+    # 25% return, balance 1,000,000
+    product_a = savings_product_service.create_product(
+        db, "주식A", Decimal("1000000"), Decimal("0"), "investment", principal_amount=Decimal("800000")
+    )
+    # 100% return, balance 1,000,000 -> equal weight average with product_a = 62.5%
+    product_b = savings_product_service.create_product(
+        db, "주식B", Decimal("1000000"), Decimal("0"), "investment", principal_amount=Decimal("500000")
+    )
+    goal = goal_service.create_goal(
+        db,
+        1,
+        "여행자금",
+        None,
+        Decimal("5000000"),
+        Decimal("200000"),
+        funding_sources=[
+            {"type": "savings_product", "id": product_a.id},
+            {"type": "savings_product", "id": product_b.id},
+        ],
+    )
+    assert goal_service.compute_weighted_return_rate_pct(goal) == Decimal("62.5")
+
+
+# --- compute_projected_months_with_growth: months to reach target with assumed compounding --------
+
+def test_projected_months_with_growth_zero_when_already_met():
+    result = goal_service.compute_projected_months_with_growth(
+        Decimal("2000000"), Decimal("100000"), Decimal("1000000"), Decimal("10")
+    )
+    assert result == 0
+
+
+def test_projected_months_with_growth_none_when_no_balance_and_no_contribution():
+    result = goal_service.compute_projected_months_with_growth(
+        Decimal("0"), Decimal("0"), Decimal("1000000"), Decimal("10")
+    )
+    assert result is None
+
+
+def test_projected_months_with_growth_none_when_growth_alone_never_reaches_target():
+    # no monthly contribution and 0% assumed return -> balance never moves
+    result = goal_service.compute_projected_months_with_growth(
+        Decimal("1000000"), Decimal("0"), Decimal("1340000"), Decimal("0")
+    )
+    assert result is None
+
+
+def test_projected_months_with_growth_compounds_monthly():
+    # 1,000,000 lump sum, 120%/yr (=10%/mo) assumed return, no contributions:
+    # 1.1^3 * 1,000,000 = 1,331,000 (not yet) -> 1.1^4 * 1,000,000 = 1,464,100 (reached)
+    result = goal_service.compute_projected_months_with_growth(
+        Decimal("1000000"), Decimal("0"), Decimal("1340000"), Decimal("120")
+    )
+    assert result == 4
+
+
+def test_to_out_includes_investment_projection_for_linked_investment_goal(seeded_db):
+    db = seeded_db["db"]
+    product = savings_product_service.create_product(
+        db, "주식A", Decimal("1000000"), Decimal("0"), "investment", principal_amount=Decimal("800000")
+    )
+    goal = goal_service.create_goal(
+        db,
+        1,
+        "여행자금",
+        None,
+        Decimal("5000000"),
+        Decimal("200000"),
+        funding_sources=[{"type": "savings_product", "id": product.id}],
+    )
+    out = goal_service.to_out(db, goal, today=date(2026, 1, 1))
+    assert out["weighted_return_rate_pct"] == Decimal("25")
+    assert out["projected_months_with_growth"] is not None
+
+
+def test_to_out_investment_projection_is_none_without_investment_link(seeded_db):
+    db = seeded_db["db"]
+    goal = goal_service.create_goal(db, 1, "여행자금", None, Decimal("5000000"), Decimal("200000"))
+    out = goal_service.to_out(db, goal, today=date(2026, 1, 1))
+    assert out["weighted_return_rate_pct"] is None
+    assert out["projected_months_with_growth"] is None

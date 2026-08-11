@@ -13,7 +13,7 @@ import MonthCalendarGrid from "@/components/transactions/MonthCalendarGrid";
 import LedgerDayCell from "@/components/transactions/LedgerDayCell";
 import LedgerDayModal from "@/components/transactions/LedgerDayModal";
 import TransactionForm from "@/components/transactions/TransactionForm";
-import TransactionListItem from "@/components/transactions/TransactionListItem";
+import DailyTransactionGroups from "@/components/transactions/DailyTransactionGroups";
 import ExpenseCategoryGroups from "@/components/transactions/ExpenseCategoryGroups";
 import SavingsLinkedTransactionsSection from "@/components/transactions/SavingsLinkedTransactionsSection";
 import EventForm, { emptyEventFormValues, eventToFormValues } from "@/components/transactions/EventForm";
@@ -446,21 +446,13 @@ export default function TransactionsPage() {
             onDelete={setDeleteTarget}
           />
         )
-      ) : filteredTransactions.length === 0 ? (
-        <EmptyState title="해당 조건의 내역이 없어요" compact />
       ) : (
-        <div className="space-y-2">
-          {filteredTransactions.map((tx) => (
-            <TransactionListItem
-              key={tx.id}
-              tx={tx}
-              onEdit={openEdit}
-              onDelete={setDeleteTarget}
-              showDate
-              showUser={userOptions.length > 2}
-            />
-          ))}
-        </div>
+        <DailyTransactionGroups
+          transactions={filteredTransactions}
+          onEdit={openEdit}
+          onDelete={setDeleteTarget}
+          showUser={userOptions.length > 2}
+        />
       )}
 
       <QuickAddFab onClick={() => openCreate()} />

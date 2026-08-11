@@ -21,6 +21,7 @@ from app.services.coaching_engine import (
     fixed_cost_ratio_insight,
     goal_pace_insight,
     investable_surplus,
+    recommend_surplus_allocation,
     savings_execution_insight,
     savings_rate_insight,
     savings_streak_months,
@@ -224,6 +225,35 @@ def test_investable_surplus_zero_when_no_surplus():
     assert investable_surplus(totals, Decimal("100000")) == Decimal("0")
     negative_totals = _totals(1500000, 2000000, 1000000, 500000)  # savings = -500,000
     assert investable_surplus(negative_totals, Decimal("100000")) == Decimal("0")
+
+
+# --- surplus allocation: split investable_surplus between emergency fund top-up and investing --
+
+def test_surplus_allocation_goes_fully_to_emergency_fund_when_far_below_target():
+    # target = 1,000,000 * 6 = 6,000,000; balance 1,000,000 -> shortfall 5,000,000, larger than surplus
+    result = recommend_surplus_allocation(Decimal("300000"), Decimal("1000000"), Decimal("1000000"))
+    assert result == {"emergency_fund_portion": Decimal("300000"), "investable_portion": Decimal("0")}
+
+
+def test_surplus_allocation_splits_when_shortfall_smaller_than_surplus():
+    # target = 6,000,000; balance 5,800,000 -> shortfall 200,000, surplus 500,000
+    result = recommend_surplus_allocation(Decimal("500000"), Decimal("5800000"), Decimal("1000000"))
+    assert result == {"emergency_fund_portion": Decimal("200000"), "investable_portion": Decimal("300000")}
+
+
+def test_surplus_allocation_goes_fully_to_investing_when_fund_already_sufficient():
+    result = recommend_surplus_allocation(Decimal("500000"), Decimal("6000000"), Decimal("1000000"))
+    assert result == {"emergency_fund_portion": Decimal("0"), "investable_portion": Decimal("500000")}
+
+
+def test_surplus_allocation_goes_fully_to_investing_when_no_emergency_fund_balance_set():
+    result = recommend_surplus_allocation(Decimal("500000"), None, Decimal("1000000"))
+    assert result == {"emergency_fund_portion": Decimal("0"), "investable_portion": Decimal("500000")}
+
+
+def test_surplus_allocation_is_zero_when_no_surplus():
+    result = recommend_surplus_allocation(Decimal("0"), Decimal("1000000"), Decimal("1000000"))
+    assert result == {"emergency_fund_portion": Decimal("0"), "investable_portion": Decimal("0")}
 
 
 # --- emergency fund: <3mo critical-ish warning, <6mo info(build up), >=6mo info(sufficient) --

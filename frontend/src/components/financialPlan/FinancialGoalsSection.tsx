@@ -1,16 +1,17 @@
 import { useState } from "react";
 import type { FormEvent } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ExternalLink, Link2, Plus } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+import { ExternalLink, Link2, Plus, Target } from "lucide-react";
 import AnnualSavingsGoalCard from "@/components/financialPlan/AnnualSavingsGoalCard";
 import Button from "@/components/common/Button";
 import ChallengesSection from "@/components/financialPlan/ChallengesSection";
 import ConfirmModal from "@/components/common/ConfirmModal";
 import EmptyState from "@/components/common/EmptyState";
 import FormInput from "@/components/common/FormInput";
+import GoalProgressCard from "@/components/financialPlan/GoalProgressCard";
+import type { GoalProgressCardBadge, GoalProgressCardExtraDetail } from "@/components/financialPlan/GoalProgressCard";
+import GoalSectionHeader from "@/components/financialPlan/GoalSectionHeader";
 import Modal from "@/components/common/Modal";
-import ProgressBar from "@/components/common/ProgressBar";
-import RowActionButtons from "@/components/common/RowActionButtons";
 import SkeletonCard from "@/components/common/SkeletonCard";
 import { currentYearMonth } from "@/components/common/MonthPicker";
 import { fetchAccounts } from "@/api/accounts";
@@ -18,14 +19,13 @@ import { fetchDashboard } from "@/api/dashboard";
 import { createGoal, deleteGoal, fetchGoals, updateGoal } from "@/api/goals";
 import { fetchLoans } from "@/api/loans";
 import { fetchSavingsProducts } from "@/api/savingsProducts";
-import { fetchSettings, setEmergencyFund } from "@/api/settings";
-import { FORM_LABEL, INLINE_BUTTON_OFFSET } from "@/constants/inputStyles";
+import { FORM_LABEL } from "@/constants/inputStyles";
 import { QUERY_KEYS } from "@/constants/queryKeys";
 import { STALE_TIME } from "@/constants/queryConfig";
 import { useCrudMutations } from "@/hooks/useCrudMutations";
-import { insightSeverityStyle } from "@/utils/colors";
+import { fundingLinkBadgeStyle, insightSeverityStyle, progressStatusBadgeClass, progressStatusLabel } from "@/utils/colors";
+import { computeGoalStatus, daysUntil } from "@/utils/goalStatus";
 import { formatKrw, formatKrwPreview, formatPercent, toAmountInputValue } from "@/utils/format";
-import { extractErrorMessage } from "@/utils/error";
 import { toast } from "@/utils/toast";
 import { GROWLIO_APP_URL, growlioPortfolioUrl, isGrowlioLinkedInvestment } from "@/constants/growlio";
 import type { AccountWithBalanceOut, FinancialGoalOut, FundingSourceIn, LoanOut, SavingsProductOut } from "@/types";
@@ -110,14 +110,6 @@ function crossedMilestone(oldPct: number, newPct: number): number | null {
   return crossed.length > 0 ? Math.max(...crossed) : null;
 }
 
-/** 오늘부터 목표일까지 남은 일수 (음수면 이미 지난 목표일). */
-function daysUntil(targetDate: string): number {
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const target = new Date(targetDate);
-  return Math.round((target.getTime() - today.getTime()) / 86_400_000);
-}
-
 /** start~end 사이 전체 개월 수 — 백엔드 app/utils/dates.py::months_between과 동일한 규칙(일 차이는 무시). */
 function monthsBetween(start: Date, end: Date): number {
   return (end.getFullYear() - start.getFullYear()) * 12 + (end.getMonth() - start.getMonth());
@@ -126,8 +118,6 @@ function monthsBetween(start: Date, end: Date): number {
 export default function FinancialGoalsSection() {
   const [formTarget, setFormTarget] = useState<"new" | FinancialGoalOut | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<number | null>(null);
-  const [emergencyFundDraft, setEmergencyFundDraft] = useState<string | null>(null);
-  const queryClient = useQueryClient();
 
   const { data, isLoading } = useQuery({ queryKey: QUERY_KEYS.financialGoals, queryFn: fetchGoals });
   const { data: savingsProducts } = useQuery({
@@ -145,25 +135,10 @@ export default function FinancialGoalsSection() {
     queryFn: fetchLoans,
     staleTime: STALE_TIME.MEDIUM,
   });
-  const { data: settingsData } = useQuery({
-    queryKey: QUERY_KEYS.settings,
-    queryFn: fetchSettings,
-    staleTime: STALE_TIME.MEDIUM,
-  });
   const { data: dashboard } = useQuery({
     queryKey: QUERY_KEYS.dashboard("month", currentYearMonth()),
     queryFn: () => fetchDashboard("month", currentYearMonth()),
     staleTime: STALE_TIME.SHORT,
-  });
-
-  const saveFundMutation = useMutation({
-    mutationFn: setEmergencyFund,
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.settings });
-      void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.dashboardAll });
-      toast("비상금 잔액이 저장되었습니다.", "success");
-    },
-    onError: (err) => toast(extractErrorMessage(err), "error"),
   });
 
   const { createMutation, updateMutation, removeMutation: deleteMutation } = useCrudMutations({
@@ -209,48 +184,31 @@ export default function FinancialGoalsSection() {
     }
   };
 
-  const fundValue =
-    emergencyFundDraft ??
-    (settingsData?.emergency_fund_balance ? toAmountInputValue(settingsData.emergency_fund_balance) : "");
-
   return (
-    <div className="space-y-4">
+    <div className="space-y-6">
+      <GoalSectionHeader
+        title="가구 저축 페이스"
+        description="부부가 함께 정한 연도별 순저축 목표 대비 이번 해/이번 달 진행 상황이에요."
+      />
       <AnnualSavingsGoalCard />
 
-      <div className="card space-y-3">
-        <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300">비상금</h3>
-        <p className="text-xs text-gray-500 dark:text-gray-400">
-          부부가 함께 모아둔 비상금 잔액이에요. 대시보드 코칭에서 고정지출 대비 몇 개월치인지 알려드려요.
-        </p>
-        <div className="flex items-start flex-wrap gap-3">
-          <FormInput
-            label="비상금 잔액"
-            type="number"
-            inputMode="decimal"
-            value={fundValue}
-            onChange={(e) => setEmergencyFundDraft(e.target.value)}
-            className="w-full sm:w-40"
-            preview={Number(fundValue) > 0 ? formatKrwPreview(Number(fundValue)) : undefined}
-          />
-          <Button
-            size="sm"
-            loading={saveFundMutation.isPending}
-            onClick={() => saveFundMutation.mutate(fundValue)}
-            className={`${INLINE_BUTTON_OFFSET} min-h-[44px]`}
-          >
-            저장
+      <GoalSectionHeader
+        title="재무목표"
+        description="구체적인 용도별 저축 목표예요. 저축·투자 상품이나 계좌를 연동하면 잔액이 자동으로 반영돼요."
+        action={
+          <Button size="sm" icon={<Plus size={14} />} onClick={() => setFormTarget("new")}>
+            목표 추가
           </Button>
-        </div>
-      </div>
-
-      <div className="flex justify-end">
-        <Button size="sm" icon={<Plus size={14} />} onClick={() => setFormTarget("new")}>
-          목표 추가
-        </Button>
-      </div>
+        }
+      />
 
       {data.length === 0 ? (
-        <EmptyState title="등록된 재무목표가 없어요" description="위 버튼으로 첫 재무목표를 세워보세요" compact />
+        <EmptyState
+          icon={Target}
+          title="등록된 재무목표가 없어요"
+          description="위 버튼으로 첫 재무목표를 세워보세요"
+          compact
+        />
       ) : (
         <div className="space-y-2">
           {sortedGoals.map((goal) => {
@@ -258,45 +216,24 @@ export default function FinancialGoalsSection() {
             const showSurplusHint =
               goal.id === firstGrowlioLinkedGoalId && GROWLIO_APP_URL && Number(investableSurplus) > 0;
             const hasLoanSource = goal.funding_sources.some((fs) => fs.type === "loan");
-            return (
-              <div key={goal.id} className="card space-y-2">
-                <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0">
-                    <p className="text-xs text-gray-500 dark:text-gray-400 truncate">
-                      {goal.priority}순위
-                      {goal.target_date !== null
-                        ? ` · D-${daysUntil(goal.target_date)}`
-                        : goal.target_age !== null
-                          ? ` · ${goal.target_age}세까지`
-                          : ""}
-                    </p>
-                    <div className="flex items-center gap-1.5">
-                      <p className="text-sm font-semibold text-gray-900 dark:text-gray-50 truncate">{goal.name}</p>
-                      {goal.funding_sources.length > 0 && (
-                        <span className="shrink-0 flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[11px] font-medium bg-blue-50 text-blue-700 dark:bg-blue-950 dark:text-blue-300">
-                          <Link2 size={11} />
-                          {goal.funding_sources.map((fs) => fs.name).join(", ")}
-                        </span>
-                      )}
-                    </div>
-                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5 truncate">
-                      {goal.funding_sources.length > 0 ? "연동 항목 잔액 합계" : "현재 저축액"}{" "}
-                      {formatKrw(goal.current_amount)} / 목표 {formatKrw(goal.required_amount)} · 월{" "}
-                      {formatKrw(goal.monthly_saving_amount)}
-                      {hasLoanSource && " (대출 차감 반영)"}
-                    </p>
-                  </div>
-                  <RowActionButtons onEdit={() => setFormTarget(goal)} onDelete={() => setDeleteTarget(goal.id)} />
-                </div>
-                <div className="flex items-center gap-3">
-                  <div className="flex-1">
-                    <ProgressBar pct={Number(goal.progress_pct)} />
-                  </div>
-                  <span className="text-xs font-semibold text-emerald-600 dark:text-emerald-400 shrink-0">
-                    {formatPercent(Number(goal.progress_pct))} 달성
-                  </span>
-                </div>
-                {growlioAccountId && GROWLIO_APP_URL && (
+            const status = computeGoalStatus(goal);
+
+            const badges: GoalProgressCardBadge[] = [
+              { label: progressStatusLabel(status), toneClassName: progressStatusBadgeClass(status) },
+            ];
+            if (goal.funding_sources.length > 0) {
+              badges.push({
+                label: goal.funding_sources.map((fs) => fs.name).join(", "),
+                toneClassName: fundingLinkBadgeStyle(),
+                icon: <Link2 size={11} />,
+              });
+            }
+
+            const extraDetails: GoalProgressCardExtraDetail[] = [];
+            if (growlioAccountId && GROWLIO_APP_URL) {
+              extraDetails.push({
+                key: "growlio",
+                content: (
                   <a
                     href={growlioPortfolioUrl(growlioAccountId)}
                     target="_blank"
@@ -306,13 +243,47 @@ export default function FinancialGoalsSection() {
                     <ExternalLink size={12} />
                     이 목표의 투자금, growlio에서 포트폴리오로 굴리기
                   </a>
-                )}
-                {showSurplusHint && (
-                  <p className="text-xs text-gray-500 dark:text-gray-400">
-                    이번 달 여유자금 {formatKrw(investableSurplus)}, 이 목표의 투자금에 보태보세요.
-                  </p>
-                )}
-              </div>
+                ),
+              });
+            }
+            if (showSurplusHint) {
+              extraDetails.push({
+                key: "surplus",
+                content: `이번 달 여유자금 ${formatKrw(investableSurplus)}, 이 목표의 투자금에 보태보세요.`,
+              });
+            }
+            if (goal.weighted_return_rate_pct !== null && goal.projected_months_with_growth !== null) {
+              extraDetails.push({
+                key: "projection",
+                content: `연동 투자상품 수익률 ${formatPercent(Number(goal.weighted_return_rate_pct))}(가정) 반영 시 약 ${goal.projected_months_with_growth}개월 후 달성 예상`,
+              });
+            }
+
+            return (
+              <GoalProgressCard
+                key={goal.id}
+                title={goal.name}
+                metaLine={`${goal.priority}순위${
+                  goal.target_date !== null
+                    ? ` · D-${daysUntil(goal.target_date)}`
+                    : goal.target_age !== null
+                      ? ` · ${goal.target_age}세까지`
+                      : ""
+                }`}
+                badges={badges}
+                pct={Number(goal.progress_pct)}
+                primaryDetail={
+                  <>
+                    {goal.funding_sources.length > 0 ? "연동 항목 잔액 합계" : "현재 저축액"}{" "}
+                    {formatKrw(goal.current_amount)} / 목표 {formatKrw(goal.required_amount)} · 월{" "}
+                    {formatKrw(goal.monthly_saving_amount)}
+                    {hasLoanSource && " (대출 차감 반영)"}
+                  </>
+                }
+                extraDetails={extraDetails}
+                onEdit={() => setFormTarget(goal)}
+                onDelete={() => setDeleteTarget(goal.id)}
+              />
             );
           })}
           <div className="flex flex-col sm:flex-row sm:justify-end gap-1 sm:gap-6 pt-1 text-sm font-semibold text-gray-900 dark:text-gray-50">
@@ -327,13 +298,11 @@ export default function FinancialGoalsSection() {
         </div>
       )}
 
-      <div className="pt-2 border-t border-gray-100 dark:border-gray-800 space-y-3">
-        <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300">부부 챌린지</h3>
-        <p className="text-xs text-gray-500 dark:text-gray-400">
-          기간을 정해두고 부부가 함께 짧게 도전하는 미니 목표예요. 장기 목표와 별개로 자유롭게 만들어보세요.
-        </p>
-        <ChallengesSection />
-      </div>
+      <GoalSectionHeader
+        title="부부 챌린지"
+        description="기간을 정해두고 부부가 함께 짧게 도전하는 미니 목표예요. 장기 목표와 별개로 자유롭게 만들어보세요."
+      />
+      <ChallengesSection />
 
       {formTarget && (
         <GoalFormModal
@@ -344,6 +313,7 @@ export default function FinancialGoalsSection() {
           savingsProducts={savingsProducts ?? []}
           accounts={accounts ?? []}
           loans={loans ?? []}
+          existingGoal={formTarget === "new" ? null : formTarget}
           onClose={() => setFormTarget(null)}
           onSubmit={handleSubmit}
         />
@@ -368,6 +338,7 @@ function GoalFormModal({
   savingsProducts,
   accounts,
   loans,
+  existingGoal,
   onClose,
   onSubmit,
 }: {
@@ -378,6 +349,7 @@ function GoalFormModal({
   savingsProducts: SavingsProductOut[];
   accounts: AccountWithBalanceOut[];
   loans: LoanOut[];
+  existingGoal: FinancialGoalOut | null;
   onClose: () => void;
   onSubmit: (draft: Draft) => void;
 }) {
@@ -399,14 +371,31 @@ function GoalFormModal({
     onSubmit(draft);
   };
 
+  // 수정 모드에서 아직 아무것도 고치지 않았다면(초안이 저장된 값과 같다면) 백엔드가 이미 계산해
+  // 내려준 months_remaining/suggested_monthly_amount(app/services/goal_service.py::
+  // compute_months_remaining/compute_suggested_monthly_amount)를 그대로 보여준다. 목표일/나이/
+  // 필요금액/현재저축액 중 하나라도 바뀌는 순간부터는 "저장하면 어떻게 될지" 미리보기가 필요하므로
+  // 프론트에서 직접 계산한다 — 신규 생성 모드는 저장된 값 자체가 없어 항상 이 경로를 쓴다.
+  const draftMatchesExistingGoal =
+    existingGoal !== null &&
+    draft.target_date === (existingGoal.target_date ?? "") &&
+    draft.target_age === (existingGoal.target_age !== null ? String(existingGoal.target_age) : "") &&
+    draft.required_amount === toAmountInputValue(existingGoal.required_amount) &&
+    draft.current_amount === toAmountInputValue(existingGoal.current_amount);
+
   const monthsRemainingFromDate = draft.target_date !== "" ? monthsBetween(new Date(), new Date(draft.target_date)) : null;
   const monthsRemainingFromAge =
     currentAge !== "" && draft.target_age !== "" ? (Number(draft.target_age) - Number(currentAge)) * 12 : null;
-  const monthsRemaining = monthsRemainingFromDate ?? monthsRemainingFromAge;
+  const monthsRemaining =
+    draftMatchesExistingGoal && existingGoal
+      ? existingGoal.months_remaining
+      : (monthsRemainingFromDate ?? monthsRemainingFromAge);
   const suggestedMonthly =
-    monthsRemaining !== null && monthsRemaining > 0
-      ? Math.max(0, Math.round((Number(draft.required_amount) - Number(draft.current_amount)) / monthsRemaining))
-      : null;
+    draftMatchesExistingGoal && existingGoal && existingGoal.suggested_monthly_amount !== null
+      ? Math.round(Number(existingGoal.suggested_monthly_amount))
+      : monthsRemaining !== null && monthsRemaining > 0
+        ? Math.max(0, Math.round((Number(draft.required_amount) - Number(draft.current_amount)) / monthsRemaining))
+        : null;
 
   return (
     <Modal onClose={onClose} title={title}>
@@ -581,6 +570,23 @@ function GoalFormModal({
             (필요금액 - 현재 저축액) ÷ 남은 개월 수로 월 저축금액을 제안해요. 저장되지 않고 계산에만 쓰여요.
           </p>
         </div>
+        {existingGoal &&
+          existingGoal.weighted_return_rate_pct !== null &&
+          existingGoal.projected_months_with_growth !== null && (
+            <div className="rounded-lg border border-emerald-200 dark:border-emerald-800 bg-emerald-50/40 dark:bg-emerald-950/20 p-3 space-y-1">
+              <p className="text-xs font-medium text-emerald-700 dark:text-emerald-400">
+                투자수익률 반영 예상 소요기간 (가정치)
+              </p>
+              <p className="text-sm text-gray-900 dark:text-gray-50">
+                연동 투자상품 수익률 {formatPercent(Number(existingGoal.weighted_return_rate_pct))} 가정 시 약{" "}
+                {existingGoal.projected_months_with_growth}개월 후 목표 달성 예상
+              </p>
+              <p className="text-xs text-gray-400 dark:text-gray-500">
+                원금 대비 현재 손익률을 연 수익률처럼 가정한 값이라 보유기간에 따라 실제와 다를 수 있어요 —
+                참고용 추정치예요.
+              </p>
+            </div>
+          )}
         <FormInput
           label="월 저축금액"
           type="number"

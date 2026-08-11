@@ -26,6 +26,7 @@ def test_dashboard_today_returns_totals_and_insights(client, seeded_db):
             "savings": "100000.00",
         }
     ]
+    assert set(body["surplus_allocation"].keys()) == {"emergency_fund_portion", "investable_portion"}
 
 
 def test_dashboard_defaults_to_month_period(client):

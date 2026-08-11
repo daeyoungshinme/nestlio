@@ -137,6 +137,12 @@ export interface DashboardOut {
   savings_streak_months: number;
   active_challenge: ChallengeOut | null;
   investable_surplus: string;
+  surplus_allocation: SurplusAllocationOut;
+}
+
+export interface SurplusAllocationOut {
+  emergency_fund_portion: string;
+  investable_portion: string;
 }
 
 export interface MonthlyRetrospectiveOut {
@@ -496,6 +502,8 @@ export interface FinancialGoalOut {
   funding_sources: FundingSourceOut[];
   months_remaining: number | null;
   suggested_monthly_amount: string | null;
+  weighted_return_rate_pct: string | null;
+  projected_months_with_growth: number | null;
 }
 
 export interface FinancialGoalCreateIn {
@@ -530,6 +538,8 @@ export interface AnnualSavingsGoalUpsertIn {
 export interface AnnualSavingsGoalSuggestionOut {
   suggested_monthly_target_krw: string;
   suggested_annual_target_krw: string;
+  goal_based_monthly_target_krw: string;
+  goal_based_annual_target_krw: string;
 }
 
 export interface ChallengeOut {

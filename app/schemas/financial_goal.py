@@ -35,6 +35,13 @@ class FinancialGoalOut(BaseModel):
     funding_sources: list[FundingSourceOut] = []
     months_remaining: int | None = None
     suggested_monthly_amount: Decimal | None = None
+    # 연동된 투자형 저축상품의 잔액 가중평균 수익률(원금 대비 손익률)과, 그 수익률을 가정해
+    # 복리로 계속 불렸을 때 목표금액까지 예상 소요 개월수. 둘 다 투자 연동이 없거나 원금
+    # 미입력이면 None — goal_service.compute_weighted_return_rate_pct/
+    # compute_projected_months_with_growth 참고. 어디까지나 가정치이므로 프론트에서 항상
+    # "가정치" 문구와 함께 노출한다.
+    weighted_return_rate_pct: Decimal | None = None
+    projected_months_with_growth: int | None = None
 
 
 class FinancialGoalCreateIn(BaseModel):

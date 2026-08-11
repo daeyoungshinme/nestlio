@@ -203,6 +203,37 @@ def investable_surplus(totals: dict, actual_saved: Decimal | None) -> Decimal:
     return max(surplus - actual_saved, Decimal("0"))
 
 
+def recommend_surplus_allocation(
+    surplus: Decimal, emergency_fund_balance: Decimal | None, avg_monthly_fixed: Decimal
+) -> dict:
+    """이번달 투자 가능 여유자금(investable_surplus)을 비상금 보충분과 투자 가능분으로 나눈다.
+    비상금이 emergency_fund_insight와 같은 기준(EMERGENCY_FUND_TARGET_MONTHS)에 못 미치면
+    부족분을 여유자금에서 먼저 채우도록 제안하고, 남는 만큼만 투자 가능분으로 돌린다. 비상금
+    잔액이 설정되지 않았거나 평균 고정지출을 알 수 없으면(커버리지 계산 불가) 전액 투자
+    가능분으로 취급한다 — InvestSurplusCard가 "잉여자금을 growlio에 담으라"고 무조건 권하던
+    기존 동작과의 하위호환."""
+    if surplus <= 0:
+        return {"emergency_fund_portion": Decimal("0"), "investable_portion": Decimal("0")}
+    if emergency_fund_balance is None or avg_monthly_fixed <= 0:
+        return {"emergency_fund_portion": Decimal("0"), "investable_portion": surplus}
+    target_balance = avg_monthly_fixed * EMERGENCY_FUND_TARGET_MONTHS
+    shortfall = max(target_balance - emergency_fund_balance, Decimal("0"))
+    emergency_fund_portion = min(shortfall, surplus)
+    return {"emergency_fund_portion": emergency_fund_portion, "investable_portion": surplus - emergency_fund_portion}
+
+
+def compute_surplus_allocation(db: Session, month_start: date, surplus: Decimal) -> dict:
+    """recommend_surplus_allocation에 필요한 비상금 잔액/평균 고정지출을 조회해 넘겨주는
+    DB-aware 래퍼 — emergency_fund_insight가 compute_insights 안에서 쓰는 것과 동일한 조회
+    패턴(user_setting_service의 공유 비상금 설정 + 최근 3개월 고정지출 평균)을 재사용한다."""
+    balance_raw = user_setting_service.get_shared_setting(db, user_setting_service.EMERGENCY_FUND_BALANCE_KEY)
+    if not balance_raw:
+        return recommend_surplus_allocation(surplus, None, Decimal("0"))
+    trend = transaction_service.monthly_trend(db, months=3, anchor=month_start)
+    avg_fixed = sum((Decimal(str(row["fixed"])) for row in trend), Decimal("0")) / len(trend)
+    return recommend_surplus_allocation(surplus, Decimal(balance_raw), avg_fixed)
+
+
 def emergency_fund_insight(current_balance: Decimal | None, avg_monthly_fixed: Decimal) -> Insight | None:
     if current_balance is None or avg_monthly_fixed <= 0:
         return None

@@ -4,7 +4,7 @@ from decimal import Decimal
 from sqlalchemy.orm import Session
 
 from app.models.annual_savings_goal import AnnualSavingsGoal
-from app.services import transaction_service
+from app.services import goal_service, transaction_service
 
 
 def list_goals(db: Session) -> list[AnnualSavingsGoal]:
@@ -69,12 +69,21 @@ def compute_progress(db: Session, goal: AnnualSavingsGoal, today: date) -> dict:
 
 
 def suggested_targets(db: Session, today: date) -> dict:
-    """최근 3개월 가구 현금흐름 평균 저축액을 월/연 목표 입력값 제안으로 계산한다 (저장된
-    AnnualSavingsGoal row 유무와 무관 — 신규 연도에도 제안 가능해야 함)."""
+    """월/연 목표 입력값 제안을 두 가지 기준으로 계산한다 (저장된 AnnualSavingsGoal row
+    유무와 무관 — 신규 연도에도 제안 가능해야 함):
+    - 최근 3개월 가구 현금흐름 평균 저축액 기준 (기존)
+    - 현재 등록된 재무목표(FinancialGoal)들의 월 저축금액 합계 기준 (목표 시스템 통합 —
+      "우리가 세운 목표들을 다 합치면 올해 얼마를 모아야 하는가"를 그대로 제안값으로 보여준다)
+    """
     suggested_monthly = transaction_service.trailing_average_savings(db, today, months=3)
+    goal_based_monthly = sum(
+        (g.monthly_saving_amount for g in goal_service.list_goals(db)), Decimal("0")
+    )
     return {
         "suggested_monthly_target_krw": suggested_monthly,
         "suggested_annual_target_krw": suggested_monthly * 12,
+        "goal_based_monthly_target_krw": goal_based_monthly,
+        "goal_based_annual_target_krw": goal_based_monthly * 12,
     }
 
 

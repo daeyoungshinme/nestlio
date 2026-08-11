@@ -45,6 +45,7 @@ def dashboard(
         db, current_ym, totals=totals, breakdown=expense_breakdown, goals=goals, actual_saved=actual_saved
     )
     investable_surplus = coaching_engine.investable_surplus(totals, actual_saved)
+    surplus_allocation = coaching_engine.compute_surplus_allocation(db, month_start=start.replace(day=1), surplus=investable_surplus)
 
     target_monthly = sum((g.monthly_saving_amount for g in goals), Decimal("0"))
     streak = coaching_engine.savings_streak_months(trend, target_monthly)
@@ -67,6 +68,7 @@ def dashboard(
         "current_ym": current_ym,
         "savings_streak_months": streak,
         "investable_surplus": investable_surplus,
+        "surplus_allocation": surplus_allocation,
         "active_challenge": challenge_service.to_out(active_challenge, status_asof) if active_challenge else None,
     }
 

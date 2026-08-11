@@ -1,14 +1,13 @@
 import { useState } from "react";
 import type { FormEvent } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Plus } from "lucide-react";
+import { Plus, Trophy } from "lucide-react";
 import Button from "@/components/common/Button";
 import ConfirmModal from "@/components/common/ConfirmModal";
 import EmptyState from "@/components/common/EmptyState";
 import FormInput from "@/components/common/FormInput";
+import GoalProgressCard from "@/components/financialPlan/GoalProgressCard";
 import Modal from "@/components/common/Modal";
-import ProgressBar from "@/components/common/ProgressBar";
-import RowActionButtons from "@/components/common/RowActionButtons";
 import SkeletonCard from "@/components/common/SkeletonCard";
 import {
   createChallenge,
@@ -19,12 +18,22 @@ import {
 } from "@/api/challenges";
 import { FORM_LABEL, INLINE_BUTTON_OFFSET, TEXTAREA_SM } from "@/constants/inputStyles";
 import { QUERY_KEYS } from "@/constants/queryKeys";
+import { TOUCH_TARGET_MIN_HEIGHT } from "@/constants/uiSizes";
 import { useCrudMutations } from "@/hooks/useCrudMutations";
-import { challengeStatusBadgeClass, challengeStatusLabel } from "@/utils/colors";
-import { formatDate, formatKrw, formatKrwPreview, formatPercent, toAmountInputValue } from "@/utils/format";
+import { progressStatusBadgeClass, progressStatusLabel, type ProgressStatus } from "@/utils/colors";
+import { formatDate, formatKrw, formatKrwPreview, toAmountInputValue } from "@/utils/format";
 import { extractErrorMessage } from "@/utils/error";
 import { toast } from "@/utils/toast";
 import type { ChallengeOut } from "@/types";
+
+/** 챌린지의 effective_status를 목표 카드와 공유하는 ProgressStatus로 매핑한다
+ * (active→on_track, succeeded→achieved, expired→expired) — 두 리소스가 각자 구현하던
+ * 배지 색상표를 utils/colors.ts의 progressStatus* 하나로 합친 것. */
+function challengeProgressStatus(status: ChallengeOut["effective_status"]): ProgressStatus {
+  if (status === "active") return "on_track";
+  if (status === "succeeded") return "achieved";
+  return "expired";
+}
 
 interface Draft {
   title: string;
@@ -143,6 +152,7 @@ export default function ChallengesSection() {
 
       {data.length === 0 ? (
         <EmptyState
+          icon={Trophy}
           title="진행 중인 챌린지가 없어요"
           description="위 버튼으로 부부가 함께할 첫 챌린지를 만들어보세요"
           compact
@@ -152,23 +162,17 @@ export default function ChallengesSection() {
           {data.map((challenge) => {
             const draftValue = progressDraft[challenge.id] ?? toAmountInputValue(challenge.current_amount);
             const isActive = challenge.effective_status === "active";
+            const status = challengeProgressStatus(challenge.effective_status);
             return (
-              <div key={challenge.id} className="card space-y-2">
-                <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-1.5 flex-wrap">
-                      <p className="text-sm font-semibold text-gray-900 dark:text-gray-50 truncate">
-                        {challenge.title}
-                      </p>
-                      <span
-                        className={`shrink-0 px-1.5 py-0.5 rounded text-[11px] font-medium ${challengeStatusBadgeClass(challenge.effective_status)}`}
-                      >
-                        {challengeStatusLabel(challenge.effective_status)}
-                      </span>
-                      <span className="shrink-0 px-1.5 py-0.5 rounded text-[11px] font-medium bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400">
-                        {ddayLabel(challenge)}
-                      </span>
-                    </div>
+              <GoalProgressCard
+                key={challenge.id}
+                title={challenge.title}
+                badges={[
+                  { label: progressStatusLabel(status), toneClassName: progressStatusBadgeClass(status) },
+                  { label: ddayLabel(challenge), toneClassName: progressStatusBadgeClass("neutral") },
+                ]}
+                subtitle={
+                  <>
                     {challenge.description && (
                       <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5 truncate">
                         {challenge.description}
@@ -177,45 +181,40 @@ export default function ChallengesSection() {
                     <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5 truncate">
                       {formatDate(challenge.start_date)} ~ {formatDate(challenge.end_date)}
                     </p>
-                  </div>
-                  <RowActionButtons
-                    onEdit={() => setFormTarget(challenge)}
-                    onDelete={() => setDeleteTarget(challenge.id)}
-                  />
-                </div>
-                <div className="flex items-center gap-3">
-                  <div className="flex-1">
-                    <ProgressBar pct={Number(challenge.progress_pct)} />
-                  </div>
-                  <span className="text-xs font-semibold text-emerald-600 dark:text-emerald-400 shrink-0">
-                    {formatPercent(Number(challenge.progress_pct))}
-                  </span>
-                </div>
-                <p className="text-xs text-gray-500 dark:text-gray-400">
-                  {formatKrw(challenge.current_amount)} / 목표 {formatKrw(challenge.target_amount)}
-                </p>
-                {isActive && (
-                  <div className="flex items-start flex-wrap gap-2 pt-1">
-                    <FormInput
-                      label="진행 금액 갱신"
-                      type="number"
-                      inputMode="decimal"
-                      value={draftValue}
-                      onChange={(e) => setProgressDraft((d) => ({ ...d, [challenge.id]: e.target.value }))}
-                      className="w-full sm:w-40"
-                      preview={Number(draftValue) > 0 ? formatKrwPreview(Number(draftValue)) : undefined}
-                    />
-                    <Button
-                      size="sm"
-                      loading={progressMutation.isPending && progressMutation.variables?.id === challenge.id}
-                      onClick={() => progressMutation.mutate({ id: challenge.id, current_amount: draftValue })}
-                      className={`${INLINE_BUTTON_OFFSET} min-h-[44px]`}
-                    >
-                      저장
-                    </Button>
-                  </div>
-                )}
-              </div>
+                  </>
+                }
+                pct={Number(challenge.progress_pct)}
+                primaryDetail={
+                  <>
+                    {formatKrw(challenge.current_amount)} / 목표 {formatKrw(challenge.target_amount)}
+                  </>
+                }
+                onEdit={() => setFormTarget(challenge)}
+                onDelete={() => setDeleteTarget(challenge.id)}
+                footer={
+                  isActive && (
+                    <div className="flex items-start flex-wrap gap-2 pt-1">
+                      <FormInput
+                        label="진행 금액 갱신"
+                        type="number"
+                        inputMode="decimal"
+                        value={draftValue}
+                        onChange={(e) => setProgressDraft((d) => ({ ...d, [challenge.id]: e.target.value }))}
+                        className="w-full sm:w-40"
+                        preview={Number(draftValue) > 0 ? formatKrwPreview(Number(draftValue)) : undefined}
+                      />
+                      <Button
+                        size="sm"
+                        loading={progressMutation.isPending && progressMutation.variables?.id === challenge.id}
+                        onClick={() => progressMutation.mutate({ id: challenge.id, current_amount: draftValue })}
+                        className={`${INLINE_BUTTON_OFFSET} ${TOUCH_TARGET_MIN_HEIGHT}`}
+                      >
+                        저장
+                      </Button>
+                    </div>
+                  )
+                }
+              />
             );
           })}
         </div>

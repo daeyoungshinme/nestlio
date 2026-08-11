@@ -121,26 +121,39 @@ export function inviteStatusLabel(status: InviteStatus): string {
   return INVITE_STATUS_LABEL[status];
 }
 
-export type ChallengeStatus = "active" | "succeeded" | "expired";
+/** 재무목표/챌린지가 공유하는 진행 상태 배지 타입 — 두 리소스가 각자 손으로 구현하던
+ * 배지 색상표(구 challengeStatusBadgeClass 등)를 하나로 합친 것. 목표는 goalStatus.ts가,
+ * 챌린지는 각 컴포넌트가 자신의 status 값을 이 타입으로 매핑해 재사용한다. */
+export type ProgressStatus = "on_track" | "behind" | "achieved" | "expired" | "neutral";
 
-const CHALLENGE_STATUS_BADGE: Record<ChallengeStatus, string> = {
-  active: "bg-blue-50 dark:bg-blue-950 text-blue-700 dark:text-blue-300",
-  succeeded: "bg-emerald-50 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300",
+const PROGRESS_STATUS_BADGE: Record<ProgressStatus, string> = {
+  on_track: "bg-blue-50 dark:bg-blue-950 text-blue-700 dark:text-blue-300",
+  behind: "bg-amber-50 dark:bg-amber-950 text-amber-700 dark:text-amber-300",
+  achieved: "bg-emerald-50 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300",
   expired: "bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400",
+  neutral: "bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400",
 };
 
-const CHALLENGE_STATUS_LABEL: Record<ChallengeStatus, string> = {
-  active: "진행중",
-  succeeded: "성공!",
+const PROGRESS_STATUS_LABEL: Record<ProgressStatus, string> = {
+  on_track: "정상",
+  behind: "지연",
+  achieved: "달성",
   expired: "기간종료",
+  neutral: "진행중",
 };
 
-export function challengeStatusBadgeClass(status: ChallengeStatus): string {
-  return CHALLENGE_STATUS_BADGE[status];
+export function progressStatusBadgeClass(status: ProgressStatus): string {
+  return PROGRESS_STATUS_BADGE[status];
 }
 
-export function challengeStatusLabel(status: ChallengeStatus): string {
-  return CHALLENGE_STATUS_LABEL[status];
+export function progressStatusLabel(status: ProgressStatus): string {
+  return PROGRESS_STATUS_LABEL[status];
+}
+
+/** 재무목표 카드의 "연동" 배지(연동된 저축/투자/계좌 안내) 색상 — 인라인 Tailwind 리터럴
+ * 대신 이 유틸을 거치도록 뽑아냈다. */
+export function fundingLinkBadgeStyle(): string {
+  return "bg-blue-50 dark:bg-blue-950 text-blue-700 dark:text-blue-300";
 }
 
 const RECURRING_LINK_BADGE_STYLE: Record<"active" | "inactive", string> = {

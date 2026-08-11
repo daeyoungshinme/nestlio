@@ -23,11 +23,14 @@ class AnnualSavingsGoalUpsertIn(BaseModel):
 
 
 class AnnualSavingsGoalSuggestionOut(BaseModel):
-    """가구 현금흐름(최근 3개월 평균 실제 저축액) 기준 월/연 목표 제안값 — 저장된 목표와 별개의
-    순수 조회 데이터."""
+    """월/연 목표 제안값 — 저장된 목표와 별개의 순수 조회 데이터. 두 가지 기준을 함께 내려준다:
+    가구 현금흐름(최근 3개월 평균 실제 저축액) 기준과, 현재 등록된 재무목표들의 월 저축금액
+    합계 기준(goal_based_*)."""
 
     suggested_monthly_target_krw: Decimal
     suggested_annual_target_krw: Decimal
+    goal_based_monthly_target_krw: Decimal
+    goal_based_annual_target_krw: Decimal
 
 
 class AnnualSavingsGoalExternalOut(BaseModel):

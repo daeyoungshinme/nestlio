@@ -9,6 +9,8 @@ import WeekPicker, { currentWeekAnchor } from "@/components/common/WeekPicker";
 import MonthlyRetrospectiveCard from "@/components/dashboard/MonthlyRetrospectiveCard";
 import CoupleContributionCard from "@/components/dashboard/CoupleContributionCard";
 import InvestSurplusCard from "@/components/dashboard/InvestSurplusCard";
+import GoalProgressCard from "@/components/financialPlan/GoalProgressCard";
+import type { GoalProgressCardBadge } from "@/components/financialPlan/GoalProgressCard";
 import SummaryCards from "@/components/common/SummaryCards";
 import SkeletonCard from "@/components/common/SkeletonCard";
 import EmptyState from "@/components/common/EmptyState";
@@ -27,12 +29,13 @@ import { createTransaction } from "@/api/transactions";
 import { useInvalidateTransactionRelated } from "@/hooks/useInvalidateTransactionRelated";
 import { QUERY_KEYS } from "@/constants/queryKeys";
 import { STALE_TIME } from "@/constants/queryConfig";
-import { insightSeverityStyle } from "@/utils/colors";
+import { insightSeverityStyle, progressStatusBadgeClass, progressStatusLabel } from "@/utils/colors";
+import { computeGoalStatus, daysUntil } from "@/utils/goalStatus";
 import { formatDate, formatKrw, formatPercent, formatWeekRange, formatYearMonth } from "@/utils/format";
 import { extractErrorMessage } from "@/utils/error";
 import { toast } from "@/utils/toast";
 import type { DashboardPeriod } from "@/types";
-import { Flame, Target } from "lucide-react";
+import { ChevronDown, ChevronRight, Flame, Target } from "lucide-react";
 
 const PERIOD_TABS: DashboardPeriod[] = ["today", "week", "month"];
 const PERIOD_LABEL: Record<DashboardPeriod, string> = { today: "오늘", week: "이번주", month: "이번달" };
@@ -45,7 +48,7 @@ const INSIGHT_LINKS: Partial<Record<string, { to: string; label: string }>> = {
   debt_ratio: { to: "/transactions", label: "가계부 보기" },
   budget_overrun: { to: "/financial-plan?tab=현금흐름 계획", label: "예산 보기" },
   goal_pace: { to: "/financial-plan?tab=재무목표", label: "목표 보기" },
-  emergency_fund: { to: "/financial-plan?tab=재무목표", label: "목표 보기" },
+  emergency_fund: { to: "/accounts", label: "자산현황 보기" },
   savings_execution: { to: "/accounts?tab=저축·투자", label: "저축·투자 보기" },
 };
 
@@ -55,6 +58,7 @@ export default function DashboardPage() {
   const [day, setDay] = useState(currentDateIso());
   const [week, setWeek] = useState(currentWeekAnchor());
   const [showQuickAdd, setShowQuickAdd] = useState(false);
+  const [showMore, setShowMore] = useState(false);
   const invalidateAll = useInvalidateTransactionRelated();
 
   const anchor = period === "month" ? yearMonth : period === "week" ? week : day;
@@ -117,6 +121,24 @@ export default function DashboardPage() {
   }
 
   const topGoal = goals?.length ? goals.slice().sort((a, b) => a.priority - b.priority)[0] : null;
+  const topGoalBadges: GoalProgressCardBadge[] = [];
+  if (topGoal) {
+    if (topGoal.target_date !== null) {
+      topGoalBadges.push({
+        label: `D-${daysUntil(topGoal.target_date)}`,
+        toneClassName: "bg-emerald-50 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300",
+      });
+    }
+    const goalStatus = computeGoalStatus(topGoal);
+    topGoalBadges.push({ label: progressStatusLabel(goalStatus), toneClassName: progressStatusBadgeClass(goalStatus) });
+    if (data.savings_streak_months > 0) {
+      topGoalBadges.push({
+        label: `${data.savings_streak_months}개월 연속 목표 페이스`,
+        toneClassName: "bg-amber-50 dark:bg-amber-950 text-amber-700 dark:text-amber-300",
+        icon: <Flame size={12} aria-hidden="true" />,
+      });
+    }
+  }
   const goalPaceInsight = data.insights.find((i) => i.rule_code === "goal_pace");
   const totalUserSavings = data.by_user.reduce((sum, u) => sum + Math.max(0, Number(u.savings)), 0);
   const sparklineData = data.trend.map((row) => ({
@@ -129,7 +151,7 @@ export default function DashboardPage() {
   return (
     <div className="space-y-6">
       {settingsData?.couple_photo_url && (
-        <div className="rounded-xl overflow-hidden h-40 lg:h-56">
+        <div className="rounded-xl overflow-hidden h-24 sm:h-32 lg:h-56">
           <img
             src={settingsData.couple_photo_url}
             alt="부부 사진"
@@ -177,94 +199,76 @@ export default function DashboardPage() {
         </div>
       )}
 
+      <SummaryCards totals={data.totals} collapsible />
+
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <Link
-          to="/financial-plan?tab=재무목표"
-          className="card block hover:border-emerald-300 dark:hover:border-emerald-700 transition-colors space-y-4"
-        >
-          <div>
-            <div className="flex items-center justify-between gap-2 mb-3">
-              <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300">우리 부부 목표</h3>
-              {data.savings_streak_months > 0 && (
-                <span className="shrink-0 flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-amber-50 dark:bg-amber-950 text-amber-700 dark:text-amber-300">
-                  <Flame size={12} aria-hidden="true" />
-                  {data.savings_streak_months}개월 연속 목표 페이스
-                </span>
-              )}
-            </div>
-            {!topGoal ? (
-              <EmptyState
-                icon={Target}
-                title="아직 목표가 없어요"
-                description="목표 탭에서 첫 재무목표를 세워보세요"
-                compact
-              />
-            ) : (
-              <>
-                <div className="flex items-center gap-1.5 mb-1">
-                  <p className="text-lg font-bold text-gray-900 dark:text-gray-50">{topGoal.name}</p>
-                  {topGoal.target_date !== null && (
-                    <span className="shrink-0 px-1.5 py-0.5 rounded text-[11px] font-semibold bg-emerald-50 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300">
-                      D-{Math.round((new Date(topGoal.target_date).getTime() - new Date().setHours(0, 0, 0, 0)) / 86_400_000)}
-                    </span>
+        {!topGoal ? (
+          <Link to="/financial-plan?tab=재무목표" className="relative card block hover:border-emerald-300 dark:hover:border-emerald-700 transition-colors">
+            <ChevronRight size={16} className="absolute top-5 right-5 text-gray-300 dark:text-gray-600" aria-hidden="true" />
+            <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">우리 부부 목표</h3>
+            <EmptyState
+              icon={Target}
+              title="아직 목표가 없어요"
+              description="목표 탭에서 첫 재무목표를 세워보세요"
+              compact
+            />
+          </Link>
+        ) : (
+          <Link to="/financial-plan?tab=재무목표" className="relative block">
+            <ChevronRight size={16} className="absolute top-5 right-5 text-gray-300 dark:text-gray-600 z-10" aria-hidden="true" />
+            <GoalProgressCard
+              className="hover:border-emerald-300 dark:hover:border-emerald-700 transition-colors"
+              metaLine="우리 부부 목표"
+              title={topGoal.name}
+              badges={topGoalBadges}
+              pct={Number(topGoal.progress_pct)}
+              primaryDetail={`${formatKrw(topGoal.current_amount)} / ${formatKrw(topGoal.required_amount)}`}
+              extraDetails={goalPaceInsight ? [{ key: "pace", content: goalPaceInsight.message }] : []}
+              footer={
+                <>
+                  {sparklineData.some((row) => row.savings !== 0) && (
+                    <div className="pt-4 border-t border-gray-100 dark:border-gray-800">
+                      <p className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">최근 {sparklineData.length}개월 저축 추이</p>
+                      <div className="h-12">
+                        <ResponsiveContainer width="100%" height="100%">
+                          <LineChart data={sparklineData} margin={{ top: 4, right: 4, bottom: 4, left: 4 }}>
+                            <Tooltip
+                              formatter={(value) => [formatKrw(Number(value)), "저축"]}
+                              contentStyle={{ fontSize: 12, borderRadius: 8 }}
+                            />
+                            <Line
+                              type="monotone"
+                              dataKey="savings"
+                              stroke="#10b981"
+                              strokeWidth={2}
+                              dot={false}
+                              activeDot={{ r: 4 }}
+                            />
+                          </LineChart>
+                        </ResponsiveContainer>
+                      </div>
+                    </div>
                   )}
-                </div>
-                <p className="text-sm text-gray-500 dark:text-gray-400 mb-3">
-                  {formatKrw(topGoal.current_amount)} / {formatKrw(topGoal.required_amount)}
-                </p>
-                <div className="flex items-center gap-3">
-                  <div className="flex-1">
-                    <ProgressBar pct={Number(topGoal.progress_pct)} />
-                  </div>
-                  <span className="text-xs font-semibold text-emerald-600 dark:text-emerald-400 shrink-0">
-                    {formatPercent(Number(topGoal.progress_pct))} 달성
-                  </span>
-                </div>
-                {goalPaceInsight && (
-                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">{goalPaceInsight.message}</p>
-                )}
-              </>
-            )}
-          </div>
 
-          {sparklineData.some((row) => row.savings !== 0) && (
-            <div className="pt-4 border-t border-gray-100 dark:border-gray-800">
-              <p className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">최근 {sparklineData.length}개월 저축 추이</p>
-              <div className="h-12">
-                <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={sparklineData} margin={{ top: 4, right: 4, bottom: 4, left: 4 }}>
-                    <Tooltip
-                      formatter={(value) => [formatKrw(Number(value)), "저축"]}
-                      contentStyle={{ fontSize: 12, borderRadius: 8 }}
-                    />
-                    <Line
-                      type="monotone"
-                      dataKey="savings"
-                      stroke="#10b981"
-                      strokeWidth={2}
-                      dot={false}
-                      activeDot={{ r: 4 }}
-                    />
-                  </LineChart>
-                </ResponsiveContainer>
-              </div>
-            </div>
-          )}
+                  {activeChallenge && (
+                    <div className="pt-4 border-t border-gray-100 dark:border-gray-800">
+                      <div className="flex items-center justify-between text-sm mb-1">
+                        <span className="font-medium text-gray-700 dark:text-gray-300">진행중 챌린지 · {activeChallenge.title}</span>
+                        <span className="text-xs font-semibold text-blue-600 dark:text-blue-400 shrink-0">
+                          {formatPercent(Number(activeChallenge.progress_pct))}
+                        </span>
+                      </div>
+                      <ProgressBar pct={Number(activeChallenge.progress_pct)} barClassName="bg-blue-500" />
+                    </div>
+                  )}
+                </>
+              }
+            />
+          </Link>
+        )}
 
-          {activeChallenge && (
-            <div className="pt-4 border-t border-gray-100 dark:border-gray-800">
-              <div className="flex items-center justify-between text-sm mb-1">
-                <span className="font-medium text-gray-700 dark:text-gray-300">진행중 챌린지 · {activeChallenge.title}</span>
-                <span className="text-xs font-semibold text-blue-600 dark:text-blue-400 shrink-0">
-                  {formatPercent(Number(activeChallenge.progress_pct))}
-                </span>
-              </div>
-              <ProgressBar pct={Number(activeChallenge.progress_pct)} barClassName="bg-blue-500" />
-            </div>
-          )}
-        </Link>
-
-        <Link to="/accounts" className="card block hover:border-emerald-300 dark:hover:border-emerald-700 transition-colors">
+        <Link to="/accounts" className="relative card block hover:border-emerald-300 dark:hover:border-emerald-700 transition-colors">
+          <ChevronRight size={16} className="absolute top-4 right-4 text-gray-300 dark:text-gray-600" aria-hidden="true" />
           <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">순자산</h3>
           {!netWorth ? (
             <SkeletonCard rows={2} />
@@ -292,28 +296,43 @@ export default function DashboardPage() {
         </Link>
       </div>
 
-      <SummaryCards totals={data.totals} collapsible />
+      <button
+        type="button"
+        onClick={() => setShowMore((v) => !v)}
+        aria-expanded={showMore}
+        className="w-full flex items-center justify-center gap-1.5 min-h-[44px] text-sm font-medium text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 transition-colors"
+      >
+        {showMore ? "간단히 보기" : "더 보기"}
+        <ChevronDown
+          size={16}
+          className={`shrink-0 transition-transform duration-200 ${showMore ? "rotate-180" : ""}`}
+        />
+      </button>
 
-      <CoupleContributionCard
-        title={
-          isCurrentPeriod
-            ? "이번 기간 함께 모은 돈"
-            : period === "month"
-              ? `${formatYearMonth(data.current_ym)} 함께 모은 돈`
-              : period === "week"
-                ? `${formatWeekRange(data.start, data.end)} 함께 모은 돈`
-                : `${formatDate(data.start)} 함께 모은 돈`
-        }
-        byUser={data.by_user}
-        totalUserSavings={totalUserSavings}
-      />
+      {showMore && (
+        <div className="space-y-6">
+          <CoupleContributionCard
+            title={
+              isCurrentPeriod
+                ? "이번 기간 함께 모은 돈"
+                : period === "month"
+                  ? `${formatYearMonth(data.current_ym)} 함께 모은 돈`
+                  : period === "week"
+                    ? `${formatWeekRange(data.start, data.end)} 함께 모은 돈`
+                    : `${formatDate(data.start)} 함께 모은 돈`
+            }
+            byUser={data.by_user}
+            totalUserSavings={totalUserSavings}
+          />
 
-      <InvestSurplusCard
-        investableSurplus={data.investable_surplus}
-        investmentProducts={savingsProducts ?? []}
-      />
+          <InvestSurplusCard
+            surplusAllocation={data.surplus_allocation}
+            investmentProducts={savingsProducts ?? []}
+          />
 
-      <MonthlyRetrospectiveCard />
+          <MonthlyRetrospectiveCard />
+        </div>
+      )}
 
       <QuickAddFab onClick={() => setShowQuickAdd(true)} />
 

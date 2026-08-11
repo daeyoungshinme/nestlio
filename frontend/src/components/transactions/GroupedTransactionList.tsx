@@ -13,6 +13,8 @@ export interface TransactionGroup {
   dotColor?: string;
   pctLabel?: string;
   transactions: TransactionOut[];
+  /** Whether this group starts expanded. Defaults to true (existing behavior). */
+  defaultOpen?: boolean;
 }
 
 interface Props {
@@ -21,12 +23,30 @@ interface Props {
   onDelete: (tx: TransactionOut) => void;
   /** Shown when `groups` is empty. Omit to render nothing (e.g. caller already handles the empty state). */
   emptyTitle?: string;
+  /** Whether to render the colored dot in each group header. Defaults to true. */
+  showDot?: boolean;
+  /** Passed through to each TransactionListItem. Defaults to true (existing behavior). */
+  itemShowDate?: boolean;
+  /** Passed through to each TransactionListItem. Defaults to true (existing behavior). */
+  itemHideCategoryBadge?: boolean;
+  /** Passed through to each TransactionListItem. Defaults to false. */
+  showUser?: boolean;
 }
 
 /** Shared "dot + name + amount, collapsible, list of transactions" grouped-list UI,
- * used both for category groups (ExpenseCategoryGroups) and savings-product groups
- * (SavingsLinkedTransactionsSection) — only how the groups are computed differs. */
-export default function GroupedTransactionList({ groups, onEdit, onDelete, emptyTitle }: Props) {
+ * used for category groups (ExpenseCategoryGroups), savings-product groups
+ * (SavingsLinkedTransactionsSection), and day groups (DailyTransactionGroups) —
+ * only how the groups are computed differs. */
+export default function GroupedTransactionList({
+  groups,
+  onEdit,
+  onDelete,
+  emptyTitle,
+  showDot = true,
+  itemShowDate = true,
+  itemHideCategoryBadge = true,
+  showUser = false,
+}: Props) {
   if (groups.length === 0) {
     return emptyTitle ? <EmptyState title={emptyTitle} compact /> : null;
   }
@@ -37,13 +57,16 @@ export default function GroupedTransactionList({ groups, onEdit, onDelete, empty
         <CollapsibleGroup
           key={group.key}
           amount={group.amountLabel}
+          defaultOpen={group.defaultOpen ?? true}
           header={
             <>
-              <span
-                className={`size-2.5 rounded-full shrink-0 ${group.dotColor ? "" : (group.dotClassName ?? "")}`}
-                style={group.dotColor ? { backgroundColor: group.dotColor } : undefined}
-                aria-hidden="true"
-              />
+              {showDot && (
+                <span
+                  className={`size-2.5 rounded-full shrink-0 ${group.dotColor ? "" : (group.dotClassName ?? "")}`}
+                  style={group.dotColor ? { backgroundColor: group.dotColor } : undefined}
+                  aria-hidden="true"
+                />
+              )}
               <span className="text-sm font-semibold text-gray-900 dark:text-gray-50 truncate">{group.name}</span>
               {group.pctLabel && (
                 <span className="text-xs text-gray-400 dark:text-gray-500 shrink-0">{group.pctLabel}</span>
@@ -52,7 +75,15 @@ export default function GroupedTransactionList({ groups, onEdit, onDelete, empty
           }
         >
           {group.transactions.map((tx) => (
-            <TransactionListItem key={tx.id} tx={tx} onEdit={onEdit} onDelete={onDelete} showDate hideCategoryBadge />
+            <TransactionListItem
+              key={tx.id}
+              tx={tx}
+              onEdit={onEdit}
+              onDelete={onDelete}
+              showDate={itemShowDate}
+              hideCategoryBadge={itemHideCategoryBadge}
+              showUser={showUser}
+            />
           ))}
         </CollapsibleGroup>
       ))}

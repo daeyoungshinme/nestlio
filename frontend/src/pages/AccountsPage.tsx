@@ -1,5 +1,6 @@
 import Tabs from "@/components/common/Tabs";
 import AccountsSection from "@/components/accounts/AccountsSection";
+import EmergencyFundCard from "@/components/accounts/EmergencyFundCard";
 import SavingsProductsSection from "@/components/accounts/SavingsProductsSection";
 import LoansSection from "@/components/accounts/LoansSection";
 import NetWorthTrendChart from "@/components/accounts/NetWorthTrendChart";
@@ -15,6 +16,7 @@ export default function AccountsPage() {
       <h1 className="text-xl font-bold text-gray-900 dark:text-gray-50">자산현황</h1>
 
       <NetWorthTrendChart />
+      <EmergencyFundCard />
 
       <Tabs tabs={TABS} activeTab={tab} onChange={handleTabChange} variant="pill" />
 
