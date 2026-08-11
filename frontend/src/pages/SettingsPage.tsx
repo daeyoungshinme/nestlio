@@ -198,8 +198,6 @@ export default function SettingsPage() {
 
   return (
     <div className="max-w-lg space-y-4">
-      <h1 className="text-xl font-bold text-gray-900 dark:text-gray-50">설정</h1>
-
       <p className="px-1 text-xs font-semibold text-gray-400 dark:text-gray-500">개인 설정</p>
 
       <div className="card space-y-3">

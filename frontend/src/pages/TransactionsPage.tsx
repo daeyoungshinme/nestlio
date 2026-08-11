@@ -355,7 +355,7 @@ export default function TransactionsPage() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between flex-wrap gap-3">
-        <h1 className="text-xl font-bold text-gray-900 dark:text-gray-50">가계부</h1>
+        <MonthPicker yearMonth={yearMonth} onChange={setYearMonth} />
         <div className="flex gap-2">
           <button
             onClick={() => setShowMoreMenu(true)}
@@ -369,8 +369,6 @@ export default function TransactionsPage() {
           </Button>
         </div>
       </div>
-
-      <MonthPicker yearMonth={yearMonth} onChange={setYearMonth} />
 
       {data && (
         <div className="flex justify-end">

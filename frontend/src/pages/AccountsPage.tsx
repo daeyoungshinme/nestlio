@@ -13,8 +13,6 @@ export default function AccountsPage() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-xl font-bold text-gray-900 dark:text-gray-50">자산현황</h1>
-
       <NetWorthTrendChart />
       <EmergencyFundCard />
 

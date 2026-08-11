@@ -1,3 +1,4 @@
+import logging
 import secrets
 import uuid
 from datetime import datetime, timedelta
@@ -10,6 +11,8 @@ from app.models.user import User
 from app.services import gmail_service, user_service
 from app.services.google_auth import is_connected
 from app.services.user_service import MAX_HOUSEHOLD_USERS
+
+logger = logging.getLogger(__name__)
 
 INVITE_EXPIRY_DAYS = 7
 
@@ -62,8 +65,12 @@ def _send_invite_email(invite: Invite) -> bool:
         "nestlio에 배우자로 초대되었습니다.\n\n"
         f"아래 링크에서 계정을 만들어주세요 (7일 이내 유효):\n{_accept_url(invite.token)}"
     )
-    gmail_service.send_email("[Nestlio] 배우자 초대", body, to=invite.email)
-    return True
+    try:
+        gmail_service.send_email("[Nestlio] 배우자 초대", body, to=invite.email)
+        return True
+    except Exception:
+        logger.exception("배우자 초대 이메일 발송 실패: %s", invite.email)
+        return False
 
 
 def create_invite(db: Session, invited_by_id: uuid.UUID, email: str, now: datetime | None = None) -> Invite:

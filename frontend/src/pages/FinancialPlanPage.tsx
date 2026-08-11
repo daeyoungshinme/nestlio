@@ -14,8 +14,6 @@ export default function FinancialPlanPage() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-xl font-bold text-gray-900 dark:text-gray-50">목표</h1>
-
       <Tabs tabs={TABS} activeTab={tab} onChange={handleTabChange} variant="pill" />
 
       {tab === "현금흐름 계획" && <CashflowPlanTab />}

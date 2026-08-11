@@ -50,6 +50,17 @@ def test_create_invite_skips_email_when_not_connected(mock_connected, mock_send_
     assert invite.email_sent is False
 
 
+@patch("app.services.invite_service.gmail_service.send_email", side_effect=Exception("boom"))
+@patch("app.services.invite_service.is_connected", return_value=True)
+def test_create_invite_survives_email_send_failure(mock_connected, mock_send_email, seeded_db):
+    db, user = seeded_db["db"], seeded_db["user"]
+    invite = invite_service.create_invite(db, user.id, "spouse2@example.com", now=NOW)
+
+    mock_send_email.assert_called_once()
+    assert invite.email_sent is False
+    assert invite_service.list_invites(db)[0].id == invite.id
+
+
 @patch("app.services.invite_service.is_connected", return_value=False)
 def test_create_invite_fails_when_household_full(mock_connected, seeded_db):
     db, user = seeded_db["db"], seeded_db["user"]
