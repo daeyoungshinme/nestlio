@@ -105,6 +105,10 @@ function toPayload(draft: Draft) {
 
 const GOAL_MILESTONES = [25, 50, 75, 100];
 
+// 재무목표 카드 배지에 이름을 나열할 최대 연동 항목 수 — 이보다 많으면 "외 N개"로 줄이고
+// 전체 목록은 GoalProgressCard의 "더보기" 접이식으로 옮긴다.
+const MAX_BADGE_FUNDING_SOURCES = 2;
+
 /** 저장 전후 진행률을 비교해 이번 저장으로 새로 넘어선 가장 높은 마일스톤을 반환한다 (없으면 null). */
 function crossedMilestone(oldPct: number, newPct: number): number | null {
   const crossed = GOAL_MILESTONES.filter((m) => oldPct < m && newPct >= m);
@@ -223,14 +227,36 @@ export default function FinancialGoalsSection() {
               { label: progressStatusLabel(status), toneClassName: progressStatusBadgeClass(status) },
             ];
             if (goal.funding_sources.length > 0) {
+              const sourceNames = goal.funding_sources.map((fs) => fs.name);
+              const label =
+                sourceNames.length > MAX_BADGE_FUNDING_SOURCES
+                  ? `${sourceNames.slice(0, MAX_BADGE_FUNDING_SOURCES).join(", ")} 외 ${
+                      sourceNames.length - MAX_BADGE_FUNDING_SOURCES
+                    }개`
+                  : sourceNames.join(", ");
               badges.push({
-                label: goal.funding_sources.map((fs) => fs.name).join(", "),
+                label,
                 toneClassName: fundingLinkBadgeStyle(),
                 icon: <Link2 size={11} />,
               });
             }
 
             const extraDetails: GoalProgressCardExtraDetail[] = [];
+            if (goal.funding_sources.length > MAX_BADGE_FUNDING_SOURCES) {
+              extraDetails.push({
+                key: "funding-sources",
+                content: (
+                  <div className="space-y-0.5">
+                    {goal.funding_sources.map((fs) => (
+                      <div key={`${fs.type}-${fs.id}`} className="flex items-center justify-between gap-2">
+                        <span className="truncate">{fs.name}</span>
+                        <span className="shrink-0">{formatKrw(fs.amount)}</span>
+                      </div>
+                    ))}
+                  </div>
+                ),
+              });
+            }
             if (growlioAccountId && GROWLIO_APP_URL) {
               extraDetails.push({
                 key: "growlio",

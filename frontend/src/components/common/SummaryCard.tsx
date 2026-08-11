@@ -3,6 +3,7 @@ interface Props {
   value: string;
   tone?: "default" | "positive" | "negative";
   sub?: string;
+  className?: string;
 }
 
 const TONE_CLASS: Record<NonNullable<Props["tone"]>, string> = {
@@ -11,9 +12,9 @@ const TONE_CLASS: Record<NonNullable<Props["tone"]>, string> = {
   negative: "text-red-600 dark:text-red-400",
 };
 
-export default function SummaryCard({ label, value, tone = "default", sub }: Props) {
+export default function SummaryCard({ label, value, tone = "default", sub, className }: Props) {
   return (
-    <div className="card min-w-0">
+    <div className={`card min-w-0 ${className ?? ""}`}>
       <p className="text-xs text-gray-500 dark:text-gray-400 truncate">{label}</p>
       <p className={`mt-1 text-lg sm:text-xl font-bold truncate ${TONE_CLASS[tone]}`} title={value}>
         {value}

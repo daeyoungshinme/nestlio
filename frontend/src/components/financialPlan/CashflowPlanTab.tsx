@@ -193,13 +193,14 @@ export default function CashflowPlanTab() {
         계획 금액과 이번 달 실제 내역을 비교해 달성율을 보여줘요. 카테고리를 태깅하면 그 카테고리의 실제 지출과도
         비교돼요.
       </p>
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
         <SummaryCard label="계획 수입 합계" value={formatKrw(summary.income.planned)} tone="positive" />
         <SummaryCard label="계획 지출 합계" value={formatKrw(summary.expense_total)} />
         <SummaryCard
           label="저축 가능액 (계획)"
           value={formatKrw(summary.available)}
           tone={Number(summary.available) < 0 ? "negative" : "positive"}
+          className="col-span-2 sm:col-span-1"
         />
       </div>
 
