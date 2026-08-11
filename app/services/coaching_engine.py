@@ -222,16 +222,31 @@ def recommend_surplus_allocation(
     return {"emergency_fund_portion": emergency_fund_portion, "investable_portion": surplus - emergency_fund_portion}
 
 
-def compute_surplus_allocation(db: Session, month_start: date, surplus: Decimal) -> dict:
-    """recommend_surplus_allocation에 필요한 비상금 잔액/평균 고정지출을 조회해 넘겨주는
-    DB-aware 래퍼 — emergency_fund_insight가 compute_insights 안에서 쓰는 것과 동일한 조회
-    패턴(user_setting_service의 공유 비상금 설정 + 최근 3개월 고정지출 평균)을 재사용한다."""
+def emergency_fund_context(db: Session, month_start: date) -> tuple[Decimal | None, Decimal | None]:
+    """비상금 잔액과 최근 3개월 평균 고정지출 — compute_insights와 compute_surplus_allocation이
+    같은 달을 대상으로 함께 호출될 때(app/routers/dashboard.py) 각자 재조회하지 않고 공유할 수
+    있도록 뽑아낸 조회 헬퍼. 비상금 설정이 없으면 (None, None)."""
     balance_raw = user_setting_service.get_shared_setting(db, user_setting_service.EMERGENCY_FUND_BALANCE_KEY)
     if not balance_raw:
-        return recommend_surplus_allocation(surplus, None, Decimal("0"))
+        return None, None
     trend = transaction_service.monthly_trend(db, months=3, anchor=month_start)
     avg_fixed = sum((Decimal(str(row["fixed"])) for row in trend), Decimal("0")) / len(trend)
-    return recommend_surplus_allocation(surplus, Decimal(balance_raw), avg_fixed)
+    return Decimal(balance_raw), avg_fixed
+
+
+def compute_surplus_allocation(
+    db: Session,
+    month_start: date,
+    surplus: Decimal,
+    fund_context: tuple[Decimal | None, Decimal | None] | None = None,
+) -> dict:
+    """recommend_surplus_allocation에 필요한 비상금 잔액/평균 고정지출을 조회해 넘겨주는
+    DB-aware 래퍼. 호출부가 이미 emergency_fund_context를 조회해둔 경우 fund_context로 넘겨받아
+    재조회를 피한다."""
+    current_balance, avg_fixed = fund_context if fund_context is not None else emergency_fund_context(db, month_start)
+    if current_balance is None:
+        return recommend_surplus_allocation(surplus, None, Decimal("0"))
+    return recommend_surplus_allocation(surplus, current_balance, avg_fixed)
 
 
 def emergency_fund_insight(current_balance: Decimal | None, avg_monthly_fixed: Decimal) -> Insight | None:
@@ -278,6 +293,7 @@ def compute_insights(
     breakdown: list[dict] | None = None,
     goals: list[FinancialGoal] | None = None,
     actual_saved: Decimal | None = None,
+    fund_context: tuple[Decimal | None, Decimal | None] | None = None,
 ) -> list[Insight]:
     """호출부가 이미 같은 기간의 totals/breakdown/goals를 조회해둔 경우, 넘겨받아 재조회를 피한다."""
     year_month = year_month or year_month_str(date.today())
@@ -313,11 +329,9 @@ def compute_insights(
     insights.extend(budget_overrun_insights(budget_rows))
     insights.extend(variable_spend_trend_insights(breakdown, trailing_avg))
 
-    balance_raw = user_setting_service.get_shared_setting(db, user_setting_service.EMERGENCY_FUND_BALANCE_KEY)
-    if balance_raw:
-        trend = transaction_service.monthly_trend(db, months=3, anchor=month_start)
-        avg_fixed = sum((Decimal(str(row["fixed"])) for row in trend), Decimal("0")) / len(trend)
-        ef_insight = emergency_fund_insight(Decimal(balance_raw), avg_fixed)
+    current_balance, avg_fixed = fund_context if fund_context is not None else emergency_fund_context(db, month_start)
+    if current_balance is not None:
+        ef_insight = emergency_fund_insight(current_balance, avg_fixed)
         if ef_insight:
             insights.append(ef_insight)
 

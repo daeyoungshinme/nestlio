@@ -33,11 +33,12 @@ def create_goal(payload: FinancialGoalCreateIn, db: Session = Depends(get_db), _
         [fs.model_dump() for fs in payload.funding_sources],
         payload.target_date,
     )
+    today = date.today()
     try:
-        notification_service.check_and_celebrate_goal_milestone(db, goal.id)
+        notification_service.check_and_celebrate_goal_milestone(db, goal.id, today)
     except Exception:
         logger.exception("목표 달성 축하 알림 처리 실패 (목표는 정상 저장됨)")
-    return goal_service.to_out(db, goal, date.today())
+    return goal_service.to_out(db, goal, today)
 
 
 @router.put("/{goal_id}", response_model=FinancialGoalOut)
@@ -61,11 +62,12 @@ def update_goal(
     )
     if goal is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "재무목표를 찾을 수 없습니다.")
+    today = date.today()
     try:
-        notification_service.check_and_celebrate_goal_milestone(db, goal.id)
+        notification_service.check_and_celebrate_goal_milestone(db, goal.id, today)
     except Exception:
         logger.exception("목표 달성 축하 알림 처리 실패 (목표는 정상 저장됨)")
-    return goal_service.to_out(db, goal, date.today())
+    return goal_service.to_out(db, goal, today)
 
 
 @router.delete("/{goal_id}", status_code=status.HTTP_204_NO_CONTENT)

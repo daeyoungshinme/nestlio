@@ -1,3 +1,4 @@
+import uuid
 from datetime import datetime
 
 from sqlalchemy.orm import Session
@@ -24,6 +25,10 @@ class CannotRemoveSelfError(UserError):
 
 def list_users(db: Session) -> list[User]:
     return db.query(User).filter(User.removed_at.is_(None)).order_by(User.display_name).all()
+
+
+def get_user(db: Session, user_id: uuid.UUID) -> User | None:
+    return db.get(User, user_id)
 
 
 def update_display_name(db: Session, user: User, display_name: str) -> User:

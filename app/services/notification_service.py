@@ -1,6 +1,6 @@
 import logging
 import uuid
-from datetime import date, datetime, timedelta
+from datetime import date, datetime
 
 from sqlalchemy.orm import Session
 
@@ -18,7 +18,7 @@ from app.services import (
     transaction_service,
 )
 from app.services.google_auth import is_connected
-from app.utils.dates import month_bounds, week_bounds, year_month_str
+from app.utils.dates import month_bounds, shift_month, week_bounds, year_month_str
 
 logger = logging.getLogger(__name__)
 
@@ -103,7 +103,7 @@ def send_weekly_summary(db: Session, today: date | None = None, force: bool = Fa
 
 def send_monthly_summary(db: Session, today: date | None = None, force: bool = False) -> bool:
     today = today or date.today()
-    prev_month_anchor = today.replace(day=1) - timedelta(days=1)
+    prev_month_anchor = shift_month(today, -1)
     start, end = month_bounds(prev_month_anchor)
     period_key = year_month_str(start)
     if not force and _already_sent(db, "email_monthly", period_key):
@@ -159,11 +159,12 @@ def check_and_alert_budget_threshold(db: Session, category_id: int, year_month: 
     return _send_threshold_alert(db, row, year_month)
 
 
-def _celebrate_goal_milestone(db: Session, goal) -> bool:
+def _celebrate_goal_milestone(db: Session, goal, today: date | None = None) -> bool:
     """Send a celebration email the first time this goal's progress crosses a milestone
     (25/50/75/100%), deduped per goal per milestone so re-saving the same goal doesn't
     re-send. If progress jumped past multiple milestones at once, only the highest is sent.
     Milestone-crossing + dedup bookkeeping lives in milestone_service (shared with challenges)."""
+    today = today or date.today()
     if goal is None or not goal.required_amount:
         return False
     current_amount = goal_service.compute_current_amount(db, goal)
@@ -181,7 +182,7 @@ def _celebrate_goal_milestone(db: Session, goal) -> bool:
     )
     if milestone < 100 and goal.target_date is not None:
         remaining_amount = max(goal.required_amount - current_amount, 0)
-        remaining_days = (goal.target_date - date.today()).days
+        remaining_days = (goal.target_date - today).days
         if remaining_days > 0:
             body += f"\n목표일까지 D-{remaining_days}, 이제 {remaining_amount:,.0f}원만 더 모으면 돼요."
     if is_connected():
@@ -192,8 +193,8 @@ def _celebrate_goal_milestone(db: Session, goal) -> bool:
     return True
 
 
-def check_and_celebrate_goal_milestone(db: Session, goal_id: int) -> bool:
-    return _celebrate_goal_milestone(db, goal_service.get_goal(db, goal_id))
+def check_and_celebrate_goal_milestone(db: Session, goal_id: int, today: date | None = None) -> bool:
+    return _celebrate_goal_milestone(db, goal_service.get_goal(db, goal_id), today)
 
 
 def check_and_celebrate_challenge(db: Session, challenge_id: int) -> bool:
@@ -220,11 +221,11 @@ def check_and_celebrate_challenge(db: Session, challenge_id: int) -> bool:
     return True
 
 
-def check_all_goal_milestones(db: Session) -> int:
+def check_all_goal_milestones(db: Session, today: date | None = None) -> int:
     sent = 0
     for goal in goal_service.list_goals(db):
         try:
-            if _celebrate_goal_milestone(db, goal):
+            if _celebrate_goal_milestone(db, goal, today):
                 sent += 1
         except Exception:
             logger.exception("goal_milestone_alert_failed goal_id=%s", goal.id)
@@ -290,14 +291,10 @@ def mark_read(db: Session, user_id: uuid.UUID, notification_log_id: int, now: da
 
 def mark_all_read(db: Session, user_id: uuid.UUID, now: datetime | None = None) -> int:
     now = now or datetime.now()
-    read_ids = _read_log_ids(db, user_id)
-    all_log_ids = [row[0] for row in db.query(NotificationLog.id).all()]
-    marked = 0
-    for log_id in all_log_ids:
-        if log_id in read_ids:
-            continue
+    already_read = db.query(NotificationRead.notification_log_id).filter(NotificationRead.user_id == user_id)
+    unread_ids = [row[0] for row in db.query(NotificationLog.id).filter(~NotificationLog.id.in_(already_read))]
+    for log_id in unread_ids:
         db.add(NotificationRead(notification_log_id=log_id, user_id=user_id, read_at=now))
-        marked += 1
-    if marked:
+    if unread_ids:
         db.commit()
-    return marked
+    return len(unread_ids)

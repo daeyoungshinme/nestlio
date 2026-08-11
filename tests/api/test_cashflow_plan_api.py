@@ -240,7 +240,7 @@ def test_link_recurring_endpoint_404_for_missing_item(client, seeded_db):
     assert resp.status_code == 404
 
 
-def test_link_recurring_endpoint_409_for_missing_recurring_expense(client, seeded_db):
+def test_link_recurring_endpoint_404_for_missing_recurring_expense(client, seeded_db):
     plan_resp = client.put(
         "/api/v1/cashflow-plan/items",
         json={
@@ -259,7 +259,7 @@ def test_link_recurring_endpoint_409_for_missing_recurring_expense(client, seede
         f"/api/v1/cashflow-plan/items/{item_id}/link-recurring", json={"recurring_expense_id": 999999}
     )
 
-    assert resp.status_code == 409
+    assert resp.status_code == 404
 
 
 def test_delete_plan_item(client, seeded_db):

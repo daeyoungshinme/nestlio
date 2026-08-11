@@ -17,27 +17,6 @@ def get_goal(db: Session, goal_id: int) -> FinancialGoal | None:
     return db.get(FinancialGoal, goal_id)
 
 
-def compute_current_amount(db: Session, goal: FinancialGoal) -> Decimal:
-    """연동된 저축상품·계좌 잔액 합에서 연동된 대출 잔액을 뺀 값. 연동이 하나도 없으면 수동 입력값."""
-    if not goal.funding_sources:
-        return goal.manual_current_amount
-    total = Decimal("0")
-    for fs in goal.funding_sources:
-        if fs.savings_product_id is not None:
-            total += fs.savings_product.current_balance
-        elif fs.account_id is not None:
-            total += account_service.current_balance(db, fs.account)
-        elif fs.loan_id is not None:
-            total -= fs.loan.balance
-    return total
-
-
-def compute_progress_pct(current_amount: Decimal, required_amount: Decimal) -> Decimal:
-    if not required_amount:
-        return Decimal("0")
-    return min(current_amount / required_amount * 100, Decimal("100"))
-
-
 def funding_source_breakdown(db: Session, goal: FinancialGoal) -> list[dict]:
     items: list[dict] = []
     for fs in goal.funding_sources:
@@ -69,6 +48,25 @@ def funding_source_breakdown(db: Session, goal: FinancialGoal) -> list[dict]:
                 }
             )
     return items
+
+
+def _sum_breakdown_amounts(goal: FinancialGoal, breakdown: list[dict]) -> Decimal:
+    """연동이 하나도 없으면 수동 입력값, 있으면 breakdown 금액 합(저축상품·계좌는 더하고 대출은
+    이미 음수로 들어있어 자연히 차감된다)."""
+    if not goal.funding_sources:
+        return goal.manual_current_amount
+    return sum((item["amount"] for item in breakdown), Decimal("0"))
+
+
+def compute_current_amount(db: Session, goal: FinancialGoal) -> Decimal:
+    """연동된 저축상품·계좌 잔액 합에서 연동된 대출 잔액을 뺀 값. 연동이 하나도 없으면 수동 입력값."""
+    return _sum_breakdown_amounts(goal, funding_source_breakdown(db, goal))
+
+
+def compute_progress_pct(current_amount: Decimal, required_amount: Decimal) -> Decimal:
+    if not required_amount:
+        return Decimal("0")
+    return min(current_amount / required_amount * 100, Decimal("100"))
 
 
 def compute_months_remaining(today: date, target_date: date | None) -> int | None:
@@ -132,7 +130,8 @@ def compute_projected_months_with_growth(
 
 
 def to_out(db: Session, goal: FinancialGoal, today: date) -> dict:
-    current_amount = compute_current_amount(db, goal)
+    breakdown = funding_source_breakdown(db, goal)
+    current_amount = _sum_breakdown_amounts(goal, breakdown)
     months_remaining = compute_months_remaining(today, goal.target_date)
     weighted_return_rate_pct = compute_weighted_return_rate_pct(goal)
     projected_months_with_growth = (
@@ -153,7 +152,7 @@ def to_out(db: Session, goal: FinancialGoal, today: date) -> dict:
         "current_amount": current_amount,
         "progress_pct": compute_progress_pct(current_amount, goal.required_amount),
         "sort_order": goal.sort_order,
-        "funding_sources": funding_source_breakdown(db, goal),
+        "funding_sources": breakdown,
         "months_remaining": months_remaining,
         "suggested_monthly_amount": compute_suggested_monthly_amount(
             current_amount, goal.required_amount, months_remaining

@@ -13,6 +13,10 @@ EXPENSE_SECTIONS = ("fixed", "variable", "irregular")
 ACHIEVEMENT_SECTIONS = ("income", "fixed", "variable", "irregular")
 
 
+class RecurringExpenseNotFoundError(Exception):
+    pass
+
+
 def list_items(db: Session, year_month: str) -> list[CashflowPlanItem]:
     """해당 월의 모든 계획 항목을 반환한다 — 자유 텍스트 항목과 카테고리 태깅 항목(구 budget_service
     전용 행) 구분 없이 하나의 목록으로 합쳐서 다룬다. 카테고리 태깅 여부는 `item.category_id`로 판단한다."""
@@ -117,7 +121,7 @@ def link_recurring(db: Session, item_id: int, recurring_expense_id: int) -> Cash
         raise ValueError("이미 반복내역에 연결된 항목입니다.")
     recurring = db.get(RecurringExpense, recurring_expense_id)
     if recurring is None:
-        raise ValueError("반복내역을 찾을 수 없습니다.")
+        raise RecurringExpenseNotFoundError("반복내역을 찾을 수 없습니다.")
     item.recurring_expense_id = recurring_expense_id
     db.commit()
     db.refresh(item)

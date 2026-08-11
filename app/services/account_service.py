@@ -98,18 +98,15 @@ def import_from_growlio(db: Session, growlio_account_ids: list[str], bearer_toke
 
 
 def current_balance(db: Session, account: Account) -> Decimal:
-    income = (
-        db.query(func.sum(Transaction.amount))
-        .filter(Transaction.account_id == account.id, Transaction.type == "income")
-        .scalar()
-        or Decimal("0")
+    rows = (
+        db.query(Transaction.type, func.sum(Transaction.amount))
+        .filter(Transaction.account_id == account.id)
+        .group_by(Transaction.type)
+        .all()
     )
-    expense = (
-        db.query(func.sum(Transaction.amount))
-        .filter(Transaction.account_id == account.id, Transaction.type == "expense")
-        .scalar()
-        or Decimal("0")
-    )
+    totals = {tx_type: amount or Decimal("0") for tx_type, amount in rows}
+    income = totals.get("income", Decimal("0"))
+    expense = totals.get("expense", Decimal("0"))
     return Decimal(account.initial_balance) + Decimal(income) - Decimal(expense)
 
 

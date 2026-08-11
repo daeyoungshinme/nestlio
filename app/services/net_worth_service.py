@@ -28,7 +28,7 @@ def compute_current(db: Session) -> dict:
 
 def record_snapshot(db: Session, today: date) -> NetWorthSnapshot:
     breakdown = compute_current(db)
-    year_month = today.strftime("%Y-%m")
+    year_month = year_month_str(today)
     snapshot = db.query(NetWorthSnapshot).filter(NetWorthSnapshot.year_month == year_month).first()
     if snapshot is None:
         snapshot = NetWorthSnapshot(year_month=year_month, snapshot_date=today, **breakdown)

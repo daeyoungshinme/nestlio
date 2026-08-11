@@ -96,6 +96,8 @@ def link_recurring(
 ):
     try:
         item = cashflow_plan_service.link_recurring(db, item_id, payload.recurring_expense_id)
+    except cashflow_plan_service.RecurringExpenseNotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
     if item is None:

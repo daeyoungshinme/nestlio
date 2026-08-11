@@ -311,7 +311,7 @@ def test_link_recurring_rejects_missing_recurring_expense(seeded_db):
         db, None, "fixed", None, "월세", Decimal("800000"), 0, "2026-07", user.id
     )
 
-    with pytest.raises(ValueError):
+    with pytest.raises(cashflow_plan_service.RecurringExpenseNotFoundError):
         cashflow_plan_service.link_recurring(db, item.id, 999999)
 
 

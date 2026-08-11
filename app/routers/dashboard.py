@@ -41,11 +41,21 @@ def dashboard(
     current_ym = year_month_str(start)
     goals = goal_service.list_goals(db)
     actual_saved = net_worth_service.savings_delta(db, current_ym)
+    month_start = start.replace(day=1)
+    fund_context = coaching_engine.emergency_fund_context(db, month_start)
     insights = coaching_engine.compute_insights(
-        db, current_ym, totals=totals, breakdown=expense_breakdown, goals=goals, actual_saved=actual_saved
+        db,
+        current_ym,
+        totals=totals,
+        breakdown=expense_breakdown,
+        goals=goals,
+        actual_saved=actual_saved,
+        fund_context=fund_context,
     )
     investable_surplus = coaching_engine.investable_surplus(totals, actual_saved)
-    surplus_allocation = coaching_engine.compute_surplus_allocation(db, month_start=start.replace(day=1), surplus=investable_surplus)
+    surplus_allocation = coaching_engine.compute_surplus_allocation(
+        db, month_start=month_start, surplus=investable_surplus, fund_context=fund_context
+    )
 
     target_monthly = sum((g.monthly_saving_amount for g in goals), Decimal("0"))
     streak = coaching_engine.savings_streak_months(trend, target_monthly)
