@@ -39,7 +39,7 @@ jobs:
       - name: daily_due_date_check
         if: github.event.schedule == '0 22 * * *' || github.event_name == 'workflow_dispatch'
         run: |
-          curl -fsS --max-time 90 -X POST "$APP_URL/internal/jobs/daily-due-date-check" \
+          curl -fsS --retry 2 --retry-delay 15 --retry-all-errors --max-time 170 -X POST "$APP_URL/internal/jobs/daily-due-date-check" \
             -H "X-Internal-Job-Secret: $INTERNAL_JOB_SECRET"
         env:
           APP_URL: ${{ secrets.APP_URL }}
@@ -49,7 +49,7 @@ jobs:
         if: github.event.schedule == '0 23 * * *' || github.event_name == 'workflow_dispatch'
         run: |
           if [ "$(date -u +%u)" = "7" ] || [ -n "$FORCE_RUN" ]; then
-            curl -fsS --max-time 90 -X POST "$APP_URL/internal/jobs/weekly-summary-email" \
+            curl -fsS --retry 2 --retry-delay 15 --retry-all-errors --max-time 170 -X POST "$APP_URL/internal/jobs/weekly-summary-email" \
               -H "X-Internal-Job-Secret: $INTERNAL_JOB_SECRET"
           else
             echo "not Sunday UTC, skipping weekly_summary_email"
@@ -63,7 +63,7 @@ jobs:
         if: github.event.schedule == '0 23 * * *' || github.event_name == 'workflow_dispatch'
         run: |
           if [ "$(date -u -d '+1 day' +%d)" = "01" ] || [ -n "$FORCE_RUN" ]; then
-            curl -fsS --max-time 90 -X POST "$APP_URL/internal/jobs/monthly-summary-email" \
+            curl -fsS --retry 2 --retry-delay 15 --retry-all-errors --max-time 170 -X POST "$APP_URL/internal/jobs/monthly-summary-email" \
               -H "X-Internal-Job-Secret: $INTERNAL_JOB_SECRET"
           else
             echo "tomorrow (UTC) is not the 1st, skipping monthly_summary_email"
@@ -77,7 +77,7 @@ jobs:
         if: github.event.schedule == '5 23 * * *' || github.event_name == 'workflow_dispatch'
         run: |
           if [ "$(date -u -d '+1 day' +%d)" = "01" ] || [ -n "$FORCE_RUN" ]; then
-            curl -fsS --max-time 90 -X POST "$APP_URL/internal/jobs/monthly-net-worth-snapshot" \
+            curl -fsS --retry 2 --retry-delay 15 --retry-all-errors --max-time 170 -X POST "$APP_URL/internal/jobs/monthly-net-worth-snapshot" \
               -H "X-Internal-Job-Secret: $INTERNAL_JOB_SECRET"
           else
             echo "tomorrow (UTC) is not the 1st, skipping monthly_net_worth_snapshot"
@@ -90,7 +90,7 @@ jobs:
       - name: daily_threshold_safety_net
         if: github.event.schedule == '0 11 * * *' || github.event_name == 'workflow_dispatch'
         run: |
-          curl -fsS --max-time 90 -X POST "$APP_URL/internal/jobs/daily-threshold-safety-net" \
+          curl -fsS --retry 2 --retry-delay 15 --retry-all-errors --max-time 170 -X POST "$APP_URL/internal/jobs/daily-threshold-safety-net" \
             -H "X-Internal-Job-Secret: $INTERNAL_JOB_SECRET"
         env:
           APP_URL: ${{ secrets.APP_URL }}
@@ -99,7 +99,7 @@ jobs:
       - name: event_reminder_check
         if: github.event.schedule == '*/15 * * * *' || github.event_name == 'workflow_dispatch'
         run: |
-          curl -fsS --max-time 90 -X POST "$APP_URL/internal/jobs/event-reminder-check" \
+          curl -fsS --retry 2 --retry-delay 15 --retry-all-errors --max-time 170 -X POST "$APP_URL/internal/jobs/event-reminder-check" \
             -H "X-Internal-Job-Secret: $INTERNAL_JOB_SECRET"
         env:
           APP_URL: ${{ secrets.APP_URL }}
