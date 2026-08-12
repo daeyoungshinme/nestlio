@@ -1,29 +1,10 @@
 import { Link } from "react-router-dom";
 import { Layers, Plus, Tag } from "lucide-react";
 import CashflowPlanItemRow from "@/components/financialPlan/CashflowPlanItemRow";
-import ProgressBar from "@/components/common/ProgressBar";
-import { formatKrw, formatPercent } from "@/utils/format";
-import { planStatusBarClass, planStatusTextClass } from "@/utils/colors";
+import SectionAchievementBar from "@/components/financialPlan/SectionAchievementBar";
+import CategoryBudgetProgress from "@/components/financialPlan/CategoryBudgetProgress";
+import { formatKrw } from "@/utils/format";
 import type { BudgetRowOut, CashflowPlanItemOut, CashflowPlanSectionSummaryOut, CashflowSection, UserOut } from "@/types";
-
-function SectionAchievement({ label, summary }: { label: string; summary: CashflowPlanSectionSummaryOut }) {
-  if (summary.actual === null || summary.pct === null || summary.status === null) {
-    return null;
-  }
-  return (
-    <div className="mt-2 mb-1">
-      <div className="flex items-center justify-between text-xs text-gray-500 dark:text-gray-400">
-        <span>{label} 실적 {formatKrw(summary.actual)}</span>
-        <span className={`font-semibold ${planStatusTextClass(summary.status)}`}>
-          {formatPercent(summary.pct)} 달성
-        </span>
-      </div>
-      <div className="mt-1">
-        <ProgressBar pct={summary.pct} barClassName={planStatusBarClass(summary.status)} />
-      </div>
-    </div>
-  );
-}
 
 interface Props {
   sectionKey: CashflowSection;
@@ -54,6 +35,13 @@ export default function CashflowPlanSectionPanel({
   onLinkRecurring,
   onQuickAdd,
 }: Props) {
+  const categoryBudgetRows =
+    sectionKey === "income"
+      ? []
+      : Array.from(budgetRowByCategory.values()).filter(
+          (row) => row.type === sectionKey && Number(row.budget) > 0,
+        );
+
   return (
     <div className="card">
       <div className="flex items-center justify-between mb-1">
@@ -91,7 +79,7 @@ export default function CashflowPlanSectionPanel({
           </button>
         </div>
       </div>
-      <SectionAchievement label={label} summary={sectionSummary} />
+      <SectionAchievementBar label={label} summary={sectionSummary} />
       <div>
         {items.map((item) => (
           <CashflowPlanItemRow
@@ -99,7 +87,6 @@ export default function CashflowPlanSectionPanel({
             item={item}
             sectionKey={sectionKey}
             users={users}
-            budgetRow={item.category_id !== null ? budgetRowByCategory.get(item.category_id) : undefined}
             onEdit={() => onEditItem(item)}
             onDelete={() => onDeleteItem(item)}
             onLinkRecurring={() => onLinkRecurring(item)}
@@ -110,6 +97,16 @@ export default function CashflowPlanSectionPanel({
           <p className="text-sm text-gray-400 dark:text-gray-500 py-4 text-center">등록된 항목이 없습니다.</p>
         )}
       </div>
+      {categoryBudgetRows.length > 0 && (
+        <div className="mt-3 pt-3 border-t border-gray-100 dark:border-gray-800">
+          <h4 className="text-xs font-semibold text-gray-400 dark:text-gray-500">카테고리별 예산 사용</h4>
+          <div className="divide-y divide-gray-50 dark:divide-gray-800/60">
+            {categoryBudgetRows.map((row) => (
+              <CategoryBudgetProgress key={row.category_id} row={row} />
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

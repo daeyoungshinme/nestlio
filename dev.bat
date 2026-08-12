@@ -58,7 +58,10 @@ if /i "%MODE%"=="run" (
   "%PYTHON%" -m uvicorn app.main:app --host 0.0.0.0 --port 8899
 ) else (
   echo [dev.bat] starting backend (uvicorn --reload) on http://127.0.0.1:8899
-  start "nestlio-backend" cmd /k "%PYTHON% -m uvicorn app.main:app --host 127.0.0.1 --port 8899 --reload"
+  rem --reload-dir app: without it, watchfiles watches the whole project root (frontend\node_modules,
+  rem data\*.db, .venv, .git) recursively, which on Windows causes spurious/unstable restarts on
+  rem changes unrelated to backend code (Vite cache writes, SQLite file updates, etc).
+  start "nestlio-backend" cmd /k "%PYTHON% -m uvicorn app.main:app --host 127.0.0.1 --port 8899 --reload --reload-dir app"
 
   echo [dev.bat] starting frontend (vite dev server) on http://localhost:5273
   start "nestlio-frontend" cmd /k "cd frontend && npm run dev"

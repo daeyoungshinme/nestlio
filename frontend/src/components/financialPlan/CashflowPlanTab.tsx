@@ -6,6 +6,7 @@ import CashflowPlanQuickAddModal from "@/components/financialPlan/CashflowPlanQu
 import CashflowPlanRecurringLinkModal from "@/components/financialPlan/CashflowPlanRecurringLinkModal";
 import CashflowPlanSectionPanel from "@/components/financialPlan/CashflowPlanSectionPanel";
 import CashflowPlanSplitForm from "@/components/financialPlan/CashflowPlanSplitForm";
+import SavingsInvestmentPlanPanel from "@/components/financialPlan/SavingsInvestmentPlanPanel";
 import Button from "@/components/common/Button";
 import ConfirmModal from "@/components/common/ConfirmModal";
 import Modal from "@/components/common/Modal";
@@ -22,6 +23,7 @@ import {
 } from "@/api/cashflowPlan";
 import { fetchBudgets } from "@/api/budgets";
 import { fetchCategories } from "@/api/categories";
+import { fetchSavingsProductsPlan } from "@/api/savingsProducts";
 import { fetchUsers } from "@/api/users";
 import { QUERY_KEYS } from "@/constants/queryKeys";
 import { STALE_TIME } from "@/constants/queryConfig";
@@ -39,8 +41,10 @@ const SECTIONS = [
   { key: "irregular", label: "비정기지출" },
 ] as const satisfies { key: CashflowSection; label: string }[];
 
-type SectionLabel = (typeof SECTIONS)[number]["label"];
-const SECTION_LABELS = SECTIONS.map((s) => s.label) as SectionLabel[];
+const SAVINGS_INVESTMENT_LABEL = "저축·투자" as const;
+
+type SectionLabel = (typeof SECTIONS)[number]["label"] | typeof SAVINGS_INVESTMENT_LABEL;
+const SECTION_LABELS = [...SECTIONS.map((s) => s.label), SAVINGS_INVESTMENT_LABEL] as SectionLabel[];
 
 interface ModalState {
   section: CashflowSection;
@@ -76,6 +80,10 @@ export default function CashflowPlanTab() {
   const { data: budgetData } = useQuery({
     queryKey: QUERY_KEYS.budgets(yearMonth),
     queryFn: () => fetchBudgets(yearMonth),
+  });
+  const { data: savingsPlanData } = useQuery({
+    queryKey: QUERY_KEYS.savingsProductsPlan(yearMonth),
+    queryFn: () => fetchSavingsProductsPlan(yearMonth),
   });
 
   const invalidate = () => {
@@ -130,6 +138,9 @@ export default function CashflowPlanTab() {
   }
 
   const summary = data.summary;
+  const plannedSavingsInvestmentTotal = savingsPlanData
+    ? Number(savingsPlanData.savings.planned) + Number(savingsPlanData.investment.planned)
+    : 0;
   const budgetRows = budgetData?.rows ?? [];
   const budgetRowByCategory = new Map(budgetRows.map((row) => [row.category_id, row]));
 
@@ -193,38 +204,48 @@ export default function CashflowPlanTab() {
         계획 금액과 이번 달 실제 내역을 비교해 달성율을 보여줘요. 카테고리를 태깅하면 그 카테고리의 실제 지출과도
         비교돼요.
       </p>
-      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         <SummaryCard label="계획 수입 합계" value={formatKrw(summary.income.planned)} tone="positive" />
         <SummaryCard label="계획 지출 합계" value={formatKrw(summary.expense_total)} />
         <SummaryCard
           label="저축 가능액 (계획)"
           value={formatKrw(summary.available)}
           tone={Number(summary.available) < 0 ? "negative" : "positive"}
-          className="col-span-2 sm:col-span-1"
+        />
+        <SummaryCard
+          label="계획된 저축·투자액"
+          value={savingsPlanData ? formatKrw(plannedSavingsInvestmentTotal) : "…"}
+          tone={
+            savingsPlanData && plannedSavingsInvestmentTotal > Number(summary.available) ? "negative" : "positive"
+          }
         />
       </div>
 
       <Tabs tabs={SECTION_LABELS} activeTab={activeLabel} onChange={setActiveLabel} />
 
-      {(() => {
-        const { key, label } = SECTIONS.find((s) => s.label === activeLabel)!;
-        return (
-          <CashflowPlanSectionPanel
-            sectionKey={key}
-            label={label}
-            items={data.items.filter((i) => i.section === key)}
-            sectionSummary={summary[key]}
-            users={users}
-            budgetRowByCategory={budgetRowByCategory}
-            onAddItem={() => setModal({ section: key, item: null })}
-            onSplit={() => setSplitModalOpen(true)}
-            onEditItem={(item) => setModal({ section: key, item })}
-            onDeleteItem={(item) => setDeleteTarget(item.id)}
-            onLinkRecurring={setRecurringLinkTarget}
-            onQuickAdd={setQuickAddTarget}
-          />
-        );
-      })()}
+      {activeLabel === SAVINGS_INVESTMENT_LABEL ? (
+        <SavingsInvestmentPlanPanel yearMonth={yearMonth} />
+      ) : (
+        (() => {
+          const { key, label } = SECTIONS.find((s) => s.label === activeLabel)!;
+          return (
+            <CashflowPlanSectionPanel
+              sectionKey={key}
+              label={label}
+              items={data.items.filter((i) => i.section === key)}
+              sectionSummary={summary[key]}
+              users={users}
+              budgetRowByCategory={budgetRowByCategory}
+              onAddItem={() => setModal({ section: key, item: null })}
+              onSplit={() => setSplitModalOpen(true)}
+              onEditItem={(item) => setModal({ section: key, item })}
+              onDeleteItem={(item) => setDeleteTarget(item.id)}
+              onLinkRecurring={setRecurringLinkTarget}
+              onQuickAdd={setQuickAddTarget}
+            />
+          );
+        })()
+      )}
 
       {modal && (
         <Modal

@@ -108,6 +108,22 @@ def test_list_growlio_accounts_proxies_client(client, seeded_db):
     assert resp.json() == [{"id": "growlio-acc-1", "name": "국민 자유적금", "asset_type": "DEPOSIT", "current_value_krw": 1.0, "as_of": None}]
 
 
+def test_annual_plan_returns_year_and_groups(client, seeded_db):
+    client.post(
+        "/api/v1/savings-products",
+        json={"name": "적금", "current_balance": "0", "monthly_saving_amount": "100000", "product_type": "savings"},
+    )
+
+    resp = client.get("/api/v1/savings-products/annual-plan", params={"year": 2026})
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["year"] == 2026
+    assert len(body["items"]) == 1
+    assert body["items"][0]["annual_target"] == "1200000.00"
+    assert "target_to_date" in body["savings"]
+
+
 def test_growlio_import_creates_one_product_per_selected_account(client, seeded_db):
     _override_bearer_token()
 

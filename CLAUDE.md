@@ -10,7 +10,7 @@
 - **설정**: pydantic-settings (`app/config.py`)
 - **인증**: growlio와 동일 — 프론트엔드가 `@supabase/supabase-js`로 직접 로그인해 Supabase JWT를 발급받고, 백엔드는 `app/dependencies.py`에서 JWKS(`PyJWKClient`)로 서명만 검증한다. 백엔드에는 로그인 엔드포인트가 없다 (세션 쿠키 없음, `Authorization: Bearer <token>` 헤더만 사용)
 - **스케줄링**: 예약 작업은 in-process 스케줄러가 아니라 GitHub Actions 예약 워크플로(`.github/workflows/scheduled-jobs.yml`)가 `POST /internal/jobs/{job_name}`을 호출해 실행한다 (Render 무료 웹서비스가 15분 미사용 시 슬립하기 때문). 상세는 [app/scheduler/CLAUDE.md](app/scheduler/CLAUDE.md)
-- **외부 연동**: Google Calendar / Gmail API, growlio 자산 조회 API(읽기전용, `app/services/growlio_client.py` — 사용자의 Supabase JWT를 그대로 전달해 호출, 저축상품 잔액 자동 동기화에만 사용)
+- **외부 연동**: Google Calendar / Gmail API, growlio 자산 API(`app/services/growlio_client.py` — 사용자의 Supabase JWT를 그대로 전달해 호출, 별도 서비스 API 키 없음). 계좌·부동산(+담보대출) 잔액 자동 동기화(`account_service`/`savings_product_service`/`real_estate_service`)와 재무목표 프리필(`goal_service`)은 읽기전용이지만, 저축/투자 내역 입력 시 growlio 계좌 입출금에도 반영하는 쓰기 호출(`push_transaction`, `transaction_service`)이 있다 — "읽기전용"으로 단정하지 않는다.
 
 ## 아키텍처
 
@@ -49,7 +49,7 @@
 - 프론트엔드 오리진(배우자 초대 이메일의 가입 링크 조립용): `APP_BASE_URL`
 - 알림: `NOTIFY_EMAIL_TO`
 - 코칭엔진 임계값(0-100 %): `SAVINGS_RATE_*`, `FIXED_COST_RATIO_*`, `BUDGET_*_PCT`, `DISCRETIONARY_RATIO_WARN`, `DEBT_RATIO_WARN`
-- growlio 연동(자산 조회, 저축상품 자동 동기화용): `GROWLIO_API_BASE_URL` — 비어 있으면 동기화 기능이 꺼진다
+- growlio 연동(계좌·부동산 잔액 조회/동기화, 저축·투자 거래 입출금 반영, 재무목표 프리필): `GROWLIO_API_BASE_URL` — 비어 있으면 연동 기능 전체가 꺼진다
 - 부부 사진 저장용 Supabase Storage: `SUPABASE_SERVICE_ROLE_KEY`, `SUPABASE_STORAGE_BUCKET`, `MAX_UPLOAD_SIZE_MB` — 백엔드가 `/media/couple-photo`에서 프록시로 서빙한다(`app/services/couple_photo_service.py`, `app/main.py`). 둘 중 하나라도 비어 있으면 "사진 없음"으로 동작한다.
 - 예약 작업 인증: `INTERNAL_JOB_SECRET` — GitHub Actions가 `/internal/jobs/{job_name}` 호출 시 `X-Internal-Job-Secret` 헤더로 보낸다.
 - Google OAuth: `GOOGLE_OAUTH_CLIENT_ID`, `GOOGLE_OAUTH_CLIENT_SECRET` — 토큰 자체는 파일이 아니라 Postgres `household.google_oauth_tokens`에 저장되며(재배포/재시작에도 유지), `scripts/google_auth_setup.py`로 최초 1회 로컬에서 연결한다.

@@ -1,14 +1,22 @@
 import { apiGet, apiPost, apiPut } from "@/api/client";
 import type {
   GrowlioAccountOut,
+  SavingsProductAnnualPlanListOut,
   SavingsProductCreateIn,
   SavingsProductGrowlioImportIn,
   SavingsProductGrowlioLinkIn,
   SavingsProductOut,
+  SavingsProductPlanListOut,
   SavingsProductUpdateIn,
 } from "@/types";
 
 export const fetchSavingsProducts = () => apiGet<SavingsProductOut[]>("/savings-products");
+
+export const fetchSavingsProductsPlan = (yearMonth: string) =>
+  apiGet<SavingsProductPlanListOut>("/savings-products/plan", { params: { year_month: yearMonth } });
+
+export const fetchSavingsProductsAnnualPlan = (year: number) =>
+  apiGet<SavingsProductAnnualPlanListOut>("/savings-products/annual-plan", { params: { year } });
 
 export const createSavingsProduct = (payload: SavingsProductCreateIn) =>
   apiPost<SavingsProductOut>("/savings-products", payload);

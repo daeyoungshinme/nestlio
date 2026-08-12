@@ -23,3 +23,12 @@ class NetWorthSnapshotOut(BaseModel):
 class NetWorthOut(BaseModel):
     current: NetWorthBreakdownOut
     history: list[NetWorthSnapshotOut]
+
+
+class NetWorthGrowlioUnlinkedOut(BaseModel):
+    bank_total: Decimal
+    investment_total: Decimal
+    real_estate_total: Decimal
+    real_estate_loan_total: Decimal
+    net_total: Decimal
+    item_count: int

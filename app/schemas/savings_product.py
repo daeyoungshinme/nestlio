@@ -39,6 +39,57 @@ class SavingsProductUpdateIn(BaseModel):
     principal_amount: Decimal | None = None
 
 
+class SavingsProductPlanItemOut(BaseModel):
+    id: int
+    name: str
+    product_type: Literal["savings", "investment"]
+    planned: Decimal
+    actual: Decimal
+    pct: float
+    status: Literal["ok", "warn", "critical"]
+
+
+class SavingsProductPlanGroupOut(BaseModel):
+    planned: Decimal
+    actual: Decimal | None
+    pct: float | None
+    status: Literal["ok", "warn", "critical"] | None
+
+
+class SavingsProductPlanListOut(BaseModel):
+    year_month: str
+    items: list[SavingsProductPlanItemOut]
+    savings: SavingsProductPlanGroupOut
+    investment: SavingsProductPlanGroupOut
+
+
+class SavingsProductAnnualPlanItemOut(BaseModel):
+    id: int
+    name: str
+    product_type: Literal["savings", "investment"]
+    annual_target: Decimal
+    target_to_date: Decimal
+    actual: Decimal
+    pct: float
+    status: Literal["ok", "warn", "critical"]
+
+
+class SavingsProductAnnualPlanGroupOut(BaseModel):
+    annual_target: Decimal
+    target_to_date: Decimal
+    actual: Decimal | None
+    pct: float | None
+    status: Literal["ok", "warn", "critical"] | None
+
+
+class SavingsProductAnnualPlanListOut(BaseModel):
+    year: int
+    elapsed_months: int
+    items: list[SavingsProductAnnualPlanItemOut]
+    savings: SavingsProductAnnualPlanGroupOut
+    investment: SavingsProductAnnualPlanGroupOut
+
+
 class SavingsProductGrowlioLinkIn(BaseModel):
     growlio_account_id: str | None
     auto_sync_enabled: bool = False

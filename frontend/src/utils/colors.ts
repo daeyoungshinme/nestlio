@@ -173,12 +173,6 @@ export function progressStatusLabel(status: ProgressStatus): string {
   return PROGRESS_STATUS_LABEL[status];
 }
 
-/** 재무목표 카드의 "연동" 배지(연동된 저축/투자/계좌 안내) 색상 — 인라인 Tailwind 리터럴
- * 대신 이 유틸을 거치도록 뽑아냈다. */
-export function fundingLinkBadgeStyle(): string {
-  return "bg-blue-50 dark:bg-blue-950 text-blue-700 dark:text-blue-300";
-}
-
 const RECURRING_LINK_BADGE_STYLE: Record<"active" | "inactive", string> = {
   active: "bg-indigo-50 dark:bg-indigo-950 text-indigo-600 dark:text-indigo-400",
   inactive: "bg-gray-100 dark:bg-gray-800 text-gray-400 dark:text-gray-500",

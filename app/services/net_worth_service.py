@@ -3,8 +3,10 @@ from decimal import Decimal
 
 from sqlalchemy.orm import Session
 
+from app.models.account import Account
 from app.models.net_worth_snapshot import NetWorthSnapshot
-from app.services import account_service, loan_service, savings_product_service
+from app.models.savings_product import SavingsProduct
+from app.services import account_service, growlio_client, loan_service, savings_product_service
 from app.utils.dates import parse_year_month, shift_month, year_month_str
 
 
@@ -54,6 +56,64 @@ def savings_delta(db: Session, year_month: str) -> Decimal | None:
     if current is None or previous is None:
         return None
     return current.savings_total - previous.savings_total
+
+
+def compute_growlio_unlinked(db: Session, bearer_token: str) -> dict:
+    """growlio에는 있지만 아직 nestlio로 가져오지 않은 자산의 합계를 조회한다.
+
+    이미 연동된(=가져온) 자산은 로컬 net_worth에 이미 잡히므로 제외한다. growlio가
+    설정되지 않았거나(GrowlioNotConfiguredError) 요청이 실패하면(GrowlioRequestError)
+    호출부(라우터)가 처리하도록 그대로 전파한다.
+    """
+    accounts = growlio_client.fetch_account_balances(bearer_token)
+    real_estate_items = growlio_client.fetch_real_estate_items(bearer_token)
+
+    linked_account_ids = {
+        growlio_account_id
+        for (growlio_account_id,) in db.query(Account.growlio_account_id).filter(
+            Account.growlio_account_id.isnot(None), Account.is_active.is_(True)
+        )
+    }
+    linked_product_ids = {
+        growlio_account_id
+        for (growlio_account_id,) in db.query(SavingsProduct.growlio_account_id).filter(
+            SavingsProduct.growlio_account_id.isnot(None), SavingsProduct.is_active.is_(True)
+        )
+    }
+
+    bank_total = Decimal("0")
+    investment_total = Decimal("0")
+    item_count = 0
+    for account in accounts:
+        if account["id"] in linked_account_ids or account["id"] in linked_product_ids:
+            continue
+        if account["asset_type"] in growlio_client.BANK_ASSET_TYPES:
+            bank_total += Decimal(str(account["current_value_krw"]))
+            item_count += 1
+        elif account["asset_type"] in growlio_client.INVESTMENT_ASSET_TYPES:
+            investment_total += Decimal(str(account["current_value_krw"]))
+            item_count += 1
+        # REAL_ESTATE_ASSET_TYPE은 담보대출을 뺀 순액만 담겨 있어(fetch_real_estate_items와
+        # 중복 집계되므로) 여기서는 건너뛰고 아래 real estate 루프에서만 집계한다.
+
+    real_estate_total = Decimal("0")
+    real_estate_loan_total = Decimal("0")
+    for item in real_estate_items:
+        if item["id"] in linked_product_ids:
+            continue
+        real_estate_total += Decimal(str(item["market_value_krw"]))
+        real_estate_loan_total += Decimal(str(item.get("mortgage_balance_krw") or 0))
+        item_count += 1
+
+    net_total = bank_total + investment_total + real_estate_total - real_estate_loan_total
+    return {
+        "bank_total": bank_total,
+        "investment_total": investment_total,
+        "real_estate_total": real_estate_total,
+        "real_estate_loan_total": real_estate_loan_total,
+        "net_total": net_total,
+        "item_count": item_count,
+    }
 
 
 def list_history(db: Session, months: int = 12) -> list[NetWorthSnapshot]:

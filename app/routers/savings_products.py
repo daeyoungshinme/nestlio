@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import date, datetime
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
@@ -8,14 +8,17 @@ from app.dependencies import get_bearer_token, get_current_user
 from app.models.user import User
 from app.schemas.savings_product import (
     GrowlioAccountOut,
+    SavingsProductAnnualPlanListOut,
     SavingsProductCreateIn,
     SavingsProductGrowlioImportIn,
     SavingsProductGrowlioLinkIn,
     SavingsProductOut,
+    SavingsProductPlanListOut,
     SavingsProductUpdateIn,
 )
 from app.services import savings_product_service
 from app.services.growlio_client import GrowlioNotConfiguredError, GrowlioRequestError
+from app.utils.dates import year_month_str
 
 router = APIRouter(prefix="/savings-products", tags=["savings-products"])
 
@@ -23,6 +26,20 @@ router = APIRouter(prefix="/savings-products", tags=["savings-products"])
 @router.get("", response_model=list[SavingsProductOut])
 def list_products(db: Session = Depends(get_db), _: User = Depends(get_current_user)):
     return savings_product_service.list_products(db)
+
+
+@router.get("/plan", response_model=SavingsProductPlanListOut)
+def get_plan_summary(
+    year_month: str | None = None, db: Session = Depends(get_db), _: User = Depends(get_current_user)
+):
+    ym = year_month or year_month_str(date.today())
+    return savings_product_service.compute_plan_summary(db, ym)
+
+
+@router.get("/annual-plan", response_model=SavingsProductAnnualPlanListOut)
+def get_annual_plan_summary(year: int | None = None, db: Session = Depends(get_db), _: User = Depends(get_current_user)):
+    today = date.today()
+    return savings_product_service.compute_annual_plan_summary(db, year or today.year, as_of=today)
 
 
 @router.get("/growlio-accounts", response_model=list[GrowlioAccountOut])

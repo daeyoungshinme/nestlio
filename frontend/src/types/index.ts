@@ -621,6 +621,57 @@ export interface SavingsProductGrowlioImportIn {
   growlio_account_ids: string[];
 }
 
+export interface SavingsProductPlanItemOut {
+  id: number;
+  name: string;
+  product_type: "savings" | "investment";
+  planned: string;
+  actual: string;
+  pct: number;
+  status: "ok" | "warn" | "critical";
+}
+
+export interface SavingsProductPlanGroupOut {
+  planned: string;
+  actual: string | null;
+  pct: number | null;
+  status: "ok" | "warn" | "critical" | null;
+}
+
+export interface SavingsProductPlanListOut {
+  year_month: string;
+  items: SavingsProductPlanItemOut[];
+  savings: SavingsProductPlanGroupOut;
+  investment: SavingsProductPlanGroupOut;
+}
+
+export interface SavingsProductAnnualPlanItemOut {
+  id: number;
+  name: string;
+  product_type: "savings" | "investment";
+  annual_target: string;
+  target_to_date: string;
+  actual: string;
+  pct: number;
+  status: "ok" | "warn" | "critical";
+}
+
+export interface SavingsProductAnnualPlanGroupOut {
+  annual_target: string;
+  target_to_date: string;
+  actual: string | null;
+  pct: number | null;
+  status: "ok" | "warn" | "critical" | null;
+}
+
+export interface SavingsProductAnnualPlanListOut {
+  year: number;
+  elapsed_months: number;
+  items: SavingsProductAnnualPlanItemOut[];
+  savings: SavingsProductAnnualPlanGroupOut;
+  investment: SavingsProductAnnualPlanGroupOut;
+}
+
 export interface GrowlioAccountOut {
   id: string;
   name: string;
@@ -699,4 +750,13 @@ export interface NetWorthSnapshotOut {
 export interface NetWorthOut {
   current: NetWorthBreakdownOut;
   history: NetWorthSnapshotOut[];
+}
+
+export interface NetWorthGrowlioUnlinkedOut {
+  bank_total: string;
+  investment_total: string;
+  real_estate_total: string;
+  real_estate_loan_total: string;
+  net_total: string;
+  item_count: number;
 }

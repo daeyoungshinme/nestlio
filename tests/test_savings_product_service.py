@@ -1,11 +1,20 @@
-from datetime import datetime
+from datetime import date, datetime
 from decimal import Decimal
 from unittest.mock import patch
 
 import pytest
 
-from app.services import savings_product_service
+from app.models.category import Category
+from app.services import savings_product_service, transaction_service
 from app.services.growlio_client import GrowlioNotConfiguredError
+
+
+def _add_savings_category(db):
+    category = Category(name="저축/투자", type="fixed", color="#10b981", is_savings=True, sort_order=0)
+    db.add(category)
+    db.commit()
+    db.refresh(category)
+    return category
 
 
 def test_create_product_defaults_to_savings_type(db_session):
@@ -272,6 +281,214 @@ def test_import_from_growlio_reimports_account_after_link_deactivated(db_session
 
     assert len(created) == 1
     assert created[0].growlio_account_id == "growlio-acc-1"
+
+
+def test_actuals_for_month_sums_transactions_linked_to_product(seeded_db):
+    db, user = seeded_db["db"], seeded_db["user"]
+    savings_category = _add_savings_category(db)
+    product = savings_product_service.create_product(db, "적금", Decimal("0"), Decimal("100000"))
+
+    transaction_service.create_transaction(
+        db, user.id, savings_category.id, "expense", Decimal("30000"), date(2026, 7, 5), savings_product_id=product.id
+    )
+    transaction_service.create_transaction(
+        db, user.id, savings_category.id, "expense", Decimal("20000"), date(2026, 7, 20), savings_product_id=product.id
+    )
+
+    actuals = savings_product_service.actuals_for_month(db, "2026-07")
+
+    assert actuals[product.id] == Decimal("50000")
+
+
+def test_actuals_for_month_excludes_other_months(seeded_db):
+    db, user = seeded_db["db"], seeded_db["user"]
+    savings_category = _add_savings_category(db)
+    product = savings_product_service.create_product(db, "적금", Decimal("0"), Decimal("100000"))
+
+    transaction_service.create_transaction(
+        db, user.id, savings_category.id, "expense", Decimal("30000"), date(2026, 7, 31), savings_product_id=product.id
+    )
+    transaction_service.create_transaction(
+        db, user.id, savings_category.id, "expense", Decimal("40000"), date(2026, 8, 1), savings_product_id=product.id
+    )
+
+    actuals = savings_product_service.actuals_for_month(db, "2026-07")
+
+    assert actuals[product.id] == Decimal("30000")
+
+
+def test_actuals_for_month_excludes_unlinked_transactions(seeded_db):
+    db, user, food = seeded_db["db"], seeded_db["user"], seeded_db["food"]
+    transaction_service.create_transaction(db, user.id, food.id, "expense", Decimal("10000"), date(2026, 7, 1))
+
+    actuals = savings_product_service.actuals_for_month(db, "2026-07")
+
+    assert actuals == {}
+
+
+def test_actuals_for_month_separates_multiple_products(seeded_db):
+    db, user = seeded_db["db"], seeded_db["user"]
+    savings_category = _add_savings_category(db)
+    savings_product = savings_product_service.create_product(db, "적금", Decimal("0"), Decimal("0"))
+    investment_product = savings_product_service.create_product(
+        db, "펀드", Decimal("0"), Decimal("0"), product_type="investment"
+    )
+
+    transaction_service.create_transaction(
+        db,
+        user.id,
+        savings_category.id,
+        "expense",
+        Decimal("30000"),
+        date(2026, 7, 1),
+        savings_product_id=savings_product.id,
+    )
+    transaction_service.create_transaction(
+        db,
+        user.id,
+        savings_category.id,
+        "expense",
+        Decimal("70000"),
+        date(2026, 7, 2),
+        savings_product_id=investment_product.id,
+    )
+
+    actuals = savings_product_service.actuals_for_month(db, "2026-07")
+
+    assert actuals[savings_product.id] == Decimal("30000")
+    assert actuals[investment_product.id] == Decimal("70000")
+
+
+def test_compute_plan_summary_matches_planned_and_actual_per_product(seeded_db):
+    db, user = seeded_db["db"], seeded_db["user"]
+    savings_category = _add_savings_category(db)
+    product = savings_product_service.create_product(db, "적금", Decimal("0"), Decimal("100000"))
+    transaction_service.create_transaction(
+        db, user.id, savings_category.id, "expense", Decimal("50000"), date(2026, 7, 1), savings_product_id=product.id
+    )
+
+    summary = savings_product_service.compute_plan_summary(db, "2026-07")
+
+    item = next(i for i in summary["items"] if i["id"] == product.id)
+    assert item["planned"] == Decimal("100000")
+    assert item["actual"] == Decimal("50000")
+    assert item["pct"] == 50.0
+    assert summary["savings"]["planned"] == Decimal("100000")
+    assert summary["savings"]["actual"] == Decimal("50000")
+
+
+def test_compute_plan_summary_excludes_real_estate_products(seeded_db):
+    db = seeded_db["db"]
+    savings_product_service.create_product(
+        db, "아파트", Decimal("500000000"), Decimal("0"), product_type="real_estate"
+    )
+
+    summary = savings_product_service.compute_plan_summary(db, "2026-07")
+
+    assert summary["items"] == []
+    assert summary["savings"]["pct"] is None
+    assert summary["investment"]["pct"] is None
+
+
+def test_actuals_for_year_sums_transactions_within_year(seeded_db):
+    db, user = seeded_db["db"], seeded_db["user"]
+    savings_category = _add_savings_category(db)
+    product = savings_product_service.create_product(db, "적금", Decimal("0"), Decimal("100000"))
+
+    transaction_service.create_transaction(
+        db, user.id, savings_category.id, "expense", Decimal("30000"), date(2026, 1, 5), savings_product_id=product.id
+    )
+    transaction_service.create_transaction(
+        db, user.id, savings_category.id, "expense", Decimal("20000"), date(2026, 8, 20), savings_product_id=product.id
+    )
+
+    actuals = savings_product_service.actuals_for_year(db, 2026)
+
+    assert actuals[product.id] == Decimal("50000")
+
+
+def test_actuals_for_year_excludes_other_years(seeded_db):
+    db, user = seeded_db["db"], seeded_db["user"]
+    savings_category = _add_savings_category(db)
+    product = savings_product_service.create_product(db, "적금", Decimal("0"), Decimal("100000"))
+
+    transaction_service.create_transaction(
+        db, user.id, savings_category.id, "expense", Decimal("30000"), date(2026, 12, 31), savings_product_id=product.id
+    )
+    transaction_service.create_transaction(
+        db, user.id, savings_category.id, "expense", Decimal("40000"), date(2027, 1, 1), savings_product_id=product.id
+    )
+
+    actuals = savings_product_service.actuals_for_year(db, 2026)
+
+    assert actuals[product.id] == Decimal("30000")
+
+
+def test_compute_annual_plan_summary_uses_elapsed_months_for_target_to_date(seeded_db):
+    db = seeded_db["db"]
+    product = savings_product_service.create_product(db, "적금", Decimal("0"), Decimal("100000"))
+
+    summary = savings_product_service.compute_annual_plan_summary(db, 2026, as_of=date(2026, 8, 15))
+
+    item = next(i for i in summary["items"] if i["id"] == product.id)
+    assert summary["elapsed_months"] == 8
+    assert item["target_to_date"] == Decimal("800000")
+    assert item["annual_target"] == Decimal("1200000")
+
+
+def test_compute_annual_plan_summary_past_year_uses_full_12_months(seeded_db):
+    db = seeded_db["db"]
+    savings_product_service.create_product(db, "적금", Decimal("0"), Decimal("100000"))
+
+    summary = savings_product_service.compute_annual_plan_summary(db, 2025, as_of=date(2026, 8, 15))
+
+    assert summary["elapsed_months"] == 12
+
+
+def test_compute_annual_plan_summary_future_year_has_zero_elapsed_months(seeded_db):
+    db = seeded_db["db"]
+    savings_product_service.create_product(db, "적금", Decimal("0"), Decimal("100000"))
+
+    summary = savings_product_service.compute_annual_plan_summary(db, 2027, as_of=date(2026, 8, 15))
+
+    assert summary["elapsed_months"] == 0
+    assert summary["savings"]["target_to_date"] == Decimal("0")
+
+
+def test_compute_annual_plan_summary_catches_up_after_a_skipped_month(seeded_db):
+    """1월에 계획을 걸렀다가 2월에 2달치를 몰아 넣으면, 월별 뷰는 1월을 여전히 critical로 보지만
+    연간 누적 뷰는 2월 시점에 계획대로 납입한 것으로(ok) 인정해야 한다."""
+    db, user = seeded_db["db"], seeded_db["user"]
+    savings_category = _add_savings_category(db)
+    product = savings_product_service.create_product(db, "적금", Decimal("0"), Decimal("100000"))
+
+    transaction_service.create_transaction(
+        db, user.id, savings_category.id, "expense", Decimal("200000"), date(2026, 2, 10), savings_product_id=product.id
+    )
+
+    monthly_summary = savings_product_service.compute_plan_summary(db, "2026-01")
+    monthly_item = next(i for i in monthly_summary["items"] if i["id"] == product.id)
+    assert monthly_item["status"] == "critical"
+
+    annual_summary = savings_product_service.compute_annual_plan_summary(db, 2026, as_of=date(2026, 2, 20))
+    annual_item = next(i for i in annual_summary["items"] if i["id"] == product.id)
+    assert annual_item["target_to_date"] == Decimal("200000")
+    assert annual_item["actual"] == Decimal("200000")
+    assert annual_item["pct"] == 100.0
+    assert annual_item["status"] == "ok"
+
+
+def test_compute_annual_plan_summary_excludes_real_estate_products(seeded_db):
+    db = seeded_db["db"]
+    savings_product_service.create_product(
+        db, "아파트", Decimal("500000000"), Decimal("0"), product_type="real_estate"
+    )
+
+    summary = savings_product_service.compute_annual_plan_summary(db, 2026, as_of=date(2026, 8, 15))
+
+    assert summary["items"] == []
+    assert summary["savings"]["pct"] is None
+    assert summary["investment"]["pct"] is None
 
 
 def test_import_from_growlio_propagates_not_configured_error(db_session):

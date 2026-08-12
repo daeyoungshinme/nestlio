@@ -88,7 +88,10 @@ cleanup() {
 trap cleanup EXIT INT TERM
 
 echo "[dev.sh] starting backend (uvicorn --reload) on http://127.0.0.1:$BACKEND_PORT"
-"$PYTHON" -m uvicorn app.main:app --host 127.0.0.1 --port "$BACKEND_PORT" --reload &
+# --reload-dir app: reload-dir을 안 주면 uvicorn(watchfiles)이 프로젝트 루트 전체(frontend/node_modules,
+# data/*.db, .venv, .git 포함)를 재귀적으로 감시한다 - Windows에서 이 정도 규모를 통째로 감시하면
+# 코드와 무관한 변경(Vite 캐시 쓰기, SQLite 파일 갱신 등)에도 백엔드가 계속 재기동해 불안정해진다.
+"$PYTHON" -m uvicorn app.main:app --host 127.0.0.1 --port "$BACKEND_PORT" --reload --reload-dir app &
 BACKEND_PID=$!
 
 echo "[dev.sh] starting frontend (vite dev server) on http://localhost:$FRONTEND_PORT"

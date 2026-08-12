@@ -1,30 +1,35 @@
 import { useState } from "react";
 import type { FormEvent } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { Download, ExternalLink, Link2, Plus, Target } from "lucide-react";
+import { Download, ExternalLink, Plus, Target, Trophy } from "lucide-react";
 import AnnualSavingsGoalCard from "@/components/financialPlan/AnnualSavingsGoalCard";
 import Button from "@/components/common/Button";
 import ChallengesSection from "@/components/financialPlan/ChallengesSection";
+import CollapsibleGroup from "@/components/common/CollapsibleGroup";
 import ConfirmModal from "@/components/common/ConfirmModal";
 import EmptyState from "@/components/common/EmptyState";
 import FormInput from "@/components/common/FormInput";
+import FundingSourceChecklist from "@/components/financialPlan/FundingSourceChecklist";
 import GoalProgressCard from "@/components/financialPlan/GoalProgressCard";
 import type { GoalProgressCardBadge, GoalProgressCardExtraDetail } from "@/components/financialPlan/GoalProgressCard";
 import GoalSectionHeader from "@/components/financialPlan/GoalSectionHeader";
 import Modal from "@/components/common/Modal";
 import SkeletonCard from "@/components/common/SkeletonCard";
+import Tabs from "@/components/common/Tabs";
 import { currentYearMonth } from "@/components/common/MonthPicker";
 import { fetchAccounts } from "@/api/accounts";
+import { fetchChallenges } from "@/api/challenges";
 import { fetchDashboard } from "@/api/dashboard";
 import { createGoal, deleteGoal, fetchGoals, fetchGrowlioGoalSettings, updateGoal } from "@/api/goals";
 import { fetchLoans } from "@/api/loans";
 import { fetchSavingsProducts } from "@/api/savingsProducts";
-import { FORM_LABEL } from "@/constants/inputStyles";
+import { FORM_SECTION_LABEL } from "@/constants/inputStyles";
 import { QUERY_KEYS } from "@/constants/queryKeys";
 import { STALE_TIME } from "@/constants/queryConfig";
 import { useCrudMutations } from "@/hooks/useCrudMutations";
-import { fundingLinkBadgeStyle, insightSeverityStyle, progressStatusBadgeClass, progressStatusLabel } from "@/utils/colors";
+import { insightSeverityStyle, progressStatusBadgeClass, progressStatusLabel } from "@/utils/colors";
 import { computeGoalStatus, daysUntil } from "@/utils/goalStatus";
+import { GOAL_SORT_LABELS, sortGoals, type GoalSortLabel } from "@/utils/goalSort";
 import { extractErrorMessage } from "@/utils/error";
 import { formatKrw, formatKrwPreview, formatPercent, toAmountInputValue } from "@/utils/format";
 import { toast } from "@/utils/toast";
@@ -105,10 +110,6 @@ function toPayload(draft: Draft) {
 
 const GOAL_MILESTONES = [25, 50, 75, 100];
 
-// 재무목표 카드 배지에 이름을 나열할 최대 연동 항목 수 — 이보다 많으면 "외 N개"로 줄이고
-// 전체 목록은 GoalProgressCard의 "더보기" 접이식으로 옮긴다.
-const MAX_BADGE_FUNDING_SOURCES = 2;
-
 /** 저장 전후 진행률을 비교해 이번 저장으로 새로 넘어선 가장 높은 마일스톤을 반환한다 (없으면 null). */
 function crossedMilestone(oldPct: number, newPct: number): number | null {
   const crossed = GOAL_MILESTONES.filter((m) => oldPct < m && newPct >= m);
@@ -123,8 +124,10 @@ function monthsBetween(start: Date, end: Date): number {
 export default function FinancialGoalsSection() {
   const [formTarget, setFormTarget] = useState<"new" | FinancialGoalOut | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<number | null>(null);
+  const [sortOption, setSortOption] = useState<GoalSortLabel>("우선순위순");
 
   const { data, isLoading } = useQuery({ queryKey: QUERY_KEYS.financialGoals, queryFn: fetchGoals });
+  const { data: challenges } = useQuery({ queryKey: QUERY_KEYS.challenges, queryFn: fetchChallenges });
   const { data: savingsProducts } = useQuery({
     queryKey: QUERY_KEYS.savingsProducts,
     queryFn: fetchSavingsProducts,
@@ -164,11 +167,16 @@ export default function FinancialGoalsSection() {
   const isSaving = createMutation.isPending || updateMutation.isPending;
   const goalPaceInsight = dashboard?.insights.find((i) => i.rule_code === "goal_pace");
   const investableSurplus = dashboard?.investable_surplus ?? "0";
-  const sortedGoals = data.slice().sort((a, b) => a.priority - b.priority);
+  const priorityOrderedGoals = data.slice().sort((a, b) => a.priority - b.priority);
+  // 달성한(progress_pct>=100) 목표는 활성 목록에서 분리해 아래 접이식으로 옮긴다 — 완료된
+  // 목표가 계속 쌓여 목록을 채우는 것을 막기 위함(백엔드에 별도 archive 필드는 없음, 순수 프론트 판정).
+  const activeGoalsByPriority = priorityOrderedGoals.filter((g) => computeGoalStatus(g) !== "achieved");
+  const achievedGoals = priorityOrderedGoals.filter((g) => computeGoalStatus(g) === "achieved");
+  const activeGoals = sortGoals(activeGoalsByPriority, sortOption);
   // 여유자금은 가계 전체 단위라 목표마다 반복 표시하면 목표별로 다른 금액처럼 오인될 수 있어,
-  // growlio 연동된 목표 중 우선순위가 가장 높은 하나에만 붙인다.
+  // growlio 연동된 활성 목표 중 우선순위가 가장 높은 하나에만 붙인다(정렬 옵션과 무관하게 고정).
   const firstGrowlioLinkedGoalId =
-    sortedGoals.find((g) => findGrowlioInvestmentLink(g, savingsProducts ?? []))?.id ?? null;
+    activeGoalsByPriority.find((g) => findGrowlioInvestmentLink(g, savingsProducts ?? []))?.id ?? null;
 
   const celebrateIfCrossed = (oldPct: number, goal: FinancialGoalOut) => {
     const milestone = crossedMilestone(oldPct, Number(goal.progress_pct));
@@ -189,12 +197,95 @@ export default function FinancialGoalsSection() {
     }
   };
 
+  /** 활성/달성 목표 목록이 공유하는 카드 조립 — 배지는 상태 1개만 남기고(연동 항목 이름은
+   * metaLine에 짧게, 상세는 항상 "더보기"로) 정보 위계를 metaLine < 타이틀+배지 < 진행바 <
+   * primaryDetail < 더보기 순으로 정리했다. */
+  const renderGoalCard = (goal: FinancialGoalOut) => {
+    const growlioAccountId = findGrowlioInvestmentLink(goal, savingsProducts ?? []);
+    const showSurplusHint =
+      goal.id === firstGrowlioLinkedGoalId && GROWLIO_APP_URL && Number(investableSurplus) > 0;
+    const hasLoanSource = goal.funding_sources.some((fs) => fs.type === "loan");
+    const status = computeGoalStatus(goal);
+
+    const badges: GoalProgressCardBadge[] = [
+      { label: progressStatusLabel(status), toneClassName: progressStatusBadgeClass(status) },
+    ];
+
+    const extraDetails: GoalProgressCardExtraDetail[] = [];
+    if (goal.funding_sources.length > 0) {
+      extraDetails.push({
+        key: "funding-sources",
+        content: (
+          <div className="space-y-0.5">
+            {goal.funding_sources.map((fs) => (
+              <div key={`${fs.type}-${fs.id}`} className="flex items-center justify-between gap-2">
+                <span className="truncate">{fs.name}</span>
+                <span className="shrink-0">{formatKrw(fs.amount)}</span>
+              </div>
+            ))}
+          </div>
+        ),
+      });
+    }
+    if (growlioAccountId && GROWLIO_APP_URL) {
+      extraDetails.push({
+        key: "growlio",
+        content: (
+          <a
+            href={growlioPortfolioUrl(growlioAccountId)}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1 text-xs font-medium text-emerald-600 dark:text-emerald-400 hover:underline"
+          >
+            <ExternalLink size={12} />
+            이 목표의 투자금, growlio에서 포트폴리오로 굴리기
+          </a>
+        ),
+      });
+    }
+    if (showSurplusHint) {
+      extraDetails.push({
+        key: "surplus",
+        content: `이번 달 여유자금 ${formatKrw(investableSurplus)}, 이 목표의 투자금에 보태보세요.`,
+      });
+    }
+    if (goal.weighted_return_rate_pct !== null && goal.projected_months_with_growth !== null) {
+      extraDetails.push({
+        key: "projection",
+        content: `연동 투자상품 수익률 ${formatPercent(Number(goal.weighted_return_rate_pct))}(가정) 반영 시 약 ${goal.projected_months_with_growth}개월 후 달성 예상`,
+      });
+    }
+
+    return (
+      <GoalProgressCard
+        key={goal.id}
+        title={goal.name}
+        metaLine={`${goal.priority}순위${
+          goal.target_date !== null
+            ? ` · D-${daysUntil(goal.target_date)}`
+            : goal.target_age !== null
+              ? ` · ${goal.target_age}세까지`
+              : ""
+        }${goal.funding_sources.length > 0 ? ` · 연동 ${goal.funding_sources.length}건` : ""}`}
+        badges={badges}
+        pct={Number(goal.progress_pct)}
+        primaryDetail={
+          <>
+            {goal.funding_sources.length > 0 ? "연동 항목 잔액 합계" : "현재 저축액"}{" "}
+            {formatKrw(goal.current_amount)} / 목표 {formatKrw(goal.required_amount)} · 월{" "}
+            {formatKrw(goal.monthly_saving_amount)}
+            {hasLoanSource && " (대출 차감 반영)"}
+          </>
+        }
+        extraDetails={extraDetails}
+        onEdit={() => setFormTarget(goal)}
+        onDelete={() => setDeleteTarget(goal.id)}
+      />
+    );
+  };
+
   return (
     <div className="space-y-6">
-      <GoalSectionHeader
-        title="가구 저축 페이스"
-        description="부부가 함께 정한 연도별 순저축 목표 대비 이번 해/이번 달 진행 상황이에요."
-      />
       <AnnualSavingsGoalCard />
 
       <GoalSectionHeader
@@ -215,121 +306,63 @@ export default function FinancialGoalsSection() {
           compact
         />
       ) : (
-        <div className="space-y-2">
-          {sortedGoals.map((goal) => {
-            const growlioAccountId = findGrowlioInvestmentLink(goal, savingsProducts ?? []);
-            const showSurplusHint =
-              goal.id === firstGrowlioLinkedGoalId && GROWLIO_APP_URL && Number(investableSurplus) > 0;
-            const hasLoanSource = goal.funding_sources.some((fs) => fs.type === "loan");
-            const status = computeGoalStatus(goal);
-
-            const badges: GoalProgressCardBadge[] = [
-              { label: progressStatusLabel(status), toneClassName: progressStatusBadgeClass(status) },
-            ];
-            if (goal.funding_sources.length > 0) {
-              const sourceNames = goal.funding_sources.map((fs) => fs.name);
-              const label =
-                sourceNames.length > MAX_BADGE_FUNDING_SOURCES
-                  ? `${sourceNames.slice(0, MAX_BADGE_FUNDING_SOURCES).join(", ")} 외 ${
-                      sourceNames.length - MAX_BADGE_FUNDING_SOURCES
-                    }개`
-                  : sourceNames.join(", ");
-              badges.push({
-                label,
-                toneClassName: fundingLinkBadgeStyle(),
-                icon: <Link2 size={11} />,
-              });
-            }
-
-            const extraDetails: GoalProgressCardExtraDetail[] = [];
-            if (goal.funding_sources.length > MAX_BADGE_FUNDING_SOURCES) {
-              extraDetails.push({
-                key: "funding-sources",
-                content: (
-                  <div className="space-y-0.5">
-                    {goal.funding_sources.map((fs) => (
-                      <div key={`${fs.type}-${fs.id}`} className="flex items-center justify-between gap-2">
-                        <span className="truncate">{fs.name}</span>
-                        <span className="shrink-0">{formatKrw(fs.amount)}</span>
-                      </div>
-                    ))}
-                  </div>
-                ),
-              });
-            }
-            if (growlioAccountId && GROWLIO_APP_URL) {
-              extraDetails.push({
-                key: "growlio",
-                content: (
-                  <a
-                    href={growlioPortfolioUrl(growlioAccountId)}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1 text-xs font-medium text-emerald-600 dark:text-emerald-400 hover:underline"
-                  >
-                    <ExternalLink size={12} />
-                    이 목표의 투자금, growlio에서 포트폴리오로 굴리기
-                  </a>
-                ),
-              });
-            }
-            if (showSurplusHint) {
-              extraDetails.push({
-                key: "surplus",
-                content: `이번 달 여유자금 ${formatKrw(investableSurplus)}, 이 목표의 투자금에 보태보세요.`,
-              });
-            }
-            if (goal.weighted_return_rate_pct !== null && goal.projected_months_with_growth !== null) {
-              extraDetails.push({
-                key: "projection",
-                content: `연동 투자상품 수익률 ${formatPercent(Number(goal.weighted_return_rate_pct))}(가정) 반영 시 약 ${goal.projected_months_with_growth}개월 후 달성 예상`,
-              });
-            }
-
-            return (
-              <GoalProgressCard
-                key={goal.id}
-                title={goal.name}
-                metaLine={`${goal.priority}순위${
-                  goal.target_date !== null
-                    ? ` · D-${daysUntil(goal.target_date)}`
-                    : goal.target_age !== null
-                      ? ` · ${goal.target_age}세까지`
-                      : ""
-                }`}
-                badges={badges}
-                pct={Number(goal.progress_pct)}
-                primaryDetail={
-                  <>
-                    {goal.funding_sources.length > 0 ? "연동 항목 잔액 합계" : "현재 저축액"}{" "}
-                    {formatKrw(goal.current_amount)} / 목표 {formatKrw(goal.required_amount)} · 월{" "}
-                    {formatKrw(goal.monthly_saving_amount)}
-                    {hasLoanSource && " (대출 차감 반영)"}
-                  </>
-                }
-                extraDetails={extraDetails}
-                onEdit={() => setFormTarget(goal)}
-                onDelete={() => setDeleteTarget(goal.id)}
-              />
-            );
-          })}
-          <div className="flex flex-col sm:flex-row sm:justify-end gap-1 sm:gap-6 pt-1 text-sm font-semibold text-gray-900 dark:text-gray-50">
-            <span className="sm:text-right">필요금액 합계 {formatKrw(totalRequired)}</span>
-            <span className="sm:text-right">월 저축금액 합계 {formatKrw(totalMonthly)}</span>
+        <div className="space-y-3">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+            <p className="text-xs text-gray-500 dark:text-gray-400">
+              총 {data.length}개 · 필요금액 합계 {formatKrw(totalRequired)} · 월 저축금액 합계{" "}
+              {formatKrw(totalMonthly)}
+            </p>
+            {activeGoals.length > 1 && (
+              <Tabs tabs={GOAL_SORT_LABELS} activeTab={sortOption} onChange={setSortOption} variant="pill" />
+            )}
           </div>
+
           {goalPaceInsight && (
             <div className={`border rounded-lg px-3 py-2 text-xs ${insightSeverityStyle(goalPaceInsight.severity)}`}>
               {goalPaceInsight.message}
             </div>
           )}
+
+          {activeGoals.length > 0 ? (
+            <div className="space-y-2">{activeGoals.map(renderGoalCard)}</div>
+          ) : (
+            <p className="text-xs text-gray-500 dark:text-gray-400 py-1">
+              진행 중인 목표가 없어요. 모든 목표를 달성했어요! 🎉
+            </p>
+          )}
+
+          {achievedGoals.length > 0 && (
+            <CollapsibleGroup
+              header={
+                <span className="flex items-center gap-1.5 text-sm font-semibold text-gray-700 dark:text-gray-300">
+                  <Trophy size={14} className="text-emerald-500" />
+                  달성한 목표
+                </span>
+              }
+              amount={`${achievedGoals.length}개`}
+              defaultOpen={false}
+            >
+              {achievedGoals.map(renderGoalCard)}
+            </CollapsibleGroup>
+          )}
         </div>
       )}
 
-      <GoalSectionHeader
-        title="부부 챌린지"
-        description="기간을 정해두고 부부가 함께 짧게 도전하는 미니 목표예요. 장기 목표와 별개로 자유롭게 만들어보세요."
-      />
-      <ChallengesSection />
+      <CollapsibleGroup
+        header={
+          <span className="flex items-center gap-1.5 text-base font-bold text-gray-900 dark:text-gray-50">
+            <Trophy size={16} className="text-gray-400" />
+            부부 챌린지
+          </span>
+        }
+        amount={`${challenges?.length ?? 0}개`}
+        defaultOpen={false}
+      >
+        <p className="text-xs text-gray-500 dark:text-gray-400 -mt-1">
+          기간을 정해두고 부부가 함께 짧게 도전하는 미니 목표예요. 장기 목표와 별개로 자유롭게 만들어보세요.
+        </p>
+        <ChallengesSection />
+      </CollapsibleGroup>
 
       {formTarget && (
         <GoalFormModal
@@ -455,6 +488,7 @@ function GoalFormModal({
   return (
     <Modal onClose={onClose} title={title}>
       <form onSubmit={handleSubmit} className="p-6 overflow-y-auto flex flex-col gap-3">
+        <p className={FORM_SECTION_LABEL}>기본 정보</p>
         {existingGoal === null && (
           <Button
             type="button"
@@ -508,90 +542,50 @@ function GoalFormModal({
           className="w-full"
           preview={Number(draft.required_amount) > 0 ? formatKrwPreview(Number(draft.required_amount)) : undefined}
         />
-        <div>
-          <label className={FORM_LABEL}>연동할 저축/투자 상품 (복수 선택 가능)</label>
-          {savingsProducts.length === 0 ? (
-            <p className="text-xs text-gray-400 dark:text-gray-500">등록된 저축/투자 상품이 없어요.</p>
-          ) : (
-            <div className="rounded-lg border border-gray-200 dark:border-gray-700 divide-y divide-gray-100 dark:divide-gray-800 max-h-40 overflow-y-auto">
-              {savingsProducts.map((p) => (
-                <label
-                  key={p.id}
-                  className="flex items-center justify-between gap-2 px-3 py-2 text-sm cursor-pointer"
-                >
-                  <span className="flex items-center gap-2 min-w-0">
-                    <input
-                      type="checkbox"
-                      checked={draft.savings_product_ids.includes(String(p.id))}
-                      onChange={() => toggleId("savings_product_ids", String(p.id))}
-                      className="h-4 w-4 rounded border-gray-300 shrink-0"
-                    />
-                    <span className="truncate text-gray-900 dark:text-gray-50">{p.name}</span>
-                  </span>
-                  <span className="text-xs text-gray-500 dark:text-gray-400 shrink-0">
-                    {formatKrw(p.current_balance)}
-                  </span>
-                </label>
-              ))}
-            </div>
-          )}
-        </div>
-        <div>
-          <label className={FORM_LABEL}>연동할 계좌 (복수 선택 가능)</label>
-          {accounts.length === 0 ? (
-            <p className="text-xs text-gray-400 dark:text-gray-500">등록된 계좌가 없어요.</p>
-          ) : (
-            <div className="rounded-lg border border-gray-200 dark:border-gray-700 divide-y divide-gray-100 dark:divide-gray-800 max-h-40 overflow-y-auto">
-              {accounts.map(({ account, balance }) => (
-                <label
-                  key={account.id}
-                  className="flex items-center justify-between gap-2 px-3 py-2 text-sm cursor-pointer"
-                >
-                  <span className="flex items-center gap-2 min-w-0">
-                    <input
-                      type="checkbox"
-                      checked={draft.account_ids.includes(String(account.id))}
-                      onChange={() => toggleId("account_ids", String(account.id))}
-                      className="h-4 w-4 rounded border-gray-300 shrink-0"
-                    />
-                    <span className="truncate text-gray-900 dark:text-gray-50">{account.name}</span>
-                  </span>
-                  <span className="text-xs text-gray-500 dark:text-gray-400 shrink-0">{formatKrw(balance)}</span>
-                </label>
-              ))}
-            </div>
-          )}
-        </div>
-        <div>
-          <label className={FORM_LABEL}>연동할 대출 (연동 시 금액에서 차감돼요)</label>
-          {loans.length === 0 ? (
-            <p className="text-xs text-gray-400 dark:text-gray-500">등록된 대출이 없어요.</p>
-          ) : (
-            <div className="rounded-lg border border-gray-200 dark:border-gray-700 divide-y divide-gray-100 dark:divide-gray-800 max-h-40 overflow-y-auto">
-              {loans.map((loan) => (
-                <label
-                  key={loan.id}
-                  className="flex items-center justify-between gap-2 px-3 py-2 text-sm cursor-pointer"
-                >
-                  <span className="flex items-center gap-2 min-w-0">
-                    <input
-                      type="checkbox"
-                      checked={draft.loan_ids.includes(String(loan.id))}
-                      onChange={() => toggleId("loan_ids", String(loan.id))}
-                      className="h-4 w-4 rounded border-gray-300 shrink-0"
-                    />
-                    <span className="truncate text-gray-900 dark:text-gray-50">{loan.name}</span>
-                  </span>
-                  <span className="text-xs text-red-500 dark:text-red-400 shrink-0">-{formatKrw(loan.balance)}</span>
-                </label>
-              ))}
-            </div>
-          )}
-          <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
-            상품·계좌·대출을 연동하면 현재 저축액이 (연동된 상품·계좌 잔액 합) − (연동된 대출 잔액)으로
-            자동 계산돼요. 부부가 각자 다른 상품/계좌로 한 목표를 함께 모을 때 여러 개를 선택하세요.
-          </p>
-        </div>
+        <CollapsibleGroup
+          header={<span className="text-sm font-medium text-gray-700 dark:text-gray-300">연동 항목</span>}
+          amount={
+            isLinked
+              ? `${draft.savings_product_ids.length + draft.account_ids.length + draft.loan_ids.length}건 연동`
+              : "연동 안 함"
+          }
+          defaultOpen={isLinked}
+        >
+          <FundingSourceChecklist
+            label="연동할 저축/투자 상품 (복수 선택 가능)"
+            items={savingsProducts}
+            getId={(p) => p.id}
+            getName={(p) => p.name}
+            getAmountLabel={(p) => formatKrw(p.current_balance)}
+            selectedIds={draft.savings_product_ids}
+            onToggle={(id) => toggleId("savings_product_ids", id)}
+            emptyMessage="등록된 저축/투자 상품이 없어요."
+          />
+          <FundingSourceChecklist
+            label="연동할 계좌 (복수 선택 가능)"
+            items={accounts}
+            getId={({ account }) => account.id}
+            getName={({ account }) => account.name}
+            getAmountLabel={({ balance }) => formatKrw(balance)}
+            selectedIds={draft.account_ids}
+            onToggle={(id) => toggleId("account_ids", id)}
+            emptyMessage="등록된 계좌가 없어요."
+          />
+          <FundingSourceChecklist
+            label="연동할 대출 (연동 시 금액에서 차감돼요)"
+            items={loans}
+            getId={(loan) => loan.id}
+            getName={(loan) => loan.name}
+            getAmountLabel={(loan) => `-${formatKrw(loan.balance)}`}
+            amountClassName="text-red-500 dark:text-red-400"
+            selectedIds={draft.loan_ids}
+            onToggle={(id) => toggleId("loan_ids", id)}
+            emptyMessage="등록된 대출이 없어요."
+            hint="상품·계좌·대출을 연동하면 현재 저축액이 (연동된 상품·계좌 잔액 합) − (연동된 대출 잔액)으로
+            자동 계산돼요. 부부가 각자 다른 상품/계좌로 한 목표를 함께 모을 때 여러 개를 선택하세요."
+          />
+        </CollapsibleGroup>
+        <p className={FORM_SECTION_LABEL}>저축 계획</p>
         {isLinked ? (
           <div className="rounded-lg border border-gray-200 dark:border-gray-700 px-3 py-2.5 text-sm text-gray-500 dark:text-gray-400">
             현재 저축액은 연동된 항목들의 잔액 합(대출은 차감)으로 자동 계산돼요.

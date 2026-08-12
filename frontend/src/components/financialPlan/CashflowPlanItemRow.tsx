@@ -1,30 +1,14 @@
 import { Pencil, Repeat, Send, Trash2 } from "lucide-react";
-import ProgressBar from "@/components/common/ProgressBar";
-import { formatKrw, formatPercent } from "@/utils/format";
+import AccountActionsMenu, { type AccountActionsMenuItem } from "@/components/common/AccountActionsMenu";
+import { formatKrw } from "@/utils/format";
 import { installmentProgressLabel } from "@/utils/installment";
-import { planStatusBarClass, planStatusTextClass, recurringLinkBadgeLabel, recurringLinkBadgeStyle } from "@/utils/colors";
-import type { BudgetRowOut, CashflowPlanItemOut, CashflowSection, UserOut } from "@/types";
-
-function CategoryBudgetProgress({ row }: { row: BudgetRowOut }) {
-  if (Number(row.budget) <= 0) return null;
-  return (
-    <div className="mt-1.5">
-      <div className="flex items-center justify-between text-xs text-gray-500 dark:text-gray-400">
-        <span>실제 {formatKrw(row.actual)} / 예산 {formatKrw(row.budget)}</span>
-        <span className={`font-semibold ${planStatusTextClass(row.status)}`}>{formatPercent(row.pct)} 사용</span>
-      </div>
-      <div className="mt-1">
-        <ProgressBar pct={row.pct} barClassName={planStatusBarClass(row.status)} />
-      </div>
-    </div>
-  );
-}
+import { recurringLinkBadgeLabel, recurringLinkBadgeStyle } from "@/utils/colors";
+import type { CashflowPlanItemOut, CashflowSection, UserOut } from "@/types";
 
 interface Props {
   item: CashflowPlanItemOut;
   sectionKey: CashflowSection;
   users: UserOut[] | undefined;
-  budgetRow: BudgetRowOut | undefined;
   onEdit: () => void;
   onDelete: () => void;
   onLinkRecurring: () => void;
@@ -35,7 +19,6 @@ export default function CashflowPlanItemRow({
   item,
   sectionKey,
   users,
-  budgetRow,
   onEdit,
   onDelete,
   onLinkRecurring,
@@ -44,6 +27,15 @@ export default function CashflowPlanItemRow({
   const ownerLabel = item.owner_user_id
     ? (users?.find((u) => u.id === item.owner_user_id)?.display_name ?? "공통")
     : "공통";
+
+  const canLinkRecurring =
+    (sectionKey === "income" || sectionKey === "fixed") && item.recurring_expense_id === null;
+
+  const menuItems: AccountActionsMenuItem[] = [];
+  if (canLinkRecurring) {
+    menuItems.push({ icon: <Repeat size={16} />, label: "반복내역으로 등록", onClick: onLinkRecurring });
+  }
+  menuItems.push({ icon: <Send size={16} />, label: "가계부에 지금 추가", onClick: onQuickAdd });
 
   return (
     <div className="flex items-center justify-between gap-3 py-2 border-b border-gray-100 dark:border-gray-800 last:border-0">
@@ -77,35 +69,17 @@ export default function CashflowPlanItemRow({
         {sectionKey === "irregular" && installmentProgressLabel(item) && (
           <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{installmentProgressLabel(item)}</p>
         )}
-        {budgetRow && <CategoryBudgetProgress row={budgetRow} />}
       </div>
       <div className="flex items-center gap-1 shrink-0">
         <span className="text-sm font-semibold text-gray-700 dark:text-gray-300">{formatKrw(item.amount)}</span>
-        {(sectionKey === "income" || sectionKey === "fixed") &&
-          (item.recurring_expense_id !== null ? (
-            <span
-              className={`px-1.5 py-0.5 rounded text-[10px] font-medium whitespace-nowrap ${recurringLinkBadgeStyle(item.recurring_active ?? false)}`}
-            >
-              {recurringLinkBadgeLabel(item.recurring_active ?? false)}
-            </span>
-          ) : (
-            <button
-              onClick={onLinkRecurring}
-              className="p-2 text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-950 rounded-lg transition-colors"
-              aria-label="반복내역으로 등록"
-              title="반복내역으로 등록 — 매달 자동으로 가계부에 반영돼요"
-            >
-              <Repeat size={16} />
-            </button>
-          ))}
-        <button
-          onClick={onQuickAdd}
-          className="p-2 text-gray-400 hover:text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-950 rounded-lg transition-colors"
-          aria-label="가계부에 추가"
-          title="가계부에 지금 추가"
-        >
-          <Send size={16} />
-        </button>
+        {(sectionKey === "income" || sectionKey === "fixed") && item.recurring_expense_id !== null && (
+          <span
+            className={`px-1.5 py-0.5 rounded text-[10px] font-medium whitespace-nowrap ${recurringLinkBadgeStyle(item.recurring_active ?? false)}`}
+          >
+            {recurringLinkBadgeLabel(item.recurring_active ?? false)}
+          </span>
+        )}
+        <AccountActionsMenu items={menuItems} ariaLabel={`${item.name} 작업 더 보기`} />
         <button
           onClick={onEdit}
           className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-950 rounded-lg transition-colors"

@@ -41,10 +41,11 @@ def verify_supabase_token(token: str) -> dict:
             signing_key.key,
             algorithms=[signing_key.algorithm_name],
             audience="authenticated",
-            issuer=f"{settings.supabase_project_url}/auth/v1",
             leeway=_LEEWAY,
-            options={"verify_exp": True, "verify_aud": True, "verify_iss": True},
+            options={"verify_exp": True, "verify_aud": True},
         )
+    except jwt.ExpiredSignatureError as exc:
+        raise ValueError("expired token") from exc
     except jwt.PyJWTError as exc:
         logger.warning(
             "token_verification_failed error_type=%s detail=%s", type(exc).__name__, str(exc)
@@ -58,13 +59,21 @@ def _extract_bearer_token(authorization: str | None) -> str:
     return authorization.removeprefix("Bearer ").strip()
 
 
+def _token_error(exc: ValueError) -> HTTPException:
+    # verify_supabase_token이 raise ValueError("expired token") / ValueError("invalid token")로
+    # 구분해서 던지므로, 만료는 별도 문구로 응답한다 - 만료는 재로그인하면 그만인 정상적인 상황이라
+    # 클라이언트/디버깅 양쪽에서 "코드가 깨진 Invalid token"과 구분할 수 있어야 한다.
+    detail = "Token expired" if str(exc) == "expired token" else "Invalid token"
+    return HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=detail)
+
+
 def get_token_payload(authorization: str | None = Header(default=None)) -> dict:
     """DB 조회 없이 JWT claims만 필요한 엔드포인트를 위한 가벼운 의존성."""
     token = _extract_bearer_token(authorization)
     try:
         return verify_supabase_token(token)
-    except ValueError:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token") from None
+    except ValueError as exc:
+        raise _token_error(exc) from None
 
 
 def get_bearer_token(authorization: str | None = Header(default=None)) -> str:
@@ -75,8 +84,8 @@ def get_bearer_token(authorization: str | None = Header(default=None)) -> str:
     token = _extract_bearer_token(authorization)
     try:
         verify_supabase_token(token)
-    except ValueError:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token") from None
+    except ValueError as exc:
+        raise _token_error(exc) from None
     return token
 
 

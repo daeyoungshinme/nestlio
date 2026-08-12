@@ -19,7 +19,7 @@ import Modal from "@/components/common/Modal";
 import QuickAddFab from "@/components/common/QuickAddFab";
 import TransactionForm from "@/components/transactions/TransactionForm";
 import { fetchDashboard } from "@/api/dashboard";
-import { fetchNetWorth } from "@/api/netWorth";
+import { fetchGrowlioUnlinkedNetWorth, fetchNetWorth } from "@/api/netWorth";
 import { fetchSettings } from "@/api/settings";
 import { fetchGoals } from "@/api/goals";
 import { fetchCategories } from "@/api/categories";
@@ -78,6 +78,12 @@ export default function DashboardPage() {
     queryFn: () => fetchNetWorth(),
     staleTime: STALE_TIME.MEDIUM,
   });
+  const { data: growlioUnlinked } = useQuery({
+    queryKey: QUERY_KEYS.netWorthGrowlioUnlinked,
+    queryFn: fetchGrowlioUnlinkedNetWorth,
+    staleTime: STALE_TIME.MEDIUM,
+    retry: false,
+  });
   const { data: goals } = useQuery({
     queryKey: QUERY_KEYS.financialGoals,
     queryFn: fetchGoals,
@@ -131,14 +137,14 @@ export default function DashboardPage() {
     }
     const goalStatus = computeGoalStatus(topGoal);
     topGoalBadges.push({ label: progressStatusLabel(goalStatus), toneClassName: progressStatusBadgeClass(goalStatus) });
-    if (data.savings_streak_months > 0) {
-      topGoalBadges.push({
-        label: `${data.savings_streak_months}개월 연속 목표 페이스`,
-        toneClassName: "bg-amber-50 dark:bg-amber-950 text-amber-700 dark:text-amber-300",
-        icon: <Flame size={12} aria-hidden="true" />,
-      });
-    }
   }
+  const streakSubtitle =
+    topGoal && data.savings_streak_months > 0 ? (
+      <p className="flex items-center gap-1 text-xs text-amber-600 dark:text-amber-400 mt-0.5">
+        <Flame size={12} aria-hidden="true" />
+        함께 {data.savings_streak_months}개월째 목표 페이스를 지키고 있어요
+      </p>
+    ) : null;
   const goalPaceInsight = data.insights.find((i) => i.rule_code === "goal_pace");
   const totalUserSavings = data.by_user.reduce((sum, u) => sum + Math.max(0, Number(u.savings)), 0);
   const sparklineData = data.trend.map((row) => ({
@@ -220,6 +226,7 @@ export default function DashboardPage() {
               metaLine="우리 부부 목표"
               title={topGoal.name}
               badges={topGoalBadges}
+              subtitle={streakSubtitle}
               pct={Number(topGoal.progress_pct)}
               primaryDetail={`${formatKrw(topGoal.current_amount)} / ${formatKrw(topGoal.required_amount)}`}
               extraDetails={goalPaceInsight ? [{ key: "pace", content: goalPaceInsight.message }] : []}
@@ -290,10 +297,29 @@ export default function DashboardPage() {
                   <span>-{formatKrw(netWorth.current.loans_total)}</span>
                 </div>
               </div>
+              {growlioUnlinked && growlioUnlinked.item_count > 0 && (
+                <p className="mt-3 pt-3 border-t border-gray-100 dark:border-gray-800 text-xs text-emerald-600 dark:text-emerald-400">
+                  growlio 미연동 자산 +{formatKrw(growlioUnlinked.net_total)} ({growlioUnlinked.item_count}건)
+                </p>
+              )}
             </>
           )}
         </Link>
       </div>
+
+      <CoupleContributionCard
+        title={
+          isCurrentPeriod
+            ? "이번 기간 함께 모은 돈"
+            : period === "month"
+              ? `${formatYearMonth(data.current_ym)} 함께 모은 돈`
+              : period === "week"
+                ? `${formatWeekRange(data.start, data.end)} 함께 모은 돈`
+                : `${formatDate(data.start)} 함께 모은 돈`
+        }
+        byUser={data.by_user}
+        totalUserSavings={totalUserSavings}
+      />
 
       <button
         type="button"
@@ -310,20 +336,6 @@ export default function DashboardPage() {
 
       {showMore && (
         <div className="space-y-6">
-          <CoupleContributionCard
-            title={
-              isCurrentPeriod
-                ? "이번 기간 함께 모은 돈"
-                : period === "month"
-                  ? `${formatYearMonth(data.current_ym)} 함께 모은 돈`
-                  : period === "week"
-                    ? `${formatWeekRange(data.start, data.end)} 함께 모은 돈`
-                    : `${formatDate(data.start)} 함께 모은 돈`
-            }
-            byUser={data.by_user}
-            totalUserSavings={totalUserSavings}
-          />
-
           <InvestSurplusCard
             surplusAllocation={data.surplus_allocation}
             investmentProducts={savingsProducts ?? []}
