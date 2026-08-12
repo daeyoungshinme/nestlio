@@ -4,7 +4,9 @@ import SkeletonCard from "@/components/common/SkeletonCard";
 import TransactionForm from "@/components/transactions/TransactionForm";
 import { fetchAccounts } from "@/api/accounts";
 import { fetchSavingsProducts } from "@/api/savingsProducts";
+import { fetchUsers } from "@/api/users";
 import { createTransaction } from "@/api/transactions";
+import { useAuthStore } from "@/stores/authStore";
 import { useInvalidateTransactionRelated } from "@/hooks/useInvalidateTransactionRelated";
 import { QUERY_KEYS } from "@/constants/queryKeys";
 import { STALE_TIME } from "@/constants/queryConfig";
@@ -34,6 +36,12 @@ export default function CashflowPlanQuickAddModal({ item, categories, onClose, o
     queryFn: fetchSavingsProducts,
     staleTime: STALE_TIME.MEDIUM,
   });
+  const { data: users } = useQuery({
+    queryKey: QUERY_KEYS.users,
+    queryFn: fetchUsers,
+    staleTime: STALE_TIME.LONG,
+  });
+  const currentUserId = useAuthStore((s) => s.userId);
 
   const quickAddMutation = useMutation({
     mutationFn: createTransaction,
@@ -54,13 +62,15 @@ export default function CashflowPlanQuickAddModal({ item, categories, onClose, o
             이 계획 항목엔 카테고리가 없어요. 아래에서 카테고리를 확인해 주세요.
           </p>
         )}
-        {!accounts || !savingsProducts ? (
+        {!accounts || !savingsProducts || !users ? (
           <SkeletonCard rows={4} />
         ) : (
           <TransactionForm
             categories={categories}
             accounts={accounts}
             savingsProducts={savingsProducts}
+            users={users}
+            currentUserId={currentUserId ?? undefined}
             layout="stack"
             isNew={false}
             submitLabel="추가"

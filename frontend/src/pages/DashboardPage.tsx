@@ -25,7 +25,9 @@ import { fetchGoals } from "@/api/goals";
 import { fetchCategories } from "@/api/categories";
 import { fetchAccounts } from "@/api/accounts";
 import { fetchSavingsProducts } from "@/api/savingsProducts";
+import { fetchUsers } from "@/api/users";
 import { createTransaction } from "@/api/transactions";
+import { useAuthStore } from "@/stores/authStore";
 import { useInvalidateTransactionRelated } from "@/hooks/useInvalidateTransactionRelated";
 import { QUERY_KEYS } from "@/constants/queryKeys";
 import { STALE_TIME } from "@/constants/queryConfig";
@@ -114,6 +116,13 @@ export default function DashboardPage() {
     queryFn: fetchSavingsProducts,
     staleTime: STALE_TIME.MEDIUM,
   });
+  const { data: users } = useQuery({
+    queryKey: QUERY_KEYS.users,
+    queryFn: fetchUsers,
+    staleTime: STALE_TIME.LONG,
+    enabled: showQuickAdd,
+  });
+  const currentUserId = useAuthStore((s) => s.userId);
 
   const createMutation = useMutation({
     mutationFn: createTransaction,
@@ -358,13 +367,15 @@ export default function DashboardPage() {
       {showQuickAdd && (
         <Modal onClose={() => setShowQuickAdd(false)} title="내역 추가">
           <div className="p-6 overflow-y-auto">
-            {!categories || !accounts || !savingsProducts ? (
+            {!categories || !accounts || !savingsProducts || !users ? (
               <SkeletonCard rows={4} />
             ) : (
               <TransactionForm
                 categories={categories}
                 accounts={accounts}
                 savingsProducts={savingsProducts}
+                users={users}
+                currentUserId={currentUserId ?? undefined}
                 layout="stack"
                 isNew
                 submitLabel="추가"
