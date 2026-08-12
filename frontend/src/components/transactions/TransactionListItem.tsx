@@ -3,7 +3,7 @@ import Badge from "@/components/common/Badge";
 import { transactionAmountTextColor } from "@/utils/colors";
 import { formatDate, formatKrw } from "@/utils/format";
 import { TOUCH_TARGET_MIN_MOBILE_ONLY } from "@/constants/uiSizes";
-import type { TransactionOut } from "@/types";
+import type { TransactionOut, UserOut } from "@/types";
 
 interface Props {
   tx: TransactionOut;
@@ -11,10 +11,22 @@ interface Props {
   onDelete: (tx: TransactionOut) => void;
   showDate?: boolean;
   showUser?: boolean;
+  users?: UserOut[];
   hideCategoryBadge?: boolean;
 }
 
-export default function TransactionListItem({ tx, onEdit, onDelete, showDate, showUser, hideCategoryBadge }: Props) {
+export default function TransactionListItem({
+  tx,
+  onEdit,
+  onDelete,
+  showDate,
+  showUser,
+  users,
+  hideCategoryBadge,
+}: Props) {
+  const ownerLabel = tx.owner_user_id
+    ? (users?.find((u) => u.id === tx.owner_user_id)?.display_name ?? "공통")
+    : "공통";
   return (
     <div className="card flex items-center justify-between gap-3">
       <div className="min-w-0">
@@ -25,7 +37,7 @@ export default function TransactionListItem({ tx, onEdit, onDelete, showDate, sh
             <span className="text-xs text-gray-400 dark:text-gray-500">→ {tx.savings_product.name}</span>
           )}
           {showUser && (
-            <span className="text-xs text-gray-400 dark:text-gray-500">{tx.user.display_name}</span>
+            <span className="text-xs text-gray-400 dark:text-gray-500">{ownerLabel}</span>
           )}
           {showDate && (
             <span className="text-xs text-gray-400 dark:text-gray-500">{formatDate(tx.transaction_date)}</span>

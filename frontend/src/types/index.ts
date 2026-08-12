@@ -174,6 +174,7 @@ export interface TransactionOut {
   account: AccountOut | null;
   savings_product: SavingsProductOut | null;
   user: UserOut;
+  owner_user_id: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -187,6 +188,7 @@ export interface TransactionCreateIn {
   payment_method?: string | null;
   account_id?: number | null;
   savings_product_id?: number | null;
+  owner_user_id?: string | null;
 }
 
 export type TransactionUpdateIn = TransactionCreateIn;

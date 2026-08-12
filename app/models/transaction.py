@@ -18,6 +18,9 @@ class Transaction(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"))
+    owner_user_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id"), nullable=True
+    )
     category_id: Mapped[int] = mapped_column(ForeignKey("categories.id"))
     type: Mapped[str] = mapped_column(String(10))  # 'income' | 'expense'
     amount: Mapped[Decimal] = mapped_column(Numeric(12, 2))
@@ -32,7 +35,8 @@ class Transaction(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), onupdate=func.now())
 
-    user: Mapped["User"] = relationship(lazy="joined")
+    user: Mapped["User"] = relationship(foreign_keys=[user_id], lazy="joined")
+    owner: Mapped["User | None"] = relationship(foreign_keys=[owner_user_id], lazy="joined")
     category: Mapped["Category"] = relationship(lazy="joined")
     account: Mapped["Account | None"] = relationship(lazy="joined")
     savings_product: Mapped["SavingsProduct | None"] = relationship(lazy="joined")

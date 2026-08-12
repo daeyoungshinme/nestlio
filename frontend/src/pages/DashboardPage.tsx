@@ -68,6 +68,14 @@ export default function DashboardPage() {
     queryFn: () => fetchDashboard(period, anchor),
     staleTime: STALE_TIME.SHORT,
   });
+  // goal_pace 코칭 문구는 항상 "이번 달 페이스" 기준이어야 하므로, 사용자가 고른 period/anchor와
+  // 무관하게 FinancialGoalsSection과 동일한 쿼리 키(당월 고정)로 따로 가져온다 — 두 화면이 항상
+  // 같은 문구를 보여주도록 캐시를 공유시킨다.
+  const { data: monthDashboard } = useQuery({
+    queryKey: QUERY_KEYS.dashboard("month", currentYearMonth()),
+    queryFn: () => fetchDashboard("month", currentYearMonth()),
+    staleTime: STALE_TIME.SHORT,
+  });
   const { data: settingsData } = useQuery({
     queryKey: QUERY_KEYS.settings,
     queryFn: fetchSettings,
@@ -145,7 +153,7 @@ export default function DashboardPage() {
         함께 {data.savings_streak_months}개월째 목표 페이스를 지키고 있어요
       </p>
     ) : null;
-  const goalPaceInsight = data.insights.find((i) => i.rule_code === "goal_pace");
+  const goalPaceInsight = monthDashboard?.insights.find((i) => i.rule_code === "goal_pace");
   const totalUserSavings = data.by_user.reduce((sum, u) => sum + Math.max(0, Number(u.savings)), 0);
   const sparklineData = data.trend.map((row) => ({
     year_month: row.year_month,

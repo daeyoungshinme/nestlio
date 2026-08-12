@@ -46,34 +46,6 @@ export default function MonthlyRetrospectiveCard() {
 
       {open && (
         <div className="mt-4 space-y-4 border-t border-gray-100 dark:border-gray-800 pt-4">
-          <div className="grid grid-cols-3 gap-2 text-center">
-            <div>
-              <p className="text-xs text-gray-500 dark:text-gray-400">수입</p>
-              <p className="text-sm font-semibold text-gray-900 dark:text-gray-50">{formatKrw(data.totals.income)}</p>
-            </div>
-            <div>
-              <p className="text-xs text-gray-500 dark:text-gray-400">지출</p>
-              <p className="text-sm font-semibold text-gray-900 dark:text-gray-50">{formatKrw(data.totals.expense)}</p>
-            </div>
-            <div>
-              <p className="text-xs text-gray-500 dark:text-gray-400">저축</p>
-              <p className="text-sm font-semibold text-emerald-600 dark:text-emerald-400">
-                {formatKrw(data.totals.savings)}
-              </p>
-            </div>
-          </div>
-
-          {data.by_user.length > 0 && (
-            <div className="space-y-1.5">
-              {data.by_user.map((u) => (
-                <div key={u.user_id} className="flex items-center justify-between text-sm">
-                  <span className="text-gray-700 dark:text-gray-300">{u.display_name}</span>
-                  <span className="text-gray-500 dark:text-gray-400">{formatKrw(u.savings)} 보탰어요</span>
-                </div>
-              ))}
-            </div>
-          )}
-
           {data.top_categories.length > 0 && (
             <div>
               <p className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">많이 쓴 카테고리</p>

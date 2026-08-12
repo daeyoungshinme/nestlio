@@ -1,6 +1,6 @@
 import GroupedTransactionList from "@/components/transactions/GroupedTransactionList";
 import { formatKrw } from "@/utils/format";
-import type { CategoryAmountOut, TransactionOut } from "@/types";
+import type { CategoryAmountOut, TransactionOut, UserOut } from "@/types";
 
 interface Props {
   groups: CategoryAmountOut[];
@@ -8,6 +8,8 @@ interface Props {
   totalExpense: string;
   onEdit: (tx: TransactionOut) => void;
   onDelete: (tx: TransactionOut) => void;
+  showUser?: boolean;
+  users?: UserOut[];
 }
 
 export default function ExpenseCategoryGroups({
@@ -16,6 +18,8 @@ export default function ExpenseCategoryGroups({
   totalExpense,
   onEdit,
   onDelete,
+  showUser,
+  users,
 }: Props) {
   const total = Number(totalExpense);
   const rows = groups.map((group) => ({
@@ -28,6 +32,13 @@ export default function ExpenseCategoryGroups({
   }));
 
   return (
-    <GroupedTransactionList groups={rows} onEdit={onEdit} onDelete={onDelete} emptyTitle="해당 조건의 내역이 없어요" />
+    <GroupedTransactionList
+      groups={rows}
+      onEdit={onEdit}
+      onDelete={onDelete}
+      emptyTitle="해당 조건의 내역이 없어요"
+      showUser={showUser}
+      users={users}
+    />
   );
 }

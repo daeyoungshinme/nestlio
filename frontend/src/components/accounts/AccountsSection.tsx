@@ -13,6 +13,7 @@ import RowActionButtons from "@/components/common/RowActionButtons";
 import SkeletonCard from "@/components/common/SkeletonCard";
 import SummaryCard from "@/components/common/SummaryCard";
 import { INPUT_SM, LABEL_SM } from "@/constants/inputStyles";
+import { TOUCH_TARGET_MIN_MOBILE_ONLY } from "@/constants/uiSizes";
 import {
   createAccount,
   deactivateAccount,
@@ -116,7 +117,6 @@ export default function AccountsSection({ users }: Props) {
     data.map((row) => row.account.growlio_account_id).filter((id): id is string => !!id)
   );
 
-  const totalBalance = data.reduce((sum, { balance }) => sum + Number(balance), 0);
   const balanceByType = ACCOUNT_TYPES.map((type) => ({
     type,
     rows: data.filter((row) => row.account.account_type === type),
@@ -154,13 +154,13 @@ export default function AccountsSection({ users }: Props) {
         <EmptyState title="등록된 계좌가 없어요" compact />
       ) : (
         <>
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            <SummaryCard label="계좌 합계" value={formatKrw(totalBalance)} />
-            {balanceByType.length > 1 &&
-              balanceByType.map(({ type, total }) => (
+          {balanceByType.length > 1 && (
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              {balanceByType.map(({ type, total }) => (
                 <SummaryCard key={type} label={ACCOUNT_TYPE_LABEL[type]} value={formatKrw(total)} />
               ))}
-          </div>
+            </div>
+          )}
 
           {shouldGroup ? (
             <div className="space-y-4">
@@ -268,7 +268,7 @@ function AccountRow({
           <button
             onClick={onSync}
             disabled={syncPending}
-            className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-950 rounded-lg transition-colors disabled:opacity-50"
+            className={`${TOUCH_TARGET_MIN_MOBILE_ONLY} p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-950 rounded-lg transition-colors disabled:opacity-50`}
             aria-label="growlio 동기화"
           >
             <RefreshCw size={16} className={syncPending ? "animate-spin" : ""} />

@@ -1,7 +1,7 @@
 import { useMemo } from "react";
 import GroupedTransactionList from "@/components/transactions/GroupedTransactionList";
 import { formatKrw } from "@/utils/format";
-import type { TransactionOut } from "@/types";
+import type { TransactionOut, UserOut } from "@/types";
 
 interface Props {
   /** Already filtered and sorted by transaction_date desc, then id desc. */
@@ -9,6 +9,7 @@ interface Props {
   onEdit: (tx: TransactionOut) => void;
   onDelete: (tx: TransactionOut) => void;
   showUser: boolean;
+  users?: UserOut[];
 }
 
 const WEEKDAY_LABELS = ["일", "월", "화", "수", "목", "금", "토"];
@@ -28,7 +29,7 @@ function formatDayHeader(date: string): string {
  * same dot/name/amount header pattern as ExpenseCategoryGroups/SavingsLinkedTransactionsSection.
  * Only today's group starts expanded, to keep the mobile scroll short while still showing
  * newly-added transactions right away. */
-export default function DailyTransactionGroups({ transactions, onEdit, onDelete, showUser }: Props) {
+export default function DailyTransactionGroups({ transactions, onEdit, onDelete, showUser, users }: Props) {
   const today = todayIso();
 
   const groups = useMemo(() => {
@@ -59,6 +60,7 @@ export default function DailyTransactionGroups({ transactions, onEdit, onDelete,
       itemShowDate={false}
       itemHideCategoryBadge={false}
       showUser={showUser}
+      users={users}
       emptyTitle="해당 조건의 내역이 없어요"
     />
   );

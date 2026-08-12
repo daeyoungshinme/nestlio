@@ -19,6 +19,7 @@ import type {
   TransactionCreateIn,
   TransactionOut,
   TransactionType,
+  UserOut,
 } from "@/types";
 
 const EXPENSE_TYPE_GROUPS = EXPENSE_TYPE_FILTER_OPTIONS.filter(
@@ -34,12 +35,16 @@ export interface TransactionFormValues {
   payment_method: string;
   account_id: string;
   savings_product_id: string;
+  owner_user_id: string;
 }
 
 interface Props {
   categories: CategoryOut[];
   accounts: AccountWithBalanceOut[];
   savingsProducts: SavingsProductOut[];
+  users: UserOut[];
+  /** 신규 등록 시 "소유자" 기본값으로 프리필할 로그인 사용자 id. */
+  currentUserId?: string;
   initialValues?: Partial<TransactionFormValues>;
   submitLabel: string;
   submitting?: boolean;
@@ -57,6 +62,8 @@ export default function TransactionForm({
   categories,
   accounts,
   savingsProducts,
+  users,
+  currentUserId,
   initialValues,
   submitLabel,
   submitting,
@@ -83,6 +90,7 @@ export default function TransactionForm({
     payment_method: initialValues?.payment_method ?? "",
     account_id: initialValues?.account_id ?? "",
     savings_product_id: initialValues?.savings_product_id ?? "",
+    owner_user_id: initialValues?.owner_user_id ?? (isNew ? (currentUserId ?? "") : ""),
   });
 
   const recentType: TransactionType = uiType === "income" ? "income" : "expense";
@@ -112,6 +120,7 @@ export default function TransactionForm({
     payment_method: v.payment_method || null,
     account_id: v.account_id ? Number(v.account_id) : null,
     savings_product_id: forSavings && v.savings_product_id ? Number(v.savings_product_id) : null,
+    owner_user_id: v.owner_user_id || null,
   });
 
   const handleSubmit = (e: FormEvent) => {
@@ -290,6 +299,24 @@ export default function TransactionForm({
           ))}
         </select>
       </div>
+
+      {users.length > 1 && (
+        <div>
+          <label className={`block mb-1 font-medium ${LABEL_SM}`}>소유자</label>
+          <select
+            className={`${INPUT_SM} w-32`}
+            value={values.owner_user_id}
+            onChange={(e) => setValues((v) => ({ ...v, owner_user_id: e.target.value }))}
+          >
+            <option value="">공통</option>
+            {users.map((u) => (
+              <option key={u.id} value={u.id}>
+                {u.display_name}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
 
       {uiType === "savings" && (
         <div>

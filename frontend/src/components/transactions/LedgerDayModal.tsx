@@ -6,7 +6,7 @@ import Modal from "@/components/common/Modal";
 import Tabs from "@/components/common/Tabs";
 import TransactionListItem from "@/components/transactions/TransactionListItem";
 import { formatDate, formatKrw } from "@/utils/format";
-import type { EventFrequency, EventOut, RecurringOut, TransactionOut } from "@/types";
+import type { EventFrequency, EventOut, RecurringOut, TransactionOut, UserOut } from "@/types";
 
 const FREQUENCY_LABEL: Record<EventFrequency, string> = { once: "한 번", weekly: "매주", monthly: "매월" };
 
@@ -23,6 +23,8 @@ interface Props {
   transactions: TransactionOut[];
   events: EventOut[];
   recurringDue: RecurringOut[];
+  showUser?: boolean;
+  users?: UserOut[];
   onClose: () => void;
   onAddTransaction: () => void;
   onEditTransaction: (tx: TransactionOut) => void;
@@ -37,6 +39,8 @@ export default function LedgerDayModal({
   transactions,
   events,
   recurringDue,
+  showUser,
+  users,
   onClose,
   onAddTransaction,
   onEditTransaction,
@@ -63,7 +67,14 @@ export default function LedgerDayModal({
             ) : (
               <div className="space-y-2">
                 {transactions.map((tx) => (
-                  <TransactionListItem key={tx.id} tx={tx} onEdit={onEditTransaction} onDelete={onDeleteTransaction} />
+                  <TransactionListItem
+                    key={tx.id}
+                    tx={tx}
+                    onEdit={onEditTransaction}
+                    onDelete={onDeleteTransaction}
+                    showUser={showUser}
+                    users={users}
+                  />
                 ))}
               </div>
             )}

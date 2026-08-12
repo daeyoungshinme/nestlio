@@ -1,3 +1,4 @@
+import uuid
 from datetime import date, datetime
 from decimal import Decimal
 from typing import Literal
@@ -26,6 +27,7 @@ class TransactionOut(BaseModel):
     account: AccountOut | None = None
     savings_product: SavingsProductOut | None = None
     user: UserOut
+    owner_user_id: uuid.UUID | None = None
     created_at: datetime
     updated_at: datetime
 
@@ -39,6 +41,7 @@ class TransactionCreateIn(BaseModel):
     payment_method: str | None = None
     account_id: int | None = None
     savings_product_id: int | None = None
+    owner_user_id: uuid.UUID | None = None
 
 
 class TransactionUpdateIn(TransactionCreateIn):

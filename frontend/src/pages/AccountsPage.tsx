@@ -4,6 +4,7 @@ import AccountsSection from "@/components/accounts/AccountsSection";
 import AccountsSummaryCards from "@/components/accounts/AccountsSummaryCards";
 import EmergencyFundCard from "@/components/accounts/EmergencyFundCard";
 import SavingsProductsSection from "@/components/accounts/SavingsProductsSection";
+import RealEstateSection from "@/components/accounts/RealEstateSection";
 import LoansSection from "@/components/accounts/LoansSection";
 import NetWorthTrendChart from "@/components/accounts/NetWorthTrendChart";
 import { useTabSearchParam } from "@/hooks/useTabSearchParam";
@@ -11,7 +12,7 @@ import { fetchUsers } from "@/api/users";
 import { QUERY_KEYS } from "@/constants/queryKeys";
 import { STALE_TIME } from "@/constants/queryConfig";
 
-const TABS = ["계좌", "저축·투자", "대출"] as const;
+const TABS = ["계좌", "저축·투자", "부동산", "대출"] as const;
 
 export default function AccountsPage() {
   const [tab, handleTabChange] = useTabSearchParam(TABS, "계좌");
@@ -27,6 +28,7 @@ export default function AccountsPage() {
 
       {tab === "계좌" && <AccountsSection users={users} />}
       {tab === "저축·투자" && <SavingsProductsSection users={users} />}
+      {tab === "부동산" && <RealEstateSection users={users} />}
       {tab === "대출" && <LoansSection users={users} />}
     </div>
   );

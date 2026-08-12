@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Link } from "react-router-dom";
 import { ChevronDown } from "lucide-react";
 import SummaryCard from "@/components/common/SummaryCard";
 import { formatKrw } from "@/utils/format";
@@ -33,20 +34,29 @@ export default function SummaryCards({ totals, collapsible = false }: Props) {
 
   return (
     <div className="space-y-2">
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
         <SummaryCard label="수입" value={formatKrw(totals.income)} tone="positive" />
         <SummaryCard label="지출" value={formatKrw(totals.expense)} tone="negative" />
         <SummaryCard
           label="저축(수입-지출)"
           value={formatKrw(totals.savings)}
           tone={savings >= 0 ? "positive" : "negative"}
+          className="col-span-2 sm:col-span-1"
         />
       </div>
       {expanded && (
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-          <SummaryCard label="고정지출" value={formatKrw(totals.fixed)} />
-          <SummaryCard label="변동지출" value={formatKrw(totals.variable)} />
-          <SummaryCard label="비정기지출" value={formatKrw(totals.irregular)} />
+        <div className="space-y-1.5">
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+            <SummaryCard label="고정지출" value={formatKrw(totals.fixed)} />
+            <SummaryCard label="변동지출" value={formatKrw(totals.variable)} />
+            <SummaryCard label="비정기지출" value={formatKrw(totals.irregular)} className="col-span-2 sm:col-span-1" />
+          </div>
+          <Link
+            to="/financial-plan?tab=현금흐름 계획"
+            className="block text-center text-xs font-semibold text-gray-500 dark:text-gray-400 underline hover:no-underline"
+          >
+            계획 대비 보기
+          </Link>
         </div>
       )}
       <button

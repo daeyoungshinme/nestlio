@@ -9,18 +9,30 @@ import { growlioAssetTypeLabel } from "@/constants/growlio";
 import { formatKrw } from "@/utils/format";
 import { extractErrorMessage } from "@/utils/error";
 import { toast } from "@/utils/toast";
+import type { RealEstateImportResultOut, SavingsProductOut } from "@/types";
 
-type ImportItem =
-  | { kind: "investment"; id: string; name: string; amount: number; assetType: string }
-  | { kind: "real_estate"; id: string; name: string; amount: number; address: string | null; mortgageBalance: number };
+type ImportKind = "investment" | "real_estate";
 
-/** 저축·투자 탭의 growlio 가져오기 모달. 증권/현금성 계좌(투자)와 부동산(시세+담보대출 페어)은
- * 응답 계약이 서로 달라(단일 금액 vs 자산·대출 페어) 백엔드 엔드포인트는 분리돼 있지만,
- * 사용자에게는 "growlio에서 가져오기" 하나로 보이도록 두 목록을 병합해 하나의 모달로 보여준다. */
+type InvestmentItem = { kind: "investment"; id: string; name: string; amount: number; assetType: string };
+type RealEstateItem = {
+  kind: "real_estate";
+  id: string;
+  name: string;
+  amount: number;
+  address: string | null;
+  mortgageBalance: number;
+};
+type ImportItem = InvestmentItem | RealEstateItem;
+
+/** 저축·투자/부동산 탭이 공유하는 growlio 가져오기 모달. 증권/현금성 계좌(투자)와 부동산(시세+담보대출
+ * 페어)은 응답 계약이 서로 달라(단일 금액 vs 자산·대출 페어) 백엔드 엔드포인트가 분리돼 있고, 각 탭은
+ * 자신의 kind만 필요로 하므로 `kind` prop 하나만 받아 그에 해당하는 목록만 조회·표시·가져오기한다. */
 export default function GrowlioSavingsImportModal({
+  kind,
   existingGrowlioAccountIds,
   onClose,
 }: {
+  kind: ImportKind;
   existingGrowlioAccountIds: Set<string>;
   onClose: () => void;
 }) {
@@ -30,38 +42,43 @@ export default function GrowlioSavingsImportModal({
   const investmentQuery = useQuery({
     queryKey: QUERY_KEYS.growlioInvestmentAccounts,
     queryFn: fetchGrowlioAccounts,
+    enabled: kind === "investment",
     retry: false,
   });
   const realEstateQuery = useQuery({
     queryKey: QUERY_KEYS.growlioRealEstateAccounts,
     queryFn: fetchGrowlioRealEstate,
+    enabled: kind === "real_estate",
     retry: false,
   });
 
-  const isLoading = investmentQuery.isLoading || realEstateQuery.isLoading;
-  const isError = investmentQuery.isError || realEstateQuery.isError;
-  const errorMessage = extractErrorMessage(
-    investmentQuery.error ?? realEstateQuery.error,
-    "growlio 계좌를 불러오지 못했습니다.",
-  );
+  const activeQuery = kind === "investment" ? investmentQuery : realEstateQuery;
+  const isLoading = activeQuery.isLoading;
+  const isError = activeQuery.isError;
+  const errorMessage = extractErrorMessage(activeQuery.error, "growlio 계좌를 불러오지 못했습니다.");
 
-  const items: ImportItem[] = [
-    ...(investmentQuery.data ?? []).map((account): ImportItem => ({
-      kind: "investment",
-      id: account.id,
-      name: account.name,
-      amount: account.current_value_krw,
-      assetType: account.asset_type,
-    })),
-    ...(realEstateQuery.data ?? []).map((item): ImportItem => ({
-      kind: "real_estate",
-      id: item.id,
-      name: item.name,
-      amount: item.market_value_krw,
-      address: item.address,
-      mortgageBalance: item.mortgage_balance_krw,
-    })),
-  ]
+  const items: ImportItem[] = (
+    kind === "investment"
+      ? (investmentQuery.data ?? []).map(
+          (account): InvestmentItem => ({
+            kind: "investment",
+            id: account.id,
+            name: account.name,
+            amount: account.current_value_krw,
+            assetType: account.asset_type,
+          }),
+        )
+      : (realEstateQuery.data ?? []).map(
+          (item): RealEstateItem => ({
+            kind: "real_estate",
+            id: item.id,
+            name: item.name,
+            amount: item.market_value_krw,
+            address: item.address,
+            mortgageBalance: item.mortgage_balance_krw,
+          }),
+        )
+  )
     .filter((item) => !existingGrowlioAccountIds.has(item.id))
     .sort((a, b) => a.name.localeCompare(b.name));
 
@@ -86,24 +103,23 @@ export default function GrowlioSavingsImportModal({
 
   const importMutation = useMutation({
     mutationFn: async () => {
-      const investmentIds = items.filter((item) => item.kind === "investment" && selected.has(item.id)).map((item) => item.id);
-      const realEstateIds = items.filter((item) => item.kind === "real_estate" && selected.has(item.id)).map((item) => item.id);
-      const [investmentResults, realEstateResults] = await Promise.all([
-        investmentIds.length > 0 ? importGrowlioAccounts({ growlio_account_ids: investmentIds }) : Promise.resolve([]),
-        realEstateIds.length > 0 ? importGrowlioRealEstate({ growlio_account_ids: realEstateIds }) : Promise.resolve([]),
-      ]);
-      return { investmentResults, realEstateResults };
+      const ids = items.filter((item) => selected.has(item.id)).map((item) => item.id);
+      if (kind === "investment") {
+        const results = await importGrowlioAccounts({ growlio_account_ids: ids });
+        return { count: results.length, total: results.reduce((sum: number, p: SavingsProductOut) => sum + Number(p.current_balance), 0), loanCount: 0 };
+      }
+      const results = await importGrowlioRealEstate({ growlio_account_ids: ids });
+      return {
+        count: results.length,
+        total: results.reduce((sum: number, r: RealEstateImportResultOut) => sum + Number(r.savings_product.current_balance), 0),
+        loanCount: results.filter((r: RealEstateImportResultOut) => r.loan !== null).length,
+      };
     },
-    onSuccess: ({ investmentResults, realEstateResults }) => {
+    onSuccess: ({ count, total, loanCount }) => {
       void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.savingsProducts });
-      if (realEstateResults.length > 0) {
+      if (kind === "real_estate") {
         void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.loans });
       }
-      const count = investmentResults.length + realEstateResults.length;
-      const total =
-        investmentResults.reduce((sum, product) => sum + Number(product.current_balance), 0) +
-        realEstateResults.reduce((sum, result) => sum + Number(result.savings_product.current_balance), 0);
-      const loanCount = realEstateResults.filter((result) => result.loan !== null).length;
       toast(
         `growlio 계좌 ${count}개를 가져왔습니다. 합계 ${formatKrw(total)}` +
           (loanCount > 0 ? ` · 담보대출 ${loanCount}건도 함께 등록했어요.` : ""),
@@ -115,7 +131,7 @@ export default function GrowlioSavingsImportModal({
   });
 
   return (
-    <Modal onClose={onClose} title="growlio에서 가져오기">
+    <Modal onClose={onClose} title={kind === "real_estate" ? "부동산 가져오기" : "투자 계좌 가져오기"}>
       <div className="p-6 overflow-y-auto flex flex-col gap-3">
         {isLoading && <p className="text-xs text-gray-400">growlio 계좌를 불러오는 중…</p>}
         {isError && <p className="text-xs text-red-500">{errorMessage}</p>}

@@ -65,6 +65,7 @@ def create_transaction(
             payment_method=payload.payment_method,
             account_id=payload.account_id,
             savings_product_id=payload.savings_product_id,
+            owner_user_id=payload.owner_user_id,
             bearer_token=bearer_token,
         )
     except ValueError as exc:
@@ -191,6 +192,7 @@ def update_transaction(
             payment_method=payload.payment_method,
             account_id=payload.account_id,
             savings_product_id=payload.savings_product_id,
+            owner_user_id=payload.owner_user_id,
         )
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc

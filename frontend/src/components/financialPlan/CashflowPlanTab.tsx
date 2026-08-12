@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Link } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Copy } from "lucide-react";
 import CashflowPlanItemForm from "@/components/financialPlan/CashflowPlanItemForm";
@@ -202,7 +203,11 @@ export default function CashflowPlanTab() {
 
       <p className="text-xs text-gray-400 dark:text-gray-500">
         계획 금액과 이번 달 실제 내역을 비교해 달성율을 보여줘요. 카테고리를 태깅하면 그 카테고리의 실제 지출과도
-        비교돼요.
+        비교돼요. 이번 달 실제 수입·지출은{" "}
+        <Link to="/transactions" className="font-semibold underline hover:no-underline">
+          가계부에서 확인
+        </Link>
+        할 수 있어요.
       </p>
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         <SummaryCard label="계획 수입 합계" value={formatKrw(summary.income.planned)} tone="positive" />

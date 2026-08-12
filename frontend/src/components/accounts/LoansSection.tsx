@@ -96,7 +96,6 @@ export default function LoansSection({ users }: Props) {
     return <SkeletonCard rows={4} />;
   }
 
-  const totalBalance = data.reduce((sum, l) => sum + Number(l.balance), 0);
   const totalMonthly = data.reduce((sum, l) => sum + Number(l.monthly_payment), 0);
   const isSaving = createMutation.isPending || updateMutation.isPending;
 
@@ -120,8 +119,7 @@ export default function LoansSection({ users }: Props) {
         <EmptyState title="등록된 대출이 없어요" compact />
       ) : (
         <div className="space-y-4">
-          <div className="grid grid-cols-2 gap-3">
-            <SummaryCard label="대출잔액 합계" value={formatKrw(totalBalance)} tone="negative" />
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             <SummaryCard label="월납입금액 합계" value={formatKrw(totalMonthly)} tone="negative" />
           </div>
           <div className="space-y-2">
@@ -150,8 +148,8 @@ export default function LoansSection({ users }: Props) {
                     {loan.growlio_account_id && (
                       <p className="text-[11px] text-gray-400 dark:text-gray-500 mt-0.5">
                         {loan.last_synced_at
-                          ? `마지막 동기화 ${formatSyncedAt(loan.last_synced_at)} · 저축·투자 탭의 부동산에서 동기화돼요`
-                          : "저축·투자 탭의 연동된 부동산에서 동기화돼요"}
+                          ? `마지막 동기화 ${formatSyncedAt(loan.last_synced_at)} · 부동산 탭에서 동기화돼요`
+                          : "부동산 탭의 연동된 항목에서 동기화돼요"}
                       </p>
                     )}
                   </div>

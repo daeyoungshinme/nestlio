@@ -79,6 +79,7 @@ def create_transaction(
     recurring_expense_id: int | None = None,
     account_id: int | None = None,
     savings_product_id: int | None = None,
+    owner_user_id: uuid.UUID | None = None,
     bearer_token: str | None = None,
 ) -> Transaction:
     _validate_savings_link(db, category_id, type_, savings_product_id)
@@ -93,6 +94,7 @@ def create_transaction(
         recurring_expense_id=recurring_expense_id,
         account_id=account_id,
         savings_product_id=savings_product_id,
+        owner_user_id=owner_user_id,
     )
     db.add(tx)
     db.commit()

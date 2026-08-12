@@ -430,6 +430,8 @@ export default function TransactionsPage() {
             transactions={filteredTransactions}
             onEdit={openEdit}
             onDelete={setDeleteTarget}
+            showUser={userOptions.length > 2}
+            users={users}
           />
         )
       ) : showExpenseGroups ? (
@@ -442,6 +444,8 @@ export default function TransactionsPage() {
             totalExpense={data?.totals.expense ?? "0"}
             onEdit={openEdit}
             onDelete={setDeleteTarget}
+            showUser={userOptions.length > 2}
+            users={users}
           />
         )
       ) : (
@@ -450,6 +454,7 @@ export default function TransactionsPage() {
           onEdit={openEdit}
           onDelete={setDeleteTarget}
           showUser={userOptions.length > 2}
+          users={users}
         />
       )}
 
@@ -461,6 +466,8 @@ export default function TransactionsPage() {
           transactions={transactionsByDate.get(selectedDate) ?? []}
           events={eventsByDate.get(selectedDate) ?? []}
           recurringDue={recurringDueByDate.get(selectedDate) ?? []}
+          showUser={userOptions.length > 2}
+          users={users}
           onClose={() => setSelectedDate(null)}
           onAddTransaction={() => openCreate(selectedDate)}
           onEditTransaction={openEdit}
@@ -484,6 +491,8 @@ export default function TransactionsPage() {
               categories={categories}
               accounts={accounts}
               savingsProducts={savingsProducts}
+              users={users ?? []}
+              currentUserId={me?.id}
               layout="stack"
               isNew={formTarget === "new"}
               submitLabel={formTarget === "new" ? "추가" : "저장"}
@@ -500,6 +509,7 @@ export default function TransactionsPage() {
                       payment_method: formTarget.payment_method ?? "",
                       account_id: formTarget.account ? String(formTarget.account.id) : "",
                       savings_product_id: formTarget.savings_product_id ? String(formTarget.savings_product_id) : "",
+                      owner_user_id: formTarget.owner_user_id ?? "",
                     }
               }
               onSubmit={(payload) =>

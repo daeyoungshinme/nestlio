@@ -1,7 +1,7 @@
 import CollapsibleGroup from "@/components/common/CollapsibleGroup";
 import EmptyState from "@/components/common/EmptyState";
 import TransactionListItem from "@/components/transactions/TransactionListItem";
-import type { TransactionOut } from "@/types";
+import type { TransactionOut, UserOut } from "@/types";
 
 export interface TransactionGroup {
   key: string | number;
@@ -31,6 +31,8 @@ interface Props {
   itemHideCategoryBadge?: boolean;
   /** Passed through to each TransactionListItem. Defaults to false. */
   showUser?: boolean;
+  /** Passed through to each TransactionListItem, used to resolve owner_user_id → display_name. */
+  users?: UserOut[];
 }
 
 /** Shared "dot + name + amount, collapsible, list of transactions" grouped-list UI,
@@ -46,6 +48,7 @@ export default function GroupedTransactionList({
   itemShowDate = true,
   itemHideCategoryBadge = true,
   showUser = false,
+  users,
 }: Props) {
   if (groups.length === 0) {
     return emptyTitle ? <EmptyState title={emptyTitle} compact /> : null;
@@ -83,6 +86,7 @@ export default function GroupedTransactionList({
               showDate={itemShowDate}
               hideCategoryBadge={itemHideCategoryBadge}
               showUser={showUser}
+              users={users}
             />
           ))}
         </CollapsibleGroup>

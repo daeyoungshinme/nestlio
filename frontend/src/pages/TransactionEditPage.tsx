@@ -9,6 +9,7 @@ import TransactionForm from "@/components/transactions/TransactionForm";
 import { fetchCategories } from "@/api/categories";
 import { fetchAccounts } from "@/api/accounts";
 import { fetchSavingsProducts } from "@/api/savingsProducts";
+import { fetchUsers } from "@/api/users";
 import { deleteTransaction, fetchTransaction, updateTransaction } from "@/api/transactions";
 import { QUERY_KEYS } from "@/constants/queryKeys";
 import { STALE_TIME } from "@/constants/queryConfig";
@@ -39,6 +40,7 @@ export default function TransactionEditPage() {
     queryFn: fetchSavingsProducts,
     staleTime: STALE_TIME.MEDIUM,
   });
+  const { data: users } = useQuery({ queryKey: QUERY_KEYS.users, queryFn: fetchUsers, staleTime: STALE_TIME.LONG });
   const { data: tx, isLoading } = useQuery({
     queryKey: QUERY_KEYS.transaction(txId),
     queryFn: () => fetchTransaction(txId),
@@ -83,6 +85,7 @@ export default function TransactionEditPage() {
           categories={categories}
           accounts={accounts}
           savingsProducts={savingsProducts}
+          users={users ?? []}
           layout="stack"
           isNew={false}
           submitLabel="저장"
@@ -96,6 +99,7 @@ export default function TransactionEditPage() {
             payment_method: tx.payment_method ?? "",
             account_id: tx.account ? String(tx.account.id) : "",
             savings_product_id: tx.savings_product_id ? String(tx.savings_product_id) : "",
+            owner_user_id: tx.owner_user_id ?? "",
           }}
           onSubmit={(payload) => updateMutation.mutate(payload)}
         />

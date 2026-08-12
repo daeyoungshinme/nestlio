@@ -2,17 +2,25 @@ import { useMemo } from "react";
 import GroupedTransactionList from "@/components/transactions/GroupedTransactionList";
 import { formatKrw } from "@/utils/format";
 import { savingsProductTypeDotClass } from "@/utils/colors";
-import type { SavingsProductType, TransactionOut } from "@/types";
+import type { SavingsProductType, TransactionOut, UserOut } from "@/types";
 
 interface Props {
   transactions: TransactionOut[];
   onEdit: (tx: TransactionOut) => void;
   onDelete: (tx: TransactionOut) => void;
+  showUser?: boolean;
+  users?: UserOut[];
 }
 
 const UNASSIGNED_KEY = "unassigned";
 
-export default function SavingsLinkedTransactionsSection({ transactions, onEdit, onDelete }: Props) {
+export default function SavingsLinkedTransactionsSection({
+  transactions,
+  onEdit,
+  onDelete,
+  showUser,
+  users,
+}: Props) {
   const groups = useMemo(() => {
     const groupsByProduct = new Map<
       string,
@@ -41,5 +49,13 @@ export default function SavingsLinkedTransactionsSection({ transactions, onEdit,
       }));
   }, [transactions]);
 
-  return <GroupedTransactionList groups={groups} onEdit={onEdit} onDelete={onDelete} />;
+  return (
+    <GroupedTransactionList
+      groups={groups}
+      onEdit={onEdit}
+      onDelete={onDelete}
+      showUser={showUser}
+      users={users}
+    />
+  );
 }
