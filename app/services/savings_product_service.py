@@ -1,3 +1,4 @@
+import uuid
 from datetime import date, datetime
 from decimal import Decimal
 
@@ -185,6 +186,7 @@ def create_product(
     monthly_saving_amount: Decimal,
     product_type: str = "savings",
     principal_amount: Decimal | None = None,
+    owner_user_id: uuid.UUID | None = None,
 ) -> SavingsProduct:
     product = SavingsProduct(
         name=name,
@@ -193,6 +195,7 @@ def create_product(
         product_type=product_type,
         principal_amount=principal_amount,
         sort_order=999,
+        owner_user_id=owner_user_id,
     )
     db.add(product)
     db.commit()
@@ -208,6 +211,7 @@ def update_product(
     monthly_saving_amount: Decimal,
     product_type: str,
     principal_amount: Decimal | None = None,
+    owner_user_id: uuid.UUID | None = None,
 ) -> SavingsProduct | None:
     product = db.get(SavingsProduct, product_id)
     if product is None:
@@ -217,6 +221,7 @@ def update_product(
     product.monthly_saving_amount = monthly_saving_amount
     product.product_type = product_type
     product.principal_amount = principal_amount
+    product.owner_user_id = owner_user_id
     db.commit()
     db.refresh(product)
     return product
@@ -284,9 +289,13 @@ def sync_from_growlio(db: Session, product_id: int, bearer_token: str, *, now: d
 
 
 def import_from_growlio(
-    db: Session, growlio_account_ids: list[str], bearer_token: str, *, now: datetime
+    db: Session, growlio_account_ids: list[str], bearer_token: str, owner_user_id: uuid.UUID, *, now: datetime
 ) -> list[SavingsProduct]:
-    """선택한 growlio 계좌들을 각각 새 저축/투자 상품으로 일괄 생성하고 연동한다."""
+    """선택한 growlio 계좌들을 각각 새 저축/투자 상품으로 일괄 생성하고 연동한다.
+
+    owner_user_id는 가져오기를 실행한 사용자(bearer_token의 주인)로, growlio 자체가 그 사람의
+    Supabase JWT 기준으로 스코프된 계좌만 돌려주므로 이 사람이 곧 실제 소유자다.
+    """
     if not growlio_account_ids:
         return []
     accounts_by_id = {
@@ -316,6 +325,7 @@ def import_from_growlio(
             auto_sync_enabled=True,
             last_synced_at=now,
             sort_order=999,
+            owner_user_id=owner_user_id,
         )
         db.add(product)
         created.append(product)

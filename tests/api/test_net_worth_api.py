@@ -60,7 +60,7 @@ def test_get_growlio_unlinked_net_worth_returns_summary(client):
     assert body["item_count"] == 1
 
 
-def test_get_growlio_unlinked_net_worth_not_configured_returns_501(client):
+def test_get_growlio_unlinked_net_worth_not_configured_returns_zero(client):
     _override_bearer_token()
 
     with patch(
@@ -69,10 +69,13 @@ def test_get_growlio_unlinked_net_worth_not_configured_returns_501(client):
     ):
         resp = client.get("/api/v1/net-worth/growlio-unlinked")
 
-    assert resp.status_code == 501
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["item_count"] == 0
+    assert Decimal(body["net_total"]) == Decimal("0")
 
 
-def test_get_growlio_unlinked_net_worth_request_failure_returns_502(client):
+def test_get_growlio_unlinked_net_worth_request_failure_returns_zero(client):
     _override_bearer_token()
 
     with patch(
@@ -81,4 +84,7 @@ def test_get_growlio_unlinked_net_worth_request_failure_returns_502(client):
     ):
         resp = client.get("/api/v1/net-worth/growlio-unlinked")
 
-    assert resp.status_code == 502
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["item_count"] == 0
+    assert Decimal(body["net_total"]) == Decimal("0")

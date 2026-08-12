@@ -33,11 +33,13 @@ def import_growlio_real_estate(
     payload: RealEstateGrowlioImportIn,
     db: Session = Depends(get_db),
     bearer_token: str = Depends(get_bearer_token),
-    _: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_user),
 ):
     """선택한 growlio 부동산 계좌들을 자산 항목(+담보대출)으로 일괄 가져온다."""
     try:
-        pairs = real_estate_service.import_from_growlio(db, payload.growlio_account_ids, bearer_token, now=datetime.now())
+        pairs = real_estate_service.import_from_growlio(
+            db, payload.growlio_account_ids, bearer_token, current_user.id, now=datetime.now()
+        )
     except GrowlioNotConfiguredError as exc:
         raise HTTPException(status.HTTP_501_NOT_IMPLEMENTED, str(exc)) from exc
     except GrowlioRequestError as exc:

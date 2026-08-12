@@ -1,3 +1,4 @@
+import { useQuery } from "@tanstack/react-query";
 import Tabs from "@/components/common/Tabs";
 import AccountsSection from "@/components/accounts/AccountsSection";
 import AccountsSummaryCards from "@/components/accounts/AccountsSummaryCards";
@@ -6,11 +7,15 @@ import SavingsProductsSection from "@/components/accounts/SavingsProductsSection
 import LoansSection from "@/components/accounts/LoansSection";
 import NetWorthTrendChart from "@/components/accounts/NetWorthTrendChart";
 import { useTabSearchParam } from "@/hooks/useTabSearchParam";
+import { fetchUsers } from "@/api/users";
+import { QUERY_KEYS } from "@/constants/queryKeys";
+import { STALE_TIME } from "@/constants/queryConfig";
 
 const TABS = ["계좌", "저축·투자", "대출"] as const;
 
 export default function AccountsPage() {
   const [tab, handleTabChange] = useTabSearchParam(TABS, "계좌");
+  const { data: users } = useQuery({ queryKey: QUERY_KEYS.users, queryFn: fetchUsers, staleTime: STALE_TIME.LONG });
 
   return (
     <div className="space-y-6">
@@ -20,9 +25,9 @@ export default function AccountsPage() {
 
       <Tabs tabs={TABS} activeTab={tab} onChange={handleTabChange} variant="pill" />
 
-      {tab === "계좌" && <AccountsSection />}
-      {tab === "저축·투자" && <SavingsProductsSection />}
-      {tab === "대출" && <LoansSection />}
+      {tab === "계좌" && <AccountsSection users={users} />}
+      {tab === "저축·투자" && <SavingsProductsSection users={users} />}
+      {tab === "대출" && <LoansSection users={users} />}
     </div>
   );
 }

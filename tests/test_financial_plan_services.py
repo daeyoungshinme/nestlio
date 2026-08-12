@@ -80,3 +80,17 @@ def test_loan_create_update_deactivate(seeded_db):
 
     assert loan_service.list_loans(db, active_only=True) == []
     assert len(loan_service.list_loans(db, active_only=False)) == 1
+
+
+def test_loan_create_and_update_owner_user_id(seeded_db):
+    db, user = seeded_db["db"], seeded_db["user"]
+
+    loan = loan_service.create_loan(
+        db, "신용대출", Decimal("5000000"), Decimal("200000"), None, None, None, None, user.id
+    )
+    assert loan.owner_user_id == user.id
+
+    updated = loan_service.update_loan(
+        db, loan.id, "신용대출", Decimal("4800000"), Decimal("200000"), None, None, None, None, None
+    )
+    assert updated.owner_user_id is None

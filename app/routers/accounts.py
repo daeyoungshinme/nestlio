@@ -42,7 +42,9 @@ def create_account(
     db: Session = Depends(get_db),
     _: User = Depends(get_current_user),
 ):
-    return account_service.create_account(db, payload.name, payload.account_type, payload.initial_balance)
+    return account_service.create_account(
+        db, payload.name, payload.account_type, payload.initial_balance, payload.owner_user_id
+    )
 
 
 @router.post("/growlio-import", response_model=list[AccountOut])
@@ -50,11 +52,11 @@ def import_growlio_accounts(
     payload: AccountGrowlioImportIn,
     db: Session = Depends(get_db),
     bearer_token: str = Depends(get_bearer_token),
-    _: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_user),
 ):
     """선택한 growlio 은행 계좌들을 각각 새 계좌로 일괄 가져온다 ('전체 선택' 가져오기)."""
     try:
-        return account_service.import_from_growlio(db, payload.growlio_account_ids, bearer_token)
+        return account_service.import_from_growlio(db, payload.growlio_account_ids, bearer_token, current_user.id)
     except GrowlioNotConfiguredError as exc:
         raise HTTPException(status.HTTP_501_NOT_IMPLEMENTED, str(exc)) from exc
     except GrowlioRequestError as exc:
@@ -69,7 +71,7 @@ def update_account(
     _: User = Depends(get_current_user),
 ):
     account = account_service.update_account(
-        db, account_id, payload.name, payload.account_type, payload.current_balance
+        db, account_id, payload.name, payload.account_type, payload.current_balance, payload.owner_user_id
     )
     if account is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "계좌를 찾을 수 없습니다.")

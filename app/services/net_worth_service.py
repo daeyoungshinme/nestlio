@@ -1,3 +1,4 @@
+import logging
 from datetime import date
 from decimal import Decimal
 
@@ -8,6 +9,8 @@ from app.models.net_worth_snapshot import NetWorthSnapshot
 from app.models.savings_product import SavingsProduct
 from app.services import account_service, growlio_client, loan_service, savings_product_service
 from app.utils.dates import parse_year_month, shift_month, year_month_str
+
+logger = logging.getLogger(__name__)
 
 
 def compute_current(db: Session) -> dict:
@@ -61,12 +64,17 @@ def savings_delta(db: Session, year_month: str) -> Decimal | None:
 def compute_growlio_unlinked(db: Session, bearer_token: str) -> dict:
     """growlio에는 있지만 아직 nestlio로 가져오지 않은 자산의 합계를 조회한다.
 
-    이미 연동된(=가져온) 자산은 로컬 net_worth에 이미 잡히므로 제외한다. growlio가
-    설정되지 않았거나(GrowlioNotConfiguredError) 요청이 실패하면(GrowlioRequestError)
-    호출부(라우터)가 처리하도록 그대로 전파한다.
+    이미 연동된(=가져온) 자산은 로컬 net_worth에 이미 잡히므로 제외한다. 대시보드에
+    자동으로 뜨는 보조 위젯이므로, growlio가 설정되지 않았거나(GrowlioNotConfiguredError)
+    요청이 실패해도(GrowlioRequestError, 예: growlio가 잠들어있음) 절대 실패시키지 않고
+    조용히 0건으로 처리한다 (transaction_service.push_savings_transaction_to_growlio와 동일한 방침).
     """
-    accounts = growlio_client.fetch_account_balances(bearer_token)
-    real_estate_items = growlio_client.fetch_real_estate_items(bearer_token)
+    try:
+        accounts = growlio_client.fetch_account_balances(bearer_token)
+        real_estate_items = growlio_client.fetch_real_estate_items(bearer_token)
+    except (growlio_client.GrowlioNotConfiguredError, growlio_client.GrowlioRequestError):
+        logger.warning("growlio_unlinked_fetch_failed", exc_info=True)
+        accounts, real_estate_items = [], []
 
     linked_account_ids = {
         growlio_account_id

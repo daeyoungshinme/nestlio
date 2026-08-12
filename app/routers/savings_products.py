@@ -64,6 +64,7 @@ def create_product(
         payload.monthly_saving_amount,
         payload.product_type,
         payload.principal_amount,
+        payload.owner_user_id,
     )
 
 
@@ -82,6 +83,7 @@ def update_product(
         payload.monthly_saving_amount,
         payload.product_type,
         payload.principal_amount,
+        payload.owner_user_id,
     )
     if product is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "저축/투자 상품을 찾을 수 없습니다.")
@@ -128,12 +130,12 @@ def import_growlio_accounts(
     payload: SavingsProductGrowlioImportIn,
     db: Session = Depends(get_db),
     bearer_token: str = Depends(get_bearer_token),
-    _: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_user),
 ):
     """선택한 growlio 계좌들을 각각 새 저축/투자 상품으로 일괄 가져온다 ('전체 선택' 가져오기)."""
     try:
         return savings_product_service.import_from_growlio(
-            db, payload.growlio_account_ids, bearer_token, now=datetime.now()
+            db, payload.growlio_account_ids, bearer_token, current_user.id, now=datetime.now()
         )
     except GrowlioNotConfiguredError as exc:
         raise HTTPException(status.HTTP_501_NOT_IMPLEMENTED, str(exc)) from exc

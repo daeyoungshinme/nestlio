@@ -1,3 +1,4 @@
+import uuid
 from datetime import datetime
 from decimal import Decimal
 
@@ -17,10 +18,17 @@ def list_growlio_real_estate(bearer_token: str) -> list[dict]:
 
 
 def _upsert_linked_loan(
-    db: Session, *, growlio_account_id: str, name: str, mortgage_balance_krw: float, now: datetime
+    db: Session,
+    *,
+    growlio_account_id: str,
+    name: str,
+    mortgage_balance_krw: float,
+    owner_user_id: uuid.UUID,
+    now: datetime,
 ) -> Loan | None:
     """growlio_account_id로 짝이 되는 대출을 찾아 잔액을 갱신하거나, 없으면(첫 가져오기이고
-    담보대출이 있는 경우) 새로 만든다. 담보대출이 0원이면 새로 만들지 않는다."""
+    담보대출이 있는 경우) 새로 만든다. 담보대출이 0원이면 새로 만들지 않는다.
+    이미 연동된 대출을 갱신하는 경우는 소유자를 건드리지 않는다(최초 가져오기 때 정한 값 유지)."""
     loan = db.query(Loan).filter(Loan.growlio_account_id == growlio_account_id).one_or_none()
     if loan is None:
         if mortgage_balance_krw <= 0:
@@ -33,6 +41,7 @@ def _upsert_linked_loan(
             auto_sync_enabled=True,
             last_synced_at=now,
             sort_order=999,
+            owner_user_id=owner_user_id,
         )
         db.add(loan)
     else:
@@ -42,10 +51,14 @@ def _upsert_linked_loan(
 
 
 def import_from_growlio(
-    db: Session, growlio_account_ids: list[str], bearer_token: str, *, now: datetime
+    db: Session, growlio_account_ids: list[str], bearer_token: str, owner_user_id: uuid.UUID, *, now: datetime
 ) -> list[tuple[SavingsProduct, Loan | None]]:
     """선택한 growlio 부동산 계좌들을 각각 새 저축/투자 상품(product_type=real_estate)으로
-    가져오고, 담보대출이 있으면 짝이 되는 대출도 함께 만든다."""
+    가져오고, 담보대출이 있으면 짝이 되는 대출도 함께 만든다.
+
+    owner_user_id는 가져오기를 실행한 사용자(bearer_token의 주인)로, growlio 자체가 그 사람의
+    Supabase JWT 기준으로 스코프된 계좌만 돌려주므로 이 사람이 곧 실제 소유자다.
+    """
     if not growlio_account_ids:
         return []
     items_by_id = {item["id"]: item for item in growlio_client.fetch_real_estate_items(bearer_token)}
@@ -72,6 +85,7 @@ def import_from_growlio(
             auto_sync_enabled=True,
             last_synced_at=now,
             sort_order=999,
+            owner_user_id=owner_user_id,
         )
         db.add(product)
         loan = _upsert_linked_loan(
@@ -79,6 +93,7 @@ def import_from_growlio(
             growlio_account_id=account_id,
             name=item["name"],
             mortgage_balance_krw=item.get("mortgage_balance_krw") or 0,
+            owner_user_id=owner_user_id,
             now=now,
         )
         created.append((product, loan))

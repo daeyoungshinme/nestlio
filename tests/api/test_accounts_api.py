@@ -11,16 +11,20 @@ def _override_bearer_token():
     fastapi_app.dependency_overrides[get_bearer_token] = lambda: "fake-jwt"
 
 
-def test_create_and_list_accounts(client):
+def test_create_and_list_accounts(client, seeded_db):
+    user = seeded_db["user"]
     resp = client.post(
-        "/api/v1/accounts", json={"name": "주거래통장", "account_type": "bank", "initial_balance": "500000"}
+        "/api/v1/accounts",
+        json={"name": "주거래통장", "account_type": "bank", "initial_balance": "500000", "owner_user_id": str(user.id)},
     )
     assert resp.status_code == 201
+    assert resp.json()["owner_user_id"] == str(user.id)
 
     list_resp = client.get("/api/v1/accounts")
     assert list_resp.status_code == 200
     row = next(r for r in list_resp.json() if r["account"]["name"] == "주거래통장")
     assert Decimal(row["balance"]) == Decimal("500000")
+    assert row["account"]["owner_user_id"] == str(user.id)
 
 
 def test_update_account_changes_fields(client):
@@ -159,7 +163,7 @@ def test_sync_account_updates_displayed_balance_and_last_synced_at(client, seede
     assert Decimal(row["balance"]) == Decimal("999000")
 
 
-def test_growlio_import_creates_one_account_per_selected_bank_account(client):
+def test_growlio_import_creates_one_account_per_selected_bank_account(client, seeded_db):
     _override_bearer_token()
 
     with patch(
@@ -179,3 +183,5 @@ def test_growlio_import_creates_one_account_per_selected_bank_account(client):
     assert body[0]["growlio_account_id"] == "growlio-acc-1"
     assert body[0]["account_type"] == "bank"
     assert body[0]["initial_balance"] == "1500000.00"
+    # 가져오기를 실행한 로그인 사용자가 그 계좌의 소유자로 자동 설정된다
+    assert body[0]["owner_user_id"] == str(seeded_db["user"].id)

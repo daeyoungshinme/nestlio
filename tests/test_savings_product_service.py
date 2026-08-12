@@ -1,3 +1,4 @@
+import uuid
 from datetime import date, datetime
 from decimal import Decimal
 from unittest.mock import patch
@@ -7,6 +8,8 @@ import pytest
 from app.models.category import Category
 from app.services import savings_product_service, transaction_service
 from app.services.growlio_client import GrowlioNotConfiguredError
+
+_OWNER_ID = uuid.uuid4()
 
 
 def _add_savings_category(db):
@@ -23,6 +26,21 @@ def test_create_product_defaults_to_savings_type(db_session):
     )
 
     assert product.product_type == "savings"
+    assert product.owner_user_id is None
+
+
+def test_create_and_update_product_owner_user_id(db_session):
+    product = savings_product_service.create_product(
+        db_session, "적금", Decimal("100000"), Decimal("50000"), owner_user_id=_OWNER_ID
+    )
+
+    assert product.owner_user_id == _OWNER_ID
+
+    updated = savings_product_service.update_product(
+        db_session, product.id, "적금", Decimal("100000"), Decimal("50000"), "savings", owner_user_id=None
+    )
+
+    assert updated.owner_user_id is None
 
 
 def test_create_product_with_explicit_investment_type(db_session):
@@ -199,7 +217,7 @@ def test_import_from_growlio_skips_real_estate(db_session):
         ],
     ):
         created = savings_product_service.import_from_growlio(
-            db_session, ["growlio-acc-1", "growlio-acc-2"], "token", now=datetime(2026, 8, 6)
+            db_session, ["growlio-acc-1", "growlio-acc-2"], "token", _OWNER_ID, now=datetime(2026, 8, 6)
         )
 
     assert len(created) == 1
@@ -215,7 +233,7 @@ def test_import_from_growlio_skips_bank_accounts(db_session):
         ],
     ):
         created = savings_product_service.import_from_growlio(
-            db_session, ["growlio-acc-1", "growlio-acc-2"], "token", now=datetime(2026, 8, 6)
+            db_session, ["growlio-acc-1", "growlio-acc-2"], "token", _OWNER_ID, now=datetime(2026, 8, 6)
         )
 
     assert len(created) == 1
@@ -231,7 +249,7 @@ def test_import_from_growlio_creates_one_product_per_account_with_type_mapping(d
         ],
     ):
         created = savings_product_service.import_from_growlio(
-            db_session, ["growlio-acc-1", "growlio-acc-2"], "token", now=datetime(2026, 8, 6, 9, 0)
+            db_session, ["growlio-acc-1", "growlio-acc-2"], "token", _OWNER_ID, now=datetime(2026, 8, 6, 9, 0)
         )
 
     assert len(created) == 2
@@ -243,6 +261,8 @@ def test_import_from_growlio_creates_one_product_per_account_with_type_mapping(d
     for product in created:
         assert product.auto_sync_enabled is True
         assert product.last_synced_at == datetime(2026, 8, 6, 9, 0)
+        # 가져오기를 실행한 사람 = 그 growlio 계정의 실제 소유자
+        assert product.owner_user_id == _OWNER_ID
 
 
 def test_import_from_growlio_skips_already_linked_accounts(db_session):
@@ -257,7 +277,7 @@ def test_import_from_growlio_skips_already_linked_accounts(db_session):
         ],
     ):
         created = savings_product_service.import_from_growlio(
-            db_session, ["growlio-acc-1", "growlio-acc-2"], "token", now=datetime(2026, 8, 6)
+            db_session, ["growlio-acc-1", "growlio-acc-2"], "token", _OWNER_ID, now=datetime(2026, 8, 6)
         )
 
     assert len(created) == 1
@@ -276,7 +296,7 @@ def test_import_from_growlio_reimports_account_after_link_deactivated(db_session
         ],
     ):
         created = savings_product_service.import_from_growlio(
-            db_session, ["growlio-acc-1"], "token", now=datetime(2026, 8, 6)
+            db_session, ["growlio-acc-1"], "token", _OWNER_ID, now=datetime(2026, 8, 6)
         )
 
     assert len(created) == 1
@@ -497,4 +517,4 @@ def test_import_from_growlio_propagates_not_configured_error(db_session):
         side_effect=GrowlioNotConfiguredError("not configured"),
     ):
         with pytest.raises(GrowlioNotConfiguredError):
-            savings_product_service.import_from_growlio(db_session, ["growlio-acc-1"], "token", now=datetime(2026, 8, 6))
+            savings_product_service.import_from_growlio(db_session, ["growlio-acc-1"], "token", _OWNER_ID, now=datetime(2026, 8, 6))

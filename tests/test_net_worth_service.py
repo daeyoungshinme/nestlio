@@ -3,6 +3,7 @@ from decimal import Decimal
 from unittest.mock import patch
 
 from app.services import account_service, loan_service, net_worth_service, savings_product_service
+from app.services.growlio_client import GrowlioNotConfiguredError, GrowlioRequestError
 
 
 def _seed_balances(db):
@@ -164,6 +165,32 @@ def test_compute_growlio_unlinked_returns_zero_when_everything_already_linked(se
             "app.services.net_worth_service.growlio_client.fetch_real_estate_items",
             return_value=[],
         ),
+    ):
+        breakdown = net_worth_service.compute_growlio_unlinked(db, "token")
+
+    assert breakdown["net_total"] == Decimal("0")
+    assert breakdown["item_count"] == 0
+
+
+def test_compute_growlio_unlinked_returns_zero_when_growlio_unreachable(seeded_db):
+    db = seeded_db["db"]
+
+    with patch(
+        "app.services.net_worth_service.growlio_client.fetch_account_balances",
+        side_effect=GrowlioRequestError("growlio 서버에 연결하지 못했습니다."),
+    ):
+        breakdown = net_worth_service.compute_growlio_unlinked(db, "token")
+
+    assert breakdown["net_total"] == Decimal("0")
+    assert breakdown["item_count"] == 0
+
+
+def test_compute_growlio_unlinked_returns_zero_when_not_configured(seeded_db):
+    db = seeded_db["db"]
+
+    with patch(
+        "app.services.net_worth_service.growlio_client.fetch_account_balances",
+        side_effect=GrowlioNotConfiguredError("growlio 연동이 설정되지 않았습니다."),
     ):
         breakdown = net_worth_service.compute_growlio_unlinked(db, "token")
 

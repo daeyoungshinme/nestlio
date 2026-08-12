@@ -1,3 +1,4 @@
+import uuid
 from datetime import date, datetime
 from decimal import Decimal
 from unittest.mock import patch
@@ -13,6 +14,17 @@ def test_sync_account_without_link_raises(db_session):
 
     with pytest.raises(account_service.GrowlioSyncError):
         account_service.sync_account(db_session, account.id, "token", now=datetime(2026, 8, 11))
+
+
+def test_create_and_update_account_owner_user_id(db_session):
+    owner_id = uuid.uuid4()
+    account = account_service.create_account(db_session, "주거래통장", "bank", Decimal("0"), owner_id)
+
+    assert account.owner_user_id == owner_id
+
+    updated = account_service.update_account(db_session, account.id, "주거래통장", "bank", Decimal("0"), None)
+
+    assert updated.owner_user_id is None
 
 
 def test_sync_account_reconciles_initial_balance_around_existing_transactions(seeded_db):

@@ -1,3 +1,4 @@
+import uuid
 from datetime import datetime
 from decimal import Decimal
 from unittest.mock import patch
@@ -7,6 +8,8 @@ import pytest
 from app.models.loan import Loan
 from app.services import real_estate_service
 from app.services.growlio_client import GrowlioNotConfiguredError
+
+_OWNER_ID = uuid.uuid4()
 
 _GROWLIO_ITEM = {
     "id": "growlio-re-1",
@@ -29,7 +32,7 @@ def _patch_fetch(items):
 def test_import_creates_real_estate_product_and_linked_loan(db_session):
     with _patch_fetch([_GROWLIO_ITEM]):
         created = real_estate_service.import_from_growlio(
-            db_session, ["growlio-re-1"], "token", now=datetime(2026, 8, 11, 9, 0)
+            db_session, ["growlio-re-1"], "token", _OWNER_ID, now=datetime(2026, 8, 11, 9, 0)
         )
 
     assert len(created) == 1
@@ -39,19 +42,23 @@ def test_import_creates_real_estate_product_and_linked_loan(db_session):
     assert product.principal_amount == Decimal("700000000.0")
     assert product.growlio_account_id == "growlio-re-1"
     assert product.auto_sync_enabled is True
+    # 가져오기를 실행한 사람 = 그 growlio 계정의 실제 소유자
+    assert product.owner_user_id == _OWNER_ID
 
     assert loan is not None
     assert loan.name == "우리집 담보대출"
     assert loan.balance == Decimal("300000000.0")
     assert loan.growlio_account_id == "growlio-re-1"
     assert loan.auto_sync_enabled is True
+    # 담보대출은 짝이 되는 부동산 자산과 동일한 소유자로 설정된다
+    assert loan.owner_user_id == _OWNER_ID
 
 
 def test_import_skips_loan_creation_when_no_mortgage(db_session):
     item = {**_GROWLIO_ITEM, "mortgage_balance_krw": 0.0}
     with _patch_fetch([item]):
         created = real_estate_service.import_from_growlio(
-            db_session, ["growlio-re-1"], "token", now=datetime(2026, 8, 11)
+            db_session, ["growlio-re-1"], "token", _OWNER_ID, now=datetime(2026, 8, 11)
         )
 
     assert len(created) == 1
@@ -63,9 +70,9 @@ def test_import_skips_loan_creation_when_no_mortgage(db_session):
 
 def test_import_skips_already_linked_products(db_session):
     with _patch_fetch([_GROWLIO_ITEM]):
-        real_estate_service.import_from_growlio(db_session, ["growlio-re-1"], "token", now=datetime(2026, 8, 11))
+        real_estate_service.import_from_growlio(db_session, ["growlio-re-1"], "token", _OWNER_ID, now=datetime(2026, 8, 11))
         created_again = real_estate_service.import_from_growlio(
-            db_session, ["growlio-re-1"], "token", now=datetime(2026, 8, 11)
+            db_session, ["growlio-re-1"], "token", _OWNER_ID, now=datetime(2026, 8, 11)
         )
 
     assert created_again == []
@@ -77,13 +84,13 @@ def test_import_propagates_not_configured_error(db_session):
         side_effect=GrowlioNotConfiguredError("not configured"),
     ):
         with pytest.raises(GrowlioNotConfiguredError):
-            real_estate_service.import_from_growlio(db_session, ["growlio-re-1"], "token", now=datetime(2026, 8, 11))
+            real_estate_service.import_from_growlio(db_session, ["growlio-re-1"], "token", _OWNER_ID, now=datetime(2026, 8, 11))
 
 
 def test_sync_updates_both_product_and_linked_loan(db_session):
     with _patch_fetch([_GROWLIO_ITEM]):
         [(product, loan)] = real_estate_service.import_from_growlio(
-            db_session, ["growlio-re-1"], "token", now=datetime(2026, 8, 11)
+            db_session, ["growlio-re-1"], "token", _OWNER_ID, now=datetime(2026, 8, 11)
         )
 
     updated_item = {
@@ -124,7 +131,7 @@ def test_sync_missing_product_returns_none(db_session):
 def test_sync_no_matching_growlio_account_raises(db_session):
     with _patch_fetch([_GROWLIO_ITEM]):
         [(product, _loan)] = real_estate_service.import_from_growlio(
-            db_session, ["growlio-re-1"], "token", now=datetime(2026, 8, 11)
+            db_session, ["growlio-re-1"], "token", _OWNER_ID, now=datetime(2026, 8, 11)
         )
 
     with _patch_fetch([]):

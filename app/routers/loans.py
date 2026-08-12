@@ -26,6 +26,7 @@ def create_loan(payload: LoanCreateIn, db: Session = Depends(get_db), _: User = 
         payload.term_months,
         payload.interest_rate,
         payload.repayment_method,
+        payload.owner_user_id,
     )
 
 
@@ -43,6 +44,7 @@ def update_loan(
         payload.term_months,
         payload.interest_rate,
         payload.repayment_method,
+        payload.owner_user_id,
     )
     if loan is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "대출을 찾을 수 없습니다.")

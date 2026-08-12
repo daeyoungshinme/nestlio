@@ -1,7 +1,9 @@
+import uuid
 from datetime import datetime
 from decimal import Decimal
 
-from sqlalchemy import Boolean, DateTime, Integer, Numeric, String, func
+from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, Numeric, String, func
+from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.database import Base
@@ -21,6 +23,11 @@ class Loan(Base):
     sort_order: Mapped[int] = mapped_column(Integer, default=0)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     updated_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), onupdate=func.now())
+    # 부부 중 누구 소유인지 (NULL이면 공통/가구 공유). growlio 부동산 담보대출로 가져온 경우
+    # 짝이 되는 부동산 자산과 동일한 소유자로 자동 설정된다.
+    owner_user_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id"), nullable=True
+    )
 
     # growlio(자산관리) 부동산 담보대출 자동 동기화 연동 — growlio의 AssetAccount.id(UUID 문자열).
     # SavingsProduct와 동일한 값을 공유해 부동산 자산과 짝을 맞춘다(app/services/real_estate_service.py).

@@ -1,3 +1,4 @@
+import uuid
 from datetime import datetime
 from decimal import Decimal
 from typing import Literal
@@ -16,6 +17,7 @@ class AccountOut(BaseModel):
     sort_order: int
     growlio_account_id: str | None = None
     last_synced_at: datetime | None = None
+    owner_user_id: uuid.UUID | None = None
 
 
 class AccountWithBalanceOut(BaseModel):
@@ -27,12 +29,14 @@ class AccountCreateIn(BaseModel):
     name: str
     account_type: Literal["bank", "cash", "card"]
     initial_balance: Decimal = Decimal("0")
+    owner_user_id: uuid.UUID | None = None
 
 
 class AccountUpdateIn(BaseModel):
     name: str
     account_type: Literal["bank", "cash", "card"]
     current_balance: Decimal
+    owner_user_id: uuid.UUID | None = None
 
 
 class AccountGrowlioImportIn(BaseModel):

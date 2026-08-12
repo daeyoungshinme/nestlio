@@ -15,7 +15,7 @@ import { QUERY_KEYS } from "@/constants/queryKeys";
 import { INPUT_SM, LABEL_SM } from "@/constants/inputStyles";
 import { useCrudMutations } from "@/hooks/useCrudMutations";
 import { formatKrw, formatKrwPreview, formatSyncedAt, toAmountInputValue } from "@/utils/format";
-import type { LoanOut, RepaymentMethod } from "@/types";
+import type { LoanOut, RepaymentMethod, UserOut } from "@/types";
 
 const REPAYMENT_METHOD_LABEL: Record<RepaymentMethod, string> = {
   equal_payment: "원리금균등",
@@ -33,6 +33,7 @@ interface Draft {
   term_months: string;
   interest_rate: string;
   repayment_method: RepaymentMethod | "";
+  owner_user_id: string;
 }
 
 const EMPTY_DRAFT: Draft = {
@@ -43,6 +44,7 @@ const EMPTY_DRAFT: Draft = {
   term_months: "",
   interest_rate: "",
   repayment_method: "",
+  owner_user_id: "",
 };
 
 function draftFromLoan(loan: LoanOut): Draft {
@@ -54,6 +56,7 @@ function draftFromLoan(loan: LoanOut): Draft {
     term_months: loan.term_months !== null ? String(loan.term_months) : "",
     interest_rate: loan.interest_rate ?? "",
     repayment_method: loan.repayment_method ?? "",
+    owner_user_id: loan.owner_user_id ?? "",
   };
 }
 
@@ -66,10 +69,15 @@ function toPayload(draft: Draft) {
     term_months: draft.term_months === "" ? null : Number(draft.term_months),
     interest_rate: draft.interest_rate === "" ? null : draft.interest_rate,
     repayment_method: draft.repayment_method || null,
+    owner_user_id: draft.owner_user_id || null,
   };
 }
 
-export default function LoansSection() {
+interface Props {
+  users: UserOut[] | undefined;
+}
+
+export default function LoansSection({ users }: Props) {
   const [formTarget, setFormTarget] = useState<"new" | LoanOut | null>(null);
   const [deactivateTarget, setDeactivateTarget] = useState<number | null>(null);
 
@@ -117,38 +125,44 @@ export default function LoansSection() {
             <SummaryCard label="월납입금액 합계" value={formatKrw(totalMonthly)} tone="negative" />
           </div>
           <div className="space-y-2">
-            {data.map((loan) => (
-              <div key={loan.id} className="card flex items-center justify-between gap-3">
-                <div className="min-w-0">
-                  <div className="flex items-center gap-1.5 flex-wrap">
-                    <p className="text-sm font-medium text-gray-900 dark:text-gray-50 truncate">{loan.name}</p>
+            {data.map((loan) => {
+              const ownerLabel = loan.owner_user_id
+                ? (users?.find((u) => u.id === loan.owner_user_id)?.display_name ?? "공통")
+                : "공통";
+              return (
+                <div key={loan.id} className="card flex items-center justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <p className="text-sm font-medium text-gray-900 dark:text-gray-50 truncate">{loan.name}</p>
+                      {loan.growlio_account_id && (
+                        <span className="shrink-0 flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[11px] font-medium bg-blue-50 text-blue-700 dark:bg-blue-950 dark:text-blue-300">
+                          <Link2 size={11} />
+                          growlio 연동
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">
+                      {loan.repayment_method ? `${REPAYMENT_METHOD_LABEL[loan.repayment_method]} · ` : ""}
+                      {ownerLabel}
+                    </p>
+                    <p className="mt-1 text-base font-bold text-gray-900 dark:text-gray-50">{formatKrw(loan.balance)}</p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">월 {formatKrw(loan.monthly_payment)}</p>
                     {loan.growlio_account_id && (
-                      <span className="shrink-0 flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[11px] font-medium bg-blue-50 text-blue-700 dark:bg-blue-950 dark:text-blue-300">
-                        <Link2 size={11} />
-                        growlio 연동
-                      </span>
+                      <p className="text-[11px] text-gray-400 dark:text-gray-500 mt-0.5">
+                        {loan.last_synced_at
+                          ? `마지막 동기화 ${formatSyncedAt(loan.last_synced_at)} · 저축·투자 탭의 부동산에서 동기화돼요`
+                          : "저축·투자 탭의 연동된 부동산에서 동기화돼요"}
+                      </p>
                     )}
                   </div>
-                  {loan.repayment_method && (
-                    <p className="text-xs text-gray-500 dark:text-gray-400">{REPAYMENT_METHOD_LABEL[loan.repayment_method]}</p>
-                  )}
-                  <p className="mt-1 text-base font-bold text-gray-900 dark:text-gray-50">{formatKrw(loan.balance)}</p>
-                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">월 {formatKrw(loan.monthly_payment)}</p>
-                  {loan.growlio_account_id && (
-                    <p className="text-[11px] text-gray-400 dark:text-gray-500 mt-0.5">
-                      {loan.last_synced_at
-                        ? `마지막 동기화 ${formatSyncedAt(loan.last_synced_at)} · 저축·투자 탭의 부동산에서 동기화돼요`
-                        : "저축·투자 탭의 연동된 부동산에서 동기화돼요"}
-                    </p>
-                  )}
+                  <RowActionButtons
+                    onEdit={() => setFormTarget(loan)}
+                    onDelete={() => setDeactivateTarget(loan.id)}
+                    deleteLabel="비활성화"
+                  />
                 </div>
-                <RowActionButtons
-                  onEdit={() => setFormTarget(loan)}
-                  onDelete={() => setDeactivateTarget(loan.id)}
-                  deleteLabel="비활성화"
-                />
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       )}
@@ -159,6 +173,7 @@ export default function LoansSection() {
           title={formTarget === "new" ? "대출 추가" : "대출 수정"}
           submitLabel={formTarget === "new" ? "추가" : "저장"}
           submitting={isSaving}
+          users={users}
           onClose={() => setFormTarget(null)}
           onSubmit={handleSubmit}
         />
@@ -180,6 +195,7 @@ function LoanFormModal({
   title,
   submitLabel,
   submitting,
+  users,
   onClose,
   onSubmit,
 }: {
@@ -187,6 +203,7 @@ function LoanFormModal({
   title: string;
   submitLabel: string;
   submitting: boolean;
+  users: UserOut[] | undefined;
   onClose: () => void;
   onSubmit: (draft: Draft) => void;
 }) {
@@ -268,6 +285,21 @@ function LoanFormModal({
               ))}
             </select>
           </div>
+        </div>
+        <div>
+          <label className={`block mb-1 font-medium ${LABEL_SM}`}>소유자</label>
+          <select
+            className={`${INPUT_SM} w-full`}
+            value={draft.owner_user_id}
+            onChange={(e) => setDraft((d) => ({ ...d, owner_user_id: e.target.value }))}
+          >
+            <option value="">공통</option>
+            {users?.map((u) => (
+              <option key={u.id} value={u.id}>
+                {u.display_name}
+              </option>
+            ))}
+          </select>
         </div>
         <Button type="submit" loading={submitting} className="mt-2">
           {submitLabel}

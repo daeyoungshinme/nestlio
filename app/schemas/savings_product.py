@@ -1,3 +1,4 @@
+import uuid
 from datetime import datetime
 from decimal import Decimal
 from typing import Literal
@@ -21,6 +22,7 @@ class SavingsProductOut(BaseModel):
     growlio_account_id: str | None = None
     auto_sync_enabled: bool = False
     last_synced_at: datetime | None = None
+    owner_user_id: uuid.UUID | None = None
 
 
 class SavingsProductCreateIn(BaseModel):
@@ -29,6 +31,7 @@ class SavingsProductCreateIn(BaseModel):
     monthly_saving_amount: Decimal = Decimal("0")
     product_type: Literal["savings", "investment", "real_estate"] = "savings"
     principal_amount: Decimal | None = None
+    owner_user_id: uuid.UUID | None = None
 
 
 class SavingsProductUpdateIn(BaseModel):
@@ -37,6 +40,7 @@ class SavingsProductUpdateIn(BaseModel):
     monthly_saving_amount: Decimal
     product_type: Literal["savings", "investment", "real_estate"]
     principal_amount: Decimal | None = None
+    owner_user_id: uuid.UUID | None = None
 
 
 class SavingsProductPlanItemOut(BaseModel):

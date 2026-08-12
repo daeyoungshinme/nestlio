@@ -27,7 +27,7 @@ import { useCrudMutations } from "@/hooks/useCrudMutations";
 import { formatKrw, formatKrwPreview, formatSyncedAt, toAmountInputValue } from "@/utils/format";
 import { extractErrorMessage } from "@/utils/error";
 import { toast } from "@/utils/toast";
-import type { AccountOut, AccountWithBalanceOut } from "@/types";
+import type { AccountOut, AccountWithBalanceOut, UserOut } from "@/types";
 
 const ACCOUNT_TYPE_LABEL: Record<AccountOut["account_type"], string> = {
   bank: "은행",
@@ -45,19 +45,25 @@ interface Draft {
   account_type: AccountOut["account_type"];
   /** 신규 등록 모드에서는 "초기 잔액", 수정 모드에서는 "현재 잔액"을 의미한다. */
   amount: string;
+  owner_user_id: string;
 }
 
-const EMPTY_DRAFT: Draft = { name: "", account_type: "bank", amount: "0" };
+const EMPTY_DRAFT: Draft = { name: "", account_type: "bank", amount: "0", owner_user_id: "" };
 
 function draftFromAccount(row: AccountWithBalanceOut): Draft {
   return {
     name: row.account.name,
     account_type: row.account.account_type,
     amount: toAmountInputValue(row.balance),
+    owner_user_id: row.account.owner_user_id ?? "",
   };
 }
 
-export default function AccountsSection() {
+interface Props {
+  users: UserOut[] | undefined;
+}
+
+export default function AccountsSection({ users }: Props) {
   const [formTarget, setFormTarget] = useState<"new" | AccountWithBalanceOut | null>(null);
   const [deactivateTarget, setDeactivateTarget] = useState<number | null>(null);
   const [importOpen, setImportOpen] = useState(false);
@@ -86,12 +92,18 @@ export default function AccountsSection() {
   const isSaving = createMutation.isPending || updateMutation.isPending;
 
   const handleSubmit = (draft: Draft) => {
+    const owner_user_id = draft.owner_user_id || null;
     if (formTarget === "new") {
-      createMutation.mutate({ name: draft.name, account_type: draft.account_type, initial_balance: draft.amount });
+      createMutation.mutate({
+        name: draft.name,
+        account_type: draft.account_type,
+        initial_balance: draft.amount,
+        owner_user_id,
+      });
     } else if (formTarget) {
       updateMutation.mutate({
         id: formTarget.account.id,
-        payload: { name: draft.name, account_type: draft.account_type, current_balance: draft.amount },
+        payload: { name: draft.name, account_type: draft.account_type, current_balance: draft.amount, owner_user_id },
       });
     }
   };
@@ -119,6 +131,7 @@ export default function AccountsSection() {
     <AccountRow
       key={row.account.id}
       row={row}
+      users={users}
       syncPending={syncMutation.isPending}
       onSync={() => syncMutation.mutate(row.account.id)}
       onEdit={() => setFormTarget(row)}
@@ -179,6 +192,7 @@ export default function AccountsSection() {
           amountLabel={formTarget === "new" ? "초기 잔액" : "현재 잔액"}
           submitLabel={formTarget === "new" ? "추가" : "저장"}
           submitting={isSaving}
+          users={users}
           onClose={() => setFormTarget(null)}
           onSubmit={handleSubmit}
         />
@@ -210,18 +224,23 @@ export default function AccountsSection() {
 
 function AccountRow({
   row,
+  users,
   syncPending,
   onSync,
   onEdit,
   onDelete,
 }: {
   row: AccountWithBalanceOut;
+  users: UserOut[] | undefined;
   syncPending: boolean;
   onSync: () => void;
   onEdit: () => void;
   onDelete: () => void;
 }) {
   const { account, balance } = row;
+  const ownerLabel = account.owner_user_id
+    ? (users?.find((u) => u.id === account.owner_user_id)?.display_name ?? "공통")
+    : "공통";
   return (
     <div className="card flex items-center justify-between gap-3">
       <div className="min-w-0">
@@ -234,7 +253,9 @@ function AccountRow({
             </span>
           )}
         </div>
-        <p className="text-xs text-gray-500 dark:text-gray-400">{ACCOUNT_TYPE_LABEL[account.account_type]}</p>
+        <p className="text-xs text-gray-500 dark:text-gray-400">
+          {ACCOUNT_TYPE_LABEL[account.account_type]} · {ownerLabel}
+        </p>
         <p className="mt-1 text-base font-bold text-gray-900 dark:text-gray-50">{formatKrw(balance)}</p>
         {account.growlio_account_id && (
           <p className="text-[11px] text-gray-400 dark:text-gray-500 mt-0.5">
@@ -265,6 +286,7 @@ function AccountFormModal({
   amountLabel,
   submitLabel,
   submitting,
+  users,
   onClose,
   onSubmit,
 }: {
@@ -273,6 +295,7 @@ function AccountFormModal({
   amountLabel: string;
   submitLabel: string;
   submitting: boolean;
+  users: UserOut[] | undefined;
   onClose: () => void;
   onSubmit: (draft: Draft) => void;
 }) {
@@ -304,6 +327,21 @@ function AccountFormModal({
             <option value="bank">은행</option>
             <option value="cash">현금</option>
             <option value="card">카드</option>
+          </select>
+        </div>
+        <div>
+          <label className={`block mb-1 font-medium ${LABEL_SM}`}>소유자</label>
+          <select
+            className={`${INPUT_SM} w-full`}
+            value={draft.owner_user_id}
+            onChange={(e) => setDraft((d) => ({ ...d, owner_user_id: e.target.value }))}
+          >
+            <option value="">공통</option>
+            {users?.map((u) => (
+              <option key={u.id} value={u.id}>
+                {u.display_name}
+              </option>
+            ))}
           </select>
         </div>
         <FormInput

@@ -60,6 +60,7 @@ export interface AccountOut {
   sort_order: number;
   growlio_account_id: string | null;
   last_synced_at: string | null;
+  owner_user_id: string | null;
 }
 
 export interface AccountWithBalanceOut {
@@ -71,12 +72,14 @@ export interface AccountCreateIn {
   name: string;
   account_type: "bank" | "cash" | "card";
   initial_balance: string;
+  owner_user_id?: string | null;
 }
 
 export interface AccountUpdateIn {
   name: string;
   account_type: "bank" | "cash" | "card";
   current_balance: string;
+  owner_user_id?: string | null;
 }
 
 export interface AccountGrowlioImportIn {
@@ -600,6 +603,7 @@ export interface SavingsProductOut {
   growlio_account_id: string | null;
   auto_sync_enabled: boolean;
   last_synced_at: string | null;
+  owner_user_id: string | null;
 }
 
 export interface SavingsProductCreateIn {
@@ -608,6 +612,7 @@ export interface SavingsProductCreateIn {
   monthly_saving_amount: string;
   product_type: SavingsProductType;
   principal_amount?: string | null;
+  owner_user_id?: string | null;
 }
 
 export type SavingsProductUpdateIn = SavingsProductCreateIn;
@@ -718,6 +723,7 @@ export interface LoanOut {
   growlio_account_id: string | null;
   auto_sync_enabled: boolean;
   last_synced_at: string | null;
+  owner_user_id: string | null;
 }
 
 export interface LoanCreateIn {
@@ -728,6 +734,7 @@ export interface LoanCreateIn {
   term_months?: number | null;
   interest_rate?: string | null;
   repayment_method?: RepaymentMethod | null;
+  owner_user_id?: string | null;
 }
 
 export type LoanUpdateIn = LoanCreateIn;

@@ -1,4 +1,5 @@
 import re
+import uuid
 from datetime import datetime
 from decimal import Decimal
 from typing import Literal
@@ -32,6 +33,7 @@ class LoanOut(BaseModel):
     growlio_account_id: str | None = None
     auto_sync_enabled: bool = False
     last_synced_at: datetime | None = None
+    owner_user_id: uuid.UUID | None = None
 
 
 class LoanCreateIn(BaseModel):
@@ -42,6 +44,7 @@ class LoanCreateIn(BaseModel):
     term_months: int | None = None
     interest_rate: Decimal | None = None
     repayment_method: RepaymentMethod | None = None
+    owner_user_id: uuid.UUID | None = None
 
     _validate_origination_year_month = field_validator("origination_year_month")(_validate_year_month)
 
@@ -54,5 +57,6 @@ class LoanUpdateIn(BaseModel):
     term_months: int | None
     interest_rate: Decimal | None
     repayment_method: RepaymentMethod | None
+    owner_user_id: uuid.UUID | None = None
 
     _validate_origination_year_month = field_validator("origination_year_month")(_validate_year_month)

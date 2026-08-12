@@ -164,7 +164,7 @@ def test_list_growlio_bank_accounts_filters_to_bank_type_only(seeded_db):
 
 
 def test_import_from_growlio_creates_one_account_per_bank_account(seeded_db):
-    db = seeded_db["db"]
+    db, user = seeded_db["db"], seeded_db["user"]
 
     with patch(
         "app.services.account_service.growlio_client.fetch_account_balances",
@@ -173,45 +173,47 @@ def test_import_from_growlio_creates_one_account_per_bank_account(seeded_db):
             {"id": "growlio-acc-2", "name": "키움 증권", "asset_type": "STOCK_KIWOOM", "current_value_krw": 5000000.0},
         ],
     ):
-        created = account_service.import_from_growlio(db, ["growlio-acc-1", "growlio-acc-2"], "token")
+        created = account_service.import_from_growlio(db, ["growlio-acc-1", "growlio-acc-2"], "token", user.id)
 
     assert len(created) == 1
     assert created[0].growlio_account_id == "growlio-acc-1"
     assert created[0].account_type == "bank"
     assert created[0].initial_balance == Decimal("1500000.0")
+    # 가져오기를 실행한 사람 = 그 growlio 계정의 실제 소유자
+    assert created[0].owner_user_id == user.id
 
 
 def test_import_from_growlio_skips_already_linked_accounts(seeded_db):
-    db = seeded_db["db"]
+    db, user = seeded_db["db"], seeded_db["user"]
     account_service.create_account(db, "기존계좌", "bank", Decimal("0"))
     with patch(
         "app.services.account_service.growlio_client.fetch_account_balances",
         return_value=[{"id": "growlio-acc-1", "name": "국민은행 입출금", "asset_type": "BANK_ACCOUNT", "current_value_krw": 1.0}],
     ):
-        first = account_service.import_from_growlio(db, ["growlio-acc-1"], "token")
-        second = account_service.import_from_growlio(db, ["growlio-acc-1"], "token")
+        first = account_service.import_from_growlio(db, ["growlio-acc-1"], "token", user.id)
+        second = account_service.import_from_growlio(db, ["growlio-acc-1"], "token", user.id)
 
     assert len(first) == 1
     assert len(second) == 0
 
 
 def test_import_from_growlio_propagates_not_configured_error(seeded_db):
-    db = seeded_db["db"]
+    db, user = seeded_db["db"], seeded_db["user"]
     with patch(
         "app.services.account_service.growlio_client.fetch_account_balances",
         side_effect=GrowlioNotConfiguredError("not configured"),
     ):
         with pytest.raises(GrowlioNotConfiguredError):
-            account_service.import_from_growlio(db, ["growlio-acc-1"], "token")
+            account_service.import_from_growlio(db, ["growlio-acc-1"], "token", user.id)
 
 
 def test_deactivate_account_clears_growlio_link(seeded_db):
-    db = seeded_db["db"]
+    db, user = seeded_db["db"], seeded_db["user"]
     with patch(
         "app.services.account_service.growlio_client.fetch_account_balances",
         return_value=[{"id": "growlio-acc-1", "name": "국민은행 입출금", "asset_type": "BANK_ACCOUNT", "current_value_krw": 1.0}],
     ):
-        created = account_service.import_from_growlio(db, ["growlio-acc-1"], "token")
+        created = account_service.import_from_growlio(db, ["growlio-acc-1"], "token", user.id)
     account = created[0]
 
     account_service.deactivate_account(db, account.id)

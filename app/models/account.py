@@ -1,7 +1,9 @@
+import uuid
 from datetime import datetime
 from decimal import Decimal
 
-from sqlalchemy import Boolean, DateTime, Integer, Numeric, String
+from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, Numeric, String
+from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.database import Base
@@ -16,6 +18,11 @@ class Account(Base):
     initial_balance: Mapped[Decimal] = mapped_column(Numeric(14, 2), default=0)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     sort_order: Mapped[int] = mapped_column(Integer, default=0)
+    # 부부 중 누구 소유인지 (NULL이면 공통/가구 공유). growlio에서 가져온 계좌는 가져오기를 실행한
+    # 사용자로 자동 설정된다 — growlio 자체가 그 사람의 Supabase JWT 기준으로 스코프되기 때문.
+    owner_user_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id"), nullable=True
+    )
 
     # growlio(자산관리) 은행 계좌 가져오기 연동 — growlio의 AssetAccount.id(UUID 문자열).
     # SavingsProduct와 달리 주기적/자동 동기화(auto_sync)는 하지 않는다: 계좌 잔액은 가계부 거래

@@ -12,6 +12,7 @@ import GrowlioSavingsImportModal from "@/components/accounts/GrowlioSavingsImpor
 import RowActionButtons from "@/components/common/RowActionButtons";
 import SkeletonCard from "@/components/common/SkeletonCard";
 import SummaryCard from "@/components/common/SummaryCard";
+import { INPUT_SM, LABEL_SM } from "@/constants/inputStyles";
 import {
   createSavingsProduct,
   deactivateSavingsProduct,
@@ -35,7 +36,7 @@ import {
   savingsProductTypeLabel,
 } from "@/utils/colors";
 import { GROWLIO_APP_URL, growlioPortfolioUrl } from "@/constants/growlio";
-import type { FinancialGoalOut, SavingsProductOut, SavingsProductType } from "@/types";
+import type { FinancialGoalOut, SavingsProductOut, SavingsProductType, UserOut } from "@/types";
 
 interface Draft {
   name: string;
@@ -43,6 +44,7 @@ interface Draft {
   monthly_saving_amount: string;
   product_type: SavingsProductType;
   principal_amount: string;
+  owner_user_id: string;
 }
 
 const EMPTY_DRAFT: Draft = {
@@ -51,6 +53,7 @@ const EMPTY_DRAFT: Draft = {
   monthly_saving_amount: "0",
   product_type: "savings",
   principal_amount: "",
+  owner_user_id: "",
 };
 const PRODUCT_TYPES: SavingsProductType[] = ["savings", "investment", "real_estate"];
 
@@ -64,6 +67,7 @@ function draftFromProduct(product: SavingsProductOut): Draft {
     monthly_saving_amount: toAmountInputValue(product.monthly_saving_amount),
     product_type: product.product_type,
     principal_amount: product.principal_amount !== null ? toAmountInputValue(product.principal_amount) : "",
+    owner_user_id: product.owner_user_id ?? "",
   };
 }
 
@@ -75,10 +79,15 @@ function toSavingsProductPayload(draft: Draft) {
     product_type: draft.product_type,
     principal_amount:
       draft.product_type !== "savings" && draft.principal_amount !== "" ? draft.principal_amount : null,
+    owner_user_id: draft.owner_user_id || null,
   };
 }
 
-export default function SavingsProductsSection() {
+interface Props {
+  users: UserOut[] | undefined;
+}
+
+export default function SavingsProductsSection({ users }: Props) {
   const [formTarget, setFormTarget] = useState<"new" | SavingsProductOut | null>(null);
   const [deactivateTarget, setDeactivateTarget] = useState<number | null>(null);
   const [importOpen, setImportOpen] = useState(false);
@@ -143,6 +152,7 @@ export default function SavingsProductsSection() {
     <SavingsProductRow
       key={product.id}
       product={product}
+      users={users}
       linkedGoals={goalsFor(product)}
       syncPending={syncMutation.isPending}
       syncRealEstatePending={syncRealEstateMutation.isPending}
@@ -224,6 +234,7 @@ export default function SavingsProductsSection() {
           title={formTarget === "new" ? "저축/투자 상품 추가" : "저축/투자 상품 수정"}
           submitLabel={formTarget === "new" ? "추가" : "저장"}
           submitting={isSaving}
+          users={users}
           onClose={() => setFormTarget(null)}
           onSubmit={handleSubmit}
         />
@@ -249,6 +260,7 @@ export default function SavingsProductsSection() {
 
 function SavingsProductRow({
   product,
+  users,
   linkedGoals,
   syncPending,
   syncRealEstatePending,
@@ -258,6 +270,7 @@ function SavingsProductRow({
   onDelete,
 }: {
   product: SavingsProductOut;
+  users: UserOut[] | undefined;
   linkedGoals: FinancialGoalOut[];
   syncPending: boolean;
   syncRealEstatePending: boolean;
@@ -267,6 +280,9 @@ function SavingsProductRow({
   onDelete: () => void;
 }) {
   const isRealEstate = product.product_type === "real_estate";
+  const ownerLabel = product.owner_user_id
+    ? (users?.find((u) => u.id === product.owner_user_id)?.display_name ?? "공통")
+    : "공통";
   return (
     <div className="card flex items-center justify-between gap-3">
       <div className="min-w-0">
@@ -299,6 +315,7 @@ function SavingsProductRow({
           )}
         </div>
         <p className="mt-1 text-base font-bold text-gray-900 dark:text-gray-50">{formatKrw(product.current_balance)}</p>
+        <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{ownerLabel}</p>
         {(!isRealEstate || product.return_amount !== null) && (
           <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
             {!isRealEstate && `월 ${formatKrw(product.monthly_saving_amount)}`}
@@ -363,6 +380,7 @@ function SavingsProductFormModal({
   title,
   submitLabel,
   submitting,
+  users,
   onClose,
   onSubmit,
 }: {
@@ -371,6 +389,7 @@ function SavingsProductFormModal({
   title: string;
   submitLabel: string;
   submitting: boolean;
+  users: UserOut[] | undefined;
   onClose: () => void;
   onSubmit: (draft: Draft) => void;
 }) {
@@ -444,6 +463,21 @@ function SavingsProductFormModal({
             preview={Number(draft.principal_amount) > 0 ? formatKrwPreview(Number(draft.principal_amount)) : undefined}
           />
         )}
+        <div>
+          <label className={`block mb-1 font-medium ${LABEL_SM}`}>소유자</label>
+          <select
+            className={`${INPUT_SM} w-full`}
+            value={draft.owner_user_id}
+            onChange={(e) => setDraft((d) => ({ ...d, owner_user_id: e.target.value }))}
+          >
+            <option value="">공통</option>
+            {users?.map((u) => (
+              <option key={u.id} value={u.id}>
+                {u.display_name}
+              </option>
+            ))}
+          </select>
+        </div>
         {product && product.product_type !== "real_estate" && <GrowlioLinkSection product={product} onLinked={onClose} />}
         <Button type="submit" loading={submitting} className="mt-2">
           {submitLabel}

@@ -1,3 +1,4 @@
+import uuid
 from decimal import Decimal
 
 from sqlalchemy.orm import Session
@@ -21,6 +22,7 @@ def create_loan(
     term_months: int | None,
     interest_rate: Decimal | None,
     repayment_method: str | None,
+    owner_user_id: uuid.UUID | None = None,
 ) -> Loan:
     loan = Loan(
         name=name,
@@ -31,6 +33,7 @@ def create_loan(
         interest_rate=interest_rate,
         repayment_method=repayment_method,
         sort_order=999,
+        owner_user_id=owner_user_id,
     )
     db.add(loan)
     db.commit()
@@ -48,6 +51,7 @@ def update_loan(
     term_months: int | None,
     interest_rate: Decimal | None,
     repayment_method: str | None,
+    owner_user_id: uuid.UUID | None = None,
 ) -> Loan | None:
     loan = db.get(Loan, loan_id)
     if loan is None:
@@ -59,6 +63,7 @@ def update_loan(
     loan.term_months = term_months
     loan.interest_rate = interest_rate
     loan.repayment_method = repayment_method
+    loan.owner_user_id = owner_user_id
     db.commit()
     db.refresh(loan)
     return loan

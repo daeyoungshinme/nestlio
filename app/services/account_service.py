@@ -1,3 +1,4 @@
+import uuid
 from datetime import datetime
 from decimal import Decimal
 
@@ -20,8 +21,16 @@ def list_accounts(db: Session, active_only: bool = True) -> list[Account]:
     return query.order_by(Account.sort_order, Account.name).all()
 
 
-def create_account(db: Session, name: str, account_type: str, initial_balance: Decimal) -> Account:
-    account = Account(name=name, account_type=account_type, initial_balance=initial_balance, sort_order=999)
+def create_account(
+    db: Session, name: str, account_type: str, initial_balance: Decimal, owner_user_id: uuid.UUID | None = None
+) -> Account:
+    account = Account(
+        name=name,
+        account_type=account_type,
+        initial_balance=initial_balance,
+        sort_order=999,
+        owner_user_id=owner_user_id,
+    )
     db.add(account)
     db.commit()
     db.refresh(account)
@@ -29,7 +38,12 @@ def create_account(db: Session, name: str, account_type: str, initial_balance: D
 
 
 def update_account(
-    db: Session, account_id: int, name: str, account_type: str, current_balance_value: Decimal
+    db: Session,
+    account_id: int,
+    name: str,
+    account_type: str,
+    current_balance_value: Decimal,
+    owner_user_id: uuid.UUID | None = None,
 ) -> Account | None:
     account = db.get(Account, account_id)
     if account is None:
@@ -40,6 +54,7 @@ def update_account(
     account.name = name
     account.account_type = account_type
     account.initial_balance = current_balance_value - net_transactions
+    account.owner_user_id = owner_user_id
     db.commit()
     db.refresh(account)
     return account
@@ -62,10 +77,14 @@ def list_growlio_bank_accounts(bearer_token: str) -> list[dict]:
     return [a for a in accounts if a["asset_type"] in growlio_client.BANK_ASSET_TYPES]
 
 
-def import_from_growlio(db: Session, growlio_account_ids: list[str], bearer_token: str) -> list[Account]:
+def import_from_growlio(
+    db: Session, growlio_account_ids: list[str], bearer_token: str, owner_user_id: uuid.UUID
+) -> list[Account]:
     """선택한 growlio 은행 계좌들을 각각 새 계좌로 1회성 잔액 시딩하며 가져온다.
 
     이후 잔액은 growlio가 아니라 가계부 거래 내역으로 파생되므로(current_balance) 지속 동기화는 하지 않는다.
+    owner_user_id는 가져오기를 실행한 사용자(bearer_token의 주인)로, growlio 자체가 그 사람의
+    Supabase JWT 기준으로 스코프된 계좌만 돌려주므로 이 사람이 곧 실제 소유자다.
     """
     if not growlio_account_ids:
         return []
@@ -93,6 +112,7 @@ def import_from_growlio(db: Session, growlio_account_ids: list[str], bearer_toke
             initial_balance=Decimal(str(account["current_value_krw"])),
             growlio_account_id=account_id,
             sort_order=999,
+            owner_user_id=owner_user_id,
         )
         db.add(new_account)
         created.append(new_account)
