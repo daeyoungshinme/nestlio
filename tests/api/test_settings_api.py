@@ -1,4 +1,3 @@
-from decimal import Decimal
 from unittest.mock import patch
 
 
@@ -65,13 +64,6 @@ def test_set_coaching_thresholds_overrides_and_persists(mock_is_connected, clien
 
     # persists across a fresh GET
     assert client.get("/api/v1/settings").json()["coaching_thresholds"] == payload
-
-
-@patch("app.routers.settings.is_connected", return_value=False)
-def test_set_emergency_fund(mock_is_connected, client):
-    resp = client.put("/api/v1/settings/emergency-fund", json={"balance": "3000000"})
-    assert resp.status_code == 200
-    assert Decimal(resp.json()["emergency_fund_balance"]) == Decimal("3000000")
 
 
 @patch("app.routers.settings.is_connected", return_value=False)

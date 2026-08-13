@@ -13,7 +13,7 @@ class SavingsProductOut(BaseModel):
     name: str
     current_balance: Decimal
     monthly_saving_amount: Decimal
-    product_type: Literal["savings", "investment", "real_estate"] = "savings"
+    product_type: Literal["savings", "investment", "real_estate", "emergency_fund"] = "savings"
     principal_amount: Decimal | None = None
     return_amount: Decimal | None = None
     return_rate_pct: Decimal | None = None
@@ -29,7 +29,7 @@ class SavingsProductCreateIn(BaseModel):
     name: str
     current_balance: Decimal = Decimal("0")
     monthly_saving_amount: Decimal = Decimal("0")
-    product_type: Literal["savings", "investment", "real_estate"] = "savings"
+    product_type: Literal["savings", "investment", "real_estate", "emergency_fund"] = "savings"
     principal_amount: Decimal | None = None
     owner_user_id: uuid.UUID | None = None
 
@@ -38,7 +38,7 @@ class SavingsProductUpdateIn(BaseModel):
     name: str
     current_balance: Decimal
     monthly_saving_amount: Decimal
-    product_type: Literal["savings", "investment", "real_estate"]
+    product_type: Literal["savings", "investment", "real_estate", "emergency_fund"]
     principal_amount: Decimal | None = None
     owner_user_id: uuid.UUID | None = None
 

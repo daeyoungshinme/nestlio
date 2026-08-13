@@ -50,7 +50,7 @@ const INSIGHT_LINKS: Partial<Record<string, { to: string; label: string }>> = {
   debt_ratio: { to: "/transactions", label: "가계부 보기" },
   budget_overrun: { to: "/financial-plan?tab=현금흐름 계획", label: "예산 보기" },
   goal_pace: { to: "/financial-plan?tab=재무목표", label: "목표 보기" },
-  emergency_fund: { to: "/accounts", label: "자산현황 보기" },
+  emergency_fund: { to: "/accounts?tab=저축·투자", label: "저축·투자 보기" },
   savings_execution: { to: "/accounts?tab=저축·투자", label: "저축·투자 보기" },
 };
 

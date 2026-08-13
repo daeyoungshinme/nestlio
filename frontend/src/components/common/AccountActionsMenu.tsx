@@ -5,7 +5,10 @@ import { TOUCH_TARGET_MIN_MOBILE_ONLY, TOUCH_TARGET_ROW } from "@/constants/uiSi
 export interface AccountActionsMenuItem {
   icon: React.ReactNode;
   label: string;
-  onClick: () => void;
+  onClick?: () => void;
+  /** 지정하면 <a target="_blank" rel="noopener noreferrer">로 렌더링해 네이티브 새 탭 열기를
+   * 유지한다 (growlio 포트폴리오 외부링크 등). onClick과 함께 줄 수도 있다(메뉴 닫기 외 추가 로직). */
+  href?: string;
   disabled?: boolean;
   variant?: "default" | "danger";
 }
@@ -56,25 +59,47 @@ export default function AccountActionsMenu({ items, ariaLabel = "더 보기" }: 
           role="menu"
           className="absolute right-0 top-full mt-1 w-44 py-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg z-20"
         >
-          {items.map((item, i) => (
-            <button
-              key={i}
-              role="menuitem"
-              disabled={item.disabled}
-              onClick={() => {
-                setIsOpen(false);
-                item.onClick();
-              }}
-              className={`w-full gap-2.5 px-3 text-sm transition-colors disabled:opacity-50 ${TOUCH_TARGET_ROW} ${
-                item.variant === "danger"
-                  ? "text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950"
-                  : "text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
-              }`}
-            >
-              {item.icon}
-              {item.label}
-            </button>
-          ))}
+          {items.map((item, i) => {
+            const itemClassName = `w-full gap-2.5 px-3 text-sm transition-colors disabled:opacity-50 ${TOUCH_TARGET_ROW} ${
+              item.variant === "danger"
+                ? "text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950"
+                : "text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
+            }`;
+            if (item.href) {
+              return (
+                <a
+                  key={i}
+                  role="menuitem"
+                  href={item.href}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={() => {
+                    setIsOpen(false);
+                    item.onClick?.();
+                  }}
+                  className={itemClassName}
+                >
+                  {item.icon}
+                  {item.label}
+                </a>
+              );
+            }
+            return (
+              <button
+                key={i}
+                role="menuitem"
+                disabled={item.disabled}
+                onClick={() => {
+                  setIsOpen(false);
+                  item.onClick?.();
+                }}
+                className={itemClassName}
+              >
+                {item.icon}
+                {item.label}
+              </button>
+            );
+          })}
         </div>
       )}
     </div>

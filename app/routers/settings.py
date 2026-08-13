@@ -4,13 +4,12 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.dependencies import get_current_user
 from app.models.user import User
-from app.schemas.settings import CoachingThresholdsIn, EmergencyFundIn, NotifyEmailsIn, SettingsOut, TestEmailResultOut
+from app.schemas.settings import CoachingThresholdsIn, NotifyEmailsIn, SettingsOut, TestEmailResultOut
 from app.services import (
     coaching_settings_service,
     couple_photo_service,
     notification_service,
     notify_recipients_service,
-    user_setting_service,
 )
 from app.services.gmail_service import GmailSendError
 from app.services.google_auth import is_connected
@@ -23,27 +22,12 @@ def _settings_out(db: Session) -> dict:
         "google_connected": is_connected(),
         "notify_emails": notify_recipients_service.get_recipients(db),
         "coaching_thresholds": coaching_settings_service.get_thresholds(db),
-        "emergency_fund_balance": user_setting_service.get_shared_setting(
-            db, user_setting_service.EMERGENCY_FUND_BALANCE_KEY, None
-        ),
         "couple_photo_url": couple_photo_service.get_photo_url(),
     }
 
 
 @router.get("", response_model=SettingsOut)
 def get_settings(db: Session = Depends(get_db), _: User = Depends(get_current_user)):
-    return _settings_out(db)
-
-
-@router.put("/emergency-fund", response_model=SettingsOut)
-def set_emergency_fund(
-    payload: EmergencyFundIn,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
-):
-    user_setting_service.set_shared_setting(
-        db, user_setting_service.EMERGENCY_FUND_BALANCE_KEY, str(payload.balance), current_user.id
-    )
     return _settings_out(db)
 
 

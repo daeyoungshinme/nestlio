@@ -1,7 +1,17 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient, keepPreviousData } from "@tanstack/react-query";
-import { CalendarDays, Download, MoreHorizontal, Plus, Repeat, SlidersHorizontal, Tag, Upload } from "lucide-react";
+import {
+  CalendarDays,
+  CalendarSync,
+  Download,
+  MoreHorizontal,
+  Plus,
+  Repeat,
+  SlidersHorizontal,
+  Tag,
+  Upload,
+} from "lucide-react";
 import ConfirmModal from "@/components/common/ConfirmModal";
 import EmptyState from "@/components/common/EmptyState";
 import Modal from "@/components/common/Modal";
@@ -36,7 +46,7 @@ import {
   fetchTransactionsCsv,
   updateTransaction,
 } from "@/api/transactions";
-import { createEvent, deleteEvent, fetchEvents, updateEvent } from "@/api/events";
+import { createEvent, deleteEvent, fetchEvents, importGoogleEvents, updateEvent } from "@/api/events";
 import { useSwipeMonth } from "@/hooks/useSwipeMonth";
 import { useInvalidateTransactionRelated } from "@/hooks/useInvalidateTransactionRelated";
 import { QUERY_KEYS } from "@/constants/queryKeys";
@@ -308,11 +318,16 @@ export default function TransactionsPage() {
   });
 
   const deleteEventMutation = useMutation({
-    mutationFn: deleteEvent,
-    onSuccess: () => {
+    mutationFn: ({ id }: { id: number; source: EventOut["source"] }) => deleteEvent(id),
+    onSuccess: (_data, variables) => {
       invalidateEvents();
       setEventDeleteTarget(null);
-      toast("일정을 삭제했습니다.", "success");
+      toast(
+        variables.source === "google_import"
+          ? "Google 캘린더 일정을 목록에서 숨겼습니다."
+          : "일정을 삭제했습니다.",
+        "success",
+      );
     },
     onError: (err) => toast(extractErrorMessage(err), "error"),
   });
@@ -320,6 +335,15 @@ export default function TransactionsPage() {
   const exportCsvMutation = useMutation({
     mutationFn: () => fetchTransactionsCsv({ date_from, date_to }),
     onSuccess: (blob) => triggerBlobDownload(blob, `transactions_${date_from}_${date_to}.csv`),
+    onError: (err) => toast(extractErrorMessage(err), "error"),
+  });
+
+  const importGoogleEventsMutation = useMutation({
+    mutationFn: () => importGoogleEvents(date_from, date_to),
+    onSuccess: (result) => {
+      invalidateEvents();
+      toast(`구글 캘린더에서 ${result.created + result.updated}건을 가져왔어요.`, "success");
+    },
     onError: (err) => toast(extractErrorMessage(err), "error"),
   });
 
@@ -551,8 +575,14 @@ export default function TransactionsPage() {
 
       {eventDeleteTarget && (
         <ConfirmModal
-          message={`"${eventDeleteTarget.title}" 일정을 삭제할까요?`}
-          onConfirm={() => deleteEventMutation.mutate(eventDeleteTarget.id)}
+          message={
+            eventDeleteTarget.source === "google_import"
+              ? `"${eventDeleteTarget.title}" 일정을 목록에서 숨길까요? Google 캘린더의 원본 일정은 삭제되지 않습니다.`
+              : `"${eventDeleteTarget.title}" 일정을 삭제할까요?`
+          }
+          onConfirm={() =>
+            deleteEventMutation.mutate({ id: eventDeleteTarget.id, source: eventDeleteTarget.source })
+          }
           onCancel={() => setEventDeleteTarget(null)}
         />
       )}
@@ -593,6 +623,15 @@ export default function TransactionsPage() {
               className="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
             >
               <Download size={18} aria-hidden="true" /> CSV 내보내기
+            </button>
+            <button
+              onClick={() => {
+                setShowMoreMenu(false);
+                importGoogleEventsMutation.mutate();
+              }}
+              className="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+            >
+              <CalendarSync size={18} aria-hidden="true" /> 구글 캘린더에서 가져오기
             </button>
             <Link
               to="/transactions/import"

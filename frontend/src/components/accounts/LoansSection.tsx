@@ -1,20 +1,23 @@
 import { useState } from "react";
 import type { FormEvent } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Link2, Plus } from "lucide-react";
+import { Link2, Pencil, Plus, Trash2 } from "lucide-react";
 import Button from "@/components/common/Button";
+import AccountActionsMenu from "@/components/common/AccountActionsMenu";
+import type { AccountActionsMenuItem } from "@/components/common/AccountActionsMenu";
 import ConfirmModal from "@/components/common/ConfirmModal";
 import EmptyState from "@/components/common/EmptyState";
 import FormInput from "@/components/common/FormInput";
 import Modal from "@/components/common/Modal";
 import RowActionButtons from "@/components/common/RowActionButtons";
 import SkeletonCard from "@/components/common/SkeletonCard";
-import SummaryCard from "@/components/common/SummaryCard";
+import InlineStatsBar from "@/components/common/InlineStatsBar";
 import { createLoan, deactivateLoan, fetchLoans, updateLoan } from "@/api/loans";
 import { QUERY_KEYS } from "@/constants/queryKeys";
 import { INPUT_SM, LABEL_SM } from "@/constants/inputStyles";
 import { useCrudMutations } from "@/hooks/useCrudMutations";
 import { formatKrw, formatKrwPreview, formatSyncedAt, toAmountInputValue } from "@/utils/format";
+import { growlioLinkedBadgeStyle } from "@/utils/colors";
 import type { LoanOut, RepaymentMethod, UserOut } from "@/types";
 
 const REPAYMENT_METHOD_LABEL: Record<RepaymentMethod, string> = {
@@ -119,48 +122,17 @@ export default function LoansSection({ users }: Props) {
         <EmptyState title="등록된 대출이 없어요" compact />
       ) : (
         <div className="space-y-4">
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            <SummaryCard label="월납입금액 합계" value={formatKrw(totalMonthly)} tone="negative" />
-          </div>
+          <InlineStatsBar items={[{ label: "월납입금액 합계", value: formatKrw(totalMonthly), tone: "negative" }]} />
           <div className="space-y-2">
-            {data.map((loan) => {
-              const ownerLabel = loan.owner_user_id
-                ? (users?.find((u) => u.id === loan.owner_user_id)?.display_name ?? "공통")
-                : "공통";
-              return (
-                <div key={loan.id} className="card flex items-center justify-between gap-3">
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-1.5 flex-wrap">
-                      <p className="text-sm font-medium text-gray-900 dark:text-gray-50 truncate">{loan.name}</p>
-                      {loan.growlio_account_id && (
-                        <span className="shrink-0 flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[11px] font-medium bg-blue-50 text-blue-700 dark:bg-blue-950 dark:text-blue-300">
-                          <Link2 size={11} />
-                          growlio 연동
-                        </span>
-                      )}
-                    </div>
-                    <p className="text-xs text-gray-500 dark:text-gray-400">
-                      {loan.repayment_method ? `${REPAYMENT_METHOD_LABEL[loan.repayment_method]} · ` : ""}
-                      {ownerLabel}
-                    </p>
-                    <p className="mt-1 text-base font-bold text-gray-900 dark:text-gray-50">{formatKrw(loan.balance)}</p>
-                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">월 {formatKrw(loan.monthly_payment)}</p>
-                    {loan.growlio_account_id && (
-                      <p className="text-[11px] text-gray-400 dark:text-gray-500 mt-0.5">
-                        {loan.last_synced_at
-                          ? `마지막 동기화 ${formatSyncedAt(loan.last_synced_at)} · 부동산 탭에서 동기화돼요`
-                          : "부동산 탭의 연동된 항목에서 동기화돼요"}
-                      </p>
-                    )}
-                  </div>
-                  <RowActionButtons
-                    onEdit={() => setFormTarget(loan)}
-                    onDelete={() => setDeactivateTarget(loan.id)}
-                    deleteLabel="비활성화"
-                  />
-                </div>
-              );
-            })}
+            {data.map((loan) => (
+              <LoanRow
+                key={loan.id}
+                loan={loan}
+                users={users}
+                onEdit={() => setFormTarget(loan)}
+                onDelete={() => setDeactivateTarget(loan.id)}
+              />
+            ))}
           </div>
         </div>
       )}
@@ -184,6 +156,62 @@ export default function LoansSection({ users }: Props) {
           onCancel={() => setDeactivateTarget(null)}
         />
       )}
+    </div>
+  );
+}
+
+function LoanRow({
+  loan,
+  users,
+  onEdit,
+  onDelete,
+}: {
+  loan: LoanOut;
+  users: UserOut[] | undefined;
+  onEdit: () => void;
+  onDelete: () => void;
+}) {
+  const ownerLabel = loan.owner_user_id
+    ? (users?.find((u) => u.id === loan.owner_user_id)?.display_name ?? "공통")
+    : "공통";
+
+  const menuItems: AccountActionsMenuItem[] = [
+    { icon: <Pencil size={16} />, label: "수정", onClick: onEdit },
+    { icon: <Trash2 size={16} />, label: "비활성화", onClick: onDelete, variant: "danger" },
+  ];
+
+  return (
+    <div className="card p-4 sm:p-5 flex items-center justify-between gap-3">
+      <div className="min-w-0">
+        <div className="flex items-center gap-1.5 flex-wrap">
+          <p className="text-sm font-medium text-gray-900 dark:text-gray-50 truncate">{loan.name}</p>
+          {loan.growlio_account_id && (
+            <span className={`shrink-0 flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[11px] font-medium ${growlioLinkedBadgeStyle()}`}>
+              <Link2 size={11} />
+              growlio 연동
+            </span>
+          )}
+        </div>
+        <p className="text-xs text-gray-500 dark:text-gray-400">
+          {loan.repayment_method ? `${REPAYMENT_METHOD_LABEL[loan.repayment_method]} · ` : ""}
+          {ownerLabel}
+        </p>
+        <p className="mt-1 text-base font-bold text-gray-900 dark:text-gray-50">{formatKrw(loan.balance)}</p>
+        <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">월 {formatKrw(loan.monthly_payment)}</p>
+        {loan.growlio_account_id && (
+          <p className="text-[11px] text-gray-400 dark:text-gray-500 mt-0.5">
+            {loan.last_synced_at
+              ? `마지막 동기화 ${formatSyncedAt(loan.last_synced_at)} · 부동산 탭에서 동기화돼요`
+              : "부동산 탭의 연동된 항목에서 동기화돼요"}
+          </p>
+        )}
+      </div>
+      <div className="hidden sm:flex">
+        <RowActionButtons onEdit={onEdit} onDelete={onDelete} deleteLabel="비활성화" />
+      </div>
+      <div className="sm:hidden">
+        <AccountActionsMenu items={menuItems} ariaLabel={`${loan.name} 작업 더 보기`} />
+      </div>
     </div>
   );
 }

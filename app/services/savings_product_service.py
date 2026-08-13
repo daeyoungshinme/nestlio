@@ -29,6 +29,17 @@ def list_products(db: Session, active_only: bool = True) -> list[SavingsProduct]
     return query.order_by(SavingsProduct.sort_order, SavingsProduct.name).all()
 
 
+def get_emergency_fund_balance(db: Session) -> Decimal | None:
+    """활성 비상금 상품(product_type='emergency_fund')들의 잔액 합. 등록된 상품이 없으면
+    coaching_engine이 "설정 없음"으로 처리할 수 있도록 None을 반환한다."""
+    total = (
+        db.query(func.sum(SavingsProduct.current_balance))
+        .filter(SavingsProduct.product_type == "emergency_fund", SavingsProduct.is_active.is_(True))
+        .scalar()
+    )
+    return total
+
+
 def actuals_for_month(db: Session, year_month: str) -> dict[int, Decimal]:
     """이번 달 각 저축/투자 상품에 연결된 지출 거래(Transaction.savings_product_id)의 합.
     저축상품 연결 거래는 type='expense'만 허용되므로(transaction_service._validate_savings_link)

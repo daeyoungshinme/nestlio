@@ -304,6 +304,7 @@ export interface CategoryTrendOut {
 }
 
 export type EventFrequency = "once" | "weekly" | "monthly";
+export type EventSource = "native" | "google_import";
 
 export interface EventOut {
   id: number;
@@ -317,12 +318,19 @@ export interface EventOut {
   recurrence_end_date: string | null;
   reminder_minutes_before: number | null;
   creator: UserOut;
+  source: EventSource;
   occurrence_start: string;
 }
 
 export interface EventListOut {
   items: EventOut[];
   recurring_due: RecurringOut[];
+}
+
+export interface EventImportResultOut {
+  created: number;
+  updated: number;
+  skipped: number;
 }
 
 export interface EventCreateIn {
@@ -356,7 +364,6 @@ export interface SettingsOut {
   google_connected: boolean;
   notify_emails: string[];
   coaching_thresholds: CoachingThresholdsOut;
-  emergency_fund_balance: string | null;
   couple_photo_url: string | null;
 }
 
@@ -589,7 +596,7 @@ export interface ChallengeProgressIn {
   current_amount: string;
 }
 
-export type SavingsProductType = "savings" | "investment" | "real_estate";
+export type SavingsProductType = "savings" | "investment" | "real_estate" | "emergency_fund";
 
 export interface SavingsProductOut {
   id: number;

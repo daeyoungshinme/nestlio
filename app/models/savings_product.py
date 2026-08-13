@@ -16,7 +16,9 @@ class SavingsProduct(Base):
     name: Mapped[str] = mapped_column(String(100))
     current_balance: Mapped[Decimal] = mapped_column(Numeric(14, 2), default=0)
     monthly_saving_amount: Mapped[Decimal] = mapped_column(Numeric(12, 2), default=0)
-    product_type: Mapped[str] = mapped_column(String(20), default="savings")  # 'savings' | 'investment' | 'real_estate'
+    product_type: Mapped[str] = mapped_column(
+        String(20), default="savings"
+    )  # 'savings' | 'investment' | 'real_estate' | 'emergency_fund'
     # 투자/부동산 전용: 지금까지 납입한 원금(투자) 또는 매입가(부동산). 저축(savings) 상품은
     # 원금=잔액이라 의미가 없어 nullable로 둔다.
     principal_amount: Mapped[Decimal | None] = mapped_column(Numeric(14, 2), nullable=True)

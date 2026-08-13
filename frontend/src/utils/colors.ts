@@ -64,24 +64,27 @@ export function planStatusTextClass(status: PlanStatus): string {
   return PLAN_STATUS_TEXT[status];
 }
 
-export type SavingsProductType = "savings" | "investment" | "real_estate";
+export type SavingsProductType = "savings" | "investment" | "real_estate" | "emergency_fund";
 
 const SAVINGS_PRODUCT_TYPE_BADGE_STYLE: Record<SavingsProductType, string> = {
   savings: "bg-emerald-50 dark:bg-emerald-950 text-emerald-600 dark:text-emerald-400",
   investment: "bg-blue-50 dark:bg-blue-950 text-blue-600 dark:text-blue-400",
   real_estate: "bg-amber-50 dark:bg-amber-950 text-amber-600 dark:text-amber-400",
+  emergency_fund: "bg-rose-50 dark:bg-rose-950 text-rose-600 dark:text-rose-400",
 };
 
 const SAVINGS_PRODUCT_TYPE_DOT: Record<SavingsProductType, string> = {
   savings: "bg-emerald-500",
   investment: "bg-blue-500",
   real_estate: "bg-amber-500",
+  emergency_fund: "bg-rose-500",
 };
 
 const SAVINGS_PRODUCT_TYPE_LABEL: Record<SavingsProductType, string> = {
   savings: "저축",
   investment: "투자",
   real_estate: "부동산",
+  emergency_fund: "비상금",
 };
 
 export function savingsProductTypeBadgeStyle(type: SavingsProductType): string {
@@ -171,6 +174,39 @@ export function progressStatusBadgeClass(status: ProgressStatus): string {
 
 export function progressStatusLabel(status: ProgressStatus): string {
   return PROGRESS_STATUS_LABEL[status];
+}
+
+export type AssetCategory = "accounts" | "savings_investment" | "real_estate";
+
+/** 자산현황 도넛(계좌/저축·투자/부동산 구성비) 전용 팔레트. 파이 조각이 서로 모두 인접하는
+ * all-pairs 형태라 dataviz 스킬 검증 스크립트로 라이트/다크 모두 CVD·명도 기준 통과를 확인한
+ * 조합(라이트 모드 부동산 슬라이스만 배경 대비 WARN)이다 — 색만으로 구분하지 않도록
+ * AssetCompositionDonut은 항상 텍스트 범례를 함께 그린다. 대출은 파이 슬라이스(같은 부호끼리의
+ * 부분-전체 비교)에 넣지 않는다 — 자산(+)과 부채를 같은 도넛에 양수 조각으로 섞으면 대출도
+ * 자산의 일부처럼 읽히는 오독이 생긴다(실제로 겪은 문제). 대출은 AssetCompositionDonut 범례에도
+ * 넣지 않고, AccountsSnapshotCard가 순자산 아래 "총자산 − 대출 = 순자산" 계산식 텍스트로 별도
+ * 표시한다. savings/investment 저축상품 배지 색(SAVINGS_PRODUCT_TYPE_*)과는 다른 축(자산
+ * "대분류" vs 저축상품 "세부 유형")이라 의도적으로 별개 팔레트를 쓴다. */
+const ASSET_CATEGORY_CHART_COLOR: Record<AssetCategory, { light: string; dark: string }> = {
+  accounts: { light: "#2a78d6", dark: "#3987e5" },
+  savings_investment: { light: "#eb6834", dark: "#d95926" },
+  real_estate: { light: "#1baf7a", dark: "#199e70" },
+};
+
+export function assetCategoryChartColor(category: AssetCategory, isDark: boolean): string {
+  return ASSET_CATEGORY_CHART_COLOR[category][isDark ? "dark" : "light"];
+}
+
+export function growlioLinkedBadgeStyle(): string {
+  return "bg-blue-50 dark:bg-blue-950 text-blue-700 dark:text-blue-300";
+}
+
+export function googleImportedEventBadgeStyle(): string {
+  return "bg-amber-50 dark:bg-amber-950 text-amber-600 dark:text-amber-400";
+}
+
+export function linkedGoalBadgeStyle(): string {
+  return "bg-emerald-50 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300";
 }
 
 const RECURRING_LINK_BADGE_STYLE: Record<"active" | "inactive", string> = {

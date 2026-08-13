@@ -4,8 +4,6 @@ from sqlalchemy.orm import Session
 
 from app.models.user_setting import UserSetting
 
-EMERGENCY_FUND_BALANCE_KEY = "emergency_fund_balance"
-
 
 def get_shared_setting(db: Session, key: str, default: str | None = None) -> str | None:
     """Settings like the emergency-fund balance are shared household state, not

@@ -3,9 +3,6 @@ import type { CoachingThresholdsIn, NotifyEmailsIn, SettingsOut, TestEmailResult
 
 export const fetchSettings = () => apiGet<SettingsOut>("/settings");
 
-export const setEmergencyFund = (balance: string) =>
-  apiPut<SettingsOut>("/settings/emergency-fund", { balance });
-
 export const setNotifyEmails = (emails: string[]) =>
   apiPut<SettingsOut>("/settings/notify-emails", { emails } satisfies NotifyEmailsIn);
 

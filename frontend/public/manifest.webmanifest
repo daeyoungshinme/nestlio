@@ -2,7 +2,7 @@
   "name": "Nestlio",
   "short_name": "Nestlio",
   "description": "부부 전용 가계부",
-  "theme_color": "#2563EB",
+  "theme_color": "#7E14FF",
   "background_color": "#ffffff",
   "display": "standalone",
   "start_url": "/",

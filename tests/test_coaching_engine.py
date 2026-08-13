@@ -10,7 +10,6 @@ from app.services import (
     net_worth_service,
     savings_product_service,
     transaction_service,
-    user_setting_service,
 )
 from app.services.coaching_engine import (
     Insight,
@@ -395,8 +394,8 @@ def test_compute_insights_skips_savings_execution_without_two_snapshots(seeded_d
 def test_compute_insights_includes_emergency_fund_when_balance_set(seeded_db):
     db, user, rent = seeded_db["db"], seeded_db["user"], seeded_db["rent"]
     transaction_service.create_transaction(db, user.id, rent.id, "expense", Decimal("1000000"), date(2026, 6, 1))
-    user_setting_service.set_shared_setting(
-        db, user_setting_service.EMERGENCY_FUND_BALANCE_KEY, "2000000", user.id
+    savings_product_service.create_product(
+        db, "비상금", Decimal("2000000"), Decimal("0"), product_type="emergency_fund"
     )
 
     insights = coaching_engine.compute_insights(db, "2026-07")

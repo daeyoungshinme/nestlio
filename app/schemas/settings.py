@@ -1,5 +1,4 @@
 import re
-from decimal import Decimal
 
 from pydantic import BaseModel, Field, field_validator
 
@@ -26,12 +25,7 @@ class SettingsOut(BaseModel):
     google_connected: bool
     notify_emails: list[str]
     coaching_thresholds: CoachingThresholdsOut
-    emergency_fund_balance: str | None = None
     couple_photo_url: str | None = None
-
-
-class EmergencyFundIn(BaseModel):
-    balance: Decimal
 
 
 class NotifyEmailsIn(BaseModel):

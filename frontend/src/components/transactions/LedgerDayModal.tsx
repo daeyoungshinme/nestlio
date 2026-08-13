@@ -6,6 +6,7 @@ import Modal from "@/components/common/Modal";
 import Tabs from "@/components/common/Tabs";
 import TransactionListItem from "@/components/transactions/TransactionListItem";
 import { formatDate, formatKrw } from "@/utils/format";
+import { googleImportedEventBadgeStyle } from "@/utils/colors";
 import type { EventFrequency, EventOut, RecurringOut, TransactionOut, UserOut } from "@/types";
 
 const FREQUENCY_LABEL: Record<EventFrequency, string> = { once: "한 번", weekly: "매주", monthly: "매월" };
@@ -126,6 +127,13 @@ export default function LedgerDayModal({
                           <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-50 dark:bg-blue-950 text-blue-600 dark:text-blue-400">
                             {event.creator.display_name}
                           </span>
+                          {event.source === "google_import" && (
+                            <span
+                              className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${googleImportedEventBadgeStyle()}`}
+                            >
+                              Google 캘린더
+                            </span>
+                          )}
                         </div>
                         <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
                           {event.all_day ? "종일" : time}
@@ -133,13 +141,15 @@ export default function LedgerDayModal({
                         </p>
                       </div>
                       <div className="flex items-center gap-1 shrink-0">
-                        <button
-                          onClick={() => onEditEvent(event)}
-                          className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-950 rounded-lg transition-colors"
-                          aria-label="수정"
-                        >
-                          <Pencil size={16} />
-                        </button>
+                        {event.source !== "google_import" && (
+                          <button
+                            onClick={() => onEditEvent(event)}
+                            className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-950 rounded-lg transition-colors"
+                            aria-label="수정"
+                          >
+                            <Pencil size={16} />
+                          </button>
+                        )}
                         <button
                           onClick={() => onDeleteEvent(event)}
                           className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950 rounded-lg transition-colors"

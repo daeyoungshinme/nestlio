@@ -13,8 +13,8 @@ from app.services import (
     coaching_settings_service,
     goal_service,
     net_worth_service,
+    savings_product_service,
     transaction_service,
-    user_setting_service,
 )
 from app.utils.dates import month_bounds, year_month_str
 
@@ -225,13 +225,13 @@ def recommend_surplus_allocation(
 def emergency_fund_context(db: Session, month_start: date) -> tuple[Decimal | None, Decimal | None]:
     """비상금 잔액과 최근 3개월 평균 고정지출 — compute_insights와 compute_surplus_allocation이
     같은 달을 대상으로 함께 호출될 때(app/routers/dashboard.py) 각자 재조회하지 않고 공유할 수
-    있도록 뽑아낸 조회 헬퍼. 비상금 설정이 없으면 (None, None)."""
-    balance_raw = user_setting_service.get_shared_setting(db, user_setting_service.EMERGENCY_FUND_BALANCE_KEY)
-    if not balance_raw:
+    있도록 뽑아낸 조회 헬퍼. 등록된 비상금 상품이 없으면 (None, None)."""
+    balance = savings_product_service.get_emergency_fund_balance(db)
+    if not balance:
         return None, None
     trend = transaction_service.monthly_trend(db, months=3, anchor=month_start)
     avg_fixed = sum((Decimal(str(row["fixed"])) for row in trend), Decimal("0")) / len(trend)
-    return Decimal(balance_raw), avg_fixed
+    return balance, avg_fixed
 
 
 def compute_surplus_allocation(

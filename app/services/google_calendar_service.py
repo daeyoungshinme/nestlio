@@ -1,4 +1,5 @@
-from datetime import timedelta
+from datetime import date, datetime, time, timedelta
+from zoneinfo import ZoneInfo
 
 from googleapiclient.discovery import build
 from sqlalchemy.orm import Session
@@ -102,6 +103,37 @@ def upsert_event(db: Session, event: Event) -> None:
     created = service.events().insert(calendarId=CALENDAR_ID, body=body).execute()
     event.google_calendar_event_id = created["id"]
     db.commit()
+
+
+def list_events(range_start: date, range_end: date) -> list[dict]:
+    """Fetch raw Google Calendar event resources overlapping [range_start, range_end]
+    (inclusive), with recurring events expanded into individual instances (singleEvents=True)
+    so callers never need to parse RRULEs. Cancelled events are excluded by default."""
+    service = _service()
+    tz = ZoneInfo(TIME_ZONE)
+    time_min = datetime.combine(range_start, time.min, tzinfo=tz).isoformat()
+    time_max = datetime.combine(range_end, time.max, tzinfo=tz).isoformat()
+
+    items: list[dict] = []
+    page_token: str | None = None
+    while True:
+        response = (
+            service.events()
+            .list(
+                calendarId=CALENDAR_ID,
+                timeMin=time_min,
+                timeMax=time_max,
+                singleEvents=True,
+                orderBy="startTime",
+                pageToken=page_token,
+            )
+            .execute()
+        )
+        items.extend(response.get("items", []))
+        page_token = response.get("nextPageToken")
+        if not page_token:
+            break
+    return items
 
 
 def delete_event(event: Event) -> None:

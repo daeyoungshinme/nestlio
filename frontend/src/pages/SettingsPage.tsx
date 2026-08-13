@@ -541,7 +541,11 @@ export default function SettingsPage() {
         </CollapsibleGroup>
 
         <div className="border-t border-gray-100 dark:border-gray-800 pt-3 space-y-1">
-          <SettingsLinkRow to="/accounts" label="비상금 관리" hint="현재 잔액은 자산현황에서 기록해요" />
+          <SettingsLinkRow
+            to="/accounts?tab=저축·투자"
+            label="비상금 관리"
+            hint="저축·투자 탭에서 비상금 항목으로 기록해요"
+          />
           <SettingsLinkRow to="/categories" label="카테고리 관리" hint="고정·변동·비정기지출 카테고리 추가/수정" />
         </div>
       </SettingsSectionCard>

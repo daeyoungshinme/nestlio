@@ -1,8 +1,10 @@
 import { useState } from "react";
 import type { FormEvent } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Download, ExternalLink, Link2, Plus, RefreshCw, Unlink } from "lucide-react";
+import { Download, ExternalLink, Link2, Pencil, Plus, RefreshCw, Trash2, Unlink } from "lucide-react";
 import Button from "@/components/common/Button";
+import AccountActionsMenu from "@/components/common/AccountActionsMenu";
+import type { AccountActionsMenuItem } from "@/components/common/AccountActionsMenu";
 import CollapsibleGroup from "@/components/common/CollapsibleGroup";
 import ConfirmModal from "@/components/common/ConfirmModal";
 import EmptyState from "@/components/common/EmptyState";
@@ -11,7 +13,7 @@ import Modal from "@/components/common/Modal";
 import GrowlioSavingsImportModal from "@/components/accounts/GrowlioSavingsImportModal";
 import RowActionButtons from "@/components/common/RowActionButtons";
 import SkeletonCard from "@/components/common/SkeletonCard";
-import SummaryCard from "@/components/common/SummaryCard";
+import InlineStatsBar from "@/components/common/InlineStatsBar";
 import { INPUT_SM, LABEL_SM } from "@/constants/inputStyles";
 import { TOUCH_TARGET_MIN_MOBILE_ONLY } from "@/constants/uiSizes";
 import {
@@ -30,12 +32,14 @@ import { formatKrw, formatKrwPreview, formatPercent, formatSyncedAt, toAmountInp
 import { extractErrorMessage } from "@/utils/error";
 import { toast } from "@/utils/toast";
 import {
+  growlioLinkedBadgeStyle,
+  linkedGoalBadgeStyle,
   returnRateTextColor,
   savingsProductTypeBadgeStyle,
   savingsProductTypeDotClass,
   savingsProductTypeLabel,
 } from "@/utils/colors";
-import { GROWLIO_APP_URL, growlioPortfolioUrl } from "@/constants/growlio";
+import { GROWLIO_APP_URL, growlioPortfolioUrl, isGrowlioLinkedInvestment } from "@/constants/growlio";
 import type { FinancialGoalOut, SavingsProductOut, SavingsProductType, UserOut } from "@/types";
 
 interface Draft {
@@ -55,7 +59,7 @@ const EMPTY_DRAFT: Draft = {
   principal_amount: "",
   owner_user_id: "",
 };
-const PRODUCT_TYPES: SavingsProductType[] = ["savings", "investment"];
+const PRODUCT_TYPES: SavingsProductType[] = ["savings", "investment", "emergency_fund"];
 
 /** 항목이 적을 때 유형별로 접어두면 오히려 한눈에 보기 어려워지므로, 이 개수 이상일 때만 그룹핑한다. */
 const GROUP_THRESHOLD = 5;
@@ -175,13 +179,17 @@ export default function SavingsProductsSection({ users }: Props) {
         <EmptyState title="등록된 저축/투자 상품이 없어요" compact />
       ) : (
         <div className="space-y-4">
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            <SummaryCard label="월 저축액 합계" value={formatKrw(totalMonthly)} />
-            {balanceByType.length > 1 &&
-              balanceByType.map(({ type, total }) => (
-                <SummaryCard key={type} label={savingsProductTypeLabel(type)} value={formatKrw(total)} />
-              ))}
-          </div>
+          <InlineStatsBar
+            items={[
+              { label: "월 저축액 합계", value: formatKrw(totalMonthly) },
+              ...(balanceByType.length > 1
+                ? balanceByType.map(({ type, total }) => ({
+                    label: savingsProductTypeLabel(type),
+                    value: formatKrw(total),
+                  }))
+                : []),
+            ]}
+          />
 
           {shouldGroup ? (
             <div className="space-y-4">
@@ -261,25 +269,48 @@ function SavingsProductRow({
   const ownerLabel = product.owner_user_id
     ? (users?.find((u) => u.id === product.owner_user_id)?.display_name ?? "공통")
     : "공통";
+  const showsExternalLink = isGrowlioLinkedInvestment(product) && !!GROWLIO_APP_URL;
+
+  const menuItems: AccountActionsMenuItem[] = [];
+  if (product.growlio_account_id) {
+    menuItems.push({
+      icon: <RefreshCw size={16} className={syncPending ? "animate-spin" : ""} />,
+      label: syncPending ? "동기화 중…" : "growlio 동기화",
+      onClick: onSync,
+      disabled: syncPending,
+    });
+  }
+  if (showsExternalLink) {
+    menuItems.push({
+      icon: <ExternalLink size={16} />,
+      label: "growlio에서 포트폴리오 보기",
+      href: growlioPortfolioUrl(product.growlio_account_id as string),
+    });
+  }
+  menuItems.push({ icon: <Pencil size={16} />, label: "수정", onClick: onEdit });
+  menuItems.push({ icon: <Trash2 size={16} />, label: "비활성화", onClick: onDelete, variant: "danger" });
+
   return (
-    <div className="card flex items-center justify-between gap-3">
+    <div className="card p-4 sm:p-5 flex items-center justify-between gap-3">
       <div className="min-w-0">
-        <div className="flex items-center gap-1.5 flex-wrap">
-          <p className="text-sm font-medium text-gray-900 dark:text-gray-50 truncate">{product.name}</p>
+        <div className="flex items-center gap-1.5">
+          <p className="text-sm font-medium text-gray-900 dark:text-gray-50 truncate flex-1 min-w-0">{product.name}</p>
+          {product.growlio_account_id && (
+            <span className={`shrink-0 flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[11px] font-medium ${growlioLinkedBadgeStyle()}`}>
+              <Link2 size={11} />
+              growlio 연동
+            </span>
+          )}
+        </div>
+        <div className="flex items-center gap-1.5 flex-wrap mt-1">
           <span
             className={`shrink-0 px-1.5 py-0.5 rounded text-[11px] font-medium ${savingsProductTypeBadgeStyle(product.product_type)}`}
           >
             {savingsProductTypeLabel(product.product_type)}
           </span>
-          {product.growlio_account_id && (
-            <span className="shrink-0 flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[11px] font-medium bg-blue-50 text-blue-700 dark:bg-blue-950 dark:text-blue-300">
-              <Link2 size={11} />
-              growlio 연동
-            </span>
-          )}
           {linkedGoals.length > 0 && (
             <span
-              className="shrink-0 max-w-[140px] sm:max-w-[220px] truncate px-1.5 py-0.5 rounded text-[11px] font-medium bg-emerald-50 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300"
+              className={`shrink-0 max-w-[140px] sm:max-w-[220px] truncate px-1.5 py-0.5 rounded text-[11px] font-medium ${linkedGoalBadgeStyle()}`}
               title={`목표: ${linkedGoals.map((g) => g.name).join(", ")}`}
             >
               목표: {linkedGoals[0].name}
@@ -293,7 +324,7 @@ function SavingsProductRow({
             </span>
           )}
         </div>
-        <p className="text-xs text-gray-500 dark:text-gray-400">
+        <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
           {ownerLabel}
           {` · 월 ${formatKrw(product.monthly_saving_amount)}`}
           {product.return_amount !== null && (
@@ -312,29 +343,34 @@ function SavingsProductRow({
         )}
       </div>
       <div className="flex items-center gap-1 shrink-0">
-        {product.growlio_account_id && (
-          <button
-            onClick={onSync}
-            disabled={syncPending}
-            className={`${TOUCH_TARGET_MIN_MOBILE_ONLY} p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-950 rounded-lg transition-colors disabled:opacity-50`}
-            aria-label="growlio 동기화"
-          >
-            <RefreshCw size={16} className={syncPending ? "animate-spin" : ""} />
-          </button>
-        )}
-        {product.product_type === "investment" && product.growlio_account_id && GROWLIO_APP_URL && (
-          <a
-            href={growlioPortfolioUrl(product.growlio_account_id)}
-            target="_blank"
-            rel="noopener noreferrer"
-            className={`${TOUCH_TARGET_MIN_MOBILE_ONLY} p-2 text-gray-400 hover:text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-950 rounded-lg transition-colors`}
-            aria-label="growlio에서 포트폴리오 보기"
-            title="growlio에서 포트폴리오 보기"
-          >
-            <ExternalLink size={16} />
-          </a>
-        )}
-        <RowActionButtons onEdit={onEdit} onDelete={onDelete} deleteLabel="비활성화" />
+        <div className="hidden sm:flex items-center gap-1">
+          {product.growlio_account_id && (
+            <button
+              onClick={onSync}
+              disabled={syncPending}
+              className={`${TOUCH_TARGET_MIN_MOBILE_ONLY} p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-950 rounded-lg transition-colors disabled:opacity-50`}
+              aria-label="growlio 동기화"
+            >
+              <RefreshCw size={16} className={syncPending ? "animate-spin" : ""} />
+            </button>
+          )}
+          {showsExternalLink && (
+            <a
+              href={growlioPortfolioUrl(product.growlio_account_id as string)}
+              target="_blank"
+              rel="noopener noreferrer"
+              className={`${TOUCH_TARGET_MIN_MOBILE_ONLY} p-2 text-gray-400 hover:text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-950 rounded-lg transition-colors`}
+              aria-label="growlio에서 포트폴리오 보기"
+              title="growlio에서 포트폴리오 보기"
+            >
+              <ExternalLink size={16} />
+            </a>
+          )}
+          <RowActionButtons onEdit={onEdit} onDelete={onDelete} deleteLabel="비활성화" />
+        </div>
+        <div className="sm:hidden">
+          <AccountActionsMenu items={menuItems} ariaLabel={`${product.name} 작업 더 보기`} />
+        </div>
       </div>
     </div>
   );

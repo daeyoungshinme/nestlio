@@ -1,8 +1,10 @@
 import { useState } from "react";
 import type { FormEvent } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Download, Link2, Plus, RefreshCw } from "lucide-react";
+import { Download, Link2, Pencil, Plus, RefreshCw, Trash2 } from "lucide-react";
 import Button from "@/components/common/Button";
+import AccountActionsMenu from "@/components/common/AccountActionsMenu";
+import type { AccountActionsMenuItem } from "@/components/common/AccountActionsMenu";
 import ConfirmModal from "@/components/common/ConfirmModal";
 import EmptyState from "@/components/common/EmptyState";
 import FormInput from "@/components/common/FormInput";
@@ -10,7 +12,7 @@ import GrowlioSavingsImportModal from "@/components/accounts/GrowlioSavingsImpor
 import Modal from "@/components/common/Modal";
 import RowActionButtons from "@/components/common/RowActionButtons";
 import SkeletonCard from "@/components/common/SkeletonCard";
-import SummaryCard from "@/components/common/SummaryCard";
+import InlineStatsBar from "@/components/common/InlineStatsBar";
 import { INPUT_SM, LABEL_SM } from "@/constants/inputStyles";
 import { TOUCH_TARGET_MIN_MOBILE_ONLY } from "@/constants/uiSizes";
 import {
@@ -26,7 +28,13 @@ import { useCrudMutations } from "@/hooks/useCrudMutations";
 import { formatKrw, formatKrwPreview, formatPercent, formatSyncedAt, toAmountInputValue } from "@/utils/format";
 import { extractErrorMessage } from "@/utils/error";
 import { toast } from "@/utils/toast";
-import { returnRateTextColor, savingsProductTypeBadgeStyle, savingsProductTypeLabel } from "@/utils/colors";
+import {
+  growlioLinkedBadgeStyle,
+  linkedGoalBadgeStyle,
+  returnRateTextColor,
+  savingsProductTypeBadgeStyle,
+  savingsProductTypeLabel,
+} from "@/utils/colors";
 import type { FinancialGoalOut, SavingsProductOut, UserOut } from "@/types";
 
 interface Draft {
@@ -135,13 +143,11 @@ export default function RealEstateSection({ users }: Props) {
       ) : (
         <div className="space-y-4">
           {rowsWithGain.length > 0 && (
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-              <SummaryCard
-                label="평가손익 합계"
-                value={formatKrw(totalGain)}
-                tone={totalGain >= 0 ? "positive" : "negative"}
-              />
-            </div>
+            <InlineStatsBar
+              items={[
+                { label: "평가손익 합계", value: formatKrw(totalGain), tone: totalGain >= 0 ? "positive" : "negative" },
+              ]}
+            />
           )}
 
           <div className="space-y-2">
@@ -212,25 +218,40 @@ function RealEstateRow({
   const ownerLabel = product.owner_user_id
     ? (users?.find((u) => u.id === product.owner_user_id)?.display_name ?? "공통")
     : "공통";
+
+  const menuItems: AccountActionsMenuItem[] = [];
+  if (product.growlio_account_id) {
+    menuItems.push({
+      icon: <RefreshCw size={16} className={syncPending ? "animate-spin" : ""} />,
+      label: syncPending ? "동기화 중…" : "growlio 시세/담보대출 동기화",
+      onClick: onSync,
+      disabled: syncPending,
+    });
+  }
+  menuItems.push({ icon: <Pencil size={16} />, label: "수정", onClick: onEdit });
+  menuItems.push({ icon: <Trash2 size={16} />, label: "비활성화", onClick: onDelete, variant: "danger" });
+
   return (
-    <div className="card flex items-center justify-between gap-3">
+    <div className="card p-4 sm:p-5 flex items-center justify-between gap-3">
       <div className="min-w-0">
-        <div className="flex items-center gap-1.5 flex-wrap">
-          <p className="text-sm font-medium text-gray-900 dark:text-gray-50 truncate">{product.name}</p>
+        <div className="flex items-center gap-1.5">
+          <p className="text-sm font-medium text-gray-900 dark:text-gray-50 truncate flex-1 min-w-0">{product.name}</p>
+          {product.growlio_account_id && (
+            <span className={`shrink-0 flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[11px] font-medium ${growlioLinkedBadgeStyle()}`}>
+              <Link2 size={11} />
+              growlio 연동
+            </span>
+          )}
+        </div>
+        <div className="flex items-center gap-1.5 flex-wrap mt-1">
           <span
             className={`shrink-0 px-1.5 py-0.5 rounded text-[11px] font-medium ${savingsProductTypeBadgeStyle(product.product_type)}`}
           >
             {savingsProductTypeLabel(product.product_type)}
           </span>
-          {product.growlio_account_id && (
-            <span className="shrink-0 flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[11px] font-medium bg-blue-50 text-blue-700 dark:bg-blue-950 dark:text-blue-300">
-              <Link2 size={11} />
-              growlio 연동
-            </span>
-          )}
           {linkedGoals.length > 0 && (
             <span
-              className="shrink-0 max-w-[140px] sm:max-w-[220px] truncate px-1.5 py-0.5 rounded text-[11px] font-medium bg-emerald-50 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300"
+              className={`shrink-0 max-w-[140px] sm:max-w-[220px] truncate px-1.5 py-0.5 rounded text-[11px] font-medium ${linkedGoalBadgeStyle()}`}
               title={`목표: ${linkedGoals.map((g) => g.name).join(", ")}`}
             >
               목표: {linkedGoals[0].name}
@@ -244,7 +265,7 @@ function RealEstateRow({
             </span>
           )}
         </div>
-        <p className="text-xs text-gray-500 dark:text-gray-400">
+        <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
           {ownerLabel}
           {product.return_amount !== null && (
             <span className={returnRateTextColor(Number(product.return_rate_pct))}>
@@ -262,18 +283,23 @@ function RealEstateRow({
         )}
       </div>
       <div className="flex items-center gap-1 shrink-0">
-        {product.growlio_account_id && (
-          <button
-            onClick={onSync}
-            disabled={syncPending}
-            className={`${TOUCH_TARGET_MIN_MOBILE_ONLY} p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-950 rounded-lg transition-colors disabled:opacity-50`}
-            aria-label="growlio 시세/담보대출 동기화"
-            title="시세/담보대출 동기화"
-          >
-            <RefreshCw size={16} className={syncPending ? "animate-spin" : ""} />
-          </button>
-        )}
-        <RowActionButtons onEdit={onEdit} onDelete={onDelete} deleteLabel="비활성화" />
+        <div className="hidden sm:flex items-center gap-1">
+          {product.growlio_account_id && (
+            <button
+              onClick={onSync}
+              disabled={syncPending}
+              className={`${TOUCH_TARGET_MIN_MOBILE_ONLY} p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-950 rounded-lg transition-colors disabled:opacity-50`}
+              aria-label="growlio 시세/담보대출 동기화"
+              title="시세/담보대출 동기화"
+            >
+              <RefreshCw size={16} className={syncPending ? "animate-spin" : ""} />
+            </button>
+          )}
+          <RowActionButtons onEdit={onEdit} onDelete={onDelete} deleteLabel="비활성화" />
+        </div>
+        <div className="sm:hidden">
+          <AccountActionsMenu items={menuItems} ariaLabel={`${product.name} 작업 더 보기`} />
+        </div>
       </div>
     </div>
   );

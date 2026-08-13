@@ -1,11 +1,13 @@
 import logging
 import uuid
 from datetime import date, datetime, timedelta
+from zoneinfo import ZoneInfo
 
 from sqlalchemy.orm import Session
 
 from app.models.event import Event
 from app.models.notification_log import NotificationLog
+from app.models.recurring_expense import RecurringExpense
 from app.models.user import User
 from app.services import gmail_service
 from app.services.google_auth import GoogleNotConnectedError, is_connected
@@ -14,6 +16,11 @@ from app.utils.dates import advance_due_date
 logger = logging.getLogger("event_service")
 
 _MAX_OCCURRENCE_STEPS = 2000
+_SEOUL_TZ = ZoneInfo("Asia/Seoul")
+
+
+class ImportedEventReadOnlyError(Exception):
+    """Raised when an update/delete is attempted on a source='google_import' Event."""
 
 
 def _occurrences_in_range(event: Event, range_start: date, range_end: date) -> list[datetime]:
@@ -50,6 +57,7 @@ def to_out_dict(event: Event, occurrence_start: datetime | None = None) -> dict:
         "recurrence_end_date": event.recurrence_end_date,
         "reminder_minutes_before": event.reminder_minutes_before,
         "creator": event.creator,
+        "source": event.source,
         "occurrence_start": occurrence_start if occurrence_start is not None else event.start_at,
     }
 
@@ -58,6 +66,7 @@ def list_events(db: Session, range_start: date, range_end: date) -> list[dict]:
     candidates = (
         db.query(Event)
         .filter(Event.start_at <= datetime.combine(range_end, datetime.max.time()))
+        .filter(Event.dismissed_at.is_(None))
         .filter(
             (Event.frequency == "once")
             | (Event.recurrence_end_date.is_(None))
@@ -114,6 +123,8 @@ def update_event(db: Session, event_id: int, actor_id: uuid.UUID, **fields) -> E
     event = db.get(Event, event_id)
     if event is None:
         return None
+    if event.source == "google_import":
+        raise ImportedEventReadOnlyError("Google 캘린더에서 가져온 일정은 nestlio에서 수정할 수 없습니다.")
     for key, value in fields.items():
         setattr(event, key, value)
     db.commit()
@@ -123,15 +134,138 @@ def update_event(db: Session, event_id: int, actor_id: uuid.UUID, **fields) -> E
     return event
 
 
-def delete_event(db: Session, event_id: int, actor_id: uuid.UUID) -> bool:
+def delete_event(db: Session, event_id: int, actor_id: uuid.UUID, now: datetime | None = None) -> bool:
+    now = now or datetime.now()
     event = db.get(Event, event_id)
     if event is None:
         return False
+    if event.source == "google_import":
+        # 로컬 사본만 숨긴다 (User.removed_at과 동일한 소프트 삭제 패턴). 구글 캘린더의 원본 일정은
+        # 사용자가 만든 것이 아니므로 google_calendar_service.delete_event를 호출해 실제로 지우지 않는다.
+        event.dismissed_at = now
+        db.commit()
+        _notify_other_spouse(db, event, actor_id=actor_id, action_label="Google 캘린더 일정이 목록에서 숨겨졌습니다")
+        return True
     _remove_from_google(event)
     _notify_other_spouse(db, event, actor_id=actor_id, action_label="일정이 삭제되었습니다")
     db.delete(event)
     db.commit()
     return True
+
+
+def _parse_google_event(item: dict) -> dict | None:
+    """Convert a raw Google Calendar event resource into Event-creation fields.
+    Returns None for items missing a usable start time (defensive - Google always
+    sends one for non-cancelled events, but guards against malformed payloads)."""
+    start = item.get("start")
+    end = item.get("end")
+    if not start:
+        return None
+
+    if "date" in start:
+        all_day = True
+        start_at = datetime.combine(date.fromisoformat(start["date"]), datetime.min.time())
+        end_at = None
+        if end and "date" in end:
+            # Google's all-day end date is exclusive (day after the last day) - invert that
+            # to match how nestlio itself stores/exports all-day events (see _event_body_for_event).
+            end_at = datetime.combine(date.fromisoformat(end["date"]) - timedelta(days=1), datetime.min.time())
+    elif "dateTime" in start:
+        all_day = False
+        start_at = datetime.fromisoformat(start["dateTime"]).astimezone(_SEOUL_TZ).replace(tzinfo=None)
+        end_at = None
+        if end and "dateTime" in end:
+            end_at = datetime.fromisoformat(end["dateTime"]).astimezone(_SEOUL_TZ).replace(tzinfo=None)
+    else:
+        return None
+
+    return {
+        "title": item.get("summary") or "(제목 없음)",
+        "description": item.get("description"),
+        "location": item.get("location"),
+        "all_day": all_day,
+        "start_at": start_at,
+        "end_at": end_at,
+        # Google already expands recurring events into individual instances for us
+        # (singleEvents=True in google_calendar_service.list_events), so each imported
+        # occurrence is stored as a flat one-off rather than re-deriving nestlio's own
+        # weekly/monthly recurrence rule from Google's RRULE.
+        "frequency": "once",
+        "recurrence_end_date": None,
+        "reminder_minutes_before": None,
+    }
+
+
+def import_from_google(db: Session, range_start: date, range_end: date, actor_id: uuid.UUID) -> dict:
+    """Pull events from the connected Google Calendar for [range_start, range_end] and
+    upsert them as read-only (source='google_import') Event rows. Idempotent: re-running
+    for the same range updates existing imported rows in place instead of duplicating them.
+    Rows the user has locally dismissed (dismissed_at set) are left untouched and counted
+    as skipped rather than being resurrected."""
+    if not is_connected():
+        raise GoogleNotConnectedError("Google 계정이 연결되어 있지 않습니다.")
+
+    from app.services import google_calendar_service  # lazy import: only needed when connected
+
+    # Events nestlio itself already pushed to Google must not be reimported. nestlio has two
+    # outbound paths: native Event rows (_sync_to_google -> Event.google_calendar_event_id) and
+    # the scheduler's recurring-expense reminders (jobs.py::_sync_upcoming_calendar_events ->
+    # RecurringExpense.calendar_event_id) - the latter includes recurring expenses linked to
+    # 재무목표/재무설계 plan items, which would otherwise show up twice (once as the existing
+    # "반복 내역 예정" card, once as a freshly imported event). Google expands recurring events
+    # into instances whose id is "{masterId}_{RECURRENCEID}", while nestlio stores the *master*
+    # id on both id columns above - so dedup on recurringEventId (falling back to id for
+    # non-recurring events) rather than raw id.
+    own_master_ids = {
+        row[0]
+        for row in db.query(Event.google_calendar_event_id)
+        .filter(Event.google_calendar_event_id.isnot(None))
+        .filter(Event.source == "native")
+    }
+    own_master_ids |= {
+        row[0]
+        for row in db.query(RecurringExpense.calendar_event_id)
+        .filter(RecurringExpense.calendar_event_id.isnot(None))
+    }
+
+    created = updated = skipped = 0
+    for item in google_calendar_service.list_events(range_start, range_end):
+        if item.get("status") == "cancelled":
+            continue
+        master_id = item.get("recurringEventId") or item.get("id")
+        if master_id in own_master_ids:
+            continue
+
+        parsed = _parse_google_event(item)
+        if parsed is None:
+            skipped += 1
+            continue
+
+        existing = (
+            db.query(Event)
+            .filter(Event.google_calendar_event_id == item["id"], Event.source == "google_import")
+            .first()
+        )
+        if existing:
+            if existing.dismissed_at is not None:
+                skipped += 1
+                continue
+            for key, value in parsed.items():
+                setattr(existing, key, value)
+            updated += 1
+        else:
+            db.add(
+                Event(
+                    **parsed,
+                    google_calendar_event_id=item["id"],
+                    source="google_import",
+                    created_by=actor_id,
+                )
+            )
+            created += 1
+
+    db.commit()
+    return {"created": created, "updated": updated, "skipped": skipped}
 
 
 def send_due_reminders(db: Session, now: datetime, window_minutes: int = 15) -> int:

@@ -11,7 +11,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit",
-    "generate:api-types": "openapi-typescript http://localhost:8899/openapi.json -o src/types/api.generated.ts"
+    "generate:api-types": "openapi-typescript http://localhost:8899/openapi.json -o src/types/api.generated.ts",
+    "generate:icons": "node scripts/generate-icons.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.111.0",
@@ -43,7 +44,9 @@
     "jsdom": "^30.0.1",
     "openapi-typescript": "^7.13.0",
     "oxlint": "^1.71.0",
+    "png-to-ico": "^2.1.8",
     "postcss": "^8.5.25",
+    "sharp": "^0.34.2",
     "tailwindcss": "^3.4.19",
     "typescript": "~6.0.2",
     "vite": "^8.1.1",
