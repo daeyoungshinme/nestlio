@@ -18,8 +18,8 @@ const NOTIF_TYPE_LABEL: Record<string, string> = {
   email_monthly: "월간 요약",
   threshold_alert: "예산 초과 경고",
   goal_milestone: "목표 마일스톤 달성",
+  challenge_success: "챌린지 성공",
   event_reminder: "일정 알림",
-  calendar_event: "캘린더 이벤트",
 };
 
 function notificationTitle(n: NotificationOut): string {

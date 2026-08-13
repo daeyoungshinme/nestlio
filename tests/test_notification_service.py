@@ -5,7 +5,7 @@ from unittest.mock import patch
 import pytest
 
 from app.models.user import User
-from app.services import cashflow_plan_service, challenge_service, goal_service, notification_service
+from app.services import cashflow_plan_service, goal_service, notification_prefs_service, notification_service
 
 
 @patch("app.services.notification_service.is_connected", return_value=True)
@@ -179,6 +179,31 @@ def test_check_all_goal_milestones_counts_only_newly_celebrated(seeded_db):
     assert sent_again == 0
 
 
+@patch("app.services.notification_service.is_connected", return_value=True)
+@patch("app.services.notification_service.gmail_service.send_email")
+def test_goal_milestone_skipped_when_pref_disabled(mock_send, mock_connected, seeded_db):
+    db, user = seeded_db["db"], seeded_db["user"]
+    notification_prefs_service.set_prefs(db, {"goal_milestone": False}, user.id)
+    goal = goal_service.create_goal(db, 1, "내집마련", 40, Decimal("1000000"), Decimal("100000"), Decimal("1000000"))
+
+    sent = notification_service.check_and_celebrate_goal_milestone(db, goal.id)
+
+    assert sent is False
+    mock_send.assert_not_called()
+
+
+@patch("app.services.notification_service.is_connected", return_value=True)
+@patch("app.services.notification_service.gmail_service.send_email")
+def test_weekly_summary_skipped_when_pref_disabled(mock_send, mock_connected, seeded_db):
+    db, user = seeded_db["db"], seeded_db["user"]
+    notification_prefs_service.set_prefs(db, {"email_weekly": False}, user.id)
+
+    sent = notification_service.send_weekly_summary(db, today=date(2026, 7, 29))
+
+    assert sent is False
+    mock_send.assert_not_called()
+
+
 @patch("app.services.notification_service.gmail_service.send_email")
 def test_threshold_alert_skips_categories_without_budget(mock_send, seeded_db):
     db, user, food = seeded_db["db"], seeded_db["user"], seeded_db["food"]
@@ -192,17 +217,30 @@ def test_threshold_alert_skips_categories_without_budget(mock_send, seeded_db):
     mock_send.assert_not_called()
 
 
+def _create_challenge(db, user, target=Decimal("300000"), current=Decimal("0")):
+    return goal_service.create_goal(
+        db,
+        1,
+        "외식비 줄이기",
+        None,
+        target,
+        Decimal("0"),
+        current,
+        target_date=date(2026, 8, 31),
+        kind="challenge",
+        start_date=date(2026, 8, 1),
+        created_by_id=user.id,
+    )
+
+
 @patch("app.services.notification_service.is_connected", return_value=True)
 @patch("app.services.notification_service.gmail_service.send_email")
 def test_challenge_success_celebration_fires_once(mock_send, mock_connected, seeded_db):
     db, user = seeded_db["db"], seeded_db["user"]
-    challenge = challenge_service.create_challenge(
-        db, user.id, "외식비 줄이기", None, Decimal("300000"), date(2026, 8, 1), date(2026, 8, 31)
-    )
-    challenge_service.update_progress(db, challenge.id, Decimal("300000"))
+    challenge = _create_challenge(db, user, current=Decimal("300000"))  # 100%, already succeeded on create
 
-    sent_first = notification_service.check_and_celebrate_challenge(db, challenge.id)
-    sent_again = notification_service.check_and_celebrate_challenge(db, challenge.id)
+    sent_first = notification_service.check_and_celebrate_goal_milestone(db, challenge.id)
+    sent_again = notification_service.check_and_celebrate_goal_milestone(db, challenge.id)
 
     assert sent_first is True
     assert sent_again is False
@@ -214,12 +252,9 @@ def test_challenge_success_celebration_fires_once(mock_send, mock_connected, see
 @patch("app.services.notification_service.gmail_service.send_email")
 def test_challenge_success_logs_even_when_google_not_connected(mock_send, mock_connected, seeded_db):
     db, user = seeded_db["db"], seeded_db["user"]
-    challenge = challenge_service.create_challenge(
-        db, user.id, "외식비 줄이기", None, Decimal("300000"), date(2026, 8, 1), date(2026, 8, 31)
-    )
-    challenge_service.update_progress(db, challenge.id, Decimal("300000"))
+    challenge = _create_challenge(db, user, current=Decimal("300000"))
 
-    sent = notification_service.check_and_celebrate_challenge(db, challenge.id)
+    sent = notification_service.check_and_celebrate_goal_milestone(db, challenge.id)
 
     assert sent is True
     mock_send.assert_not_called()
@@ -230,12 +265,9 @@ def test_challenge_success_logs_even_when_google_not_connected(mock_send, mock_c
 @patch("app.services.notification_service.gmail_service.send_email")
 def test_challenge_success_celebration_skips_while_active(mock_send, seeded_db):
     db, user = seeded_db["db"], seeded_db["user"]
-    challenge = challenge_service.create_challenge(
-        db, user.id, "외식비 줄이기", None, Decimal("300000"), date(2026, 8, 1), date(2026, 8, 31)
-    )
-    challenge_service.update_progress(db, challenge.id, Decimal("150000"))
+    challenge = _create_challenge(db, user, current=Decimal("150000"))  # 50%, still active
 
-    sent = notification_service.check_and_celebrate_challenge(db, challenge.id)
+    sent = notification_service.check_and_celebrate_goal_milestone(db, challenge.id)
 
     assert sent is False
     mock_send.assert_not_called()

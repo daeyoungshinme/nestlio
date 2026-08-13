@@ -2,7 +2,6 @@ from app.models.account import Account
 from app.models.annual_savings_goal import AnnualSavingsGoal
 from app.models.cashflow_plan_item import CashflowPlanItem
 from app.models.category import Category
-from app.models.challenge import Challenge
 from app.models.event import Event
 from app.models.financial_goal import FinancialGoal
 from app.models.goal_funding_source import GoalFundingSource
@@ -23,7 +22,6 @@ __all__ = [
     "AnnualSavingsGoal",
     "CashflowPlanItem",
     "Category",
-    "Challenge",
     "Event",
     "FinancialGoal",
     "GoalFundingSource",

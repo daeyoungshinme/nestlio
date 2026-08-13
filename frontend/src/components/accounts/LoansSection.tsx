@@ -1,6 +1,7 @@
 import { useState } from "react";
 import type { FormEvent } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { Link as RouterLink } from "react-router-dom";
 import { Link2, Pencil, Plus, Trash2 } from "lucide-react";
 import Button from "@/components/common/Button";
 import AccountActionsMenu from "@/components/common/AccountActionsMenu";
@@ -200,9 +201,10 @@ function LoanRow({
         <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">월 {formatKrw(loan.monthly_payment)}</p>
         {loan.growlio_account_id && (
           <p className="text-[11px] text-gray-400 dark:text-gray-500 mt-0.5">
-            {loan.last_synced_at
-              ? `마지막 동기화 ${formatSyncedAt(loan.last_synced_at)} · 부동산 탭에서 동기화돼요`
-              : "부동산 탭의 연동된 항목에서 동기화돼요"}
+            {loan.last_synced_at ? `마지막 동기화 ${formatSyncedAt(loan.last_synced_at)} · ` : ""}
+            <RouterLink to="/accounts?tab=부동산" className="underline hover:no-underline text-gray-500 dark:text-gray-400">
+              부동산 탭에서 동기화
+            </RouterLink>
           </p>
         )}
       </div>

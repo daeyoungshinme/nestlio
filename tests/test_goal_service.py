@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import date, datetime
 from decimal import Decimal
 from unittest.mock import patch
 
@@ -340,3 +340,104 @@ def test_fetch_growlio_goal_settings_propagates_not_configured_error():
     ):
         with pytest.raises(GrowlioNotConfiguredError):
             goal_service.fetch_growlio_goal_settings("token")
+
+
+# --- kind="challenge": 단기 부부 챌린지 (옛 Challenge 모델을 흡수) -------------------------------
+
+NOW = datetime(2026, 8, 3, 12, 0, 0)
+
+
+def _create_challenge(
+    db, user, target=Decimal("300000"), start=date(2026, 8, 1), end=date(2026, 8, 31), current=Decimal("0")
+):
+    return goal_service.create_goal(
+        db,
+        1,
+        "외식비 줄이기",
+        None,
+        target,
+        Decimal("0"),
+        current,
+        target_date=end,
+        kind="challenge",
+        description="이번 달 외식비 30만원 이하로",
+        start_date=start,
+        created_by_id=user.id,
+    )
+
+
+def test_create_challenge_defaults_to_active(seeded_db):
+    db, user = seeded_db["db"], seeded_db["user"]
+    challenge = _create_challenge(db, user)
+
+    assert challenge.kind == "challenge"
+    assert challenge.status == "active"
+    assert challenge.completed_at is None
+    assert challenge.created_by_id == user.id
+
+
+def test_regular_goal_has_no_effective_status(seeded_db):
+    db = seeded_db["db"]
+    goal = goal_service.create_goal(db, 1, "내집마련", 40, Decimal("100000000"), Decimal("500000"))
+    assert goal_service.effective_status(goal) is None
+
+
+def test_update_challenge_progress_below_target_stays_active(seeded_db):
+    db, user = seeded_db["db"], seeded_db["user"]
+    challenge = _create_challenge(db, user, target=Decimal("300000"))
+
+    updated = goal_service.update_goal(
+        db, challenge.id, 1, challenge.name, None, Decimal("300000"), Decimal("0"),
+        current_amount=Decimal("150000"), target_date=challenge.target_date,
+        start_date=challenge.start_date, now=NOW,
+    )
+
+    assert updated.status == "active"
+    assert updated.completed_at is None
+    assert goal_service.compute_progress_pct(Decimal("150000"), Decimal("300000")) == Decimal("50")
+
+
+def test_update_challenge_progress_reaching_target_succeeds(seeded_db):
+    db, user = seeded_db["db"], seeded_db["user"]
+    challenge = _create_challenge(db, user, target=Decimal("300000"))
+
+    updated = goal_service.update_goal(
+        db, challenge.id, 1, challenge.name, None, Decimal("300000"), Decimal("0"),
+        current_amount=Decimal("300000"), target_date=challenge.target_date,
+        start_date=challenge.start_date, now=NOW,
+    )
+
+    assert updated.status == "succeeded"
+    assert updated.completed_at == NOW
+
+
+def test_challenge_effective_status_active_within_period(seeded_db):
+    db, user = seeded_db["db"], seeded_db["user"]
+    challenge = _create_challenge(db, user, start=date(2026, 8, 1), end=date(2026, 8, 31))
+    assert goal_service.effective_status(challenge, today=date(2026, 8, 15)) == "active"
+
+
+def test_challenge_effective_status_expired_after_end_date(seeded_db):
+    db, user = seeded_db["db"], seeded_db["user"]
+    challenge = _create_challenge(db, user, start=date(2026, 8, 1), end=date(2026, 8, 31))
+    assert goal_service.effective_status(challenge, today=date(2026, 9, 1)) == "expired"
+
+
+def test_challenge_effective_status_succeeded_ignores_end_date(seeded_db):
+    db, user = seeded_db["db"], seeded_db["user"]
+    challenge = _create_challenge(db, user, target=Decimal("100000"), start=date(2026, 8, 1), end=date(2026, 8, 31))
+    goal_service.update_goal(
+        db, challenge.id, 1, challenge.name, None, Decimal("100000"), Decimal("0"),
+        current_amount=Decimal("100000"), target_date=challenge.target_date,
+        start_date=challenge.start_date, now=NOW,
+    )
+    assert goal_service.effective_status(challenge, today=date(2026, 9, 1)) == "succeeded"
+
+
+def test_delete_challenge(seeded_db):
+    db, user = seeded_db["db"], seeded_db["user"]
+    challenge = _create_challenge(db, user)
+
+    goal_service.delete_goal(db, challenge.id)
+
+    assert goal_service.get_goal(db, challenge.id) is None

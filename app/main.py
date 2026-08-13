@@ -13,7 +13,6 @@ from app.routers import (
     budgets,
     cashflow_plan,
     categories,
-    challenges,
     dashboard,
     events,
     external,
@@ -84,7 +83,6 @@ app.include_router(loans.router, prefix=API_PREFIX)
 app.include_router(real_estate.router, prefix=API_PREFIX)
 app.include_router(net_worth.router, prefix=API_PREFIX)
 app.include_router(notifications.router, prefix=API_PREFIX)
-app.include_router(challenges.router, prefix=API_PREFIX)
 app.include_router(annual_savings_goals.router, prefix=API_PREFIX)
 app.include_router(external.router, prefix=API_PREFIX)
 app.include_router(internal_jobs.router)

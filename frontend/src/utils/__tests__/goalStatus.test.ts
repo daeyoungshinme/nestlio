@@ -1,12 +1,14 @@
 import { describe, expect, it } from "vitest";
-import { computeGoalStatus, daysUntil } from "@/utils/goalStatus";
+import { computeCardStatus, computeGoalStatus, daysUntil, isGoalAchieved } from "@/utils/goalStatus";
 import type { FinancialGoalOut } from "@/types";
 
 function makeGoal(overrides: Partial<FinancialGoalOut>): FinancialGoalOut {
   return {
     id: 1,
+    kind: "goal",
     priority: 1,
     name: "테스트 목표",
+    description: null,
     target_age: null,
     target_date: null,
     required_amount: "1000000",
@@ -19,6 +21,11 @@ function makeGoal(overrides: Partial<FinancialGoalOut>): FinancialGoalOut {
     suggested_monthly_amount: "100000",
     weighted_return_rate_pct: null,
     projected_months_with_growth: null,
+    start_date: null,
+    status: "active",
+    effective_status: null,
+    created_by_id: null,
+    completed_at: null,
     ...overrides,
   };
 }
@@ -93,5 +100,34 @@ describe("computeGoalStatus", () => {
         }),
       ),
     ).toBe("on_track");
+  });
+});
+
+describe("computeCardStatus", () => {
+  it("delegates to computeGoalStatus for kind=goal", () => {
+    const goal = makeGoal({ kind: "goal", progress_pct: "100" });
+    expect(computeCardStatus(goal)).toBe("achieved");
+  });
+
+  it("maps a challenge's effective_status instead of using pace-based logic", () => {
+    const active = makeGoal({ kind: "challenge", effective_status: "active", suggested_monthly_amount: "999999" });
+    const succeeded = makeGoal({ kind: "challenge", effective_status: "succeeded" });
+    const expired = makeGoal({ kind: "challenge", effective_status: "expired" });
+    expect(computeCardStatus(active)).toBe("on_track");
+    expect(computeCardStatus(succeeded)).toBe("achieved");
+    expect(computeCardStatus(expired)).toBe("expired");
+  });
+});
+
+describe("isGoalAchieved", () => {
+  it("uses progress_pct for kind=goal", () => {
+    expect(isGoalAchieved(makeGoal({ kind: "goal", progress_pct: "100" }))).toBe(true);
+    expect(isGoalAchieved(makeGoal({ kind: "goal", progress_pct: "50" }))).toBe(false);
+  });
+
+  it("uses effective_status for kind=challenge, keeping expired-but-unmet challenges active", () => {
+    expect(isGoalAchieved(makeGoal({ kind: "challenge", effective_status: "succeeded" }))).toBe(true);
+    expect(isGoalAchieved(makeGoal({ kind: "challenge", effective_status: "expired" }))).toBe(false);
+    expect(isGoalAchieved(makeGoal({ kind: "challenge", effective_status: "active" }))).toBe(false);
   });
 });

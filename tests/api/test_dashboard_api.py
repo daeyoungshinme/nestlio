@@ -1,7 +1,7 @@
-from datetime import date, timedelta
+from datetime import date
 from decimal import Decimal
 
-from app.services import challenge_service, goal_service, transaction_service
+from app.services import goal_service, transaction_service
 from app.utils.dates import month_bounds, shift_month, year_month_str
 
 
@@ -35,28 +35,11 @@ def test_dashboard_defaults_to_month_period(client):
     assert resp.json()["period"] == "month"
 
 
-def test_dashboard_includes_savings_streak_and_no_active_challenge_by_default(client):
+def test_dashboard_includes_savings_streak_by_default(client):
     resp = client.get("/api/v1/dashboard")
     assert resp.status_code == 200
     body = resp.json()
     assert body["savings_streak_months"] == 0
-    assert body["active_challenge"] is None
-
-
-def test_dashboard_surfaces_soonest_active_challenge(client, seeded_db):
-    db, user = seeded_db["db"], seeded_db["user"]
-    today = date.today()
-    challenge_service.create_challenge(
-        db, user.id, "외식비 줄이기", None, Decimal("300000"), today, today + timedelta(days=14)
-    )
-
-    resp = client.get("/api/v1/dashboard")
-
-    assert resp.status_code == 200
-    active = resp.json()["active_challenge"]
-    assert active is not None
-    assert active["title"] == "외식비 줄이기"
-    assert active["effective_status"] == "active"
 
 
 def test_dashboard_savings_streak_reflects_consecutive_goal_pace_months(client, seeded_db):

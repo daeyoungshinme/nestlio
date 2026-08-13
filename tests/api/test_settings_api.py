@@ -81,3 +81,45 @@ def test_test_weekly_email_sends_when_connected(mock_is_connected, mock_send_ema
     assert resp.status_code == 200
     assert resp.json()["sent"] is True
     mock_send_email.assert_called_once()
+
+
+@patch("app.routers.settings.is_connected", return_value=False)
+def test_get_settings_notification_prefs_default_all_on(mock_is_connected, client):
+    resp = client.get("/api/v1/settings")
+    assert resp.status_code == 200
+    assert all(resp.json()["notification_prefs"].values())
+
+
+@patch("app.routers.settings.is_connected", return_value=False)
+def test_set_notification_prefs_overrides_and_persists(mock_is_connected, client):
+    payload = {
+        "email_weekly": False,
+        "email_monthly": True,
+        "threshold_alert": True,
+        "goal_milestone": True,
+        "challenge_success": True,
+        "event_reminder": True,
+    }
+    resp = client.put("/api/v1/settings/notification-prefs", json=payload)
+    assert resp.status_code == 200
+    assert resp.json()["notification_prefs"] == payload
+
+    # persists across a fresh GET
+    assert client.get("/api/v1/settings").json()["notification_prefs"] == payload
+
+
+@patch("app.routers.settings.is_connected", return_value=True)
+def test_test_weekly_email_returns_409_when_pref_disabled(mock_is_connected, client):
+    client.put(
+        "/api/v1/settings/notification-prefs",
+        json={
+            "email_weekly": False,
+            "email_monthly": True,
+            "threshold_alert": True,
+            "goal_milestone": True,
+            "challenge_success": True,
+            "event_reminder": True,
+        },
+    )
+    resp = client.post("/api/v1/settings/test-weekly-email")
+    assert resp.status_code == 409

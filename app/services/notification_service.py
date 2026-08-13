@@ -8,12 +8,12 @@ from app.models.notification_log import NotificationLog
 from app.models.notification_read import NotificationRead
 from app.services import (
     budget_service,
-    challenge_service,
     coaching_engine,
     email_templates,
     gmail_service,
     goal_service,
     milestone_service,
+    notification_prefs_service,
     notify_recipients_service,
     transaction_service,
 )
@@ -87,6 +87,8 @@ def send_weekly_summary(db: Session, today: date | None = None, force: bool = Fa
     today = today or date.today()
     start, end = week_bounds(today)
     period_key = start.isoformat()
+    if not force and not notification_prefs_service.is_enabled(db, "email_weekly"):
+        return False
     if not force and _already_sent(db, "email_weekly", period_key):
         return False
     totals = transaction_service.period_totals(db, start, end)
@@ -106,6 +108,8 @@ def send_monthly_summary(db: Session, today: date | None = None, force: bool = F
     prev_month_anchor = shift_month(today, -1)
     start, end = month_bounds(prev_month_anchor)
     period_key = year_month_str(start)
+    if not force and not notification_prefs_service.is_enabled(db, "email_monthly"):
+        return False
     if not force and _already_sent(db, "email_monthly", period_key):
         return False
     totals = transaction_service.period_totals(db, start, end)
@@ -131,6 +135,8 @@ def _send_threshold_alert(db: Session, row: dict, year_month: str) -> bool:
     warn/critical threshold, deduped so each status level fires at most once per category per month."""
     category_id = row["category_id"]
     if row["status"] not in ("warn", "critical") or row["budget"] <= 0:
+        return False
+    if not notification_prefs_service.is_enabled(db, "threshold_alert"):
         return False
     period_key = f"{year_month}:{row['status']}"
     if _already_sent(db, "threshold_alert", period_key, related_id=category_id):
@@ -160,65 +166,54 @@ def check_and_alert_budget_threshold(db: Session, category_id: int, year_month: 
 
 
 def _celebrate_goal_milestone(db: Session, goal, today: date | None = None) -> bool:
-    """Send a celebration email the first time this goal's progress crosses a milestone
-    (25/50/75/100%), deduped per goal per milestone so re-saving the same goal doesn't
-    re-send. If progress jumped past multiple milestones at once, only the highest is sent.
-    Milestone-crossing + dedup bookkeeping lives in milestone_service (shared with challenges)."""
+    """Send a celebration email the first time this goal's progress crosses a milestone,
+    deduped per goal per milestone so re-saving the same goal doesn't re-send. If progress
+    jumped past multiple milestones at once, only the highest is sent. Milestone-crossing +
+    dedup bookkeeping lives in milestone_service. 일반 목표(kind="goal")는 25/50/75/100% 각각
+    축하하고, 챌린지(kind="challenge")는 옛 Challenge 모델과 동일하게 100% 한 번만 축하한다."""
     today = today or date.today()
     if goal is None or not goal.required_amount:
         return False
+    is_challenge = goal.kind == "challenge"
     current_amount = goal_service.compute_current_amount(db, goal)
     progress_pct = goal_service.compute_progress_pct(current_amount, goal.required_amount)
-    milestone = milestone_service.highest_crossed(progress_pct)
+    milestone = milestone_service.highest_crossed(progress_pct, milestones=(100,) if is_challenge else milestone_service.MILESTONES)
     if milestone is None:
         return False
-    if milestone_service.already_logged(db, "goal_milestone", goal.id, milestone):
+    notif_type = "challenge_success" if is_challenge else "goal_milestone"
+    related_type = "challenge" if is_challenge else "goal"
+    if not notification_prefs_service.is_enabled(db, notif_type):
         return False
-    congrats = "드디어 목표를 이뤘어요! 두 분이 함께 만든 결과예요." if milestone >= 100 else "두 분이 함께 여기까지 왔어요, 축하해요!"
-    body = (
-        f'\U0001F389 "{goal.name}" 목표 {milestone}% 달성! \U0001F389\n\n'
-        f"{congrats}\n\n"
-        f"현재 저축액: {current_amount:,.0f}원 / 목표 {goal.required_amount:,.0f}원"
-    )
-    if milestone < 100 and goal.target_date is not None:
-        remaining_amount = max(goal.required_amount - current_amount, 0)
-        remaining_days = (goal.target_date - today).days
-        if remaining_days > 0:
-            body += f"\n목표일까지 D-{remaining_days}, 이제 {remaining_amount:,.0f}원만 더 모으면 돼요."
-    if is_connected():
-        gmail_service.send_email(
-            f"[Nestlio] 우리 부부 목표 달성 축하 - {goal.name} {milestone}%", body, to=notify_recipients_service.get_recipients(db)
+    if milestone_service.already_logged(db, notif_type, goal.id, milestone):
+        return False
+    if is_challenge:
+        body = (
+            f'\U0001F389 "{goal.name}" 챌린지 성공! \U0001F389\n\n'
+            f"목표 {goal.required_amount:,.0f}원을 두 분이 함께 달성했어요!\n\n"
+            f"현재: {current_amount:,.0f}원 / 목표 {goal.required_amount:,.0f}원"
         )
-    milestone_service.log(db, "goal_milestone", "goal", goal.id, milestone, body)
+        subject = f"[Nestlio] 챌린지 성공 - {goal.name}"
+    else:
+        congrats = "드디어 목표를 이뤘어요! 두 분이 함께 만든 결과예요." if milestone >= 100 else "두 분이 함께 여기까지 왔어요, 축하해요!"
+        body = (
+            f'\U0001F389 "{goal.name}" 목표 {milestone}% 달성! \U0001F389\n\n'
+            f"{congrats}\n\n"
+            f"현재 저축액: {current_amount:,.0f}원 / 목표 {goal.required_amount:,.0f}원"
+        )
+        if milestone < 100 and goal.target_date is not None:
+            remaining_amount = max(goal.required_amount - current_amount, 0)
+            remaining_days = (goal.target_date - today).days
+            if remaining_days > 0:
+                body += f"\n목표일까지 D-{remaining_days}, 이제 {remaining_amount:,.0f}원만 더 모으면 돼요."
+        subject = f"[Nestlio] 우리 부부 목표 달성 축하 - {goal.name} {milestone}%"
+    if is_connected():
+        gmail_service.send_email(subject, body, to=notify_recipients_service.get_recipients(db))
+    milestone_service.log(db, notif_type, related_type, goal.id, milestone, body)
     return True
 
 
 def check_and_celebrate_goal_milestone(db: Session, goal_id: int, today: date | None = None) -> bool:
     return _celebrate_goal_milestone(db, goal_service.get_goal(db, goal_id), today)
-
-
-def check_and_celebrate_challenge(db: Session, challenge_id: int) -> bool:
-    """챌린지가 목표 금액에 도달해 succeeded로 전환된 첫 순간에 축하 이메일을 보낸다. goal milestone과
-    동일한 milestone_service 크로싱/중복방지 로직을 쓰되, 챌린지는 25/50/75% 없이 100% 한 번만 축하한다."""
-    challenge = challenge_service.get_challenge(db, challenge_id)
-    if challenge.status != "succeeded":
-        return False
-    milestone = milestone_service.highest_crossed(challenge.progress_pct, milestones=(100,))
-    if milestone is None:
-        return False
-    if milestone_service.already_logged(db, "challenge_success", challenge.id, milestone):
-        return False
-    body = (
-        f'\U0001F389 "{challenge.title}" 챌린지 성공! \U0001F389\n\n'
-        f"목표 {challenge.target_amount:,.0f}원을 두 분이 함께 달성했어요!\n\n"
-        f"현재: {challenge.current_amount:,.0f}원 / 목표 {challenge.target_amount:,.0f}원"
-    )
-    if is_connected():
-        gmail_service.send_email(
-            f"[Nestlio] 챌린지 성공 - {challenge.title}", body, to=notify_recipients_service.get_recipients(db)
-        )
-    milestone_service.log(db, "challenge_success", "challenge", challenge.id, milestone, body)
-    return True
 
 
 def check_all_goal_milestones(db: Session, today: date | None = None) -> int:

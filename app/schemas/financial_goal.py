@@ -1,10 +1,12 @@
-from datetime import date
+import uuid
+from datetime import date, datetime
 from decimal import Decimal
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict
 
 FundingSourceType = Literal["savings_product", "account", "loan"]
+GoalKind = Literal["goal", "challenge"]
 
 
 class FundingSourceIn(BaseModel):
@@ -23,8 +25,10 @@ class FinancialGoalOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: int
+    kind: GoalKind = "goal"
     priority: int
     name: str
+    description: str | None = None
     target_age: int | None
     target_date: date | None
     required_amount: Decimal
@@ -42,28 +46,39 @@ class FinancialGoalOut(BaseModel):
     # "가정치" 문구와 함께 노출한다.
     weighted_return_rate_pct: Decimal | None = None
     projected_months_with_growth: int | None = None
+    # 아래 5개는 kind="challenge"(단기 부부 챌린지)일 때만 채워진다.
+    start_date: date | None = None
+    status: Literal["active", "succeeded"] = "active"
+    effective_status: Literal["active", "succeeded", "expired"] | None = None
+    created_by_id: uuid.UUID | None = None
+    completed_at: datetime | None = None
 
 
 class FinancialGoalCreateIn(BaseModel):
+    kind: GoalKind = "goal"
     priority: int = 1
     name: str
+    description: str | None = None
     target_age: int | None = None
     target_date: date | None = None
     required_amount: Decimal = Decimal("0")
     monthly_saving_amount: Decimal = Decimal("0")
     current_amount: Decimal = Decimal("0")
     funding_sources: list[FundingSourceIn] = []
+    start_date: date | None = None
 
 
 class FinancialGoalUpdateIn(BaseModel):
     priority: int
     name: str
+    description: str | None = None
     target_age: int | None
     target_date: date | None = None
     required_amount: Decimal
     monthly_saving_amount: Decimal
     current_amount: Decimal = Decimal("0")
     funding_sources: list[FundingSourceIn] = []
+    start_date: date | None = None
 
 
 class GrowlioGoalSettingsOut(BaseModel):

@@ -33,7 +33,6 @@ export const QUERY_KEYS = {
   financialGoals: ["financial-goals"] as const,
   annualSavingsGoals: ["annual-savings-goals"] as const,
   annualSavingsGoalSuggestion: ["annual-savings-goals", "suggestion"] as const,
-  challenges: ["challenges"] as const,
   savingsProducts: ["savings-products"] as const,
   savingsProductsPlan: (yearMonth: string) => ["savings-products", "plan", yearMonth] as const,
   savingsProductsAnnualPlan: (year: number) => ["savings-products", "annual-plan", year] as const,

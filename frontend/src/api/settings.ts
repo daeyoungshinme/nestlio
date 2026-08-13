@@ -1,5 +1,11 @@
 import { apiDelete, apiGet, apiPost, apiPut } from "@/api/client";
-import type { CoachingThresholdsIn, NotifyEmailsIn, SettingsOut, TestEmailResultOut } from "@/types";
+import type {
+  CoachingThresholdsIn,
+  NotificationPrefsIn,
+  NotifyEmailsIn,
+  SettingsOut,
+  TestEmailResultOut,
+} from "@/types";
 
 export const fetchSettings = () => apiGet<SettingsOut>("/settings");
 
@@ -8,6 +14,9 @@ export const setNotifyEmails = (emails: string[]) =>
 
 export const setCoachingThresholds = (payload: CoachingThresholdsIn) =>
   apiPut<SettingsOut>("/settings/coaching-thresholds", payload);
+
+export const setNotificationPrefs = (payload: NotificationPrefsIn) =>
+  apiPut<SettingsOut>("/settings/notification-prefs", payload);
 
 export const uploadCouplePhoto = (file: File) => {
   const form = new FormData();

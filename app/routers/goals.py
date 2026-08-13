@@ -38,7 +38,11 @@ def list_goals(db: Session = Depends(get_db), _: User = Depends(get_current_user
 
 
 @router.post("", response_model=FinancialGoalOut, status_code=status.HTTP_201_CREATED)
-def create_goal(payload: FinancialGoalCreateIn, db: Session = Depends(get_db), _: User = Depends(get_current_user)):
+def create_goal(
+    payload: FinancialGoalCreateIn,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
     goal = goal_service.create_goal(
         db,
         payload.priority,
@@ -49,6 +53,10 @@ def create_goal(payload: FinancialGoalCreateIn, db: Session = Depends(get_db), _
         payload.current_amount,
         [fs.model_dump() for fs in payload.funding_sources],
         payload.target_date,
+        kind=payload.kind,
+        description=payload.description,
+        start_date=payload.start_date,
+        created_by_id=current_user.id if payload.kind == "challenge" else None,
     )
     today = date.today()
     try:
@@ -76,6 +84,8 @@ def update_goal(
         payload.current_amount,
         [fs.model_dump() for fs in payload.funding_sources],
         payload.target_date,
+        description=payload.description,
+        start_date=payload.start_date,
     )
     if goal is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "재무목표를 찾을 수 없습니다.")

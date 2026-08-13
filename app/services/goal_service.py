@@ -1,4 +1,5 @@
-from datetime import date
+import uuid
+from datetime import date, datetime
 from decimal import Decimal
 
 from sqlalchemy.orm import Session
@@ -72,6 +73,17 @@ def compute_progress_pct(current_amount: Decimal, required_amount: Decimal) -> D
     if not required_amount:
         return Decimal("0")
     return min(current_amount / required_amount * 100, Decimal("100"))
+
+
+def effective_status(goal: FinancialGoal, today: date | None = None) -> str | None:
+    """kind="challenge"에서만 의미 있는 표시용 상태 — 저장된 status에 'expired'(기간 종료 +
+    미달성)를 얹어 매번 계산한다(스케줄러 job 없이도 항상 정확). 일반 목표(kind="goal")는 None."""
+    if goal.kind != "challenge":
+        return None
+    today = today or date.today()
+    if goal.status == "active" and goal.target_date is not None and today > goal.target_date:
+        return "expired"
+    return goal.status
 
 
 def compute_months_remaining(today: date, target_date: date | None) -> int | None:
@@ -148,8 +160,10 @@ def to_out(db: Session, goal: FinancialGoal, today: date) -> dict:
     )
     return {
         "id": goal.id,
+        "kind": goal.kind,
         "priority": goal.priority,
         "name": goal.name,
+        "description": goal.description,
         "target_age": goal.target_age,
         "target_date": goal.target_date,
         "required_amount": goal.required_amount,
@@ -164,6 +178,11 @@ def to_out(db: Session, goal: FinancialGoal, today: date) -> dict:
         ),
         "weighted_return_rate_pct": weighted_return_rate_pct,
         "projected_months_with_growth": projected_months_with_growth,
+        "start_date": goal.start_date,
+        "status": goal.status,
+        "effective_status": effective_status(goal, today),
+        "created_by_id": goal.created_by_id,
+        "completed_at": goal.completed_at,
     }
 
 
@@ -191,6 +210,17 @@ def _apply_funding_sources(goal: FinancialGoal, funding_sources: list[dict] | No
     goal.funding_sources = new_sources
 
 
+def _apply_challenge_completion(goal: FinancialGoal, now: datetime | None = None) -> None:
+    """kind="challenge"에서만 동작 — 진행금액이 목표금액에 도달하면 succeeded로 전환하고 완료
+    시각을 기록한다(실제 축하 알림 발송 여부는 notification_service가 별도로 판단한다)."""
+    if goal.kind != "challenge":
+        return
+    now = now or datetime.now()
+    if goal.status == "active" and goal.required_amount > 0 and goal.manual_current_amount >= goal.required_amount:
+        goal.status = "succeeded"
+        goal.completed_at = now
+
+
 def create_goal(
     db: Session,
     priority: int,
@@ -201,6 +231,11 @@ def create_goal(
     current_amount: Decimal = Decimal("0"),
     funding_sources: list[dict] | None = None,
     target_date: date | None = None,
+    kind: str = "goal",
+    description: str | None = None,
+    start_date: date | None = None,
+    created_by_id: uuid.UUID | None = None,
+    now: datetime | None = None,
 ) -> FinancialGoal:
     goal = FinancialGoal(
         priority=priority,
@@ -211,8 +246,13 @@ def create_goal(
         monthly_saving_amount=monthly_saving_amount,
         manual_current_amount=current_amount,
         sort_order=999,
+        kind=kind,
+        description=description,
+        start_date=start_date,
+        created_by_id=created_by_id,
     )
     _apply_funding_sources(goal, funding_sources)
+    _apply_challenge_completion(goal, now)
     db.add(goal)
     db.commit()
     db.refresh(goal)
@@ -230,6 +270,9 @@ def update_goal(
     current_amount: Decimal = Decimal("0"),
     funding_sources: list[dict] | None = None,
     target_date: date | None = None,
+    description: str | None = None,
+    start_date: date | None = None,
+    now: datetime | None = None,
 ) -> FinancialGoal | None:
     goal = db.get(FinancialGoal, goal_id)
     if goal is None:
@@ -241,7 +284,10 @@ def update_goal(
     goal.required_amount = required_amount
     goal.monthly_saving_amount = monthly_saving_amount
     goal.manual_current_amount = current_amount
+    goal.description = description
+    goal.start_date = start_date
     _apply_funding_sources(goal, funding_sources)
+    _apply_challenge_completion(goal, now)
     db.commit()
     db.refresh(goal)
     return goal

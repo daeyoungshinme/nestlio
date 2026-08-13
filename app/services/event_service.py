@@ -9,7 +9,7 @@ from app.models.event import Event
 from app.models.notification_log import NotificationLog
 from app.models.recurring_expense import RecurringExpense
 from app.models.user import User
-from app.services import gmail_service
+from app.services import gmail_service, notification_prefs_service
 from app.services.google_auth import GoogleNotConnectedError, is_connected
 from app.utils.dates import advance_due_date
 
@@ -272,6 +272,8 @@ def send_due_reminders(db: Session, now: datetime, window_minutes: int = 15) -> 
     """Send reminder emails for occurrences whose reminder time falls within
     [now, now + window_minutes). Meant to be called by a periodic scheduler job."""
     if not is_connected():
+        return 0
+    if not notification_prefs_service.is_enabled(db, "event_reminder"):
         return 0
 
     sent = 0

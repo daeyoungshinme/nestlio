@@ -6,7 +6,7 @@ interface Props {
   action?: ReactNode;
 }
 
-/** 목표탭의 세 섹션(가구 저축 페이스/재무목표/부부 챌린지)이 공유하는 헤더 —
+/** 목표탭의 섹션(가구 저축 페이스/재무목표 — 부부 챌린지는 재무목표에 흡수됨)이 공유하는 헤더 —
  * 섹션마다 제각각이던 소제목 스타일을 통일해 페이지에 실제 그룹 경계를 만든다. */
 export default function GoalSectionHeader({ title, description, action }: Props) {
   return (

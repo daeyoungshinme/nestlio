@@ -4,7 +4,6 @@ from typing import Literal
 
 from pydantic import BaseModel
 
-from app.schemas.challenge import ChallengeOut
 from app.schemas.coaching import InsightOut, SurplusAllocationOut
 from app.schemas.common import CategoryAmountOut, TotalsOut, TrendRowOut, UserTotalsOut
 
@@ -20,7 +19,6 @@ class DashboardOut(BaseModel):
     insights: list[InsightOut]
     current_ym: str
     savings_streak_months: int
-    active_challenge: ChallengeOut | None = None
     investable_surplus: Decimal
     surplus_allocation: SurplusAllocationOut
 

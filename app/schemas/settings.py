@@ -21,10 +21,24 @@ class CoachingThresholdsIn(CoachingThresholdsOut):
     pass
 
 
+class NotificationPrefsOut(BaseModel):
+    email_weekly: bool
+    email_monthly: bool
+    threshold_alert: bool
+    goal_milestone: bool
+    challenge_success: bool
+    event_reminder: bool
+
+
+class NotificationPrefsIn(NotificationPrefsOut):
+    pass
+
+
 class SettingsOut(BaseModel):
     google_connected: bool
     notify_emails: list[str]
     coaching_thresholds: CoachingThresholdsOut
+    notification_prefs: NotificationPrefsOut
     couple_photo_url: str | None = None
 
 

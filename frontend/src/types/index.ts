@@ -139,7 +139,6 @@ export interface DashboardOut {
   insights: InsightOut[];
   current_ym: string;
   savings_streak_months: number;
-  active_challenge: ChallengeOut | null;
   investable_surplus: string;
   surplus_allocation: SurplusAllocationOut;
 }
@@ -360,10 +359,22 @@ export interface CoachingThresholdsOut {
 
 export type CoachingThresholdsIn = CoachingThresholdsOut;
 
+export interface NotificationPrefsOut {
+  email_weekly: boolean;
+  email_monthly: boolean;
+  threshold_alert: boolean;
+  goal_milestone: boolean;
+  challenge_success: boolean;
+  event_reminder: boolean;
+}
+
+export type NotificationPrefsIn = NotificationPrefsOut;
+
 export interface SettingsOut {
   google_connected: boolean;
   notify_emails: string[];
   coaching_thresholds: CoachingThresholdsOut;
+  notification_prefs: NotificationPrefsOut;
   couple_photo_url: string | null;
 }
 
@@ -501,10 +512,14 @@ export interface FundingSourceIn {
   id: number;
 }
 
+export type GoalKind = "goal" | "challenge";
+
 export interface FinancialGoalOut {
   id: number;
+  kind: GoalKind;
   priority: number;
   name: string;
+  description: string | null;
   target_age: number | null;
   target_date: string | null;
   required_amount: string;
@@ -517,20 +532,29 @@ export interface FinancialGoalOut {
   suggested_monthly_amount: string | null;
   weighted_return_rate_pct: string | null;
   projected_months_with_growth: number | null;
+  // 아래 4개는 kind==="challenge"(단기 부부 챌린지)일 때만 의미가 있다.
+  start_date: string | null;
+  status: "active" | "succeeded";
+  effective_status: "active" | "succeeded" | "expired" | null;
+  created_by_id: string | null;
+  completed_at: string | null;
 }
 
 export interface FinancialGoalCreateIn {
+  kind?: GoalKind;
   priority: number;
   name: string;
+  description?: string | null;
   target_age?: number | null;
   target_date?: string | null;
   required_amount: string;
   monthly_saving_amount: string;
   current_amount?: string;
   funding_sources?: FundingSourceIn[];
+  start_date?: string | null;
 }
 
-export type FinancialGoalUpdateIn = FinancialGoalCreateIn;
+export type FinancialGoalUpdateIn = Omit<FinancialGoalCreateIn, "kind">;
 
 export interface GrowlioGoalSettingsOut {
   is_configured: boolean;
@@ -563,37 +587,6 @@ export interface AnnualSavingsGoalSuggestionOut {
   suggested_annual_target_krw: string;
   goal_based_monthly_target_krw: string;
   goal_based_annual_target_krw: string;
-}
-
-export interface ChallengeOut {
-  id: number;
-  title: string;
-  description: string | null;
-  target_amount: string;
-  current_amount: string;
-  progress_pct: string;
-  start_date: string;
-  end_date: string;
-  status: "active" | "succeeded";
-  effective_status: "active" | "succeeded" | "expired";
-  created_by_id: string;
-  completed_at: string | null;
-  created_at: string;
-  updated_at: string;
-}
-
-export interface ChallengeCreateIn {
-  title: string;
-  description?: string | null;
-  target_amount: string;
-  start_date: string;
-  end_date: string;
-}
-
-export type ChallengeUpdateIn = ChallengeCreateIn;
-
-export interface ChallengeProgressIn {
-  current_amount: string;
 }
 
 export type SavingsProductType = "savings" | "investment" | "real_estate" | "emergency_fund";

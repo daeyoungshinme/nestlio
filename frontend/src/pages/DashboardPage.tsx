@@ -14,7 +14,6 @@ import type { GoalProgressCardBadge } from "@/components/financialPlan/GoalProgr
 import SummaryCards from "@/components/common/SummaryCards";
 import SkeletonCard from "@/components/common/SkeletonCard";
 import EmptyState from "@/components/common/EmptyState";
-import ProgressBar from "@/components/common/ProgressBar";
 import Modal from "@/components/common/Modal";
 import QuickAddFab from "@/components/common/QuickAddFab";
 import TransactionForm from "@/components/transactions/TransactionForm";
@@ -32,8 +31,9 @@ import { useInvalidateTransactionRelated } from "@/hooks/useInvalidateTransactio
 import { QUERY_KEYS } from "@/constants/queryKeys";
 import { STALE_TIME } from "@/constants/queryConfig";
 import { insightSeverityStyle, progressStatusBadgeClass, progressStatusLabel } from "@/utils/colors";
-import { computeGoalStatus, daysUntil } from "@/utils/goalStatus";
-import { formatDate, formatKrw, formatPercent, formatWeekRange, formatYearMonth } from "@/utils/format";
+import { computeCardStatus, daysUntil } from "@/utils/goalStatus";
+import { formatDate, formatKrw, formatWeekRange, formatYearMonth } from "@/utils/format";
+import { splitSavingsAndRealEstate } from "@/utils/netWorth";
 import { extractErrorMessage } from "@/utils/error";
 import { toast } from "@/utils/toast";
 import type { DashboardPeriod } from "@/types";
@@ -49,7 +49,6 @@ const INSIGHT_LINKS: Partial<Record<string, { to: string; label: string }>> = {
   discretionary_ratio: { to: "/transactions", label: "가계부 보기" },
   debt_ratio: { to: "/transactions", label: "가계부 보기" },
   budget_overrun: { to: "/financial-plan?tab=현금흐름 계획", label: "예산 보기" },
-  goal_pace: { to: "/financial-plan?tab=재무목표", label: "목표 보기" },
   emergency_fund: { to: "/accounts?tab=저축·투자", label: "저축·투자 보기" },
   savings_execution: { to: "/accounts?tab=저축·투자", label: "저축·투자 보기" },
 };
@@ -116,6 +115,10 @@ export default function DashboardPage() {
     queryFn: fetchSavingsProducts,
     staleTime: STALE_TIME.MEDIUM,
   });
+  // 자산현황(/accounts) 순자산 카드와 동일한 구성으로 보이도록 부동산을 저축·투자에서 분리한다.
+  const { savingsInvestmentTotal, realEstateTotal } = netWorth
+    ? splitSavingsAndRealEstate(Number(netWorth.current.savings_total), savingsProducts)
+    : { savingsInvestmentTotal: 0, realEstateTotal: 0 };
   const { data: users } = useQuery({
     queryKey: QUERY_KEYS.users,
     queryFn: fetchUsers,
@@ -152,7 +155,7 @@ export default function DashboardPage() {
         toneClassName: "bg-emerald-50 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300",
       });
     }
-    const goalStatus = computeGoalStatus(topGoal);
+    const goalStatus = computeCardStatus(topGoal);
     topGoalBadges.push({ label: progressStatusLabel(goalStatus), toneClassName: progressStatusBadgeClass(goalStatus) });
   }
   const streakSubtitle =
@@ -168,7 +171,9 @@ export default function DashboardPage() {
     year_month: row.year_month,
     savings: Number(row.income) - Number(row.expense),
   }));
-  const activeChallenge = data.active_challenge;
+  // goal_pace 인사이트는 아래 "우리 부부 목표" 카드(extraDetails)에서 이미 보여주므로, 같은 문구가
+  // 상단 인사이트 스트립에 중복 노출되지 않도록 걸러낸다 — 카드가 이미 그 목표 맥락 안에 있어 더 적절하다.
+  const visibleInsights = data.insights.filter((i) => i.rule_code !== "goal_pace");
   const isCurrentPeriod = anchor === (period === "month" ? currentYearMonth() : currentDateIso());
 
   return (
@@ -200,9 +205,9 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {data.insights.length > 0 && (
+      {visibleInsights.length > 0 && (
         <div className="space-y-2">
-          {data.insights.map((insight, i) => {
+          {visibleInsights.map((insight, i) => {
             const link = INSIGHT_LINKS[insight.rule_code];
             return (
               <div
@@ -272,18 +277,6 @@ export default function DashboardPage() {
                       </div>
                     </div>
                   )}
-
-                  {activeChallenge && (
-                    <div className="pt-4 border-t border-gray-100 dark:border-gray-800">
-                      <div className="flex items-center justify-between text-sm mb-1">
-                        <span className="font-medium text-gray-700 dark:text-gray-300">진행중 챌린지 · {activeChallenge.title}</span>
-                        <span className="text-xs font-semibold text-blue-600 dark:text-blue-400 shrink-0">
-                          {formatPercent(Number(activeChallenge.progress_pct))}
-                        </span>
-                      </div>
-                      <ProgressBar pct={Number(activeChallenge.progress_pct)} barClassName="bg-blue-500" />
-                    </div>
-                  )}
                 </>
               }
             />
@@ -307,8 +300,14 @@ export default function DashboardPage() {
                 </div>
                 <div className="flex justify-between">
                   <span>저축·투자</span>
-                  <span>{formatKrw(netWorth.current.savings_total)}</span>
+                  <span>{formatKrw(savingsInvestmentTotal)}</span>
                 </div>
+                {realEstateTotal > 0 && (
+                  <div className="flex justify-between">
+                    <span>부동산</span>
+                    <span>{formatKrw(realEstateTotal)}</span>
+                  </div>
+                )}
                 <div className="flex justify-between">
                   <span>대출</span>
                   <span>-{formatKrw(netWorth.current.loans_total)}</span>

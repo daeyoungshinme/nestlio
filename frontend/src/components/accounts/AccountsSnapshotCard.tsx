@@ -8,11 +8,13 @@ import { fetchSavingsProducts } from "@/api/savingsProducts";
 import { fetchLoans } from "@/api/loans";
 import { QUERY_KEYS } from "@/constants/queryKeys";
 import { formatKrw, formatKrwCompact } from "@/utils/format";
+import { splitSavingsAndRealEstate } from "@/utils/netWorth";
 
 export default function AccountsSnapshotCard() {
   const { data, isLoading } = useQuery({ queryKey: QUERY_KEYS.netWorth, queryFn: () => fetchNetWorth(12) });
-  // "저축·투자"/"부동산" 카드 분리용 — 백엔드 savings_total은 real_estate까지 합산된 값이라(app/services/net_worth_service.py),
-  // 같은 상품 목록(다른 탭들과 쿼리 키 공유, 추가 네트워크 요청 없음)에서 부동산 몫만 계산해 빼는 방식으로 구한다.
+  // "저축·투자"/"부동산" 카드 분리용 — 같은 상품 목록(다른 탭들과 쿼리 키 공유, 추가 네트워크 요청
+  // 없음)에서 부동산 몫만 빼는 계산은 splitSavingsAndRealEstate(utils/netWorth.ts)로 통일한다
+  // (DashboardPage의 순자산 카드도 동일 함수를 써서 두 화면 숫자가 항상 일치하도록 보장).
   const { data: products } = useQuery({ queryKey: QUERY_KEYS.savingsProducts, queryFn: fetchSavingsProducts });
   // 도넛의 부동산 조각을 담보대출 순액으로 보여주기 위한 대출 목록(다른 탭들과 쿼리 키 공유,
   // 추가 네트워크 요청 없음) — growlio_account_id로 부동산 자산과 짝지어진 대출만 골라낸다
@@ -27,8 +29,7 @@ export default function AccountsSnapshotCard() {
   const netWorth = Number(current.net_worth);
   const accountsTotal = Number(current.accounts_total);
   const loansTotal = Number(current.loans_total);
-  const realEstateTotal = products?.filter((p) => p.product_type === "real_estate").reduce((sum, p) => sum + Number(p.current_balance), 0) ?? 0;
-  const savingsInvestmentTotal = Number(current.savings_total) - realEstateTotal;
+  const { savingsInvestmentTotal, realEstateTotal } = splitSavingsAndRealEstate(Number(current.savings_total), products);
 
   const realEstateGrowlioIds = new Set(
     (products ?? [])

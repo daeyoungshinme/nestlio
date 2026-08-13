@@ -98,8 +98,11 @@ export default function CashflowPlanSectionPanel({
         )}
       </div>
       {categoryBudgetRows.length > 0 && (
-        <div className="mt-3 pt-3 border-t border-gray-100 dark:border-gray-800">
-          <h4 className="text-xs font-semibold text-gray-400 dark:text-gray-500">카테고리별 예산 사용</h4>
+        <div className="mt-4 pt-4 border-t-2 border-gray-100 dark:border-gray-800">
+          <h4 className="text-sm font-semibold text-gray-700 dark:text-gray-300">카테고리별 예산 사용</h4>
+          <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5 mb-2">
+            위 항목들에 태깅된 카테고리의 이번 달 예산 대비 실제 지출이에요.
+          </p>
           <div className="divide-y divide-gray-50 dark:divide-gray-800/60">
             {categoryBudgetRows.map((row) => (
               <CategoryBudgetProgress key={row.category_id} row={row} />

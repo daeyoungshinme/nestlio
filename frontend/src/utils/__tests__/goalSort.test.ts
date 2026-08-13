@@ -5,8 +5,10 @@ import type { FinancialGoalOut } from "@/types";
 function makeGoal(overrides: Partial<FinancialGoalOut>): FinancialGoalOut {
   return {
     id: 1,
+    kind: "goal",
     priority: 1,
     name: "테스트 목표",
+    description: null,
     target_age: null,
     target_date: null,
     required_amount: "1000000",
@@ -19,6 +21,11 @@ function makeGoal(overrides: Partial<FinancialGoalOut>): FinancialGoalOut {
     suggested_monthly_amount: "100000",
     weighted_return_rate_pct: null,
     projected_months_with_growth: null,
+    start_date: null,
+    status: "active",
+    effective_status: null,
+    created_by_id: null,
+    completed_at: null,
     ...overrides,
   };
 }

@@ -14,6 +14,7 @@ import {
   deleteCouplePhoto,
   fetchSettings,
   setCoachingThresholds,
+  setNotificationPrefs,
   setNotifyEmails,
   testMonthlyEmail,
   testWeeklyEmail,
@@ -21,7 +22,7 @@ import {
 } from "@/api/settings";
 import { cancelInvite, createInvite, fetchInvites } from "@/api/invites";
 import { fetchMe, fetchUsers, removeUser, updateMe, updateUser } from "@/api/users";
-import type { CoachingThresholdsOut, InviteOut } from "@/types";
+import type { CoachingThresholdsOut, InviteOut, NotificationPrefsOut } from "@/types";
 import { QUERY_KEYS } from "@/constants/queryKeys";
 import { INPUT_SM } from "@/constants/inputStyles";
 import { TOUCH_TARGET_MIN_MOBILE_ONLY } from "@/constants/uiSizes";
@@ -29,6 +30,15 @@ import { extractErrorMessage } from "@/utils/error";
 import { connectionStatusBadgeClass, connectionStatusLabel, inviteStatusLabel, inviteStatusTextClass } from "@/utils/colors";
 import type { InviteStatus } from "@/utils/colors";
 import { toast } from "@/utils/toast";
+
+const NOTIF_PREF_FIELDS: { key: keyof NotificationPrefsOut; label: string; hint: string }[] = [
+  { key: "email_weekly", label: "주간 요약", hint: "매주 가계부 요약 이메일" },
+  { key: "email_monthly", label: "월간 요약", hint: "매달 가계부 요약 + 코칭 인사이트 이메일" },
+  { key: "threshold_alert", label: "예산 초과 경고", hint: "카테고리 예산이 주의/위험 기준을 넘으면 알림" },
+  { key: "goal_milestone", label: "목표 마일스톤 달성", hint: "재무목표가 25/50/75/100%에 도달하면 축하 알림" },
+  { key: "challenge_success", label: "챌린지 성공", hint: "부부 챌린지를 달성하면 축하 알림" },
+  { key: "event_reminder", label: "일정 알림", hint: "등록한 일정의 알림 시각이 되면 이메일" },
+];
 
 const THRESHOLD_FIELDS: { key: keyof CoachingThresholdsOut; label: string }[] = [
   { key: "savings_rate_warn", label: "저축률 경고" },
@@ -154,6 +164,12 @@ export default function SettingsPage() {
       void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.settings });
       setNewNotifyEmail("");
     },
+    onError: (err) => toast(extractErrorMessage(err), "error"),
+  });
+
+  const notificationPrefsMutation = useMutation({
+    mutationFn: setNotificationPrefs,
+    onSuccess: () => void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.settings }),
     onError: (err) => toast(extractErrorMessage(err), "error"),
   });
 
@@ -407,6 +423,17 @@ export default function SettingsPage() {
         </div>
       </SettingsSectionCard>
 
+      <SettingsSectionCard title="바로가기">
+        <div className="space-y-1">
+          <SettingsLinkRow
+            to="/accounts?tab=저축·투자"
+            label="비상금 관리"
+            hint="저축·투자 탭에서 비상금 항목으로 기록해요"
+          />
+          <SettingsLinkRow to="/categories" label="카테고리 관리" hint="고정·변동·비정기지출 카테고리 추가/수정" />
+        </div>
+      </SettingsSectionCard>
+
       <SettingsSectionCard
         title="Google 계정 연동"
         badge={
@@ -425,17 +452,45 @@ export default function SettingsPage() {
       >
         <p className="text-xs text-gray-500 dark:text-gray-400">
           {connectionStatus === "connected"
-            ? "주간/월간 요약 메일 발송에 사용되는 Google 계정이 연결되어 있어요."
-            : "주간/월간 요약 메일 발송에 사용할 Google 계정이 아직 연결되지 않았어요."}
+            ? "이메일 발송·일정 가져오기에 사용되는 Google 계정이 연결되어 있어요."
+            : "이메일 발송·일정 가져오기에 사용할 Google 계정이 아직 연결되지 않았어요. 웹에서 직접 연결하는 기능은 없고, 관리자가 로컬에서 scripts/google_auth_setup.py를 한 번 실행해 연결해요."}
         </p>
       </SettingsSectionCard>
 
-      <SettingsSectionCard title="이메일 알림">
-        <p className="text-xs text-gray-500 dark:text-gray-400">
-          알림 수신 이메일 — 기본값은 가입한 이메일이며, 직접 추가·삭제할 수 있어요. 변경 즉시 반영돼요.
-        </p>
-        <ul className="space-y-2">
-          {notifyEmails.map((email) => (
+      <SettingsSectionCard title="알림">
+        <div className="space-y-2">
+          <p className="text-xs text-gray-500 dark:text-gray-400">받을 알림 종류 — 모두 이메일로 발송돼요.</p>
+          <ul className="space-y-1">
+            {NOTIF_PREF_FIELDS.map(({ key, label, hint }) => (
+              <li
+                key={key}
+                className="flex items-center justify-between gap-2 text-sm px-3 py-2 rounded-lg bg-gray-50 dark:bg-gray-800"
+              >
+                <label htmlFor={`notif-pref-${key}`} className="min-w-0 cursor-pointer">
+                  <p className="text-gray-700 dark:text-gray-300">{label}</p>
+                  <p className="text-xs text-gray-400 dark:text-gray-500 truncate">{hint}</p>
+                </label>
+                <input
+                  id={`notif-pref-${key}`}
+                  type="checkbox"
+                  checked={data.notification_prefs[key]}
+                  disabled={notificationPrefsMutation.isPending}
+                  onChange={() =>
+                    notificationPrefsMutation.mutate({ ...data.notification_prefs, [key]: !data.notification_prefs[key] })
+                  }
+                  className="h-4 w-4 rounded border-gray-300 shrink-0"
+                />
+              </li>
+            ))}
+          </ul>
+        </div>
+
+        <div className="border-t border-gray-100 dark:border-gray-800 pt-3 space-y-2">
+          <p className="text-xs text-gray-500 dark:text-gray-400">
+            받는 사람 — 기본값은 가입한 이메일이며, 직접 추가·삭제할 수 있어요. 변경 즉시 반영돼요.
+          </p>
+          <ul className="space-y-2">
+            {notifyEmails.map((email) => (
             <li
               key={email}
               className="flex items-center justify-between gap-2 text-sm px-3 py-2 rounded-lg bg-gray-50 dark:bg-gray-800"
@@ -481,6 +536,7 @@ export default function SettingsPage() {
           >
             추가
           </Button>
+        </div>
         </div>
         <div className="border-t border-gray-100 dark:border-gray-800 pt-3 flex gap-2">
           <Button
@@ -539,15 +595,6 @@ export default function SettingsPage() {
             저장
           </Button>
         </CollapsibleGroup>
-
-        <div className="border-t border-gray-100 dark:border-gray-800 pt-3 space-y-1">
-          <SettingsLinkRow
-            to="/accounts?tab=저축·투자"
-            label="비상금 관리"
-            hint="저축·투자 탭에서 비상금 항목으로 기록해요"
-          />
-          <SettingsLinkRow to="/categories" label="카테고리 관리" hint="고정·변동·비정기지출 카테고리 추가/수정" />
-        </div>
       </SettingsSectionCard>
 
       <div className="border-t border-gray-200 dark:border-gray-700 pt-4">
