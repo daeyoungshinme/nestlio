@@ -102,17 +102,31 @@ export default function ReportsYearlyPage() {
         {pieData.length === 0 ? (
           <EmptyState icon={PieChartIcon} title="이 해에 지출 내역이 없어요" compact />
         ) : (
-          <ResponsiveContainer width="100%" height={260}>
-            <PieChart>
-              <Pie data={pieData} dataKey="value" nameKey="name" innerRadius={60} outerRadius={100}>
-                {pieData.map((entry, i) => (
-                  <Cell key={i} fill={entry.color} />
-                ))}
-              </Pie>
-              <Tooltip formatter={(v) => formatKrw(Number(v))} />
-              <Legend />
-            </PieChart>
-          </ResponsiveContainer>
+          <>
+            <ResponsiveContainer width="100%" height={260}>
+              <PieChart>
+                <Pie data={pieData} dataKey="value" nameKey="name" innerRadius={60} outerRadius={100}>
+                  {pieData.map((entry, i) => (
+                    <Cell key={i} fill={entry.color} />
+                  ))}
+                </Pie>
+                <Tooltip formatter={(v) => formatKrw(Number(v))} />
+              </PieChart>
+            </ResponsiveContainer>
+            <div className="flex flex-row flex-wrap justify-center gap-x-3 gap-y-1 mt-2">
+              {pieData.map((entry, i) => (
+                <div key={i} className="flex items-center gap-1">
+                  <span
+                    className="inline-block w-2.5 h-2.5 rounded-sm shrink-0"
+                    style={{ backgroundColor: entry.color }}
+                  />
+                  <span className="text-xs text-gray-600 dark:text-gray-400">
+                    {entry.name} {formatKrw(entry.value)}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </>
         )}
       </div>
 
