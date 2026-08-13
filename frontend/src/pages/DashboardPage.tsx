@@ -32,7 +32,7 @@ import { QUERY_KEYS } from "@/constants/queryKeys";
 import { STALE_TIME } from "@/constants/queryConfig";
 import { insightSeverityStyle, progressStatusBadgeClass, progressStatusLabel } from "@/utils/colors";
 import { computeCardStatus, daysUntil } from "@/utils/goalStatus";
-import { formatDate, formatKrw, formatWeekRange, formatYearMonth } from "@/utils/format";
+import { formatDate, formatKrw, formatKrwCompact, formatWeekRange, formatYearMonth } from "@/utils/format";
 import { splitSavingsAndRealEstate } from "@/utils/netWorth";
 import { extractErrorMessage } from "@/utils/error";
 import { toast } from "@/utils/toast";
@@ -290,27 +290,38 @@ export default function DashboardPage() {
             <SkeletonCard rows={2} />
           ) : (
             <>
-              <p className="text-2xl font-bold text-gray-900 dark:text-gray-50 mb-3">
+              <p className="text-2xl font-bold text-gray-900 dark:text-gray-50 mb-1 truncate" title={formatKrw(netWorth.current.net_worth)}>
+                {formatKrwCompact(Number(netWorth.current.net_worth))}
+              </p>
+              <p className="text-xs text-gray-400 dark:text-gray-500 mb-3 truncate">
                 {formatKrw(netWorth.current.net_worth)}
               </p>
               <div className="space-y-1 text-sm text-gray-500 dark:text-gray-400">
-                <div className="flex justify-between">
-                  <span>계좌</span>
-                  <span>{formatKrw(netWorth.current.accounts_total)}</span>
+                <div className="flex justify-between gap-2">
+                  <span className="shrink-0">계좌</span>
+                  <span className="truncate" title={formatKrw(netWorth.current.accounts_total)}>
+                    {formatKrwCompact(Number(netWorth.current.accounts_total))}
+                  </span>
                 </div>
-                <div className="flex justify-between">
-                  <span>저축·투자</span>
-                  <span>{formatKrw(savingsInvestmentTotal)}</span>
+                <div className="flex justify-between gap-2">
+                  <span className="shrink-0">저축·투자</span>
+                  <span className="truncate" title={formatKrw(savingsInvestmentTotal)}>
+                    {formatKrwCompact(savingsInvestmentTotal)}
+                  </span>
                 </div>
                 {realEstateTotal > 0 && (
-                  <div className="flex justify-between">
-                    <span>부동산</span>
-                    <span>{formatKrw(realEstateTotal)}</span>
+                  <div className="flex justify-between gap-2">
+                    <span className="shrink-0">부동산</span>
+                    <span className="truncate" title={formatKrw(realEstateTotal)}>
+                      {formatKrwCompact(realEstateTotal)}
+                    </span>
                   </div>
                 )}
-                <div className="flex justify-between">
-                  <span>대출</span>
-                  <span>-{formatKrw(netWorth.current.loans_total)}</span>
+                <div className="flex justify-between gap-2">
+                  <span className="shrink-0">대출</span>
+                  <span className="truncate" title={`-${formatKrw(netWorth.current.loans_total)}`}>
+                    -{formatKrwCompact(Number(netWorth.current.loans_total))}
+                  </span>
                 </div>
               </div>
               {growlioUnlinked && growlioUnlinked.item_count > 0 && (

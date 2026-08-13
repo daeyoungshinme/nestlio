@@ -1,5 +1,6 @@
 import Modal from "@/components/common/Modal";
 import { SELECT_SM } from "@/constants/inputStyles";
+import { TOUCH_TARGET_COMPACT_MOBILE_ONLY } from "@/constants/uiSizes";
 import type { CategoryOut } from "@/types";
 
 export type TopFilter = "all" | "income" | "expense" | "savings";
@@ -79,7 +80,7 @@ function PillGroup<T extends string>({
           key={opt.value}
           type="button"
           onClick={() => onChange(opt.value)}
-          className={`shrink-0 whitespace-nowrap px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
+          className={`shrink-0 whitespace-nowrap px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${TOUCH_TARGET_COMPACT_MOBILE_ONLY} ${
             value === opt.value
               ? "bg-white dark:bg-gray-700 shadow text-gray-900 dark:text-gray-50"
               : "text-gray-500 dark:text-gray-400"

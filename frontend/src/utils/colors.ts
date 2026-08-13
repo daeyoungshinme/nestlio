@@ -230,3 +230,18 @@ export function recurringLinkBadgeStyle(active: boolean): string {
 export function recurringLinkBadgeLabel(active: boolean): string {
   return RECURRING_LINK_BADGE_LABEL[active ? "active" : "inactive"];
 }
+
+/** FormInput의 에러 상태 테두리(에러 시 input에 덧씌우는 border+focus ring). */
+export function formErrorBorderClass(): string {
+  return "border-red-400 dark:border-red-500 focus:ring-red-400";
+}
+
+/** FormInput의 에러 메시지 텍스트 색상. */
+export function formErrorTextClass(): string {
+  return "text-red-500";
+}
+
+/** FormInput의 실시간 프리뷰(정보성) 텍스트 색상. */
+export function formPreviewTextClass(): string {
+  return "text-blue-600 dark:text-blue-400";
+}

@@ -22,7 +22,7 @@ export default function RowActionButtons({
   deleteDisabled = false,
 }: Props) {
   return (
-    <div className="flex items-center gap-1 shrink-0">
+    <div className="flex items-center gap-2 shrink-0">
       {onEdit && (
         <button
           onClick={onEdit}

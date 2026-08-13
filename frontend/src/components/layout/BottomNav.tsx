@@ -38,6 +38,7 @@ export default function BottomNav() {
         ))}
         <button
           onClick={() => setShowMore(true)}
+          aria-current={isMoreActive ? "page" : undefined}
           className={`flex flex-col items-center justify-center gap-0.5 px-2 py-3 min-w-0 flex-1 ${TOUCH_TARGET_MIN_HEIGHT} text-xs font-medium transition-colors border-t-2 -mt-px ${
             isMoreActive
               ? "text-blue-600 dark:text-blue-400 border-blue-600 dark:border-blue-400"

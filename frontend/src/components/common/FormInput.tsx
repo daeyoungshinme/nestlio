@@ -1,6 +1,7 @@
 import type { InputHTMLAttributes } from "react";
 import { INPUT_MD, INPUT_SM, LABEL_MD, LABEL_SM } from "@/constants/inputStyles";
 import { cn } from "@/utils/cn";
+import { formErrorBorderClass, formErrorTextClass, formPreviewTextClass } from "@/utils/colors";
 
 interface Props extends Omit<InputHTMLAttributes<HTMLInputElement>, "size"> {
   label: string;
@@ -25,7 +26,7 @@ export default function FormInput({
   const inputId = id ?? label.replace(/\s+/g, "-").toLowerCase();
   const baseClass = inputSize === "md" ? INPUT_MD : INPUT_SM;
   const labelClass = inputSize === "md" ? LABEL_MD : LABEL_SM;
-  const errorClass = "border-red-400 dark:border-red-500 focus:ring-red-400";
+  const errorClass = formErrorBorderClass();
   const errorId = error ? `${inputId}-error` : undefined;
   const hintId = hint && !error ? `${inputId}-hint` : undefined;
 
@@ -44,10 +45,10 @@ export default function FormInput({
         {...inputProps}
       />
       {preview && (
-        <p className="text-xs font-medium text-blue-600 dark:text-blue-400 mt-1">{preview}</p>
+        <p className={`text-xs font-medium ${formPreviewTextClass()} mt-1`}>{preview}</p>
       )}
       {error && (
-        <p id={errorId} className="text-xs text-red-500 mt-1">
+        <p id={errorId} className={`text-xs ${formErrorTextClass()} mt-1`}>
           {error}
         </p>
       )}

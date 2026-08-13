@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import type { ToastEvent } from "@/utils/toast";
 import { Z_TOASTER } from "@/constants/zIndex";
+import { BOTTOM_NAV_HEIGHT_PX } from "@/constants/uiSizes";
 
 const COLORS: Record<string, string> = {
   error: "bg-red-600",
@@ -32,7 +33,7 @@ export default function Toaster() {
 
   return (
     <div
-      className={`fixed bottom-[calc(3.75rem+env(safe-area-inset-bottom)+0.5rem)] right-3 lg:bottom-5 lg:right-5 ${Z_TOASTER} flex flex-col gap-2 pointer-events-none`}
+      className={`fixed bottom-[calc(${BOTTOM_NAV_HEIGHT_PX}px+0.75rem+env(safe-area-inset-bottom))] right-3 lg:bottom-5 lg:right-5 ${Z_TOASTER} flex flex-col gap-2 pointer-events-none`}
     >
       {toasts.map((t) => (
         <div
