@@ -17,7 +17,6 @@ from app.schemas.savings_product import (
     SavingsProductUpdateIn,
 )
 from app.services import savings_product_service
-from app.services.growlio_client import GrowlioNotConfiguredError, GrowlioRequestError
 from app.utils.dates import year_month_str
 
 router = APIRouter(prefix="/savings-products", tags=["savings-products"])
@@ -45,12 +44,7 @@ def get_annual_plan_summary(year: int | None = None, db: Session = Depends(get_d
 @router.get("/growlio-accounts", response_model=list[GrowlioAccountOut])
 def list_growlio_accounts(bearer_token: str = Depends(get_bearer_token), _: User = Depends(get_current_user)):
     """저축상품 연동 대상 선택을 위해 growlio 계좌 목록을 프록시로 조회한다."""
-    try:
-        return savings_product_service.list_growlio_accounts(bearer_token)
-    except GrowlioNotConfiguredError as exc:
-        raise HTTPException(status.HTTP_501_NOT_IMPLEMENTED, str(exc)) from exc
-    except GrowlioRequestError as exc:
-        raise HTTPException(status.HTTP_502_BAD_GATEWAY, str(exc)) from exc
+    return savings_product_service.list_growlio_accounts(bearer_token)
 
 
 @router.post("", response_model=SavingsProductOut, status_code=status.HTTP_201_CREATED)
@@ -112,14 +106,7 @@ def sync_product(
     bearer_token: str = Depends(get_bearer_token),
     _: User = Depends(get_current_user),
 ):
-    try:
-        product = savings_product_service.sync_from_growlio(db, product_id, bearer_token, now=datetime.now())
-    except GrowlioNotConfiguredError as exc:
-        raise HTTPException(status.HTTP_501_NOT_IMPLEMENTED, str(exc)) from exc
-    except GrowlioRequestError as exc:
-        raise HTTPException(status.HTTP_502_BAD_GATEWAY, str(exc)) from exc
-    except savings_product_service.GrowlioSyncError as exc:
-        raise HTTPException(status.HTTP_409_CONFLICT, str(exc)) from exc
+    product = savings_product_service.sync_from_growlio(db, product_id, bearer_token, now=datetime.now())
     if product is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "저축/투자 상품을 찾을 수 없습니다.")
     return product
@@ -133,14 +120,9 @@ def import_growlio_accounts(
     current_user: User = Depends(get_current_user),
 ):
     """선택한 growlio 계좌들을 각각 새 저축/투자 상품으로 일괄 가져온다 ('전체 선택' 가져오기)."""
-    try:
-        return savings_product_service.import_from_growlio(
-            db, payload.growlio_account_ids, bearer_token, current_user.id, now=datetime.now()
-        )
-    except GrowlioNotConfiguredError as exc:
-        raise HTTPException(status.HTTP_501_NOT_IMPLEMENTED, str(exc)) from exc
-    except GrowlioRequestError as exc:
-        raise HTTPException(status.HTTP_502_BAD_GATEWAY, str(exc)) from exc
+    return savings_product_service.import_from_growlio(
+        db, payload.growlio_account_ids, bearer_token, current_user.id, now=datetime.now()
+    )
 
 
 @router.post("/{product_id}/deactivate", status_code=status.HTTP_204_NO_CONTENT)

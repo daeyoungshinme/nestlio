@@ -6,8 +6,9 @@ from sqlalchemy.orm import Session
 from app.config import settings
 from app.models.cashflow_plan_item import CashflowPlanItem
 from app.models.recurring_expense import RecurringExpense
-from app.services import transaction_service
+from app.services import transaction_report_service
 from app.utils.dates import month_bounds, parse_year_month, shift_month, year_month_str
+from app.utils.plan_status import pct_of, status_from_pct
 
 EXPENSE_SECTIONS = ("fixed", "variable", "irregular")
 ACHIEVEMENT_SECTIONS = ("income", "fixed", "variable", "irregular")
@@ -113,7 +114,13 @@ def split_item_into_months(
 def link_recurring(db: Session, item_id: int, recurring_expense_id: int) -> CashflowPlanItem | None:
     """계획 항목을 이미 존재하는 반복거래에 연결한다. FK만 세팅하면 이후 item.amount/category_id는
     연동된 RecurringExpense의 값을 계속 read-through로 반영한다(CashflowPlanItem.amount 프로퍼티 참고) —
-    반복거래 금액을 바꾸면 별도 동기화 없이 계획에도 즉시 반영된다."""
+    반복거래 금액을 바꾸면 별도 동기화 없이 계획에도 즉시 반영된다.
+
+    "찾을 수 없음"이 세 가지 방식으로 갈리는 건 각기 다른 원인/상태를 라우터가 구분해서 응답하기 위한
+    의도된 설계다 (app/services/CLAUDE.md의 컨벤션 참고): 주 리소스(path param인 item_id)가 없으면
+    None을 반환해 라우터가 404로 변환하고, 요청 바디로 참조한 보조 리소스(recurring_expense_id)가 없으면
+    전용 예외(RecurringExpenseNotFoundError)를 던져 원인이 다른 404임을 구분하며, 이미 연결된 상태 충돌은
+    ValueError로 라우터가 409로 변환한다."""
     item = db.get(CashflowPlanItem, item_id)
     if item is None:
         return None
@@ -176,7 +183,7 @@ def actuals_for_month(db: Session, year_month: str) -> dict[str, Decimal]:
     """Actual income/fixed/variable totals for the month, for section-level achievement comparison."""
     month_start = parse_year_month(year_month)
     start, end = month_bounds(month_start)
-    totals = transaction_service.period_totals(db, start, end)
+    totals = transaction_report_service.period_totals(db, start, end)
     return {
         "income": totals["income"],
         "fixed": totals["fixed"],
@@ -188,19 +195,14 @@ def actuals_for_month(db: Session, year_month: str) -> dict[str, Decimal]:
 def _status(section: str, pct: float) -> str:
     """fixed/variable: 실적이 계획을 초과할수록 위험. income은 방향이 반대(실적이 계획에 못 미칠수록 위험)이므로
     미달분(100-pct)을 같은 임계값과 비교한다 (예: pct<=100-90=10일 때 warn, pct<=100-100=0일 때 critical)."""
-    effective_pct = (100 - pct) if section == "income" else pct
-    if effective_pct >= settings.budget_critical_pct:
-        return "critical"
-    if effective_pct >= settings.budget_warn_pct:
-        return "warn"
-    return "ok"
+    return status_from_pct(pct, settings.budget_warn_pct, settings.budget_critical_pct, invert=(section == "income"))
 
 
 def _section_summary(section: str, planned: Decimal, actual: Decimal | None) -> dict:
     if actual is None:
         return {"planned": planned, "actual": None, "pct": None, "status": None}
-    pct = float(actual / planned * 100) if planned else (100.0 if actual else 0.0)
-    return {"planned": planned, "actual": actual, "pct": min(pct, 999), "status": _status(section, pct)}
+    pct = pct_of(actual, planned)
+    return {"planned": planned, "actual": actual, "pct": pct, "status": _status(section, pct)}
 
 
 def compute_summary(items: list[CashflowPlanItem], actuals: dict[str, Decimal] | None = None) -> dict:

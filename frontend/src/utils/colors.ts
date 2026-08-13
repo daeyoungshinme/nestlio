@@ -105,6 +105,10 @@ export function returnRateTextColor(pct: number): string {
   return "text-gray-500 dark:text-gray-400";
 }
 
+export function netWorthTextColor(netWorth: number): string {
+  return netWorth >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400";
+}
+
 export type InviteStatus = "pending" | "accepted" | "expired";
 
 const INVITE_STATUS_TEXT: Record<InviteStatus, string> = {

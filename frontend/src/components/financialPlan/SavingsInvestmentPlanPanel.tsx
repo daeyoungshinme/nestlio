@@ -6,6 +6,7 @@ import Button from "@/components/common/Button";
 import EmptyState from "@/components/common/EmptyState";
 import FormInput from "@/components/common/FormInput";
 import SkeletonCard from "@/components/common/SkeletonCard";
+import StatusBadge from "@/components/common/StatusBadge";
 import Tabs from "@/components/common/Tabs";
 import SectionAchievementBar from "@/components/financialPlan/SectionAchievementBar";
 import {
@@ -138,11 +139,12 @@ function ProductRow({
       <div className="flex items-center justify-between gap-3">
         <div className="min-w-0">
           <div className="flex items-center gap-1.5">
-            <span
-              className={`shrink-0 px-1.5 py-0.5 rounded text-[11px] font-medium ${savingsProductTypeBadgeStyle(item.product_type)}`}
-            >
-              {savingsProductTypeLabel(item.product_type)}
-            </span>
+            <StatusBadge
+              size="chip"
+              label={savingsProductTypeLabel(item.product_type)}
+              toneClassName={savingsProductTypeBadgeStyle(item.product_type)}
+              className="shrink-0"
+            />
             <p className="text-sm font-medium text-gray-900 dark:text-gray-50 truncate">{item.name}</p>
           </div>
           <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{item.detailText}</p>

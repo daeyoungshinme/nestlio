@@ -7,7 +7,7 @@ import pytest
 from app.models.category import Category
 from app.models.savings_product import SavingsProduct
 from app.models.user import User
-from app.services import growlio_client, transaction_service
+from app.services import growlio_client, transaction_report_service, transaction_service
 
 
 def test_period_totals_splits_fixed_and_variable(seeded_db):
@@ -17,7 +17,7 @@ def test_period_totals_splits_fixed_and_variable(seeded_db):
     transaction_service.create_transaction(db, user.id, food.id, "expense", Decimal("50000"), date(2026, 7, 10))
     transaction_service.create_transaction(db, user.id, food.id, "income", Decimal("3000000"), date(2026, 7, 25))
 
-    totals = transaction_service.period_totals(db, date(2026, 7, 1), date(2026, 7, 31))
+    totals = transaction_report_service.period_totals(db, date(2026, 7, 1), date(2026, 7, 31))
 
     assert totals["income"] == Decimal("3000000")
     assert totals["expense"] == Decimal("850000")
@@ -33,7 +33,7 @@ def test_period_totals_splits_irregular_separately(seeded_db):
     transaction_service.create_transaction(db, user.id, rent.id, "expense", Decimal("800000"), date(2026, 7, 1))
     transaction_service.create_transaction(db, user.id, events.id, "expense", Decimal("150000"), date(2026, 7, 12))
 
-    totals = transaction_service.period_totals(db, date(2026, 7, 1), date(2026, 7, 31))
+    totals = transaction_report_service.period_totals(db, date(2026, 7, 1), date(2026, 7, 31))
 
     assert totals["expense"] == Decimal("950000")
     assert totals["fixed"] == Decimal("800000")
@@ -48,7 +48,7 @@ def test_period_totals_excludes_out_of_range_transactions(seeded_db):
     transaction_service.create_transaction(db, user.id, food.id, "expense", Decimal("20000"), date(2026, 7, 15))
     transaction_service.create_transaction(db, user.id, food.id, "expense", Decimal("30000"), date(2026, 8, 1))
 
-    totals = transaction_service.period_totals(db, date(2026, 7, 1), date(2026, 7, 31))
+    totals = transaction_report_service.period_totals(db, date(2026, 7, 1), date(2026, 7, 31))
 
     assert totals["expense"] == Decimal("20000")
 
@@ -64,7 +64,7 @@ def test_totals_by_user_splits_per_spouse(seeded_db):
     transaction_service.create_transaction(db, user.id, rent.id, "income", Decimal("2000000"), date(2026, 7, 1))
     transaction_service.create_transaction(db, spouse2.id, food.id, "expense", Decimal("30000"), date(2026, 7, 6))
 
-    by_user = transaction_service.totals_by_user(db, date(2026, 7, 1), date(2026, 7, 31))
+    by_user = transaction_report_service.totals_by_user(db, date(2026, 7, 1), date(2026, 7, 31))
 
     by_name = {row["display_name"]: row for row in by_user}
     assert by_name["Spouse 1"]["expense"] == Decimal("50000")
@@ -82,7 +82,7 @@ def test_totals_by_user_excludes_users_with_no_transactions_in_range(seeded_db):
     db.commit()
     transaction_service.create_transaction(db, user.id, food.id, "expense", Decimal("10000"), date(2026, 7, 5))
 
-    by_user = transaction_service.totals_by_user(db, date(2026, 7, 1), date(2026, 7, 31))
+    by_user = transaction_report_service.totals_by_user(db, date(2026, 7, 1), date(2026, 7, 31))
 
     assert len(by_user) == 1
     assert by_user[0]["display_name"] == "Spouse 1"
@@ -92,7 +92,7 @@ def test_monthly_trend_orders_oldest_first(seeded_db):
     db, user, food = seeded_db["db"], seeded_db["user"], seeded_db["food"]
     transaction_service.create_transaction(db, user.id, food.id, "expense", Decimal("10000"), date(2026, 7, 15))
 
-    trend = transaction_service.monthly_trend(db, months=3, anchor=date(2026, 7, 20))
+    trend = transaction_report_service.monthly_trend(db, months=3, anchor=date(2026, 7, 20))
 
     assert [row["year_month"] for row in trend] == ["2026-05", "2026-06", "2026-07"]
     assert trend[-1]["expense"] == Decimal("10000")
@@ -104,7 +104,7 @@ def test_category_monthly_trend_orders_oldest_first_and_fills_gaps(seeded_db):
     transaction_service.create_transaction(db, user.id, food.id, "expense", Decimal("50000"), date(2026, 6, 10))
     transaction_service.create_transaction(db, user.id, rent.id, "expense", Decimal("800000"), date(2026, 7, 1))
 
-    trend = transaction_service.category_monthly_trend(db, months=3, anchor=date(2026, 7, 20))
+    trend = transaction_report_service.category_monthly_trend(db, months=3, anchor=date(2026, 7, 20))
 
     assert trend["months"] == ["2026-05", "2026-06", "2026-07"]
     by_name = {s["name"]: s["amounts"] for s in trend["series"]}
@@ -124,7 +124,7 @@ def test_category_monthly_trend_folds_extra_categories_into_other(seeded_db):
     transaction_service.create_transaction(db, user.id, rent.id, "expense", Decimal("200000"), date(2026, 7, 1))
     transaction_service.create_transaction(db, user.id, events.id, "expense", Decimal("100000"), date(2026, 7, 1))
 
-    trend = transaction_service.category_monthly_trend(db, months=1, anchor=date(2026, 7, 1), top_n=2)
+    trend = transaction_report_service.category_monthly_trend(db, months=1, anchor=date(2026, 7, 1), top_n=2)
 
     names = [s["name"] for s in trend["series"]]
     assert names == ["식비", "주거비", "기타"]
@@ -285,7 +285,7 @@ def test_period_totals_excludes_savings_linked_transactions(seeded_db):
         savings_product_id=product.id,
     )
 
-    totals = transaction_service.period_totals(db, date(2026, 7, 1), date(2026, 7, 31))
+    totals = transaction_report_service.period_totals(db, date(2026, 7, 1), date(2026, 7, 31))
 
     assert totals["expense"] == Decimal("50000")
     assert totals["fixed"] == Decimal("0")
@@ -304,7 +304,7 @@ def test_category_breakdown_excludes_savings_linked_transactions(seeded_db):
         savings_product_id=product.id,
     )
 
-    breakdown = transaction_service.category_breakdown(db, date(2026, 7, 1), date(2026, 7, 31), "expense")
+    breakdown = transaction_report_service.category_breakdown(db, date(2026, 7, 1), date(2026, 7, 31), "expense")
 
     assert breakdown == []
 
@@ -319,7 +319,7 @@ def test_category_breakdown_filters_by_user(seeded_db):
     transaction_service.create_transaction(db, user.id, food.id, "expense", Decimal("50000"), date(2026, 7, 5))
     transaction_service.create_transaction(db, spouse2.id, rent.id, "expense", Decimal("800000"), date(2026, 7, 1))
 
-    breakdown = transaction_service.category_breakdown(db, date(2026, 7, 1), date(2026, 7, 31), "expense", user.id)
+    breakdown = transaction_report_service.category_breakdown(db, date(2026, 7, 1), date(2026, 7, 31), "expense", user.id)
 
     assert len(breakdown) == 1
     assert breakdown[0]["category_id"] == food.id
@@ -417,14 +417,14 @@ def test_trailing_average_savings_averages_months_before_anchor(seeded_db):
     # anchor 월(7월) 거래는 평균 계산에서 제외돼야 한다
     transaction_service.create_transaction(db, user.id, salary.id, "income", Decimal("9000000"), date(2026, 7, 1))
 
-    avg = transaction_service.trailing_average_savings(db, anchor=date(2026, 7, 15), months=2)
+    avg = transaction_report_service.trailing_average_savings(db, anchor=date(2026, 7, 15), months=2)
 
     assert avg == Decimal("1500000")  # (2M + 1M) / 2
 
 
 def test_trailing_average_savings_is_zero_with_no_transactions(seeded_db):
     db = seeded_db["db"]
-    avg = transaction_service.trailing_average_savings(db, anchor=date(2026, 7, 15), months=3)
+    avg = transaction_report_service.trailing_average_savings(db, anchor=date(2026, 7, 15), months=3)
     assert avg == Decimal("0")
 
 

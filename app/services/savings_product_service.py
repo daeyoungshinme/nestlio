@@ -9,13 +9,11 @@ from app.config import settings
 from app.models.savings_product import SavingsProduct
 from app.models.transaction import Transaction
 from app.services import growlio_client
+from app.services.growlio_client import GrowlioSyncError
 from app.utils.dates import month_bounds, parse_year_month, year_bounds
+from app.utils.plan_status import pct_of, status_from_pct
 
 PLAN_PRODUCT_TYPES = ("savings", "investment")
-
-
-class GrowlioSyncError(Exception):
-    """동기화 요청이 사용자에게 보여줄 수 있는 사유로 실패했을 때 (연동 없음/계좌 못 찾음)."""
 
 
 def _map_product_type(asset_type: str) -> str:
@@ -61,21 +59,16 @@ def actuals_for_month(db: Session, year_month: str) -> dict[int, Decimal]:
 
 def _plan_status(pct: float) -> str:
     """저축/투자 계획 달성률은 미달(실적이 계획에 못 미침)이 위험이므로 income 섹션과 같은 방향으로 판단한다
-    (cashflow_plan_service._status 참고) — 새 임계값을 추가하지 않고 기존 예산 경고/위험 기준을 재사용한다."""
-    effective_pct = 100 - pct
-    if effective_pct >= settings.budget_critical_pct:
-        return "critical"
-    if effective_pct >= settings.budget_warn_pct:
-        return "warn"
-    return "ok"
+    (utils/plan_status.status_from_pct의 invert 옵션) — 새 임계값을 추가하지 않고 기존 예산 경고/위험 기준을 재사용한다."""
+    return status_from_pct(pct, settings.budget_warn_pct, settings.budget_critical_pct, invert=True)
 
 
 def _plan_group(planned: Decimal, actual: Decimal) -> dict:
-    pct = float(actual / planned * 100) if planned else (100.0 if actual else None)
+    pct = pct_of(actual, planned, zero_planned_default=None)
     return {
         "planned": planned,
         "actual": actual,
-        "pct": min(pct, 999) if pct is not None else None,
+        "pct": pct,
         "status": _plan_status(pct) if pct is not None else None,
     }
 
@@ -289,10 +282,10 @@ def sync_from_growlio(db: Session, product_id: int, bearer_token: str, *, now: d
     if not product.growlio_account_id:
         raise GrowlioSyncError("연동된 growlio 계좌가 없습니다.")
     accounts = growlio_client.fetch_account_balances(bearer_token)
-    match = next((a for a in accounts if a["id"] == product.growlio_account_id), None)
+    match = growlio_client.find_by_growlio_id(accounts, product.growlio_account_id)
     if match is None:
         raise GrowlioSyncError("growlio에서 연동된 계좌를 찾을 수 없습니다. 계좌가 삭제되었을 수 있습니다.")
-    product.current_balance = Decimal(str(match["current_value_krw"]))
+    product.current_balance = growlio_client.to_decimal_krw(match["current_value_krw"])
     product.last_synced_at = now
     db.commit()
     db.refresh(product)
@@ -314,12 +307,7 @@ def import_from_growlio(
         for a in growlio_client.fetch_account_balances(bearer_token)
         if _is_importable_asset_type(a["asset_type"])
     }
-    already_linked = {
-        product_id
-        for (product_id,) in db.query(SavingsProduct.growlio_account_id).filter(
-            SavingsProduct.growlio_account_id.isnot(None), SavingsProduct.is_active.is_(True)
-        )
-    }
+    already_linked = growlio_client.already_linked_growlio_ids(db, SavingsProduct)
     created: list[SavingsProduct] = []
     for account_id in growlio_account_ids:
         if account_id in already_linked:
@@ -329,7 +317,7 @@ def import_from_growlio(
             continue
         product = SavingsProduct(
             name=account["name"],
-            current_balance=Decimal(str(account["current_value_krw"])),
+            current_balance=growlio_client.to_decimal_krw(account["current_value_krw"]),
             monthly_saving_amount=Decimal("0"),
             product_type=_map_product_type(account["asset_type"]),
             growlio_account_id=account_id,

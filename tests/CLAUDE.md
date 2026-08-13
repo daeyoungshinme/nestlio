@@ -31,5 +31,5 @@ FastAPI가 JSON API로 전환되면서 (Jinja2/HTMX 서버 렌더링 제거) 라
 
 ## 파일 조직
 
-- 원칙은 서비스 파일 1:1 대응(`test_budget_service.py`, `test_transaction_service.py` 등)이지만 예외가 있다 — `test_csv_and_accounts.py`는 `account_service`와 `transaction_service`의 CSV 로직을 함께 다룬다.
-- 아직 전용 테스트 파일이 없는 서비스: `account_service`(CSV 로직만 `test_csv_and_accounts.py`가 커버), `category_service`, `couple_photo_service`, `user_service`, `user_setting_service`, `google_auth`, `google_calendar_service`. 새 테스트 파일을 만들 때 이 목록을 참고해 무분별하게 파일을 늘리지 않는다.
+- 원칙은 서비스 파일 1:1 대응(`test_budget_service.py`, `test_transaction_service.py` 등)이지만 예외가 있다 — `transaction_service.py`가 CRUD/집계/CSV 세 서비스(`transaction_service`/`transaction_report_service`/`transaction_import_service`)로 분리된 뒤에도 테스트 파일은 나누지 않았다: `test_transaction_service.py`가 CRUD와 집계(`transaction_report_service`) 테스트를 함께 다루고, `test_csv_and_accounts.py`는 `account_service`와 CSV/시트 가져오기(`transaction_import_service`), 연간 집계(`transaction_report_service`) 테스트를 함께 다룬다.
+- 아직 전용 테스트 파일이 없는 서비스: `category_service`, `couple_photo_service`, `user_setting_service`, `google_auth`, `google_calendar_service`. 새 테스트 파일을 만들 때 이 목록을 참고해 무분별하게 파일을 늘리지 않는다.

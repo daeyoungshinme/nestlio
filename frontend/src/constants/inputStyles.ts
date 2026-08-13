@@ -13,6 +13,10 @@ export const TEXTAREA_SM = INPUT_SM + " resize-none";
 export const FORM_LABEL = `block ${LABEL_MD} mb-1`;
 export const HINT_TEXT = "text-xs text-gray-400 dark:text-gray-500";
 
+/** type="color" 스와치 전용 — INPUT_SM은 padding/텍스트 크기가 포함돼 있어 고정 크기 색상
+ *  스와치에는 그대로 못 쓴다(레이아웃이 깨짐). */
+export const COLOR_INPUT_SM = "w-12 h-[44px] rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800";
+
 /** 긴 폼을 여러 논리적 그룹으로 나눌 때 쓰는 섹션 소제목 (예: 재무목표 폼의 "기본 정보"/"저축 계획"). */
 export const FORM_SECTION_LABEL =
   "text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wide pt-3 mt-1 border-t border-gray-100 dark:border-gray-800 first:border-0 first:pt-0 first:mt-0";

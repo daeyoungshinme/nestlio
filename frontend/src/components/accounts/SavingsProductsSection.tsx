@@ -10,9 +10,10 @@ import ConfirmModal from "@/components/common/ConfirmModal";
 import EmptyState from "@/components/common/EmptyState";
 import FormInput from "@/components/common/FormInput";
 import Modal from "@/components/common/Modal";
-import GrowlioSavingsImportModal from "@/components/accounts/GrowlioSavingsImportModal";
+import GrowlioImportModal from "@/components/common/GrowlioImportModal";
 import RowActionButtons from "@/components/common/RowActionButtons";
 import SkeletonCard from "@/components/common/SkeletonCard";
+import StatusBadge from "@/components/common/StatusBadge";
 import InlineStatsBar from "@/components/common/InlineStatsBar";
 import { INPUT_SM, LABEL_SM } from "@/constants/inputStyles";
 import { TOUCH_TARGET_MIN_MOBILE_ONLY } from "@/constants/uiSizes";
@@ -21,6 +22,7 @@ import {
   deactivateSavingsProduct,
   fetchGrowlioAccounts,
   fetchSavingsProducts,
+  importGrowlioAccounts,
   setGrowlioLink,
   syncSavingsProduct,
   updateSavingsProduct,
@@ -39,7 +41,7 @@ import {
   savingsProductTypeDotClass,
   savingsProductTypeLabel,
 } from "@/utils/colors";
-import { GROWLIO_APP_URL, growlioPortfolioUrl, isGrowlioLinkedInvestment } from "@/constants/growlio";
+import { GROWLIO_APP_URL, growlioAssetTypeLabel, growlioPortfolioUrl, isGrowlioLinkedInvestment } from "@/constants/growlio";
 import type { FinancialGoalOut, SavingsProductOut, SavingsProductType, UserOut } from "@/types";
 
 interface Draft {
@@ -239,9 +241,20 @@ export default function SavingsProductsSection({ users }: Props) {
       )}
 
       {importOpen && (
-        <GrowlioSavingsImportModal
-          kind="investment"
+        <GrowlioImportModal
+          title="투자 계좌 가져오기"
+          queryKey={QUERY_KEYS.growlioInvestmentAccounts}
+          fetchRows={() => fetchGrowlioAccounts().then((rows) => [...rows].sort((a, b) => a.name.localeCompare(b.name)))}
+          getRowId={(account) => account.id}
+          getRowAmount={(account) => account.current_value_krw}
+          renderRowMeta={(account) => ({ name: account.name, badge: growlioAssetTypeLabel(account.asset_type) })}
+          importRows={importGrowlioAccounts}
+          buildSuccessMessage={(created) => {
+            const total = created.reduce((sum, p) => sum + Number(p.current_balance), 0);
+            return `growlio 계좌 ${created.length}개를 가져왔습니다. 합계 ${formatKrw(total)}`;
+          }}
           existingGrowlioAccountIds={existingGrowlioAccountIds}
+          invalidateKeys={[QUERY_KEYS.savingsProducts]}
           onClose={() => setImportOpen(false)}
         />
       )}
@@ -296,26 +309,30 @@ function SavingsProductRow({
         <div className="flex items-center gap-1.5">
           <p className="text-sm font-medium text-gray-900 dark:text-gray-50 truncate flex-1 min-w-0">{product.name}</p>
           {product.growlio_account_id && (
-            <span className={`shrink-0 flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[11px] font-medium ${growlioLinkedBadgeStyle()}`}>
-              <Link2 size={11} />
-              growlio 연동
-            </span>
+            <StatusBadge
+              size="chip"
+              icon={<Link2 size={11} />}
+              label="growlio 연동"
+              toneClassName={growlioLinkedBadgeStyle()}
+              className="shrink-0"
+            />
           )}
         </div>
         <div className="flex items-center gap-1.5 flex-wrap mt-1">
-          <span
-            className={`shrink-0 px-1.5 py-0.5 rounded text-[11px] font-medium ${savingsProductTypeBadgeStyle(product.product_type)}`}
-          >
-            {savingsProductTypeLabel(product.product_type)}
-          </span>
+          <StatusBadge
+            size="chip"
+            label={savingsProductTypeLabel(product.product_type)}
+            toneClassName={savingsProductTypeBadgeStyle(product.product_type)}
+            className="shrink-0"
+          />
           {linkedGoals.length > 0 && (
-            <span
-              className={`shrink-0 max-w-[140px] sm:max-w-[220px] truncate px-1.5 py-0.5 rounded text-[11px] font-medium ${linkedGoalBadgeStyle()}`}
+            <StatusBadge
+              size="chip"
+              label={`목표: ${linkedGoals[0].name}${linkedGoals.length > 1 ? ` 외 ${linkedGoals.length - 1}건` : ""}`}
+              toneClassName={linkedGoalBadgeStyle()}
+              className="shrink-0 max-w-[140px] sm:max-w-[220px] truncate"
               title={`목표: ${linkedGoals.map((g) => g.name).join(", ")}`}
-            >
-              목표: {linkedGoals[0].name}
-              {linkedGoals.length > 1 && ` 외 ${linkedGoals.length - 1}건`}
-            </span>
+            />
           )}
           {product.return_rate_pct !== null && (
             <span className={`shrink-0 text-[11px] font-semibold ${returnRateTextColor(Number(product.return_rate_pct))}`}>

@@ -8,10 +8,11 @@ import type { AccountActionsMenuItem } from "@/components/common/AccountActionsM
 import ConfirmModal from "@/components/common/ConfirmModal";
 import EmptyState from "@/components/common/EmptyState";
 import FormInput from "@/components/common/FormInput";
-import GrowlioSavingsImportModal from "@/components/accounts/GrowlioSavingsImportModal";
+import GrowlioImportModal from "@/components/common/GrowlioImportModal";
 import Modal from "@/components/common/Modal";
 import RowActionButtons from "@/components/common/RowActionButtons";
 import SkeletonCard from "@/components/common/SkeletonCard";
+import StatusBadge from "@/components/common/StatusBadge";
 import InlineStatsBar from "@/components/common/InlineStatsBar";
 import { INPUT_SM, LABEL_SM } from "@/constants/inputStyles";
 import { TOUCH_TARGET_MIN_MOBILE_ONLY } from "@/constants/uiSizes";
@@ -21,7 +22,7 @@ import {
   fetchSavingsProducts,
   updateSavingsProduct,
 } from "@/api/savingsProducts";
-import { syncRealEstate } from "@/api/realEstate";
+import { fetchGrowlioRealEstate, importGrowlioRealEstate, syncRealEstate } from "@/api/realEstate";
 import { fetchGoals } from "@/api/goals";
 import { QUERY_KEYS } from "@/constants/queryKeys";
 import { useCrudMutations } from "@/hooks/useCrudMutations";
@@ -35,7 +36,7 @@ import {
   savingsProductTypeBadgeStyle,
   savingsProductTypeLabel,
 } from "@/utils/colors";
-import type { FinancialGoalOut, SavingsProductOut, UserOut } from "@/types";
+import type { FinancialGoalOut, RealEstateImportResultOut, SavingsProductOut, UserOut } from "@/types";
 
 interface Draft {
   name: string;
@@ -188,9 +189,36 @@ export default function RealEstateSection({ users }: Props) {
       )}
 
       {importOpen && (
-        <GrowlioSavingsImportModal
-          kind="real_estate"
+        <GrowlioImportModal
+          title="부동산 가져오기"
+          queryKey={QUERY_KEYS.growlioRealEstateAccounts}
+          fetchRows={() => fetchGrowlioRealEstate().then((rows) => [...rows].sort((a, b) => a.name.localeCompare(b.name)))}
+          getRowId={(item) => item.id}
+          getRowAmount={(item) => item.market_value_krw}
+          renderRowMeta={(item) => ({
+            name: item.name,
+            badge: "부동산",
+            subtext: item.address,
+            amountNote: item.mortgage_balance_krw > 0 && (
+              <span className="block text-[11px] text-amber-600 dark:text-amber-400">
+                대출 {formatKrw(item.mortgage_balance_krw)}
+              </span>
+            ),
+          })}
+          importRows={importGrowlioRealEstate}
+          buildSuccessMessage={(results) => {
+            const total = results.reduce(
+              (sum: number, r: RealEstateImportResultOut) => sum + Number(r.savings_product.current_balance),
+              0,
+            );
+            const loanCount = results.filter((r) => r.loan !== null).length;
+            return (
+              `growlio 계좌 ${results.length}개를 가져왔습니다. 합계 ${formatKrw(total)}` +
+              (loanCount > 0 ? ` · 담보대출 ${loanCount}건도 함께 등록했어요.` : "")
+            );
+          }}
           existingGrowlioAccountIds={existingGrowlioAccountIds}
+          invalidateKeys={[QUERY_KEYS.savingsProducts, QUERY_KEYS.loans]}
           onClose={() => setImportOpen(false)}
         />
       )}
@@ -237,26 +265,30 @@ function RealEstateRow({
         <div className="flex items-center gap-1.5">
           <p className="text-sm font-medium text-gray-900 dark:text-gray-50 truncate flex-1 min-w-0">{product.name}</p>
           {product.growlio_account_id && (
-            <span className={`shrink-0 flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[11px] font-medium ${growlioLinkedBadgeStyle()}`}>
-              <Link2 size={11} />
-              growlio 연동
-            </span>
+            <StatusBadge
+              size="chip"
+              icon={<Link2 size={11} />}
+              label="growlio 연동"
+              toneClassName={growlioLinkedBadgeStyle()}
+              className="shrink-0"
+            />
           )}
         </div>
         <div className="flex items-center gap-1.5 flex-wrap mt-1">
-          <span
-            className={`shrink-0 px-1.5 py-0.5 rounded text-[11px] font-medium ${savingsProductTypeBadgeStyle(product.product_type)}`}
-          >
-            {savingsProductTypeLabel(product.product_type)}
-          </span>
+          <StatusBadge
+            size="chip"
+            label={savingsProductTypeLabel(product.product_type)}
+            toneClassName={savingsProductTypeBadgeStyle(product.product_type)}
+            className="shrink-0"
+          />
           {linkedGoals.length > 0 && (
-            <span
-              className={`shrink-0 max-w-[140px] sm:max-w-[220px] truncate px-1.5 py-0.5 rounded text-[11px] font-medium ${linkedGoalBadgeStyle()}`}
+            <StatusBadge
+              size="chip"
+              label={`목표: ${linkedGoals[0].name}${linkedGoals.length > 1 ? ` 외 ${linkedGoals.length - 1}건` : ""}`}
+              toneClassName={linkedGoalBadgeStyle()}
+              className="shrink-0 max-w-[140px] sm:max-w-[220px] truncate"
               title={`목표: ${linkedGoals.map((g) => g.name).join(", ")}`}
-            >
-              목표: {linkedGoals[0].name}
-              {linkedGoals.length > 1 && ` 외 ${linkedGoals.length - 1}건`}
-            </span>
+            />
           )}
           {product.return_rate_pct !== null && (
             <span className={`shrink-0 text-[11px] font-semibold ${returnRateTextColor(Number(product.return_rate_pct))}`}>

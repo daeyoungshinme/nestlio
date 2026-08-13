@@ -4,7 +4,7 @@ from decimal import Decimal
 from sqlalchemy.orm import Session
 
 from app.models.annual_savings_goal import AnnualSavingsGoal
-from app.services import goal_service, transaction_service
+from app.services import goal_service, transaction_report_service
 
 
 def list_goals(db: Session) -> list[AnnualSavingsGoal]:
@@ -37,11 +37,11 @@ def delete_goal(db: Session, year: int) -> None:
 
 
 def compute_progress(db: Session, goal: AnnualSavingsGoal, today: date) -> dict:
-    """가구 전체 현금흐름 순저축(수입-지출, transaction_service.yearly_monthly_breakdown의
+    """가구 전체 현금흐름 순저축(수입-지출, transaction_report_service.yearly_monthly_breakdown의
     savings와 동일 정의 — goal_pace_insight가 이미 쓰는 "실제 저축액" 정의와 일치) 기준으로
     연간/월간 달성률을 계산한다. growlio는 자기 자신의 거래내역으로 별도 계산하므로
     이 함수의 결과는 nestlio 화면 표시 전용이며 growlio에 내려주지 않는다."""
-    breakdown = transaction_service.yearly_monthly_breakdown(db, goal.year)
+    breakdown = transaction_report_service.yearly_monthly_breakdown(db, goal.year)
     if goal.year < today.year:
         included = breakdown
     elif goal.year == today.year:
@@ -75,7 +75,7 @@ def suggested_targets(db: Session, today: date) -> dict:
     - 현재 등록된 재무목표(FinancialGoal)들의 월 저축금액 합계 기준 (목표 시스템 통합 —
       "우리가 세운 목표들을 다 합치면 올해 얼마를 모아야 하는가"를 그대로 제안값으로 보여준다)
     """
-    suggested_monthly = transaction_service.trailing_average_savings(db, today, months=3)
+    suggested_monthly = transaction_report_service.trailing_average_savings(db, today, months=3)
     goal_based_monthly = sum(
         (g.monthly_saving_amount for g in goal_service.list_goals(db)), Decimal("0")
     )

@@ -11,6 +11,7 @@ from app.scheduler.jobs import (
     monthly_summary_email,
     weekly_summary_email,
 )
+from app.schemas.internal import JobRunOut
 
 router = APIRouter(prefix="/internal/jobs", tags=["internal"])
 
@@ -32,7 +33,7 @@ def _verify_secret(x_internal_job_secret: str | None = Header(default=None)) -> 
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "invalid job secret")
 
 
-@router.post("/{job_name}", dependencies=[Depends(_verify_secret)])
+@router.post("/{job_name}", dependencies=[Depends(_verify_secret)], response_model=JobRunOut)
 def run_job(job_name: str):
     job = JOB_REGISTRY.get(job_name)
     if job is None:

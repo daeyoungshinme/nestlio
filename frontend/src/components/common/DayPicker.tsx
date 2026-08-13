@@ -1,6 +1,5 @@
-import { ChevronLeft, ChevronRight } from "lucide-react";
 import { formatDate } from "@/utils/format";
-import { TOUCH_TARGET_COMPACT_MOBILE_ONLY } from "@/constants/uiSizes";
+import RangeStepper from "@/components/common/RangeStepper";
 
 export function currentDateIso(): string {
   const d = new Date();
@@ -20,24 +19,12 @@ interface Props {
 
 export default function DayPicker({ date, onChange }: Props) {
   return (
-    <div className="flex items-center gap-1 sm:gap-4">
-      <button
-        onClick={() => onChange(shiftDateIso(date, -1))}
-        className={`${TOUCH_TARGET_COMPACT_MOBILE_ONLY} p-2 text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800`}
-        aria-label="전날"
-      >
-        <ChevronLeft size={18} />
-      </button>
-      <span className="text-sm font-semibold text-gray-900 dark:text-gray-50 w-24 sm:w-28 text-center whitespace-nowrap">
-        {formatDate(date)}
-      </span>
-      <button
-        onClick={() => onChange(shiftDateIso(date, 1))}
-        className={`${TOUCH_TARGET_COMPACT_MOBILE_ONLY} p-2 text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800`}
-        aria-label="다음날"
-      >
-        <ChevronRight size={18} />
-      </button>
-    </div>
+    <RangeStepper
+      label={formatDate(date)}
+      onPrev={() => onChange(shiftDateIso(date, -1))}
+      onNext={() => onChange(shiftDateIso(date, 1))}
+      prevAriaLabel="전날"
+      nextAriaLabel="다음날"
+    />
   );
 }

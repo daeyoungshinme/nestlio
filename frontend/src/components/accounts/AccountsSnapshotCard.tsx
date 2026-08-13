@@ -9,6 +9,7 @@ import { fetchLoans } from "@/api/loans";
 import { QUERY_KEYS } from "@/constants/queryKeys";
 import { formatKrw, formatKrwCompact } from "@/utils/format";
 import { splitSavingsAndRealEstate } from "@/utils/netWorth";
+import { netWorthTextColor } from "@/utils/colors";
 
 export default function AccountsSnapshotCard() {
   const { data, isLoading } = useQuery({ queryKey: QUERY_KEYS.netWorth, queryFn: () => fetchNetWorth(12) });
@@ -48,11 +49,7 @@ export default function AccountsSnapshotCard() {
         <div className="flex flex-row items-start gap-4">
           <div className="flex-1 min-w-0 flex flex-col gap-1">
             <p className="text-xs text-gray-400 dark:text-gray-500 font-medium">순자산</p>
-            <p
-              className={`text-xl sm:text-3xl lg:text-4xl font-bold ${
-                netWorth >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400"
-              }`}
-            >
+            <p className={`text-xl sm:text-3xl lg:text-4xl font-bold ${netWorthTextColor(netWorth)}`}>
               {formatKrwCompact(netWorth)}
             </p>
             <p className="text-sm text-gray-400 dark:text-gray-500 truncate">{formatKrw(current.net_worth)}</p>

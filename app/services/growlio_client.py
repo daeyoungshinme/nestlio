@@ -10,8 +10,12 @@ nestlio와 growlio는 같은 Supabase 프로젝트를 공유하므로, 사용자
 """
 
 from datetime import date
+from decimal import Decimal
 
 import httpx
+from fastapi import FastAPI, Request, status
+from fastapi.responses import JSONResponse
+from sqlalchemy.orm import Session
 
 from app.config import settings
 
@@ -37,19 +41,33 @@ class GrowlioRequestError(Exception):
     """growlio API 호출이 실패했을 때 (네트워크 오류, 인증 실패, 5xx 등)."""
 
 
-def fetch_account_balances(bearer_token: str) -> list[dict]:
-    """현재 사용자의 growlio 계좌 목록과 최신 평가액(KRW)을 조회한다."""
+class GrowlioSyncError(Exception):
+    """동기화 요청이 사용자에게 보여줄 수 있는 사유로 실패했을 때 (연동 없음/계좌 못 찾음).
+
+    account_service/savings_product_service/real_estate_service가 공통으로 쓰는 예외라
+    growlio_client에 단일 정의하고 각 서비스가 여기서 import한다.
+    """
+
+
+def _request(method: str, path: str, bearer_token: str, *, json: dict | None = None) -> dict | list:
     if not settings.growlio_api_base_url:
         raise GrowlioNotConfiguredError("growlio 연동이 설정되지 않았습니다 (GROWLIO_API_BASE_URL).")
-    url = f"{settings.growlio_api_base_url.rstrip('/')}/api/v1/external/accounts"
+    url = f"{settings.growlio_api_base_url.rstrip('/')}/api/v1/external/{path}"
     try:
-        response = httpx.get(url, headers={"Authorization": f"Bearer {bearer_token}"}, timeout=_TIMEOUT)
+        response = httpx.request(
+            method, url, json=json, headers={"Authorization": f"Bearer {bearer_token}"}, timeout=_TIMEOUT
+        )
         response.raise_for_status()
     except httpx.HTTPStatusError as exc:
         raise GrowlioRequestError(f"growlio API 오류 (status={exc.response.status_code})") from exc
     except httpx.HTTPError as exc:
         raise GrowlioRequestError("growlio 서버에 연결하지 못했습니다.") from exc
     return response.json()
+
+
+def fetch_account_balances(bearer_token: str) -> list[dict]:
+    """현재 사용자의 growlio 계좌 목록과 최신 평가액(KRW)을 조회한다."""
+    return _request("GET", "accounts", bearer_token)
 
 
 def fetch_real_estate_items(bearer_token: str) -> list[dict]:
@@ -59,17 +77,7 @@ def fetch_real_estate_items(bearer_token: str) -> list[dict]:
     주지만, nestlio가 "자산 항목"(저축/투자 상품)과 "대출 항목"을 각각 등록하려면 원본
     시세와 대출잔액이 따로 필요하다 (GET /external/real-estate).
     """
-    if not settings.growlio_api_base_url:
-        raise GrowlioNotConfiguredError("growlio 연동이 설정되지 않았습니다 (GROWLIO_API_BASE_URL).")
-    url = f"{settings.growlio_api_base_url.rstrip('/')}/api/v1/external/real-estate"
-    try:
-        response = httpx.get(url, headers={"Authorization": f"Bearer {bearer_token}"}, timeout=_TIMEOUT)
-        response.raise_for_status()
-    except httpx.HTTPStatusError as exc:
-        raise GrowlioRequestError(f"growlio API 오류 (status={exc.response.status_code})") from exc
-    except httpx.HTTPError as exc:
-        raise GrowlioRequestError("growlio 서버에 연결하지 못했습니다.") from exc
-    return response.json()
+    return _request("GET", "real-estate", bearer_token)
 
 
 def fetch_investment_goal(bearer_token: str) -> dict:
@@ -78,24 +86,14 @@ def fetch_investment_goal(bearer_token: str) -> dict:
     nestlio 재무목표(FinancialGoal) 신규 작성 폼을 미리 채우는 용도로만 쓰인다 — 진행률은
     이 값이 아니라 이미 가져온 growlio 연동 저축/투자 상품 잔액으로 nestlio가 직접 계산한다.
     """
-    if not settings.growlio_api_base_url:
-        raise GrowlioNotConfiguredError("growlio 연동이 설정되지 않았습니다 (GROWLIO_API_BASE_URL).")
-    url = f"{settings.growlio_api_base_url.rstrip('/')}/api/v1/external/goal"
-    try:
-        response = httpx.get(url, headers={"Authorization": f"Bearer {bearer_token}"}, timeout=_TIMEOUT)
-        response.raise_for_status()
-    except httpx.HTTPStatusError as exc:
-        raise GrowlioRequestError(f"growlio API 오류 (status={exc.response.status_code})") from exc
-    except httpx.HTTPError as exc:
-        raise GrowlioRequestError("growlio 서버에 연결하지 못했습니다.") from exc
-    return response.json()
+    return _request("GET", "goal", bearer_token)
 
 
 def push_transaction(
     bearer_token: str,
     growlio_account_id: str,
     transaction_type: str,
-    amount,
+    amount: Decimal,
     transaction_date: date,
     notes: str | None = None,
 ) -> dict:
@@ -103,10 +101,12 @@ def push_transaction(
 
     transaction_type은 "DEPOSIT" | "WITHDRAWAL"만 허용된다(growlio 쪽 검증과 동일).
     KIS/키움처럼 자동 연동된 계좌는 growlio가 예수금은 건드리지 않고 내역만 기록한다.
+
+    growlio의 `/external/transactions`는 amount를 float로 선언하고 내부 도메인 자체가 float 기반이라
+    (growlio backend app/api/v1/external.py 확인), 여기서 float(amount)로 변환해 보내는 것이 정밀도
+    손실이 아니라 growlio 계약과 정확히 일치하는 경계 변환이다 — str(amount)로 바꿔도 growlio가 결국
+    float으로 파싱해 산술하므로 이득이 없다.
     """
-    if not settings.growlio_api_base_url:
-        raise GrowlioNotConfiguredError("growlio 연동이 설정되지 않았습니다 (GROWLIO_API_BASE_URL).")
-    url = f"{settings.growlio_api_base_url.rstrip('/')}/api/v1/external/transactions"
     payload = {
         "account_id": growlio_account_id,
         "transaction_type": transaction_type,
@@ -114,13 +114,48 @@ def push_transaction(
         "transaction_date": transaction_date.isoformat(),
         "notes": notes,
     }
-    try:
-        response = httpx.post(
-            url, json=payload, headers={"Authorization": f"Bearer {bearer_token}"}, timeout=_TIMEOUT
-        )
-        response.raise_for_status()
-    except httpx.HTTPStatusError as exc:
-        raise GrowlioRequestError(f"growlio API 오류 (status={exc.response.status_code})") from exc
-    except httpx.HTTPError as exc:
-        raise GrowlioRequestError("growlio 서버에 연결하지 못했습니다.") from exc
-    return response.json()
+    return _request("POST", "transactions", bearer_token, json=payload)
+
+
+def to_decimal_krw(raw) -> Decimal:
+    """growlio 응답의 *_krw 숫자 필드(float/int/str)를 Decimal로 변환한다."""
+    return Decimal(str(raw))
+
+
+def find_by_growlio_id(items: list[dict], growlio_id: str) -> dict | None:
+    """growlio 목록 응답에서 id가 일치하는 항목을 찾는다 (단건 동기화 매칭용)."""
+    return next((item for item in items if item["id"] == growlio_id), None)
+
+
+def already_linked_growlio_ids(db: Session, model, *, active_only: bool = True) -> set[str]:
+    """model.growlio_account_id가 채워진 로우들의 growlio_account_id 집합.
+
+    가져오기(import_from_growlio) 시 이미 연동된 growlio 계좌를 중복 가져오지 않도록
+    account_service/savings_product_service/real_estate_service가 공통으로 쓴다.
+    """
+    query = db.query(model.growlio_account_id).filter(model.growlio_account_id.isnot(None))
+    if active_only:
+        query = query.filter(model.is_active.is_(True))
+    return {growlio_id for (growlio_id,) in query}
+
+
+def register_exception_handlers(app: FastAPI) -> None:
+    """accounts/savings_products/real_estate/goals 라우터가 각자 반복하던
+    growlio 예외 -> HTTP status 매핑을 앱 전역에서 한 번만 처리한다.
+
+    FastAPI의 기본 HTTPException 핸들러와 동일한 응답 형식({"detail": ...})을
+    직접 반환한다 - exception_handler 안에서 HTTPException을 raise하면 그
+    핸들러 밖으로 예외가 그대로 전파되어 500으로 떨어지므로 쓰지 않는다.
+    """
+
+    @app.exception_handler(GrowlioNotConfiguredError)
+    def _not_configured(request: Request, exc: GrowlioNotConfiguredError):
+        return JSONResponse(status_code=status.HTTP_501_NOT_IMPLEMENTED, content={"detail": str(exc)})
+
+    @app.exception_handler(GrowlioRequestError)
+    def _request_error(request: Request, exc: GrowlioRequestError):
+        return JSONResponse(status_code=status.HTTP_502_BAD_GATEWAY, content={"detail": str(exc)})
+
+    @app.exception_handler(GrowlioSyncError)
+    def _sync_error(request: Request, exc: GrowlioSyncError):
+        return JSONResponse(status_code=status.HTTP_409_CONFLICT, content={"detail": str(exc)})

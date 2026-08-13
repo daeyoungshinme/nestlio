@@ -76,18 +76,8 @@ def compute_growlio_unlinked(db: Session, bearer_token: str) -> dict:
         logger.warning("growlio_unlinked_fetch_failed", exc_info=True)
         accounts, real_estate_items = [], []
 
-    linked_account_ids = {
-        growlio_account_id
-        for (growlio_account_id,) in db.query(Account.growlio_account_id).filter(
-            Account.growlio_account_id.isnot(None), Account.is_active.is_(True)
-        )
-    }
-    linked_product_ids = {
-        growlio_account_id
-        for (growlio_account_id,) in db.query(SavingsProduct.growlio_account_id).filter(
-            SavingsProduct.growlio_account_id.isnot(None), SavingsProduct.is_active.is_(True)
-        )
-    }
+    linked_account_ids = growlio_client.already_linked_growlio_ids(db, Account)
+    linked_product_ids = growlio_client.already_linked_growlio_ids(db, SavingsProduct)
 
     bank_total = Decimal("0")
     investment_total = Decimal("0")
@@ -96,10 +86,10 @@ def compute_growlio_unlinked(db: Session, bearer_token: str) -> dict:
         if account["id"] in linked_account_ids or account["id"] in linked_product_ids:
             continue
         if account["asset_type"] in growlio_client.BANK_ASSET_TYPES:
-            bank_total += Decimal(str(account["current_value_krw"]))
+            bank_total += growlio_client.to_decimal_krw(account["current_value_krw"])
             item_count += 1
         elif account["asset_type"] in growlio_client.INVESTMENT_ASSET_TYPES:
-            investment_total += Decimal(str(account["current_value_krw"]))
+            investment_total += growlio_client.to_decimal_krw(account["current_value_krw"])
             item_count += 1
         # REAL_ESTATE_ASSET_TYPE은 담보대출을 뺀 순액만 담겨 있어(fetch_real_estate_items와
         # 중복 집계되므로) 여기서는 건너뛰고 아래 real estate 루프에서만 집계한다.
@@ -109,8 +99,8 @@ def compute_growlio_unlinked(db: Session, bearer_token: str) -> dict:
     for item in real_estate_items:
         if item["id"] in linked_product_ids:
             continue
-        real_estate_total += Decimal(str(item["market_value_krw"]))
-        real_estate_loan_total += Decimal(str(item.get("mortgage_balance_krw") or 0))
+        real_estate_total += growlio_client.to_decimal_krw(item["market_value_krw"])
+        real_estate_loan_total += growlio_client.to_decimal_krw(item.get("mortgage_balance_krw") or 0)
         item_count += 1
 
     net_total = bank_total + investment_total + real_estate_total - real_estate_loan_total

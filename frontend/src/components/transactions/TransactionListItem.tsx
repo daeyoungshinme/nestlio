@@ -1,8 +1,7 @@
-import { Pencil, Trash2 } from "lucide-react";
 import Badge from "@/components/common/Badge";
+import RowActionButtons from "@/components/common/RowActionButtons";
 import { transactionAmountTextColor } from "@/utils/colors";
 import { formatDate, formatKrw } from "@/utils/format";
-import { TOUCH_TARGET_MIN_MOBILE_ONLY } from "@/constants/uiSizes";
 import type { TransactionOut, UserOut } from "@/types";
 
 interface Props {
@@ -51,22 +50,7 @@ export default function TransactionListItem({
           {formatKrw(tx.amount)}
         </p>
       </div>
-      <div className="flex items-center gap-1 shrink-0">
-        <button
-          onClick={() => onEdit(tx)}
-          className={`${TOUCH_TARGET_MIN_MOBILE_ONLY} p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-950 rounded-lg transition-colors`}
-          aria-label="수정"
-        >
-          <Pencil size={16} />
-        </button>
-        <button
-          onClick={() => onDelete(tx)}
-          className={`${TOUCH_TARGET_MIN_MOBILE_ONLY} p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950 rounded-lg transition-colors`}
-          aria-label="삭제"
-        >
-          <Trash2 size={16} />
-        </button>
-      </div>
+      <RowActionButtons onEdit={() => onEdit(tx)} onDelete={() => onDelete(tx)} />
     </div>
   );
 }

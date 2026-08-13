@@ -18,7 +18,7 @@ from app.schemas.transaction import (
     TransactionOut,
     TransactionUpdateIn,
 )
-from app.services import notification_service, transaction_service
+from app.services import notification_service, transaction_import_service, transaction_report_service, transaction_service
 from app.services.google_auth import GoogleNotConnectedError
 from app.services.google_sheets_service import GoogleSheetsReadError
 from app.utils.dates import month_bounds
@@ -41,7 +41,7 @@ def list_transactions(
     df = date_from or default_from
     dt = date_to or default_to
     items = transaction_service.list_transactions(db, df, dt, category_id, type, user_id)
-    totals = transaction_service.period_totals(db, df, dt)
+    totals = transaction_report_service.period_totals(db, df, dt)
     return {"items": items, "totals": totals}
 
 
@@ -92,7 +92,7 @@ def category_breakdown(
     default_from, default_to = month_bounds(date.today())
     df = date_from or default_from
     dt = date_to or default_to
-    return transaction_service.category_breakdown(db, df, dt, type, user_id)
+    return transaction_report_service.category_breakdown(db, df, dt, type, user_id)
 
 
 @router.get("/recent-items", response_model=list[TransactionOut])
@@ -120,7 +120,7 @@ def export_csv(
     df = date_from or default_from
     dt = date_to or default_to
     items = transaction_service.list_transactions(db, df, dt, category_id, type, user_id)
-    csv_text = transaction_service.export_csv(items)
+    csv_text = transaction_import_service.export_csv(items)
     return Response(
         content=csv_text.encode("utf-8-sig"),
         media_type="text/csv",
@@ -139,7 +139,7 @@ async def import_csv(
         text = raw.decode("utf-8-sig")
     except UnicodeDecodeError:
         text = raw.decode("cp949")
-    return transaction_service.import_csv(db, text, current_user.id)
+    return transaction_import_service.import_csv(db, text, current_user.id)
 
 
 @router.post("/import-sheet", response_model=ImportResultOut)
@@ -152,10 +152,10 @@ def import_sheet(
         if payload.mode == "public":
             if not payload.sheet_url:
                 raise HTTPException(status.HTTP_400_BAD_REQUEST, "시트 링크를 입력해주세요.")
-            return transaction_service.import_from_sheet_url(db, payload.sheet_url, current_user.id)
+            return transaction_import_service.import_from_sheet_url(db, payload.sheet_url, current_user.id)
         if not payload.spreadsheet_id:
             raise HTTPException(status.HTTP_400_BAD_REQUEST, "스프레드시트 ID를 입력해주세요.")
-        return transaction_service.import_from_spreadsheet(
+        return transaction_import_service.import_from_spreadsheet(
             db, payload.spreadsheet_id, payload.sheet_name, current_user.id
         )
     except (GoogleSheetsReadError, GoogleNotConnectedError) as exc:
@@ -166,7 +166,7 @@ def import_sheet(
 def get_transaction(tx_id: int, db: Session = Depends(get_db), _: User = Depends(get_current_user)):
     tx = transaction_service.get_transaction(db, tx_id)
     if tx is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Transaction not found")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="거래 내역을 찾을 수 없습니다.")
     return tx
 
 
@@ -197,7 +197,7 @@ def update_transaction(
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
     if tx is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Transaction not found")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="거래 내역을 찾을 수 없습니다.")
     if getattr(tx, "growlio_sync_failed", False):
         response.headers["X-Growlio-Sync-Warning"] = "1"
     return tx
@@ -212,4 +212,4 @@ def delete_transaction(
 ):
     deleted = transaction_service.delete_transaction(db, tx_id, bearer_token=bearer_token)
     if not deleted:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Transaction not found")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="거래 내역을 찾을 수 없습니다.")

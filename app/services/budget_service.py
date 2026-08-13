@@ -7,8 +7,9 @@ from app.config import settings
 from app.models.category import Category
 from app.models.cashflow_plan_item import CashflowPlanItem
 from app.models.recurring_expense import RecurringExpense
-from app.services.transaction_service import category_breakdown
+from app.services.transaction_report_service import category_breakdown
 from app.utils.dates import month_bounds, parse_year_month
+from app.utils.plan_status import pct_of, status_from_pct
 
 
 def get_budgets_for_month(db: Session, year_month: str) -> dict[int, Decimal]:
@@ -42,11 +43,7 @@ def get_budgets_for_month(db: Session, year_month: str) -> dict[int, Decimal]:
 def _status(pct: float, warn_pct: float | None = None, critical_pct: float | None = None) -> str:
     warn_pct = settings.budget_warn_pct if warn_pct is None else warn_pct
     critical_pct = settings.budget_critical_pct if critical_pct is None else critical_pct
-    if pct >= critical_pct:
-        return "critical"
-    if pct >= warn_pct:
-        return "warn"
-    return "ok"
+    return status_from_pct(pct, warn_pct, critical_pct)
 
 
 def budget_vs_actual(
@@ -69,7 +66,7 @@ def budget_vs_actual(
     for cat in categories:
         budget_amount = budgets.get(cat.id, Decimal("0"))
         actual = actuals.get(cat.id, Decimal("0"))
-        pct = float(actual / budget_amount * 100) if budget_amount else (100.0 if actual else 0.0)
+        pct = pct_of(actual, budget_amount)
         result.append(
             {
                 "category_id": cat.id,
@@ -78,7 +75,7 @@ def budget_vs_actual(
                 "color": cat.color,
                 "budget": budget_amount,
                 "actual": actual,
-                "pct": min(pct, 999),
+                "pct": pct,
                 "status": _status(pct, warn_pct, critical_pct) if budget_amount else ("warn" if actual else "ok"),
             }
         )

@@ -30,7 +30,7 @@ from app.routers import (
     transactions,
     users,
 )
-from app.services import couple_photo_service
+from app.services import couple_photo_service, growlio_client
 
 FRONTEND_DIST = Path(__file__).resolve().parent.parent / "frontend" / "dist"
 
@@ -86,6 +86,8 @@ app.include_router(notifications.router, prefix=API_PREFIX)
 app.include_router(annual_savings_goals.router, prefix=API_PREFIX)
 app.include_router(external.router, prefix=API_PREFIX)
 app.include_router(internal_jobs.router)
+
+growlio_client.register_exception_handlers(app)
 
 
 @app.get("/media/couple-photo", include_in_schema=False)

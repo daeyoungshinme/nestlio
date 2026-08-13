@@ -5,6 +5,8 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict
 
+from app.schemas.growlio import GrowlioImportIn
+
 
 class AccountOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
@@ -39,5 +41,4 @@ class AccountUpdateIn(BaseModel):
     owner_user_id: uuid.UUID | None = None
 
 
-class AccountGrowlioImportIn(BaseModel):
-    growlio_account_ids: list[str]
+AccountGrowlioImportIn = GrowlioImportIn

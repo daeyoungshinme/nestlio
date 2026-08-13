@@ -14,9 +14,9 @@ from app.services import (
     goal_service,
     net_worth_service,
     savings_product_service,
-    transaction_service,
+    transaction_report_service,
 )
-from app.utils.dates import month_bounds, year_month_str
+from app.utils.dates import month_bounds, parse_year_month, year_month_str
 
 # months to keep emergency fund runway comfortably inside
 EMERGENCY_FUND_MIN_MONTHS = 3
@@ -229,7 +229,7 @@ def emergency_fund_context(db: Session, month_start: date) -> tuple[Decimal | No
     balance = savings_product_service.get_emergency_fund_balance(db)
     if not balance:
         return None, None
-    trend = transaction_service.monthly_trend(db, months=3, anchor=month_start)
+    trend = transaction_report_service.monthly_trend(db, months=3, anchor=month_start)
     avg_fixed = sum((Decimal(str(row["fixed"])) for row in trend), Decimal("0")) / len(trend)
     return balance, avg_fixed
 
@@ -271,7 +271,7 @@ def emergency_fund_insight(current_balance: Decimal | None, avg_monthly_fixed: D
 
 
 def savings_streak_months(trend: list[dict], target_monthly: Decimal) -> int:
-    """trend는 오래된 달부터 정렬된 월별 income/expense 목록(transaction_service.monthly_trend
+    """trend는 오래된 달부터 정렬된 월별 income/expense 목록(transaction_report_service.monthly_trend
     출력). 가장 최근 달부터 거꾸로 훑으며 그 달의 저축액(income-expense)이 목표 월 저축액 이상이었던
     연속 개월 수를 센다 (게임화 위젯의 '연속 목표달성' 스트릭 배지용)."""
     if target_monthly <= 0:
@@ -297,18 +297,18 @@ def compute_insights(
 ) -> list[Insight]:
     """호출부가 이미 같은 기간의 totals/breakdown/goals를 조회해둔 경우, 넘겨받아 재조회를 피한다."""
     year_month = year_month or year_month_str(date.today())
-    month_start = date.fromisoformat(year_month + "-01")
+    month_start = parse_year_month(year_month)
     start, end = month_bounds(month_start)
 
     thresholds = coaching_settings_service.get_thresholds(db)
-    totals = totals if totals is not None else transaction_service.period_totals(db, start, end)
+    totals = totals if totals is not None else transaction_report_service.period_totals(db, start, end)
     breakdown = (
-        breakdown if breakdown is not None else transaction_service.category_breakdown(db, start, end, "expense")
+        breakdown if breakdown is not None else transaction_report_service.category_breakdown(db, start, end, "expense")
     )
     budget_rows = budget_service.budget_vs_actual(
         db, year_month, thresholds["budget_warn_pct"], thresholds["budget_critical_pct"]
     )
-    trailing_avg = transaction_service.trailing_average_by_category(db, month_start, months=3)
+    trailing_avg = transaction_report_service.trailing_average_by_category(db, month_start, months=3)
     goal_rows = goals if goals is not None else goal_service.list_goals(db)
     goal_dicts = [{"monthly_saving_amount": g.monthly_saving_amount} for g in goal_rows]
 

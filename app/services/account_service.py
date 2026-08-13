@@ -8,10 +8,7 @@ from sqlalchemy.orm import Session
 from app.models.account import Account
 from app.models.transaction import Transaction
 from app.services import growlio_client
-
-
-class GrowlioSyncError(Exception):
-    """동기화 요청이 사용자에게 보여줄 수 있는 사유로 실패했을 때 (연동 없음/계좌 못 찾음)."""
+from app.services.growlio_client import GrowlioSyncError
 
 
 def list_accounts(db: Session, active_only: bool = True) -> list[Account]:
@@ -93,12 +90,7 @@ def import_from_growlio(
         for a in growlio_client.fetch_account_balances(bearer_token)
         if a["asset_type"] in growlio_client.BANK_ASSET_TYPES
     }
-    already_linked = {
-        growlio_account_id
-        for (growlio_account_id,) in db.query(Account.growlio_account_id).filter(
-            Account.growlio_account_id.isnot(None), Account.is_active.is_(True)
-        )
-    }
+    already_linked = growlio_client.already_linked_growlio_ids(db, Account)
     created: list[Account] = []
     for account_id in growlio_account_ids:
         if account_id in already_linked:
@@ -109,7 +101,7 @@ def import_from_growlio(
         new_account = Account(
             name=account["name"],
             account_type="bank",
-            initial_balance=Decimal(str(account["current_value_krw"])),
+            initial_balance=growlio_client.to_decimal_krw(account["current_value_krw"]),
             growlio_account_id=account_id,
             sort_order=999,
             owner_user_id=owner_user_id,
@@ -135,11 +127,11 @@ def sync_account(db: Session, account_id: int, bearer_token: str, *, now: dateti
     if not account.growlio_account_id:
         raise GrowlioSyncError("연동된 growlio 계좌가 없습니다.")
     accounts = growlio_client.fetch_account_balances(bearer_token)
-    match = next((a for a in accounts if a["id"] == account.growlio_account_id), None)
+    match = growlio_client.find_by_growlio_id(accounts, account.growlio_account_id)
     if match is None:
         raise GrowlioSyncError("growlio에서 연동된 계좌를 찾을 수 없습니다. 계좌가 삭제되었을 수 있습니다.")
     net_transactions = current_balance(db, account) - account.initial_balance
-    account.initial_balance = Decimal(str(match["current_value_krw"])) - net_transactions
+    account.initial_balance = growlio_client.to_decimal_krw(match["current_value_krw"]) - net_transactions
     account.last_synced_at = now
     db.commit()
     db.refresh(account)

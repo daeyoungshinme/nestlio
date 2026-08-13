@@ -41,7 +41,7 @@ def update_category(
         db, category_id, payload.name, payload.type, payload.color, payload.kind
     )
     if category is None:
-        raise HTTPException(status_code=404, detail="Category not found")
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "카테고리를 찾을 수 없습니다.")
     return category
 
 

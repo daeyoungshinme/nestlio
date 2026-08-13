@@ -15,7 +15,7 @@ from app.services import (
     milestone_service,
     notification_prefs_service,
     notify_recipients_service,
-    transaction_service,
+    transaction_report_service,
 )
 from app.services.google_auth import is_connected
 from app.utils.dates import month_bounds, shift_month, week_bounds, year_month_str
@@ -91,8 +91,8 @@ def send_weekly_summary(db: Session, today: date | None = None, force: bool = Fa
         return False
     if not force and _already_sent(db, "email_weekly", period_key):
         return False
-    totals = transaction_service.period_totals(db, start, end)
-    breakdown = transaction_service.category_breakdown(db, start, end, "expense")
+    totals = transaction_report_service.period_totals(db, start, end)
+    breakdown = transaction_report_service.category_breakdown(db, start, end, "expense")
     body = _format_summary("주간 가계부 요약", start, end, totals, breakdown)
     if is_connected():
         html = email_templates.build_weekly_summary_html(start, end, totals, breakdown)
@@ -112,8 +112,8 @@ def send_monthly_summary(db: Session, today: date | None = None, force: bool = F
         return False
     if not force and _already_sent(db, "email_monthly", period_key):
         return False
-    totals = transaction_service.period_totals(db, start, end)
-    breakdown = transaction_service.category_breakdown(db, start, end, "expense")
+    totals = transaction_report_service.period_totals(db, start, end)
+    breakdown = transaction_report_service.category_breakdown(db, start, end, "expense")
     body = _format_summary("월간 가계부 요약", start, end, totals, breakdown)
 
     insights = coaching_engine.compute_insights(db, period_key, totals=totals, breakdown=breakdown)

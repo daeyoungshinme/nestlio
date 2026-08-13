@@ -9,7 +9,7 @@ from app.database import get_db
 from app.dependencies import get_current_user
 from app.models.user import User
 from app.schemas.dashboard import DashboardOut, MonthlyRetrospectiveOut
-from app.services import coaching_engine, goal_service, net_worth_service, transaction_service
+from app.services import coaching_engine, goal_service, net_worth_service, transaction_report_service
 from app.utils.dates import month_bounds, parse_year_month, shift_month, week_bounds, year_month_str
 
 router = APIRouter(prefix="/dashboard", tags=["dashboard"])
@@ -34,10 +34,10 @@ def dashboard(
         anchor = parse_year_month(year_month) if year_month else today
         start, end = month_bounds(anchor)
 
-    totals = transaction_service.period_totals(db, start, end)
-    by_user = transaction_service.totals_by_user(db, start, end)
-    expense_breakdown = transaction_service.category_breakdown(db, start, end, "expense")
-    trend = transaction_service.monthly_trend(db, months=6, anchor=end)
+    totals = transaction_report_service.period_totals(db, start, end)
+    by_user = transaction_report_service.totals_by_user(db, start, end)
+    expense_breakdown = transaction_report_service.category_breakdown(db, start, end, "expense")
+    trend = transaction_report_service.monthly_trend(db, months=6, anchor=end)
     current_ym = year_month_str(start)
     goals = goal_service.list_goals(db)
     actual_saved = net_worth_service.savings_delta(db, current_ym)
@@ -87,9 +87,9 @@ def monthly_retrospective(
     start, end = month_bounds(prev_month_anchor)
     year_month = year_month_str(start)
 
-    totals = transaction_service.period_totals(db, start, end)
-    by_user = transaction_service.totals_by_user(db, start, end)
-    breakdown = transaction_service.category_breakdown(db, start, end, "expense")
+    totals = transaction_report_service.period_totals(db, start, end)
+    by_user = transaction_report_service.totals_by_user(db, start, end)
+    breakdown = transaction_report_service.category_breakdown(db, start, end, "expense")
     insights = coaching_engine.compute_insights(db, year_month, totals=totals, breakdown=breakdown)
 
     return {

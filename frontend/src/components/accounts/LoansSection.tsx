@@ -12,6 +12,7 @@ import FormInput from "@/components/common/FormInput";
 import Modal from "@/components/common/Modal";
 import RowActionButtons from "@/components/common/RowActionButtons";
 import SkeletonCard from "@/components/common/SkeletonCard";
+import StatusBadge from "@/components/common/StatusBadge";
 import InlineStatsBar from "@/components/common/InlineStatsBar";
 import { createLoan, deactivateLoan, fetchLoans, updateLoan } from "@/api/loans";
 import { QUERY_KEYS } from "@/constants/queryKeys";
@@ -187,10 +188,13 @@ function LoanRow({
         <div className="flex items-center gap-1.5 flex-wrap">
           <p className="text-sm font-medium text-gray-900 dark:text-gray-50 truncate">{loan.name}</p>
           {loan.growlio_account_id && (
-            <span className={`shrink-0 flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[11px] font-medium ${growlioLinkedBadgeStyle()}`}>
-              <Link2 size={11} />
-              growlio 연동
-            </span>
+            <StatusBadge
+              size="chip"
+              icon={<Link2 size={11} />}
+              label="growlio 연동"
+              toneClassName={growlioLinkedBadgeStyle()}
+              className="shrink-0"
+            />
           )}
         </div>
         <p className="text-xs text-gray-500 dark:text-gray-400">

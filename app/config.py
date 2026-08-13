@@ -10,9 +10,8 @@ class Settings(BaseSettings):
 
     database_url: str = "sqlite:///./data/app.db"
 
-    # Supabase Auth (growlio와 같은 프로젝트를 공유 — 로그인 검증에만 사용)
+    # Supabase Auth (growlio와 같은 프로젝트를 공유 — JWKS로 로그인 토큰 검증에만 사용)
     supabase_project_url: str = ""
-    supabase_anon_key: str = ""
     # 부부 사진 저장용 Supabase Storage — 서비스 롤 키는 백엔드가 버킷에 직접 업/다운로드할 때만 사용
     supabase_service_role_key: str = ""
     supabase_storage_bucket: str = "nestlio-media"

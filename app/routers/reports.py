@@ -7,7 +7,7 @@ from app.database import get_db
 from app.dependencies import get_current_user
 from app.models.user import User
 from app.schemas.reports import CategoryTrendOut, YearlyReportOut
-from app.services import transaction_service
+from app.services import transaction_report_service
 from app.utils.dates import year_bounds
 
 router = APIRouter(prefix="/reports", tags=["reports"])
@@ -16,10 +16,10 @@ router = APIRouter(prefix="/reports", tags=["reports"])
 @router.get("/yearly", response_model=YearlyReportOut)
 def yearly(year: int | None = None, db: Session = Depends(get_db), _: User = Depends(get_current_user)):
     year = year or date.today().year
-    monthly = transaction_service.yearly_monthly_breakdown(db, year)
-    totals = transaction_service.yearly_totals(db, year)
+    monthly = transaction_report_service.yearly_monthly_breakdown(db, year)
+    totals = transaction_report_service.yearly_totals(db, year)
     start, end = year_bounds(year)
-    breakdown = transaction_service.category_breakdown(db, start, end, "expense")
+    breakdown = transaction_report_service.category_breakdown(db, start, end, "expense")
     return {
         "year": year,
         "prev_year": year - 1,
@@ -36,4 +36,4 @@ def category_trend(
     db: Session = Depends(get_db),
     _: User = Depends(get_current_user),
 ):
-    return transaction_service.category_monthly_trend(db, months=months)
+    return transaction_report_service.category_monthly_trend(db, months=months)

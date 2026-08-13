@@ -19,3 +19,7 @@ class NotificationOut(BaseModel):
 class NotificationListOut(BaseModel):
     items: list[NotificationOut]
     unread_count: int
+
+
+class MarkAllReadOut(BaseModel):
+    marked: int

@@ -9,6 +9,7 @@ from app.services import (
     goal_service,
     net_worth_service,
     savings_product_service,
+    transaction_report_service,
     transaction_service,
 )
 from app.services.coaching_engine import (
@@ -336,8 +337,8 @@ def test_compute_insights_uses_precomputed_totals_breakdown_goals_when_given(see
     )
     transaction_service.create_transaction(db, user.id, food.id, "expense", Decimal("100000"), date(2026, 7, 10))
     start, end = date(2026, 7, 1), date(2026, 7, 31)
-    totals = transaction_service.period_totals(db, start, end)
-    breakdown = transaction_service.category_breakdown(db, start, end, "expense")
+    totals = transaction_report_service.period_totals(db, start, end)
+    breakdown = transaction_report_service.category_breakdown(db, start, end, "expense")
     goals = goal_service.list_goals(db)
 
     baseline = coaching_engine.compute_insights(db, ym)

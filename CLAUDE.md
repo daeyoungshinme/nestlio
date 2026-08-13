@@ -44,7 +44,7 @@
 
 `.env.example` 참고. 주요 그룹:
 - DB: `DATABASE_URL`
-- Supabase(growlio와 공유, 로그인/JWT 검증용): `SUPABASE_PROJECT_URL`, `SUPABASE_ANON_KEY`
+- Supabase(growlio와 공유, JWT 검증용): `SUPABASE_PROJECT_URL`
 - CORS: `CORS_ORIGINS` (프론트엔드 오리진 목록)
 - 프론트엔드 오리진(배우자 초대 이메일의 가입 링크 조립용): `APP_BASE_URL`
 - 알림: `NOTIFY_EMAIL_TO`

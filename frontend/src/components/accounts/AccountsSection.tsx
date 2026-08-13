@@ -13,7 +13,9 @@ import GrowlioImportModal from "@/components/common/GrowlioImportModal";
 import Modal from "@/components/common/Modal";
 import RowActionButtons from "@/components/common/RowActionButtons";
 import SkeletonCard from "@/components/common/SkeletonCard";
+import StatusBadge from "@/components/common/StatusBadge";
 import InlineStatsBar from "@/components/common/InlineStatsBar";
+import { growlioAssetTypeLabel } from "@/constants/growlio";
 import { INPUT_SM, LABEL_SM } from "@/constants/inputStyles";
 import { TOUCH_TARGET_MIN_MOBILE_ONLY } from "@/constants/uiSizes";
 import {
@@ -216,11 +218,17 @@ export default function AccountsSection({ users }: Props) {
         <GrowlioImportModal
           title="growlio 계좌 가져오기"
           queryKey={QUERY_KEYS.growlioBankAccounts}
-          fetchAccounts={fetchGrowlioAccounts}
-          importAccounts={importGrowlioAccounts}
+          fetchRows={fetchGrowlioAccounts}
+          getRowId={(account) => account.id}
+          getRowAmount={(account) => account.current_value_krw}
+          renderRowMeta={(account) => ({ name: account.name, badge: growlioAssetTypeLabel(account.asset_type) })}
+          importRows={importGrowlioAccounts}
+          buildSuccessMessage={(created) => {
+            const total = created.reduce((sum, account) => sum + Number(account.initial_balance), 0);
+            return `growlio 계좌 ${created.length}개를 가져왔습니다. 합계 ${formatKrw(total)}`;
+          }}
           existingGrowlioAccountIds={existingGrowlioAccountIds}
           invalidateKeys={[QUERY_KEYS.accounts]}
-          getAmount={(account) => account.initial_balance}
           onClose={() => setImportOpen(false)}
         />
       )}
@@ -266,10 +274,13 @@ function AccountRow({
         <div className="flex items-center gap-1.5 flex-wrap">
           <p className="text-sm font-medium text-gray-900 dark:text-gray-50 truncate">{account.name}</p>
           {account.growlio_account_id && (
-            <span className={`shrink-0 flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[11px] font-medium ${growlioLinkedBadgeStyle()}`}>
-              <Link2 size={11} />
-              growlio 연동
-            </span>
+            <StatusBadge
+              size="chip"
+              icon={<Link2 size={11} />}
+              label="growlio 연동"
+              toneClassName={growlioLinkedBadgeStyle()}
+              className="shrink-0"
+            />
           )}
         </div>
         <p className="text-xs text-gray-500 dark:text-gray-400">

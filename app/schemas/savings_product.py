@@ -5,6 +5,8 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict
 
+from app.schemas.growlio import GrowlioImportIn
+
 
 class SavingsProductOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
@@ -99,12 +101,15 @@ class SavingsProductGrowlioLinkIn(BaseModel):
     auto_sync_enabled: bool = False
 
 
-class SavingsProductGrowlioImportIn(BaseModel):
-    growlio_account_ids: list[str]
+SavingsProductGrowlioImportIn = GrowlioImportIn
 
 
 class GrowlioAccountOut(BaseModel):
-    """growlio `/api/v1/external/accounts` 응답을 그대로 전달하는 프록시용 스키마."""
+    """growlio `/api/v1/external/accounts` 응답을 그대로 전달하는 프록시용 스키마.
+
+    growlio 자체가 도메인 전체에서 float를 쓰므로(정밀도 손실은 이미 growlio 쪽에서 발생) 여기서
+    Decimal로 감싸도 복구되지 않는다 — float 유지가 의도된 설계다. 이 값을 nestlio 자체 Decimal
+    컬럼(SavingsProduct.current_balance 등)에 저장할 때는 반드시 `Decimal(str(x))`로 재변환한다."""
 
     id: str
     name: str

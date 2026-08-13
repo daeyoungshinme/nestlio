@@ -82,7 +82,7 @@ export const useAuthStore = create<AuthState>((set) => {
       try {
         me = await fetchMe();
       } catch (fetchMeError) {
-        console.error("post-login fetchMe failed", fetchMeError);
+        if (import.meta.env.DEV) console.error("post-login fetchMe failed", fetchMeError);
         throw new Error(
           extractErrorMessage(fetchMeError, "로그인 후 사용자 정보를 불러오지 못했습니다. 잠시 후 다시 시도해 주세요."),
         );

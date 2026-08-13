@@ -4,7 +4,7 @@ from unittest.mock import patch
 
 import pytest
 
-from app.services import account_service, transaction_service
+from app.services import account_service, transaction_import_service, transaction_report_service, transaction_service
 from app.services.google_auth import GoogleNotConnectedError
 from app.services.google_sheets_service import GoogleSheetsReadError
 from app.services.growlio_client import GrowlioNotConfiguredError
@@ -16,7 +16,7 @@ def test_export_csv_round_trips_through_import(seeded_db):
     transaction_service.create_transaction(db, user.id, food.id, "income", Decimal("3000000"), date(2026, 7, 1), description="월급")
 
     transactions = transaction_service.list_transactions(db, date(2026, 7, 1), date(2026, 7, 31))
-    csv_text = transaction_service.export_csv(transactions)
+    csv_text = transaction_import_service.export_csv(transactions)
 
     assert "점심" in csv_text
     assert "지출" in csv_text and "수입" in csv_text
@@ -24,7 +24,7 @@ def test_export_csv_round_trips_through_import(seeded_db):
     # wipe and re-import to prove the exported format is importable
     for tx in transactions:
         transaction_service.delete_transaction(db, tx.id)
-    result = transaction_service.import_csv(db, csv_text, user.id)
+    result = transaction_import_service.import_csv(db, csv_text, user.id)
 
     assert result["created"] == 2
     assert result["skipped"] == []
@@ -36,7 +36,7 @@ def test_import_csv_skips_unknown_category_and_reports_reason(seeded_db):
     db, user = seeded_db["db"], seeded_db["user"]
     csv_text = "날짜,구분,카테고리,금액,메모\n2026-07-05,지출,없는카테고리,10000,test\n"
 
-    result = transaction_service.import_csv(db, csv_text, user.id)
+    result = transaction_import_service.import_csv(db, csv_text, user.id)
 
     assert result["created"] == 0
     assert len(result["skipped"]) == 1
@@ -51,7 +51,7 @@ def test_import_csv_skips_malformed_amount_but_keeps_valid_rows(seeded_db):
         "2026-07-06,지출,식비,5000,ok\n"
     )
 
-    result = transaction_service.import_csv(db, csv_text, user.id)
+    result = transaction_import_service.import_csv(db, csv_text, user.id)
 
     assert result["created"] == 1
     assert len(result["skipped"]) == 1
@@ -66,7 +66,7 @@ def test_import_from_sheet_url_reads_public_csv_and_delegates_to_import_rows(see
         "app.services.google_sheets_service.read_public_csv",
         return_value=csv_text,
     ) as mocked:
-        result = transaction_service.import_from_sheet_url(db, "https://docs.google.com/spreadsheets/d/abc123/edit", user.id)
+        result = transaction_import_service.import_from_sheet_url(db, "https://docs.google.com/spreadsheets/d/abc123/edit", user.id)
 
     mocked.assert_called_once_with("https://docs.google.com/spreadsheets/d/abc123/edit")
     assert result["created"] == 1
@@ -80,14 +80,14 @@ def test_import_from_sheet_url_propagates_read_error(seeded_db):
         side_effect=GoogleSheetsReadError("시트가 비공개 상태입니다."),
     ):
         with pytest.raises(GoogleSheetsReadError):
-            transaction_service.import_from_sheet_url(db, "https://docs.google.com/spreadsheets/d/abc123/edit", user.id)
+            transaction_import_service.import_from_sheet_url(db, "https://docs.google.com/spreadsheets/d/abc123/edit", user.id)
 
 
 def test_import_from_spreadsheet_requires_google_connection(seeded_db):
     db, user = seeded_db["db"], seeded_db["user"]
     with patch("app.services.google_auth.is_connected", return_value=False):
         with pytest.raises(GoogleNotConnectedError):
-            transaction_service.import_from_spreadsheet(db, "abc123", None, user.id)
+            transaction_import_service.import_from_spreadsheet(db, "abc123", None, user.id)
 
 
 def test_import_from_spreadsheet_reads_values_and_delegates_to_import_rows(seeded_db):
@@ -101,7 +101,7 @@ def test_import_from_spreadsheet_reads_values_and_delegates_to_import_rows(seede
         patch("app.services.google_auth.is_connected", return_value=True),
         patch("app.services.google_sheets_service.read_values", return_value=rows) as mocked,
     ):
-        result = transaction_service.import_from_spreadsheet(db, "abc123", "1월", user.id)
+        result = transaction_import_service.import_from_spreadsheet(db, "abc123", "1월", user.id)
 
     mocked.assert_called_once_with("abc123", "1월")
     assert result["created"] == 1
@@ -141,7 +141,7 @@ def test_yearly_monthly_breakdown_covers_all_twelve_months_in_order(seeded_db):
     transaction_service.create_transaction(db, user.id, rent.id, "expense", Decimal("800000"), date(2026, 3, 1))
     transaction_service.create_transaction(db, user.id, rent.id, "expense", Decimal("800000"), date(2026, 11, 1))
 
-    monthly = transaction_service.yearly_monthly_breakdown(db, 2026)
+    monthly = transaction_report_service.yearly_monthly_breakdown(db, 2026)
 
     assert len(monthly) == 12
     assert [row["year_month"] for row in monthly] == [f"2026-{m:02d}" for m in range(1, 13)]
@@ -229,6 +229,6 @@ def test_yearly_totals_excludes_other_years(seeded_db):
     transaction_service.create_transaction(db, user.id, rent.id, "expense", Decimal("500000"), date(2025, 12, 31))
     transaction_service.create_transaction(db, user.id, rent.id, "expense", Decimal("500000"), date(2027, 1, 1))
 
-    totals = transaction_service.yearly_totals(db, 2026)
+    totals = transaction_report_service.yearly_totals(db, 2026)
 
     assert totals["expense"] == Decimal("800000")

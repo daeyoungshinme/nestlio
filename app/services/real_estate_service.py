@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 from app.models.loan import Loan
 from app.models.savings_product import SavingsProduct
 from app.services import growlio_client
-from app.services.savings_product_service import GrowlioSyncError
+from app.services.growlio_client import GrowlioSyncError
 
 __all__ = ["GrowlioSyncError", "list_growlio_real_estate", "import_from_growlio", "sync_from_growlio"]
 
@@ -35,7 +35,7 @@ def _upsert_linked_loan(
             return None
         loan = Loan(
             name=f"{name} 담보대출",
-            balance=Decimal(str(mortgage_balance_krw)),
+            balance=growlio_client.to_decimal_krw(mortgage_balance_krw),
             monthly_payment=Decimal("0"),
             growlio_account_id=growlio_account_id,
             auto_sync_enabled=True,
@@ -45,7 +45,7 @@ def _upsert_linked_loan(
         )
         db.add(loan)
     else:
-        loan.balance = Decimal(str(mortgage_balance_krw))
+        loan.balance = growlio_client.to_decimal_krw(mortgage_balance_krw)
         loan.last_synced_at = now
     return loan
 
@@ -62,12 +62,7 @@ def import_from_growlio(
     if not growlio_account_ids:
         return []
     items_by_id = {item["id"]: item for item in growlio_client.fetch_real_estate_items(bearer_token)}
-    already_linked = {
-        product_id
-        for (product_id,) in db.query(SavingsProduct.growlio_account_id).filter(
-            SavingsProduct.growlio_account_id.isnot(None), SavingsProduct.is_active.is_(True)
-        )
-    }
+    already_linked = growlio_client.already_linked_growlio_ids(db, SavingsProduct)
     created: list[tuple[SavingsProduct, Loan | None]] = []
     for account_id in growlio_account_ids:
         if account_id in already_linked:
@@ -77,10 +72,12 @@ def import_from_growlio(
             continue
         product = SavingsProduct(
             name=item["name"],
-            current_balance=Decimal(str(item["market_value_krw"])),
+            current_balance=growlio_client.to_decimal_krw(item["market_value_krw"]),
             monthly_saving_amount=Decimal("0"),
             product_type="real_estate",
-            principal_amount=Decimal(str(item["purchase_price_krw"])) if item.get("purchase_price_krw") else None,
+            principal_amount=growlio_client.to_decimal_krw(item["purchase_price_krw"])
+            if item.get("purchase_price_krw")
+            else None,
             growlio_account_id=account_id,
             auto_sync_enabled=True,
             last_synced_at=now,
@@ -115,19 +112,19 @@ def sync_from_growlio(
     if not product.growlio_account_id:
         raise GrowlioSyncError("연동된 growlio 계좌가 없습니다.")
     items = growlio_client.fetch_real_estate_items(bearer_token)
-    match = next((item for item in items if item["id"] == product.growlio_account_id), None)
+    match = growlio_client.find_by_growlio_id(items, product.growlio_account_id)
     if match is None:
         raise GrowlioSyncError("growlio에서 연동된 부동산 계좌를 찾을 수 없습니다. 계좌가 삭제되었을 수 있습니다.")
 
-    product.current_balance = Decimal(str(match["market_value_krw"]))
+    product.current_balance = growlio_client.to_decimal_krw(match["market_value_krw"])
     if match.get("purchase_price_krw"):
-        product.principal_amount = Decimal(str(match["purchase_price_krw"]))
+        product.principal_amount = growlio_client.to_decimal_krw(match["purchase_price_krw"])
     product.last_synced_at = now
 
     loan = db.query(Loan).filter(Loan.growlio_account_id == product.growlio_account_id).one_or_none()
     mortgage_balance_krw = match.get("mortgage_balance_krw") or 0
     if loan is not None:
-        loan.balance = Decimal(str(mortgage_balance_krw))
+        loan.balance = growlio_client.to_decimal_krw(mortgage_balance_krw)
         loan.last_synced_at = now
 
     db.commit()

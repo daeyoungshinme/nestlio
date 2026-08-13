@@ -83,7 +83,11 @@ class FinancialGoalUpdateIn(BaseModel):
 
 class GrowlioGoalSettingsOut(BaseModel):
     """growlio `/api/v1/external/goal` 응답을 그대로 전달하는 프록시용 스키마 — 재무목표
-    신규 작성 폼을 미리 채우는 용도. is_configured가 False면 나머지 필드는 모두 None이다."""
+    신규 작성 폼을 미리 채우는 용도. is_configured가 False면 나머지 필드는 모두 None이다.
+
+    growlio 자체가 도메인 전체에서 float를 쓰므로(정밀도 손실은 이미 growlio 쪽에서 발생) 여기서
+    Decimal로 감싸도 복구되지 않는다 — float 유지가 의도된 설계다. 이 값으로 FinancialGoal(Decimal
+    컬럼)을 생성할 때는 반드시 `Decimal(str(x))`로 재변환한다."""
 
     is_configured: bool
     goal_amount: float | None = None

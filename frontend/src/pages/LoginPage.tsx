@@ -5,6 +5,7 @@ import { useNavigate } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import { useAuthStore } from "@/stores/authStore";
 import { INPUT_SM } from "@/constants/inputStyles";
+import { extractErrorMessage } from "@/utils/error";
 import { currentYearMonth } from "@/components/common/MonthPicker";
 import { fetchDashboard } from "@/api/dashboard";
 import { fetchAccounts } from "@/api/accounts";
@@ -34,8 +35,8 @@ export default function LoginPage() {
       void queryClient.prefetchQuery({ queryKey: QUERY_KEYS.accounts, queryFn: fetchAccounts });
       navigate("/");
     } catch (err) {
-      console.error("login failed", err);
-      setError(err instanceof Error ? err.message : "로그인에 실패했습니다");
+      if (import.meta.env.DEV) console.error("login failed", err);
+      setError(extractErrorMessage(err, "로그인에 실패했습니다"));
     } finally {
       setLoading(false);
     }

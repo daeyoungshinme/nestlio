@@ -9,7 +9,7 @@ import FormInput from "@/components/common/FormInput";
 import Modal from "@/components/common/Modal";
 import RowActionButtons from "@/components/common/RowActionButtons";
 import SkeletonCard from "@/components/common/SkeletonCard";
-import { INLINE_BUTTON_OFFSET, INPUT_SM, LABEL_SM } from "@/constants/inputStyles";
+import { COLOR_INPUT_SM, INLINE_BUTTON_OFFSET, INPUT_SM, LABEL_SM } from "@/constants/inputStyles";
 import { createCategory, deactivateCategory, fetchCategories, updateCategory } from "@/api/categories";
 import { QUERY_KEYS } from "@/constants/queryKeys";
 import { STALE_TIME } from "@/constants/queryConfig";
@@ -122,7 +122,7 @@ export default function CategoriesSection() {
               type="color"
               value={form.color}
               onChange={(e) => setForm((f) => ({ ...f, color: e.target.value }))}
-              className="w-12 h-[44px] rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800"
+              className={COLOR_INPUT_SM}
             />
           </div>
           <Button type="submit" loading={createMutation.isPending} className={INLINE_BUTTON_OFFSET}>
@@ -212,7 +212,7 @@ export default function CategoriesSection() {
                   type="color"
                   value={editing.color}
                   onChange={(e) => setEditing((c) => (c ? { ...c, color: e.target.value } : c))}
-                  className="w-12 h-[44px] rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800"
+                  className={COLOR_INPUT_SM}
                 />
               </div>
               <Button type="submit" loading={updateMutation.isPending}>

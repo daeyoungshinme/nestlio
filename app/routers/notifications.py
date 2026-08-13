@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.dependencies import get_current_user
 from app.models.user import User
-from app.schemas.notification import NotificationListOut
+from app.schemas.notification import MarkAllReadOut, NotificationListOut
 from app.services import notification_service
 
 router = APIRouter(prefix="/notifications", tags=["notifications"])
@@ -33,7 +33,7 @@ def mark_read(
         raise HTTPException(status.HTTP_404_NOT_FOUND, str(exc)) from None
 
 
-@router.post("/read-all")
+@router.post("/read-all", response_model=MarkAllReadOut)
 def mark_all_read(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     marked = notification_service.mark_all_read(db, current_user.id)
     return {"marked": marked}
