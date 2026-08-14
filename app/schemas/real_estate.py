@@ -2,7 +2,7 @@ from datetime import date
 
 from pydantic import BaseModel
 
-from app.schemas.growlio import GrowlioImportIn
+from app.schemas.growlio import GrowlioImportIn, GrowlioSyncAllOut
 from app.schemas.loan import LoanOut
 from app.schemas.savings_product import SavingsProductOut
 
@@ -27,6 +27,7 @@ class GrowlioRealEstateOut(BaseModel):
 
 
 RealEstateGrowlioImportIn = GrowlioImportIn
+RealEstateSyncAllOut = GrowlioSyncAllOut
 
 
 class RealEstateImportResultOut(BaseModel):

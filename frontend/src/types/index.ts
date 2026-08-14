@@ -687,6 +687,17 @@ export interface GrowlioAccountOut {
   as_of: string | null;
 }
 
+export interface GrowlioSyncFailureOut {
+  id: number;
+  name: string;
+  reason: string;
+}
+
+export interface GrowlioSyncAllOut {
+  synced_count: number;
+  failed: GrowlioSyncFailureOut[];
+}
+
 export interface GrowlioRealEstateOut {
   id: string;
   name: string;

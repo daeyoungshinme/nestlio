@@ -9,7 +9,13 @@ from app.models.savings_product import SavingsProduct
 from app.services import growlio_client
 from app.services.growlio_client import GrowlioSyncError
 
-__all__ = ["GrowlioSyncError", "list_growlio_real_estate", "import_from_growlio", "sync_from_growlio"]
+__all__ = [
+    "GrowlioSyncError",
+    "list_growlio_real_estate",
+    "import_from_growlio",
+    "sync_from_growlio",
+    "sync_all_from_growlio",
+]
 
 
 def list_growlio_real_estate(bearer_token: str) -> list[dict]:
@@ -132,3 +138,48 @@ def sync_from_growlio(
     if loan is not None:
         db.refresh(loan)
     return product, loan
+
+
+def sync_all_from_growlio(db: Session, bearer_token: str, *, now: datetime) -> tuple[int, list[dict]]:
+    """연동된 부동산 자산을 모두 한 번에 짝이 되는 대출과 함께 동기화한다 (자산현황 "전체 동기화").
+
+    growlio 목록은 1회만 조회해 여러 상품에 매칭한다. 배우자 소유 등으로 매칭이 안 되는 상품은
+    예외를 던지지 않고 failed 목록에 담아 나머지 동기화를 계속 진행한다.
+    """
+    linked_products = (
+        db.query(SavingsProduct)
+        .filter(
+            SavingsProduct.product_type == "real_estate",
+            SavingsProduct.growlio_account_id.isnot(None),
+            SavingsProduct.is_active.is_(True),
+        )
+        .all()
+    )
+    if not linked_products:
+        return 0, []
+    items = growlio_client.fetch_real_estate_items(bearer_token)
+    synced_count = 0
+    failed: list[dict] = []
+    for product in linked_products:
+        match = growlio_client.find_by_growlio_id(items, product.growlio_account_id)
+        if match is None:
+            failed.append(
+                {
+                    "id": product.id,
+                    "name": product.name,
+                    "reason": "growlio에서 연동된 부동산 계좌를 찾을 수 없습니다 (배우자 계정이거나 삭제되었을 수 있습니다).",
+                }
+            )
+            continue
+        product.current_balance = growlio_client.to_decimal_krw(match["market_value_krw"])
+        if match.get("purchase_price_krw"):
+            product.principal_amount = growlio_client.to_decimal_krw(match["purchase_price_krw"])
+        product.last_synced_at = now
+
+        loan = db.query(Loan).filter(Loan.growlio_account_id == product.growlio_account_id).one_or_none()
+        if loan is not None:
+            loan.balance = growlio_client.to_decimal_krw(match.get("mortgage_balance_krw") or 0)
+            loan.last_synced_at = now
+        synced_count += 1
+    db.commit()
+    return synced_count, failed

@@ -1,6 +1,7 @@
 import { apiGet, apiPost, apiPut } from "@/api/client";
 import type {
   GrowlioAccountOut,
+  GrowlioSyncAllOut,
   SavingsProductAnnualPlanListOut,
   SavingsProductCreateIn,
   SavingsProductGrowlioImportIn,
@@ -32,6 +33,8 @@ export const setGrowlioLink = (id: number, payload: SavingsProductGrowlioLinkIn)
   apiPut<SavingsProductOut>(`/savings-products/${id}/growlio-link`, payload);
 
 export const syncSavingsProduct = (id: number) => apiPost<SavingsProductOut>(`/savings-products/${id}/sync`);
+
+export const syncAllSavingsProducts = () => apiPost<GrowlioSyncAllOut>("/savings-products/sync-all");
 
 export const importGrowlioAccounts = (payload: SavingsProductGrowlioImportIn) =>
   apiPost<SavingsProductOut[]>("/savings-products/growlio-import", payload);

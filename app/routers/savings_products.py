@@ -14,6 +14,7 @@ from app.schemas.savings_product import (
     SavingsProductGrowlioLinkIn,
     SavingsProductOut,
     SavingsProductPlanListOut,
+    SavingsProductSyncAllOut,
     SavingsProductUpdateIn,
 )
 from app.services import savings_product_service
@@ -110,6 +111,16 @@ def sync_product(
     if product is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "저축/투자 상품을 찾을 수 없습니다.")
     return product
+
+
+@router.post("/sync-all", response_model=SavingsProductSyncAllOut)
+def sync_all_products(
+    db: Session = Depends(get_db),
+    bearer_token: str = Depends(get_bearer_token),
+    _: User = Depends(get_current_user),
+):
+    synced_count, failed = savings_product_service.sync_all_from_growlio(db, bearer_token, now=datetime.now())
+    return SavingsProductSyncAllOut(synced_count=synced_count, failed=failed)
 
 
 @router.post("/growlio-import", response_model=list[SavingsProductOut])

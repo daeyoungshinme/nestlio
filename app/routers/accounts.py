@@ -10,6 +10,7 @@ from app.schemas.account import (
     AccountCreateIn,
     AccountGrowlioImportIn,
     AccountOut,
+    AccountSyncAllOut,
     AccountUpdateIn,
     AccountWithBalanceOut,
 )
@@ -82,6 +83,16 @@ def sync_account(
     if account is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "계좌를 찾을 수 없습니다.")
     return account
+
+
+@router.post("/sync-all", response_model=AccountSyncAllOut)
+def sync_all_accounts(
+    db: Session = Depends(get_db),
+    bearer_token: str = Depends(get_bearer_token),
+    _: User = Depends(get_current_user),
+):
+    synced_count, failed = account_service.sync_all_accounts(db, bearer_token, now=datetime.now())
+    return AccountSyncAllOut(synced_count=synced_count, failed=failed)
 
 
 @router.post("/{account_id}/deactivate", status_code=status.HTTP_204_NO_CONTENT)

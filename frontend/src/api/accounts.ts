@@ -6,6 +6,7 @@ import type {
   AccountUpdateIn,
   AccountWithBalanceOut,
   GrowlioAccountOut,
+  GrowlioSyncAllOut,
 } from "@/types";
 
 export const fetchAccounts = () => apiGet<AccountWithBalanceOut[]>("/accounts");
@@ -18,6 +19,8 @@ export const updateAccount = (id: number, payload: AccountUpdateIn) =>
 export const deactivateAccount = (id: number) => apiPost(`/accounts/${id}/deactivate`);
 
 export const syncAccount = (id: number) => apiPost<AccountOut>(`/accounts/${id}/sync`);
+
+export const syncAllAccounts = () => apiPost<GrowlioSyncAllOut>("/accounts/sync-all");
 
 export const fetchGrowlioAccounts = () => apiGet<GrowlioAccountOut[]>("/accounts/growlio-accounts");
 

@@ -5,7 +5,7 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict
 
-from app.schemas.growlio import GrowlioImportIn
+from app.schemas.growlio import GrowlioImportIn, GrowlioSyncAllOut
 
 
 class SavingsProductOut(BaseModel):
@@ -102,6 +102,7 @@ class SavingsProductGrowlioLinkIn(BaseModel):
 
 
 SavingsProductGrowlioImportIn = GrowlioImportIn
+SavingsProductSyncAllOut = GrowlioSyncAllOut
 
 
 class GrowlioAccountOut(BaseModel):

@@ -163,6 +163,24 @@ def test_sync_account_updates_displayed_balance_and_last_synced_at(client, seede
     assert Decimal(row["balance"]) == Decimal("999000")
 
 
+def test_sync_all_accounts_returns_synced_count_and_failed_list(client):
+    _override_bearer_token()
+    with patch(
+        "app.services.account_service.growlio_client.fetch_account_balances",
+        return_value=[
+            {"id": "growlio-acc-1", "name": "국민은행 입출금", "asset_type": "BANK_ACCOUNT", "current_value_krw": 1500000.0},
+        ],
+    ):
+        client.post("/api/v1/accounts/growlio-import", json={"growlio_account_ids": ["growlio-acc-1"]})
+
+        resp = client.post("/api/v1/accounts/sync-all")
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["synced_count"] == 1
+    assert body["failed"] == []
+
+
 def test_growlio_import_creates_one_account_per_selected_bank_account(client, seeded_db):
     _override_bearer_token()
 

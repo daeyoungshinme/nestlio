@@ -10,6 +10,7 @@ from app.schemas.real_estate import (
     GrowlioRealEstateOut,
     RealEstateGrowlioImportIn,
     RealEstateImportResultOut,
+    RealEstateSyncAllOut,
 )
 from app.services import real_estate_service
 
@@ -34,6 +35,16 @@ def import_growlio_real_estate(
         db, payload.growlio_account_ids, bearer_token, current_user.id, now=datetime.now()
     )
     return [RealEstateImportResultOut(savings_product=product, loan=loan) for product, loan in pairs]
+
+
+@router.post("/sync-all", response_model=RealEstateSyncAllOut)
+def sync_all_real_estate(
+    db: Session = Depends(get_db),
+    bearer_token: str = Depends(get_bearer_token),
+    _: User = Depends(get_current_user),
+):
+    synced_count, failed = real_estate_service.sync_all_from_growlio(db, bearer_token, now=datetime.now())
+    return RealEstateSyncAllOut(synced_count=synced_count, failed=failed)
 
 
 @router.post("/{savings_product_id}/sync", response_model=RealEstateImportResultOut)

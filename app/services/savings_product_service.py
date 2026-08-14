@@ -292,6 +292,40 @@ def sync_from_growlio(db: Session, product_id: int, bearer_token: str, *, now: d
     return product
 
 
+def sync_all_from_growlio(db: Session, bearer_token: str, *, now: datetime) -> tuple[int, list[dict]]:
+    """연동된 저축/투자 상품을 모두 한 번에 동기화한다 (자산현황 "전체 동기화").
+
+    부동산(product_type="real_estate")은 짝이 되는 대출까지 다뤄야 해서 별도 growlio 엔드포인트
+    (fetch_real_estate_items)를 쓰는 real_estate_service.sync_all_from_growlio의 몫이라 제외한다.
+    growlio 목록은 1회만 조회해 여러 상품에 매칭하며, 배우자 소유 등으로 매칭이 안 되는 상품은
+    예외를 던지지 않고 failed 목록에 담아 나머지 동기화를 계속 진행한다.
+    """
+    linked_products = [
+        p for p in list_products(db) if p.growlio_account_id and p.product_type != "real_estate"
+    ]
+    if not linked_products:
+        return 0, []
+    growlio_accounts = growlio_client.fetch_account_balances(bearer_token)
+    synced_count = 0
+    failed: list[dict] = []
+    for product in linked_products:
+        match = growlio_client.find_by_growlio_id(growlio_accounts, product.growlio_account_id)
+        if match is None:
+            failed.append(
+                {
+                    "id": product.id,
+                    "name": product.name,
+                    "reason": "growlio에서 연동된 계좌를 찾을 수 없습니다 (배우자 계정이거나 삭제되었을 수 있습니다).",
+                }
+            )
+            continue
+        product.current_balance = growlio_client.to_decimal_krw(match["current_value_krw"])
+        product.last_synced_at = now
+        synced_count += 1
+    db.commit()
+    return synced_count, failed
+
+
 def import_from_growlio(
     db: Session, growlio_account_ids: list[str], bearer_token: str, owner_user_id: uuid.UUID, *, now: datetime
 ) -> list[SavingsProduct]:

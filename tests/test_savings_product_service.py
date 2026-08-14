@@ -182,6 +182,71 @@ def test_sync_from_growlio_propagates_not_configured_error(db_session):
             savings_product_service.sync_from_growlio(db_session, product.id, "token", now=datetime(2026, 8, 3))
 
 
+def test_sync_all_from_growlio_syncs_every_linked_product_in_one_growlio_call(db_session):
+    p1 = savings_product_service.create_product(db_session, "적금", Decimal("0"), Decimal("0"))
+    savings_product_service.set_growlio_link(db_session, p1.id, "growlio-acc-1", True)
+    p2 = savings_product_service.create_product(db_session, "펀드", Decimal("0"), Decimal("0"), product_type="investment")
+    savings_product_service.set_growlio_link(db_session, p2.id, "growlio-acc-2", True)
+
+    with patch(
+        "app.services.savings_product_service.growlio_client.fetch_account_balances",
+        return_value=[
+            {"id": "growlio-acc-1", "name": "적금", "asset_type": "DEPOSIT", "current_value_krw": 1000000.0},
+            {"id": "growlio-acc-2", "name": "펀드", "asset_type": "STOCK_KIS", "current_value_krw": 2000000.0},
+        ],
+    ) as mock_fetch:
+        synced_count, failed = savings_product_service.sync_all_from_growlio(
+            db_session, "token", now=datetime(2026, 8, 6, 9, 0)
+        )
+
+    mock_fetch.assert_called_once()
+    assert synced_count == 2
+    assert failed == []
+    assert p1.current_balance == Decimal("1000000.0")
+    assert p2.current_balance == Decimal("2000000.0")
+
+
+def test_sync_all_from_growlio_excludes_real_estate_products(db_session):
+    product = savings_product_service.create_product(
+        db_session, "아파트", Decimal("500000000"), Decimal("0"), product_type="real_estate"
+    )
+    product.growlio_account_id = "growlio-re-1"
+    db_session.commit()
+
+    with patch(
+        "app.services.savings_product_service.growlio_client.fetch_account_balances", return_value=[]
+    ) as mock_fetch:
+        synced_count, failed = savings_product_service.sync_all_from_growlio(db_session, "token", now=datetime(2026, 8, 6))
+
+    mock_fetch.assert_not_called()
+    assert synced_count == 0
+    assert failed == []
+
+
+def test_sync_all_from_growlio_reports_unmatched_products_without_raising(db_session):
+    product = savings_product_service.create_product(db_session, "배우자적금", Decimal("0"), Decimal("0"))
+    savings_product_service.set_growlio_link(db_session, product.id, "growlio-acc-spouse", True)
+
+    with patch("app.services.savings_product_service.growlio_client.fetch_account_balances", return_value=[]):
+        synced_count, failed = savings_product_service.sync_all_from_growlio(db_session, "token", now=datetime(2026, 8, 6))
+
+    assert synced_count == 0
+    assert len(failed) == 1
+    assert failed[0]["id"] == product.id
+
+
+def test_sync_all_from_growlio_propagates_not_configured_error(db_session):
+    product = savings_product_service.create_product(db_session, "적금", Decimal("0"), Decimal("0"))
+    savings_product_service.set_growlio_link(db_session, product.id, "growlio-acc-1", True)
+
+    with patch(
+        "app.services.savings_product_service.growlio_client.fetch_account_balances",
+        side_effect=GrowlioNotConfiguredError("not configured"),
+    ):
+        with pytest.raises(GrowlioNotConfiguredError):
+            savings_product_service.sync_all_from_growlio(db_session, "token", now=datetime(2026, 8, 6))
+
+
 def test_list_growlio_accounts_excludes_bank_accounts(db_session):
     with patch(
         "app.services.savings_product_service.growlio_client.fetch_account_balances",

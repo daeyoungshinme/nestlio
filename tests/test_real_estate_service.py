@@ -137,3 +137,57 @@ def test_sync_no_matching_growlio_account_raises(db_session):
     with _patch_fetch([]):
         with pytest.raises(real_estate_service.GrowlioSyncError):
             real_estate_service.sync_from_growlio(db_session, product.id, "token", now=datetime(2026, 8, 12))
+
+
+def test_sync_all_from_growlio_syncs_product_and_linked_loan_in_one_growlio_call(db_session):
+    with _patch_fetch([_GROWLIO_ITEM]):
+        [(product, loan)] = real_estate_service.import_from_growlio(
+            db_session, ["growlio-re-1"], "token", _OWNER_ID, now=datetime(2026, 8, 11)
+        )
+
+    updated_item = {**_GROWLIO_ITEM, "market_value_krw": 850000000.0, "mortgage_balance_krw": 280000000.0}
+    with _patch_fetch([updated_item]) as mock_fetch:
+        synced_count, failed = real_estate_service.sync_all_from_growlio(db_session, "token", now=datetime(2026, 8, 12, 9, 0))
+
+    mock_fetch.assert_called_once()
+    assert synced_count == 1
+    assert failed == []
+    assert product.current_balance == Decimal("850000000.0")
+    assert product.last_synced_at == datetime(2026, 8, 12, 9, 0)
+    assert loan.balance == Decimal("280000000.0")
+    assert loan.last_synced_at == datetime(2026, 8, 12, 9, 0)
+
+
+def test_sync_all_from_growlio_reports_unmatched_products_without_raising(db_session):
+    with _patch_fetch([_GROWLIO_ITEM]):
+        [(product, _loan)] = real_estate_service.import_from_growlio(
+            db_session, ["growlio-re-1"], "token", _OWNER_ID, now=datetime(2026, 8, 11)
+        )
+
+    with _patch_fetch([]):
+        synced_count, failed = real_estate_service.sync_all_from_growlio(db_session, "token", now=datetime(2026, 8, 12))
+
+    assert synced_count == 0
+    assert len(failed) == 1
+    assert failed[0]["id"] == product.id
+
+
+def test_sync_all_from_growlio_without_linked_products_returns_empty(db_session):
+    with _patch_fetch([]) as mock_fetch:
+        synced_count, failed = real_estate_service.sync_all_from_growlio(db_session, "token", now=datetime(2026, 8, 11))
+
+    mock_fetch.assert_not_called()
+    assert synced_count == 0
+    assert failed == []
+
+
+def test_sync_all_from_growlio_propagates_not_configured_error(db_session):
+    with _patch_fetch([_GROWLIO_ITEM]):
+        real_estate_service.import_from_growlio(db_session, ["growlio-re-1"], "token", _OWNER_ID, now=datetime(2026, 8, 11))
+
+    with patch(
+        "app.services.real_estate_service.growlio_client.fetch_real_estate_items",
+        side_effect=GrowlioNotConfiguredError("not configured"),
+    ):
+        with pytest.raises(GrowlioNotConfiguredError):
+            real_estate_service.sync_all_from_growlio(db_session, "token", now=datetime(2026, 8, 12))
