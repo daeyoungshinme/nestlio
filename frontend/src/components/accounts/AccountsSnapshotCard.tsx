@@ -1,6 +1,8 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useState } from "react";
 import { RefreshCw } from "lucide-react";
 import Button from "@/components/common/Button";
+import Modal from "@/components/common/Modal";
 import SkeletonCard from "@/components/common/SkeletonCard";
 import CollapsibleGroup from "@/components/common/CollapsibleGroup";
 import AssetCompositionDonut from "@/components/accounts/AssetCompositionDonut";
@@ -12,14 +14,15 @@ import { syncAllAccounts } from "@/api/accounts";
 import { syncAllRealEstate } from "@/api/realEstate";
 import { QUERY_KEYS } from "@/constants/queryKeys";
 import { formatKrw, formatKrwCompact } from "@/utils/format";
-import { splitSavingsAndRealEstate } from "@/utils/netWorth";
+import { computeRealEstateNet, splitSavingsAndRealEstate } from "@/utils/netWorth";
 import { netWorthTextColor } from "@/utils/colors";
 import { extractErrorMessage } from "@/utils/error";
 import { toast } from "@/utils/toast";
-import type { GrowlioSyncAllOut } from "@/types";
+import type { GrowlioSyncAllOut, GrowlioSyncFailureOut } from "@/types";
 
 export default function AccountsSnapshotCard() {
   const queryClient = useQueryClient();
+  const [syncFailures, setSyncFailures] = useState<GrowlioSyncFailureOut[] | null>(null);
   const { data, isLoading } = useQuery({ queryKey: QUERY_KEYS.netWorth, queryFn: () => fetchNetWorth(12) });
   // "저축·투자"/"부동산" 카드 분리용 — 같은 상품 목록(다른 탭들과 쿼리 키 공유, 추가 네트워크 요청
   // 없음)에서 부동산 몫만 빼는 계산은 splitSavingsAndRealEstate(utils/netWorth.ts)로 통일한다
@@ -52,11 +55,16 @@ export default function AccountsSnapshotCard() {
         return;
       }
       const syncedCount = fulfilled.reduce((sum, r) => sum + r.value.synced_count, 0);
-      const skippedCount = fulfilled.reduce((sum, r) => sum + r.value.failed.length, 0) + rejected.length;
+      const failures = fulfilled.flatMap((r) => r.value.failed);
+      const skippedCount = failures.length + rejected.length;
       if (syncedCount === 0 && skippedCount === 0) {
         toast("동기화할 growlio 연동 항목이 없어요.", "info");
       } else if (skippedCount > 0) {
-        toast(`${syncedCount}개 동기화, ${skippedCount}개는 건너뛰었어요 (배우자 계정이거나 삭제됨).`, "info");
+        toast(
+          `${syncedCount}개 동기화, ${skippedCount}개는 건너뛰었어요 (배우자 계정이거나 삭제됨).`,
+          "info",
+          failures.length > 0 ? { label: "자세히 보기", onClick: () => setSyncFailures(failures) } : undefined,
+        );
       } else {
         toast(`${syncedCount}개 항목을 동기화했어요.`, "success");
       }
@@ -72,16 +80,7 @@ export default function AccountsSnapshotCard() {
   const accountsTotal = Number(current.accounts_total);
   const loansTotal = Number(current.loans_total);
   const { savingsInvestmentTotal, realEstateTotal } = splitSavingsAndRealEstate(Number(current.savings_total), products);
-
-  const realEstateGrowlioIds = new Set(
-    (products ?? [])
-      .filter((p) => p.product_type === "real_estate" && p.growlio_account_id)
-      .map((p) => p.growlio_account_id as string),
-  );
-  const realEstateMortgageTotal = (loans ?? [])
-    .filter((loan) => loan.growlio_account_id && realEstateGrowlioIds.has(loan.growlio_account_id))
-    .reduce((sum, loan) => sum + Number(loan.balance), 0);
-  const realEstateNetTotal = Math.max(realEstateTotal - realEstateMortgageTotal, 0);
+  const realEstateNetTotal = computeRealEstateNet(realEstateTotal, products, loans);
   const totalAssetsTotal = netWorth + loansTotal;
 
   return (
@@ -125,6 +124,19 @@ export default function AccountsSnapshotCard() {
       >
         <NetWorthTrendChart history={history} />
       </CollapsibleGroup>
+
+      {syncFailures != null && (
+        <Modal title="건너뛴 항목" onClose={() => setSyncFailures(null)} size="sm" closeOnBackdrop>
+          <ul className="p-4 space-y-2 overflow-y-auto">
+            {syncFailures.map((failure) => (
+              <li key={failure.id} className="text-sm">
+                <span className="font-medium text-gray-900 dark:text-gray-50">{failure.name}</span>
+                <span className="text-gray-400 dark:text-gray-500"> — {failure.reason}</span>
+              </li>
+            ))}
+          </ul>
+        </Modal>
+      )}
     </div>
   );
 }

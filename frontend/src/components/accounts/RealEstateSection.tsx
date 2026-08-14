@@ -1,21 +1,19 @@
 import { useState } from "react";
 import type { FormEvent } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Download, Link2, Pencil, Plus, RefreshCw, Trash2 } from "lucide-react";
+import { Download, Plus, RefreshCw } from "lucide-react";
 import Button from "@/components/common/Button";
-import AccountActionsMenu from "@/components/common/AccountActionsMenu";
-import type { AccountActionsMenuItem } from "@/components/common/AccountActionsMenu";
+import AssetRow from "@/components/accounts/AssetRow";
 import ConfirmModal from "@/components/common/ConfirmModal";
 import EmptyState from "@/components/common/EmptyState";
 import FormInput from "@/components/common/FormInput";
 import GrowlioImportModal from "@/components/common/GrowlioImportModal";
+import GrowlioLinkSection from "@/components/accounts/GrowlioLinkSection";
 import Modal from "@/components/common/Modal";
-import RowActionButtons from "@/components/common/RowActionButtons";
+import OwnerSelect from "@/components/accounts/OwnerSelect";
 import SkeletonCard from "@/components/common/SkeletonCard";
 import StatusBadge from "@/components/common/StatusBadge";
 import InlineStatsBar from "@/components/common/InlineStatsBar";
-import { INPUT_SM, LABEL_SM } from "@/constants/inputStyles";
-import { TOUCH_TARGET_MIN_MOBILE_ONLY } from "@/constants/uiSizes";
 import {
   createSavingsProduct,
   deactivateSavingsProduct,
@@ -30,7 +28,6 @@ import { formatKrw, formatKrwPreview, formatPercent, formatSyncedAt, toAmountInp
 import { extractErrorMessage } from "@/utils/error";
 import { toast } from "@/utils/toast";
 import {
-  growlioLinkedBadgeStyle,
   linkedGoalBadgeStyle,
   returnRateTextColor,
   savingsProductTypeBadgeStyle,
@@ -77,7 +74,13 @@ export default function RealEstateSection({ users }: Props) {
   const [importOpen, setImportOpen] = useState(false);
   const queryClient = useQueryClient();
 
-  const { data: allData, isLoading } = useQuery({ queryKey: QUERY_KEYS.savingsProducts, queryFn: fetchSavingsProducts });
+  const {
+    data: allData,
+    isLoading,
+    isError,
+    error,
+    refetch,
+  } = useQuery({ queryKey: QUERY_KEYS.savingsProducts, queryFn: fetchSavingsProducts });
   const { data: goals } = useQuery({ queryKey: QUERY_KEYS.financialGoals, queryFn: fetchGoals });
 
   const invalidate = () => queryClient.invalidateQueries({ queryKey: QUERY_KEYS.savingsProducts });
@@ -102,6 +105,16 @@ export default function RealEstateSection({ users }: Props) {
     },
     onError: (err) => toast(extractErrorMessage(err), "error"),
   });
+
+  if (isError) {
+    return (
+      <EmptyState
+        title="부동산을 불러오지 못했어요"
+        description={extractErrorMessage(error)}
+        action={{ label: "다시 시도", onClick: () => void refetch() }}
+      />
+    );
+  }
 
   if (isLoading || !allData) {
     return <SkeletonCard rows={4} />;
@@ -171,6 +184,7 @@ export default function RealEstateSection({ users }: Props) {
       {formTarget && (
         <RealEstateFormModal
           initial={formTarget === "new" ? EMPTY_DRAFT : draftFromProduct(formTarget)}
+          product={formTarget === "new" ? null : formTarget}
           title={formTarget === "new" ? "부동산 추가" : "부동산 수정"}
           submitLabel={formTarget === "new" ? "추가" : "저장"}
           submitting={isSaving}
@@ -247,98 +261,74 @@ function RealEstateRow({
     ? (users?.find((u) => u.id === product.owner_user_id)?.display_name ?? "공통")
     : "공통";
 
-  const menuItems: AccountActionsMenuItem[] = [];
-  if (product.growlio_account_id) {
-    menuItems.push({
-      icon: <RefreshCw size={16} className={syncPending ? "animate-spin" : ""} />,
-      label: syncPending ? "동기화 중…" : "growlio 시세/담보대출 동기화",
-      onClick: onSync,
-      disabled: syncPending,
-    });
-  }
-  menuItems.push({ icon: <Pencil size={16} />, label: "수정", onClick: onEdit });
-  menuItems.push({ icon: <Trash2 size={16} />, label: "비활성화", onClick: onDelete, variant: "danger" });
-
   return (
-    <div className="card p-4 sm:p-5 flex items-center justify-between gap-3">
-      <div className="min-w-0">
-        <div className="flex items-center gap-1.5">
-          <p className="text-sm font-medium text-gray-900 dark:text-gray-50 truncate flex-1 min-w-0">{product.name}</p>
-          {product.growlio_account_id && (
+    <AssetRow
+      name={product.name}
+      linked={!!product.growlio_account_id}
+      meta={
+        <>
+          <div className="flex items-center gap-1.5 flex-wrap mt-1">
             <StatusBadge
               size="chip"
-              icon={<Link2 size={11} />}
-              label="growlio 연동"
-              toneClassName={growlioLinkedBadgeStyle()}
+              label={savingsProductTypeLabel(product.product_type)}
+              toneClassName={savingsProductTypeBadgeStyle(product.product_type)}
               className="shrink-0"
             />
-          )}
-        </div>
-        <div className="flex items-center gap-1.5 flex-wrap mt-1">
-          <StatusBadge
-            size="chip"
-            label={savingsProductTypeLabel(product.product_type)}
-            toneClassName={savingsProductTypeBadgeStyle(product.product_type)}
-            className="shrink-0"
-          />
-          {linkedGoals.length > 0 && (
-            <StatusBadge
-              size="chip"
-              label={`목표: ${linkedGoals[0].name}${linkedGoals.length > 1 ? ` 외 ${linkedGoals.length - 1}건` : ""}`}
-              toneClassName={linkedGoalBadgeStyle()}
-              className="shrink-0 max-w-[140px] sm:max-w-[220px] truncate"
-              title={`목표: ${linkedGoals.map((g) => g.name).join(", ")}`}
-            />
-          )}
-          {product.return_rate_pct !== null && (
-            <span className={`shrink-0 text-[11px] font-semibold ${returnRateTextColor(Number(product.return_rate_pct))}`}>
-              {Number(product.return_rate_pct) > 0 ? "+" : ""}
-              {formatPercent(Number(product.return_rate_pct), 1)}
-            </span>
-          )}
-        </div>
-        <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-          {ownerLabel}
-          {product.return_amount !== null && (
-            <span className={returnRateTextColor(Number(product.return_rate_pct))}>
-              {" "}
-              · 매입가 {formatKrw(product.principal_amount)} ({Number(product.return_amount) > 0 ? "+" : ""}
-              {formatKrw(product.return_amount)})
-            </span>
-          )}
-        </p>
-        <p className="mt-1 text-base font-bold text-gray-900 dark:text-gray-50">{formatKrw(product.current_balance)}</p>
-        {product.growlio_account_id && (
-          <p className="text-[11px] text-gray-400 dark:text-gray-500 mt-0.5">
-            {product.last_synced_at ? `마지막 동기화 ${formatSyncedAt(product.last_synced_at)}` : "아직 동기화하지 않았어요"}
+            {linkedGoals.length > 0 && (
+              <StatusBadge
+                size="chip"
+                label={`목표: ${linkedGoals[0].name}${linkedGoals.length > 1 ? ` 외 ${linkedGoals.length - 1}건` : ""}`}
+                toneClassName={linkedGoalBadgeStyle()}
+                className="shrink-0 max-w-[140px] sm:max-w-[220px] truncate"
+                title={`목표: ${linkedGoals.map((g) => g.name).join(", ")}`}
+              />
+            )}
+            {product.return_rate_pct !== null && (
+              <span className={`shrink-0 text-[11px] font-semibold ${returnRateTextColor(Number(product.return_rate_pct))}`}>
+                {Number(product.return_rate_pct) > 0 ? "+" : ""}
+                {formatPercent(Number(product.return_rate_pct), 1)}
+              </span>
+            )}
+          </div>
+          <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+            {ownerLabel}
+            {product.return_amount !== null && (
+              <span className={returnRateTextColor(Number(product.return_rate_pct))}>
+                {" "}
+                · 매입가 {formatKrw(product.principal_amount)} ({Number(product.return_amount) > 0 ? "+" : ""}
+                {formatKrw(product.return_amount)})
+              </span>
+            )}
           </p>
-        )}
-      </div>
-      <div className="flex items-center gap-1 shrink-0">
-        <div className="hidden sm:flex items-center gap-1">
-          {product.growlio_account_id && (
-            <button
-              onClick={onSync}
-              disabled={syncPending}
-              className={`${TOUCH_TARGET_MIN_MOBILE_ONLY} p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-950 rounded-lg transition-colors disabled:opacity-50`}
-              aria-label="growlio 시세/담보대출 동기화"
-              title="시세/담보대출 동기화"
-            >
-              <RefreshCw size={16} className={syncPending ? "animate-spin" : ""} />
-            </button>
-          )}
-          <RowActionButtons onEdit={onEdit} onDelete={onDelete} deleteLabel="비활성화" />
-        </div>
-        <div className="sm:hidden">
-          <AccountActionsMenu items={menuItems} ariaLabel={`${product.name} 작업 더 보기`} />
-        </div>
-      </div>
-    </div>
+        </>
+      }
+      amount={<p className="mt-1 text-base font-bold text-gray-900 dark:text-gray-50">{formatKrw(product.current_balance)}</p>}
+      syncedAtLabel={
+        product.last_synced_at ? `마지막 동기화 ${formatSyncedAt(product.last_synced_at)}` : "아직 동기화하지 않았어요"
+      }
+      actions={
+        product.growlio_account_id
+          ? [
+              {
+                icon: <RefreshCw size={16} className={syncPending ? "animate-spin" : ""} />,
+                label: syncPending ? "동기화 중…" : "growlio 시세/담보대출 동기화",
+                onClick: onSync,
+                disabled: syncPending,
+              },
+            ]
+          : []
+      }
+      onEdit={onEdit}
+      onDelete={onDelete}
+      deleteLabel="비활성화"
+      menuAriaLabel={`${product.name} 작업 더 보기`}
+    />
   );
 }
 
 function RealEstateFormModal({
   initial,
+  product,
   title,
   submitLabel,
   submitting,
@@ -347,6 +337,7 @@ function RealEstateFormModal({
   onSubmit,
 }: {
   initial: Draft;
+  product: SavingsProductOut | null;
   title: string;
   submitLabel: string;
   submitting: boolean;
@@ -390,21 +381,24 @@ function RealEstateFormModal({
           className="w-full"
           preview={Number(draft.principal_amount) > 0 ? formatKrwPreview(Number(draft.principal_amount)) : undefined}
         />
-        <div>
-          <label className={`block mb-1 font-medium ${LABEL_SM}`}>소유자</label>
-          <select
-            className={`${INPUT_SM} w-full`}
-            value={draft.owner_user_id}
-            onChange={(e) => setDraft((d) => ({ ...d, owner_user_id: e.target.value }))}
-          >
-            <option value="">공통</option>
-            {users?.map((u) => (
-              <option key={u.id} value={u.id}>
-                {u.display_name}
-              </option>
-            ))}
-          </select>
-        </div>
+        <OwnerSelect
+          value={draft.owner_user_id}
+          onChange={(owner_user_id) => setDraft((d) => ({ ...d, owner_user_id }))}
+          users={users}
+        />
+        {product && (
+          <GrowlioLinkSection
+            productId={product.id}
+            growlioAccountId={product.growlio_account_id}
+            queryKey={QUERY_KEYS.growlioRealEstateAccounts}
+            fetchRows={fetchGrowlioRealEstate}
+            getRowId={(item) => item.id}
+            getRowLabel={(item) => item.name}
+            getRowAmount={(item) => item.market_value_krw}
+            invalidateKeys={[QUERY_KEYS.savingsProducts]}
+            onLinked={onClose}
+          />
+        )}
         <Button type="submit" loading={submitting} className="mt-2">
           {submitLabel}
         </Button>

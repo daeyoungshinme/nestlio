@@ -2,7 +2,7 @@ import logging
 from datetime import date, datetime
 
 from app.database import SessionLocal
-from app.services import event_service, net_worth_service, notification_service, recurring_service
+from app.services import event_service, goal_service, net_worth_service, notification_service, recurring_service
 from app.services.google_auth import GoogleNotConnectedError, is_connected
 
 logger = logging.getLogger("scheduler")
@@ -61,14 +61,17 @@ def monthly_summary_email() -> None:
 
 def daily_threshold_safety_net() -> None:
     """Catches any budget-threshold breaches the synchronous per-transaction check missed,
-    and any goal milestones missed by the synchronous per-goal-save check. Google 미연결이어도
-    인앱 알림함에는 항상 기록된다 (이메일만 조건부)."""
+    and any goal milestones missed by the synchronous per-goal-save check. 챌린지 상태
+    (status/completed_at)도 함께 재평가한다 — 저장 이벤트 없이 연동 잔액만 자연히 목표액을
+    넘는 경우를 잡기 위함(goal_service.sync_challenge_statuses). Google 미연결이어도 인앱
+    알림함에는 항상 기록된다 (이메일만 조건부)."""
     db = SessionLocal()
     try:
         notification_service.check_all_categories_threshold(db)
+        goal_service.sync_challenge_statuses(db, now=datetime.now())
         notification_service.check_all_goal_milestones(db)
     except Exception:
-        logger.exception("예산 초과/목표 달성 안전망 체크 실패")
+        logger.exception("예산 초과/목표 달성/챌린지 상태 안전망 체크 실패")
     finally:
         db.close()
 

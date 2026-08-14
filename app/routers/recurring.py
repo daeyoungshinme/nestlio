@@ -14,9 +14,13 @@ router = APIRouter(prefix="/recurring", tags=["recurring"])
 
 
 @router.get("", response_model=RecurringListOut)
-def list_recurring(db: Session = Depends(get_db), _: User = Depends(get_current_user)):
+def list_recurring(
+    include_inactive: bool = False,
+    db: Session = Depends(get_db),
+    _: User = Depends(get_current_user),
+):
     return {
-        "items": recurring_service.list_recurring(db),
+        "items": recurring_service.list_recurring(db, active_only=not include_inactive),
         "upcoming": recurring_service.upcoming(db, within_days=14),
     }
 
@@ -70,3 +74,11 @@ def run_now(db: Session = Depends(get_db), _: User = Depends(get_current_user)):
 @router.post("/{recurring_id}/deactivate", status_code=status.HTTP_204_NO_CONTENT)
 def deactivate(recurring_id: int, db: Session = Depends(get_db), _: User = Depends(get_current_user)):
     recurring_service.deactivate_recurring(db, recurring_id)
+
+
+@router.post("/{recurring_id}/reactivate", response_model=RecurringOut)
+def reactivate(recurring_id: int, db: Session = Depends(get_db), _: User = Depends(get_current_user)):
+    recurring = recurring_service.reactivate_recurring(db, recurring_id)
+    if recurring is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "고정지출을 찾을 수 없습니다.")
+    return recurring

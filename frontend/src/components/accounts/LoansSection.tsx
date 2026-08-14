@@ -1,25 +1,23 @@
 import { useState } from "react";
 import type { FormEvent } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Link as RouterLink } from "react-router-dom";
-import { Link2, Pencil, Plus, Trash2 } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import { Link2, Plus } from "lucide-react";
 import Button from "@/components/common/Button";
-import AccountActionsMenu from "@/components/common/AccountActionsMenu";
-import type { AccountActionsMenuItem } from "@/components/common/AccountActionsMenu";
+import AssetRow from "@/components/accounts/AssetRow";
 import ConfirmModal from "@/components/common/ConfirmModal";
 import EmptyState from "@/components/common/EmptyState";
 import FormInput from "@/components/common/FormInput";
 import Modal from "@/components/common/Modal";
-import RowActionButtons from "@/components/common/RowActionButtons";
+import OwnerSelect from "@/components/accounts/OwnerSelect";
 import SkeletonCard from "@/components/common/SkeletonCard";
-import StatusBadge from "@/components/common/StatusBadge";
 import InlineStatsBar from "@/components/common/InlineStatsBar";
 import { createLoan, deactivateLoan, fetchLoans, updateLoan } from "@/api/loans";
 import { QUERY_KEYS } from "@/constants/queryKeys";
 import { INPUT_SM, LABEL_SM } from "@/constants/inputStyles";
 import { useCrudMutations } from "@/hooks/useCrudMutations";
 import { formatKrw, formatKrwPreview, formatSyncedAt, toAmountInputValue } from "@/utils/format";
-import { growlioLinkedBadgeStyle } from "@/utils/colors";
+import { extractErrorMessage } from "@/utils/error";
 import type { LoanOut, RepaymentMethod, UserOut } from "@/types";
 
 const REPAYMENT_METHOD_LABEL: Record<RepaymentMethod, string> = {
@@ -86,7 +84,13 @@ export default function LoansSection({ users }: Props) {
   const [formTarget, setFormTarget] = useState<"new" | LoanOut | null>(null);
   const [deactivateTarget, setDeactivateTarget] = useState<number | null>(null);
 
-  const { data, isLoading } = useQuery({ queryKey: QUERY_KEYS.loans, queryFn: fetchLoans });
+  const {
+    data,
+    isLoading,
+    isError,
+    error,
+    refetch,
+  } = useQuery({ queryKey: QUERY_KEYS.loans, queryFn: fetchLoans });
 
   const { createMutation, updateMutation, removeMutation: deactivateMutation } = useCrudMutations({
     invalidateKeys: [QUERY_KEYS.loans],
@@ -96,6 +100,16 @@ export default function LoansSection({ users }: Props) {
     onUpdateSuccess: () => setFormTarget(null),
     onRemoveSuccess: () => setDeactivateTarget(null),
   });
+
+  if (isError) {
+    return (
+      <EmptyState
+        title="대출을 불러오지 못했어요"
+        description={extractErrorMessage(error)}
+        action={{ label: "다시 시도", onClick: () => void refetch() }}
+      />
+    );
+  }
 
   if (isLoading || !data) {
     return <SkeletonCard rows={4} />;
@@ -173,52 +187,40 @@ function LoanRow({
   onEdit: () => void;
   onDelete: () => void;
 }) {
+  const navigate = useNavigate();
   const ownerLabel = loan.owner_user_id
     ? (users?.find((u) => u.id === loan.owner_user_id)?.display_name ?? "공통")
     : "공통";
 
-  const menuItems: AccountActionsMenuItem[] = [
-    { icon: <Pencil size={16} />, label: "수정", onClick: onEdit },
-    { icon: <Trash2 size={16} />, label: "비활성화", onClick: onDelete, variant: "danger" },
-  ];
-
   return (
-    <div className="card p-4 sm:p-5 flex items-center justify-between gap-3">
-      <div className="min-w-0">
-        <div className="flex items-center gap-1.5 flex-wrap">
-          <p className="text-sm font-medium text-gray-900 dark:text-gray-50 truncate">{loan.name}</p>
-          {loan.growlio_account_id && (
-            <StatusBadge
-              size="chip"
-              icon={<Link2 size={11} />}
-              label="growlio 연동"
-              toneClassName={growlioLinkedBadgeStyle()}
-              className="shrink-0"
-            />
-          )}
-        </div>
+    <AssetRow
+      name={loan.name}
+      linked={!!loan.growlio_account_id}
+      meta={
         <p className="text-xs text-gray-500 dark:text-gray-400">
           {loan.repayment_method ? `${REPAYMENT_METHOD_LABEL[loan.repayment_method]} · ` : ""}
           {ownerLabel}
         </p>
-        <p className="mt-1 text-base font-bold text-gray-900 dark:text-gray-50">{formatKrw(loan.balance)}</p>
-        <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">월 {formatKrw(loan.monthly_payment)}</p>
-        {loan.growlio_account_id && (
-          <p className="text-[11px] text-gray-400 dark:text-gray-500 mt-0.5">
-            {loan.last_synced_at ? `마지막 동기화 ${formatSyncedAt(loan.last_synced_at)} · ` : ""}
-            <RouterLink to="/accounts?tab=부동산" className="underline hover:no-underline text-gray-500 dark:text-gray-400">
-              부동산 탭에서 동기화
-            </RouterLink>
-          </p>
-        )}
-      </div>
-      <div className="hidden sm:flex">
-        <RowActionButtons onEdit={onEdit} onDelete={onDelete} deleteLabel="비활성화" />
-      </div>
-      <div className="sm:hidden">
-        <AccountActionsMenu items={menuItems} ariaLabel={`${loan.name} 작업 더 보기`} />
-      </div>
-    </div>
+      }
+      amount={
+        <>
+          <p className="mt-1 text-base font-bold text-gray-900 dark:text-gray-50">{formatKrw(loan.balance)}</p>
+          <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">월 {formatKrw(loan.monthly_payment)}</p>
+        </>
+      }
+      syncedAtLabel={
+        loan.last_synced_at ? `마지막 동기화 ${formatSyncedAt(loan.last_synced_at)}` : "아직 동기화하지 않았어요"
+      }
+      actions={
+        loan.growlio_account_id
+          ? [{ icon: <Link2 size={16} />, label: "부동산에서 동기화", onClick: () => navigate("/accounts?tab=부동산") }]
+          : []
+      }
+      onEdit={onEdit}
+      onDelete={onDelete}
+      deleteLabel="비활성화"
+      menuAriaLabel={`${loan.name} 작업 더 보기`}
+    />
   );
 }
 
@@ -318,21 +320,11 @@ function LoanFormModal({
             </select>
           </div>
         </div>
-        <div>
-          <label className={`block mb-1 font-medium ${LABEL_SM}`}>소유자</label>
-          <select
-            className={`${INPUT_SM} w-full`}
-            value={draft.owner_user_id}
-            onChange={(e) => setDraft((d) => ({ ...d, owner_user_id: e.target.value }))}
-          >
-            <option value="">공통</option>
-            {users?.map((u) => (
-              <option key={u.id} value={u.id}>
-                {u.display_name}
-              </option>
-            ))}
-          </select>
-        </div>
+        <OwnerSelect
+          value={draft.owner_user_id}
+          onChange={(owner_user_id) => setDraft((d) => ({ ...d, owner_user_id }))}
+          users={users}
+        />
         <Button type="submit" loading={submitting} className="mt-2">
           {submitLabel}
         </Button>

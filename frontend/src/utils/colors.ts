@@ -201,6 +201,14 @@ export function assetCategoryChartColor(category: AssetCategory, isDark: boolean
   return ASSET_CATEGORY_CHART_COLOR[category][isDark ? "dark" : "light"];
 }
 
+const NET_WORTH_TREND_CHART_COLOR = { light: "#2563EB", dark: "#60a5fa" };
+
+/** 순자산 추이 차트(NetWorthTrendChart) 전용 단색 라인/그라디언트 색상. 어두운 배경에서
+ * 대비가 낮아지는 라이트용 블루 대신 dark 모드에서는 더 밝은 톤(blue-400)을 쓴다. */
+export function netWorthTrendChartColor(isDark: boolean): string {
+  return NET_WORTH_TREND_CHART_COLOR[isDark ? "dark" : "light"];
+}
+
 export function growlioLinkedBadgeStyle(): string {
   return "bg-blue-50 dark:bg-blue-950 text-blue-700 dark:text-blue-300";
 }

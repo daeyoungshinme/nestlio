@@ -212,7 +212,7 @@ export default function DashboardPage() {
             return (
               <div
                 key={i}
-                className={`border rounded-lg px-4 py-3 text-sm flex items-center justify-between gap-3 ${insightSeverityStyle(insight.severity)}`}
+                className={`border rounded-lg px-4 py-3 text-sm flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-3 ${insightSeverityStyle(insight.severity)}`}
               >
                 <span>{insight.message}</span>
                 {link && (

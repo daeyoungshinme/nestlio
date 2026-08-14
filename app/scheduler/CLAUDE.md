@@ -15,7 +15,7 @@
 | `daily-due-date-check` | 매일 07:00 | `recurring_service.generate_due_transactions` + 캘린더 동기화 |
 | `weekly-summary-email` | 매주 월 08:00 | `notification_service.send_weekly_summary` |
 | `monthly-summary-email` | 매월 1일 08:00 | `notification_service.send_monthly_summary` |
-| `daily-threshold-safety-net` | 매일 20:00 | `notification_service.check_all_categories_threshold` + `check_all_goal_milestones` (실시간 체크 누락 대비 백스톱) |
+| `daily-threshold-safety-net` | 매일 20:00 | `notification_service.check_all_categories_threshold` + `goal_service.sync_challenge_statuses` + `check_all_goal_milestones` (실시간 체크 누락 대비 백스톱, 저장 이벤트 없이 연동 잔액만 자연 증가한 챌린지 상태 전환 포함) |
 | `monthly-net-worth-snapshot` | 매월 1일 08:05 | `net_worth_service.record_snapshot` (순자산 추이 차트용 월별 스냅샷 기록) |
 | `event-reminder-check` | 15분 간격 | `event_service.send_due_reminders` (일정 시작 전 리마인더 이메일) |
 

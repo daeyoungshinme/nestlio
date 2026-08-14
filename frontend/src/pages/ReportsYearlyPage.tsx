@@ -21,7 +21,8 @@ import SummaryCards from "@/components/common/SummaryCards";
 import EmptyState from "@/components/common/EmptyState";
 import { fetchCategoryTrend, fetchYearlyReport } from "@/api/reports";
 import { QUERY_KEYS } from "@/constants/queryKeys";
-import { formatKrw, formatYearMonth } from "@/utils/format";
+import { TOUCH_TARGET_MIN_MOBILE_ONLY } from "@/constants/uiSizes";
+import { formatKrw, formatKrwCompact, formatYearMonth } from "@/utils/format";
 import { PieChart as PieChartIcon, TrendingUp } from "lucide-react";
 
 const CATEGORY_TREND_MONTHS = 6;
@@ -71,11 +72,19 @@ export default function ReportsYearlyPage() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-center gap-4">
-        <button onClick={() => setYear(data.prev_year)} className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800" aria-label="이전 해">
+        <button
+          onClick={() => setYear(data.prev_year)}
+          className={`${TOUCH_TARGET_MIN_MOBILE_ONLY} rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800`}
+          aria-label="이전 해"
+        >
           <ChevronLeft size={18} />
         </button>
         <h1 className="text-xl font-bold text-gray-900 dark:text-gray-50">{data.year}년 연간 리포트</h1>
-        <button onClick={() => setYear(data.next_year)} className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800" aria-label="다음 해">
+        <button
+          onClick={() => setYear(data.next_year)}
+          className={`${TOUCH_TARGET_MIN_MOBILE_ONLY} rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800`}
+          aria-label="다음 해"
+        >
           <ChevronRight size={18} />
         </button>
       </div>
@@ -84,17 +93,19 @@ export default function ReportsYearlyPage() {
 
       <div className="card">
         <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">월별 수입/지출</h3>
-        <ResponsiveContainer width="100%" height={260}>
-          <BarChart data={monthlyData}>
-            <CartesianGrid strokeDasharray="3 3" className="stroke-gray-200 dark:stroke-gray-700" />
-            <XAxis dataKey="name" tick={{ fontSize: 12 }} tickFormatter={MONTH_TICK_FORMATTER} interval={0} />
-            <YAxis tick={{ fontSize: 12 }} />
-            <Tooltip formatter={(v) => formatKrw(Number(v))} />
-            <Legend />
-            <Bar dataKey="수입" fill="#2563EB" radius={[4, 4, 0, 0]} />
-            <Bar dataKey="지출" fill="#DC2626" radius={[4, 4, 0, 0]} />
-          </BarChart>
-        </ResponsiveContainer>
+        <div className="h-[220px] sm:h-[260px]">
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart data={monthlyData}>
+              <CartesianGrid strokeDasharray="3 3" className="stroke-gray-200 dark:stroke-gray-700" />
+              <XAxis dataKey="name" tick={{ fontSize: 12 }} tickFormatter={MONTH_TICK_FORMATTER} interval={0} />
+              <YAxis tick={{ fontSize: 12 }} tickFormatter={(v) => formatKrwCompact(Number(v))} width={70} />
+              <Tooltip formatter={(v) => formatKrw(Number(v))} />
+              <Legend />
+              <Bar dataKey="수입" fill="#2563EB" radius={[4, 4, 0, 0]} />
+              <Bar dataKey="지출" fill="#DC2626" radius={[4, 4, 0, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
       </div>
 
       <div className="card">
@@ -103,16 +114,18 @@ export default function ReportsYearlyPage() {
           <EmptyState icon={PieChartIcon} title="이 해에 지출 내역이 없어요" compact />
         ) : (
           <>
-            <ResponsiveContainer width="100%" height={260}>
-              <PieChart>
-                <Pie data={pieData} dataKey="value" nameKey="name" innerRadius={60} outerRadius={100}>
-                  {pieData.map((entry, i) => (
-                    <Cell key={i} fill={entry.color} />
-                  ))}
-                </Pie>
-                <Tooltip formatter={(v) => formatKrw(Number(v))} />
-              </PieChart>
-            </ResponsiveContainer>
+            <div className="h-[220px] sm:h-[260px]">
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie data={pieData} dataKey="value" nameKey="name" innerRadius={60} outerRadius={100}>
+                    {pieData.map((entry, i) => (
+                      <Cell key={i} fill={entry.color} />
+                    ))}
+                  </Pie>
+                  <Tooltip formatter={(v) => formatKrw(Number(v))} />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
             <div className="flex flex-row flex-wrap justify-center gap-x-3 gap-y-1 mt-2">
               {pieData.map((entry, i) => (
                 <div key={i} className="flex items-center gap-1">
@@ -137,40 +150,46 @@ export default function ReportsYearlyPage() {
         ) : trend.series.length === 0 ? (
           <EmptyState icon={TrendingUp} title="최근 지출 내역이 없어요" compact />
         ) : (
-          <ResponsiveContainer width="100%" height={280}>
-            <LineChart data={trendData} margin={{ bottom: 16 }}>
-              <CartesianGrid strokeDasharray="3 3" className="stroke-gray-200 dark:stroke-gray-700" />
-              <XAxis
-                dataKey="name"
-                tick={{ fontSize: 12 }}
-                tickFormatter={TREND_TICK_FORMATTER}
-                interval={0}
-                angle={-30}
-                textAnchor="end"
-                height={40}
-              />
-              <YAxis tick={{ fontSize: 12 }} />
-              <Tooltip formatter={(v) => formatKrw(Number(v))} />
-              <Legend
-                onClick={(e) => toggleSeries(String(e.value))}
-                wrapperStyle={{ cursor: "pointer" }}
-                formatter={(value) => (
-                  <span className={hiddenSeries.has(value) ? "line-through opacity-40" : ""}>{value}</span>
-                )}
-              />
-              {trend.series.map((series) => (
-                <Line
-                  key={series.category_id ?? "other"}
-                  type="monotone"
-                  dataKey={series.name}
-                  stroke={series.color}
-                  strokeWidth={2}
-                  dot={{ r: 3 }}
-                  hide={hiddenSeries.has(series.name)}
+          <div className="h-[240px] sm:h-[280px]">
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart data={trendData} margin={{ bottom: 16 }}>
+                <CartesianGrid strokeDasharray="3 3" className="stroke-gray-200 dark:stroke-gray-700" />
+                <XAxis
+                  dataKey="name"
+                  tick={{ fontSize: 12 }}
+                  tickFormatter={TREND_TICK_FORMATTER}
+                  interval={0}
+                  angle={-30}
+                  textAnchor="end"
+                  height={40}
                 />
-              ))}
-            </LineChart>
-          </ResponsiveContainer>
+                <YAxis tick={{ fontSize: 12 }} tickFormatter={(v) => formatKrwCompact(Number(v))} width={70} />
+                <Tooltip formatter={(v) => formatKrw(Number(v))} />
+                <Legend
+                  onClick={(e) => toggleSeries(String(e.value))}
+                  wrapperStyle={{ cursor: "pointer" }}
+                  formatter={(value) => (
+                    <span
+                      className={`inline-block py-1 px-0.5 ${hiddenSeries.has(value) ? "line-through opacity-40" : ""}`}
+                    >
+                      {value}
+                    </span>
+                  )}
+                />
+                {trend.series.map((series) => (
+                  <Line
+                    key={series.category_id ?? "other"}
+                    type="monotone"
+                    dataKey={series.name}
+                    stroke={series.color}
+                    strokeWidth={2}
+                    dot={{ r: 3 }}
+                    hide={hiddenSeries.has(series.name)}
+                  />
+                ))}
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
         )}
       </div>
     </div>

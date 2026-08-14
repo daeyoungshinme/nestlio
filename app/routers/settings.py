@@ -80,12 +80,17 @@ async def upload_couple_photo(
         couple_photo_service.save_photo(raw, file.content_type)
     except couple_photo_service.InvalidPhotoError as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from None
+    except couple_photo_service.PhotoStorageError as exc:
+        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc)) from None
     return _settings_out(db)
 
 
 @router.delete("/couple-photo", response_model=SettingsOut)
 def delete_couple_photo(db: Session = Depends(get_db), _: User = Depends(get_current_user)):
-    couple_photo_service.delete_photo()
+    try:
+        couple_photo_service.delete_photo()
+    except couple_photo_service.PhotoStorageError as exc:
+        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc)) from None
     return _settings_out(db)
 
 

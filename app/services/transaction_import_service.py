@@ -44,6 +44,7 @@ def import_rows(db: Session, rows: list[list[str]], user_id: uuid.UUID) -> dict:
 
     created = 0
     skipped: list[dict] = []
+    created_transactions: list[Transaction] = []
     for line_no, row in enumerate(rows, start=1):
         if not row or not any(cell.strip() for cell in row):
             continue
@@ -54,21 +55,22 @@ def import_rows(db: Session, rows: list[list[str]], user_id: uuid.UUID) -> dict:
             category = categories_by_name.get(raw_category.strip())
             if tx_type is None or category is None:
                 raise ValueError("unknown type or category")
-            db.add(
-                Transaction(
-                    user_id=user_id,
-                    category_id=category.id,
-                    type=tx_type,
-                    amount=Decimal(raw_amount.strip()),
-                    transaction_date=date.fromisoformat(raw_date.strip()),
-                    description=description.strip() or None,
-                )
+            tx = Transaction(
+                user_id=user_id,
+                category_id=category.id,
+                type=tx_type,
+                amount=Decimal(raw_amount.strip()),
+                transaction_date=date.fromisoformat(raw_date.strip()),
+                description=description.strip() or None,
             )
+            db.add(tx)
+            db.flush()  # PK 확보 (되돌리기용 created_ids를 응답에 담기 위함, 최종 commit은 루프 종료 후 한 번)
+            created_transactions.append(tx)
             created += 1
         except (ValueError, InvalidOperation, IndexError) as exc:
             skipped.append({"line": line_no, "row": row, "reason": str(exc)})
     db.commit()
-    return {"created": created, "skipped": skipped}
+    return {"created": created, "skipped": skipped, "created_ids": [tx.id for tx in created_transactions]}
 
 
 def import_csv(db: Session, content: str, user_id: uuid.UUID) -> dict:

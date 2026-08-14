@@ -1,14 +1,17 @@
 import { useState } from "react";
 import { ArrowLeft } from "lucide-react";
 import { Link } from "react-router-dom";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import Button from "@/components/common/Button";
+import ConfirmModal from "@/components/common/ConfirmModal";
 import FormInput from "@/components/common/FormInput";
 import Tabs from "@/components/common/Tabs";
-import { importTransactionsCsv, importTransactionsFromSheet } from "@/api/transactions";
+import { bulkDeleteTransactions, importTransactionsCsv, importTransactionsFromSheet } from "@/api/transactions";
 import { fetchSettings } from "@/api/settings";
 import { QUERY_KEYS } from "@/constants/queryKeys";
+import { useInvalidateTransactionRelated } from "@/hooks/useInvalidateTransactionRelated";
 import { extractErrorMessage } from "@/utils/error";
+import { toast } from "@/utils/toast";
 import { TOUCH_TARGET_ROW } from "@/constants/uiSizes";
 import type { ImportResultOut, SheetImportIn } from "@/types";
 
@@ -18,7 +21,7 @@ type SourceTab = (typeof SOURCE_TABS)[number];
 const SHEET_MODE_TABS = ["공개 링크", "구글 계정 연동"] as const;
 type SheetModeTab = (typeof SHEET_MODE_TABS)[number];
 
-function ImportResultCard({ result }: { result: ImportResultOut }) {
+function ImportResultCard({ result, onUndo }: { result: ImportResultOut; onUndo?: () => void }) {
   return (
     <div className="card space-y-2">
       <p className="text-sm font-medium text-gray-900 dark:text-gray-50">
@@ -33,6 +36,15 @@ function ImportResultCard({ result }: { result: ImportResultOut }) {
           ))}
         </ul>
       )}
+      {onUndo && result.created_ids.length > 0 && (
+        <button
+          type="button"
+          onClick={onUndo}
+          className="text-xs text-red-600 dark:text-red-400 hover:underline"
+        >
+          방금 가져온 {result.created_ids.length}건 되돌리기
+        </button>
+      )}
     </div>
   );
 }
@@ -46,17 +58,34 @@ export default function TransactionImportPage() {
   const [sheetName, setSheetName] = useState("");
   const [result, setResult] = useState<ImportResultOut | null>(null);
   const [error, setError] = useState("");
-  const queryClient = useQueryClient();
+  const [showUndoConfirm, setShowUndoConfirm] = useState(false);
+  const invalidateTransactionRelated = useInvalidateTransactionRelated();
 
   const { data: settings } = useQuery({ queryKey: QUERY_KEYS.settings, queryFn: fetchSettings });
 
   const onImportSuccess = (data: ImportResultOut) => {
     setResult(data);
     setError("");
-    void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.transactionsAll });
-    void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.dashboardAll });
+    invalidateTransactionRelated();
   };
   const onImportError = (err: unknown) => setError(extractErrorMessage(err));
+
+  const undoMutation = useMutation({
+    mutationFn: (ids: number[]) => bulkDeleteTransactions(ids),
+    onSuccess: (res) => {
+      setShowUndoConfirm(false);
+      setResult(null);
+      invalidateTransactionRelated();
+      toast(`${res.deleted}건 되돌렸습니다.`, "success");
+      if (res.failed.length > 0) {
+        toast(`${res.failed.length}건은 이미 삭제되어 건너뛰었습니다.`, "error");
+      }
+    },
+    onError: (err) => {
+      setShowUndoConfirm(false);
+      toast(extractErrorMessage(err), "error");
+    },
+  });
 
   const csvMutation = useMutation({
     mutationFn: (f: File) => importTransactionsCsv(f),
@@ -197,7 +226,16 @@ export default function TransactionImportPage() {
       )}
 
       {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
-      {result && <ImportResultCard result={result} />}
+      {result && <ImportResultCard result={result} onUndo={() => setShowUndoConfirm(true)} />}
+
+      {showUndoConfirm && result && (
+        <ConfirmModal
+          message={`방금 가져온 ${result.created_ids.length}건을 모두 삭제할까요? 되돌릴 수 없습니다.`}
+          confirmLabel="되돌리기"
+          onConfirm={() => undoMutation.mutate(result.created_ids)}
+          onCancel={() => setShowUndoConfirm(false)}
+        />
+      )}
     </div>
   );
 }

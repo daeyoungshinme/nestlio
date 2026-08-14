@@ -24,6 +24,9 @@ interface Props {
   subtitle?: ReactNode;
   pct: number;
   primaryDetail?: ReactNode;
+  /** primaryDetail 바로 아래, 접이식 extraDetails와 무관하게 항상 보이는 고정 정보 — 중요도가
+   * 높아 "더보기" 뒤에 숨기면 안 되는 것만 담는다(남용하면 카드가 다시 길어진다). */
+  pinnedDetail?: ReactNode;
   extraDetails?: GoalProgressCardExtraDetail[];
   onEdit?: () => void;
   onDelete?: () => void;
@@ -42,6 +45,7 @@ export default function GoalProgressCard({
   subtitle,
   pct,
   primaryDetail,
+  pinnedDetail,
   extraDetails,
   onEdit,
   onDelete,
@@ -77,6 +81,8 @@ export default function GoalProgressCard({
       </div>
 
       {primaryDetail && <p className="text-xs text-gray-500 dark:text-gray-400">{primaryDetail}</p>}
+
+      {pinnedDetail && <div className="text-xs">{pinnedDetail}</div>}
 
       {details.length === 1 && <div className="text-xs text-gray-500 dark:text-gray-400">{details[0].content}</div>}
 

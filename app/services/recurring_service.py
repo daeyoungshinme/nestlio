@@ -111,6 +111,26 @@ def deactivate_recurring(db: Session, recurring_id: int) -> None:
         db.commit()
 
 
+def reactivate_recurring(db: Session, recurring_id: int, today: date | None = None) -> RecurringExpense | None:
+    """deactivate_recurring의 대칭 함수. 비활성 기간 동안 밀린 next_due_date를 오늘 이후로
+    앞당겨서, 재활성화 직후 generate_due_transactions가 소급분을 한꺼번에 만들어버리지
+    않게 한다."""
+    today = today or date.today()
+    recurring = db.get(RecurringExpense, recurring_id)
+    if recurring is None:
+        return None
+    recurring.is_active = True
+    guard = 0
+    while recurring.next_due_date < today and guard < 240:
+        guard += 1
+        recurring.next_due_date = advance_recurring_date(
+            recurring.next_due_date, recurring.frequency, recurring.day_of_month, recurring.days_of_month
+        )
+    db.commit()
+    db.refresh(recurring)
+    return recurring
+
+
 def generate_due_transactions(db: Session, today: date | None = None) -> list[Transaction]:
     """Post a transaction for every active recurring expense whose next_due_date has arrived,
     then roll next_due_date forward. Safe to call repeatedly (idempotent per due date)."""

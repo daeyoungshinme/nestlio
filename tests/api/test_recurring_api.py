@@ -26,6 +26,40 @@ def test_create_list_deactivate_recurring(client, seeded_db):
     assert all(item["id"] != recurring_id for item in list_resp2.json()["items"])
 
 
+def test_deactivate_then_reactivate_recurring(client, seeded_db):
+    food = seeded_db["food"]
+    resp = client.post(
+        "/api/v1/recurring",
+        json={
+            "name": "넷플릭스",
+            "category_id": food.id,
+            "amount": "17000",
+            "frequency": "monthly",
+            "start_date": "2026-07-01",
+        },
+    )
+    recurring_id = resp.json()["id"]
+
+    client.post(f"/api/v1/recurring/{recurring_id}/deactivate")
+
+    # deactivated items disappear from the default (active-only) list...
+    assert all(item["id"] != recurring_id for item in client.get("/api/v1/recurring").json()["items"])
+    # ...but are still visible with include_inactive=true, so the UI can offer to undo it.
+    inactive_list = client.get("/api/v1/recurring", params={"include_inactive": "true"}).json()["items"]
+    assert any(item["id"] == recurring_id and item["is_active"] is False for item in inactive_list)
+
+    reactivate_resp = client.post(f"/api/v1/recurring/{recurring_id}/reactivate")
+    assert reactivate_resp.status_code == 200
+    assert reactivate_resp.json()["is_active"] is True
+
+    assert any(item["id"] == recurring_id for item in client.get("/api/v1/recurring").json()["items"])
+
+
+def test_reactivate_recurring_not_found_returns_404(client, seeded_db):
+    resp = client.post("/api/v1/recurring/99999/reactivate")
+    assert resp.status_code == 404
+
+
 def test_update_recurring(client, seeded_db):
     food = seeded_db["food"]
     resp = client.post(

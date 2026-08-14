@@ -170,6 +170,31 @@ def test_create_recurring_with_days_of_month_sets_first_occurrence_on_or_after_s
     assert recurring.day_of_month == 5
 
 
+def test_reactivate_recurring_advances_next_due_date_past_dormant_period(seeded_db):
+    db, user, rent = seeded_db["db"], seeded_db["user"], seeded_db["rent"]
+    recurring = recurring_service.create_recurring(
+        db, name="월세", category_id=rent.id, amount=Decimal("800000"),
+        frequency="monthly", start_date=date(2026, 7, 1), created_by=user.id,
+    )
+    recurring_service.deactivate_recurring(db, recurring.id)
+
+    # dormant for 3+ months; reactivating on Oct 15 should skip the missed Jul/Aug/Sep/Oct
+    # occurrences rather than letting generate_due_transactions create a backlog of them.
+    reactivated = recurring_service.reactivate_recurring(db, recurring.id, today=date(2026, 10, 15))
+
+    assert reactivated.is_active is True
+    assert reactivated.next_due_date == date(2026, 11, 1)
+    assert reactivated.next_due_date >= date(2026, 10, 15)
+
+    created = recurring_service.generate_due_transactions(db, today=date(2026, 10, 15))
+    assert created == []
+
+
+def test_reactivate_recurring_returns_none_for_missing(seeded_db):
+    db = seeded_db["db"]
+    assert recurring_service.reactivate_recurring(db, -1) is None
+
+
 def test_generate_due_transactions_with_multiple_days_of_month(seeded_db):
     db, user, rent = seeded_db["db"], seeded_db["user"], seeded_db["rent"]
     recurring_service.create_recurring(

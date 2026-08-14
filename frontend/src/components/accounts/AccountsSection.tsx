@@ -1,23 +1,21 @@
 import { useState } from "react";
 import type { FormEvent } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Download, Link2, Pencil, Plus, RefreshCw, Trash2 } from "lucide-react";
+import { Download, Plus, RefreshCw } from "lucide-react";
 import Button from "@/components/common/Button";
-import AccountActionsMenu from "@/components/common/AccountActionsMenu";
-import type { AccountActionsMenuItem } from "@/components/common/AccountActionsMenu";
+import AssetRow from "@/components/accounts/AssetRow";
 import CollapsibleGroup from "@/components/common/CollapsibleGroup";
 import ConfirmModal from "@/components/common/ConfirmModal";
 import EmptyState from "@/components/common/EmptyState";
 import FormInput from "@/components/common/FormInput";
 import GrowlioImportModal from "@/components/common/GrowlioImportModal";
 import Modal from "@/components/common/Modal";
-import RowActionButtons from "@/components/common/RowActionButtons";
+import OwnerSelect from "@/components/accounts/OwnerSelect";
 import SkeletonCard from "@/components/common/SkeletonCard";
-import StatusBadge from "@/components/common/StatusBadge";
 import InlineStatsBar from "@/components/common/InlineStatsBar";
 import { growlioAssetTypeLabel } from "@/constants/growlio";
+import { GROUP_THRESHOLD } from "@/constants/accounts";
 import { INPUT_SM, LABEL_SM } from "@/constants/inputStyles";
-import { TOUCH_TARGET_MIN_MOBILE_ONLY } from "@/constants/uiSizes";
 import {
   createAccount,
   deactivateAccount,
@@ -32,7 +30,6 @@ import { useCrudMutations } from "@/hooks/useCrudMutations";
 import { formatKrw, formatKrwPreview, formatSyncedAt, toAmountInputValue } from "@/utils/format";
 import { extractErrorMessage } from "@/utils/error";
 import { toast } from "@/utils/toast";
-import { growlioLinkedBadgeStyle } from "@/utils/colors";
 import type { AccountOut, AccountWithBalanceOut, UserOut } from "@/types";
 
 const ACCOUNT_TYPE_LABEL: Record<AccountOut["account_type"], string> = {
@@ -42,9 +39,6 @@ const ACCOUNT_TYPE_LABEL: Record<AccountOut["account_type"], string> = {
 };
 
 const ACCOUNT_TYPES: AccountOut["account_type"][] = ["bank", "cash", "card"];
-
-/** 항목이 적을 때 유형별로 접어두면 오히려 한눈에 보기 어려워지므로, 이 개수 이상일 때만 그룹핑한다. */
-const GROUP_THRESHOLD = 5;
 
 interface Draft {
   name: string;
@@ -75,7 +69,13 @@ export default function AccountsSection({ users }: Props) {
   const [importOpen, setImportOpen] = useState(false);
   const queryClient = useQueryClient();
 
-  const { data, isLoading } = useQuery({ queryKey: QUERY_KEYS.accounts, queryFn: fetchAccounts });
+  const {
+    data,
+    isLoading,
+    isError,
+    error,
+    refetch,
+  } = useQuery({ queryKey: QUERY_KEYS.accounts, queryFn: fetchAccounts });
 
   const { createMutation, updateMutation, removeMutation: deactivateMutation } = useCrudMutations({
     invalidateKeys: [QUERY_KEYS.accounts],
@@ -113,6 +113,16 @@ export default function AccountsSection({ users }: Props) {
       });
     }
   };
+
+  if (isError) {
+    return (
+      <EmptyState
+        title="계좌를 불러오지 못했어요"
+        description={extractErrorMessage(error)}
+        action={{ label: "다시 시도", onClick: () => void refetch() }}
+      />
+    );
+  }
 
   if (isLoading || !data) {
     return <SkeletonCard rows={4} />;
@@ -256,62 +266,36 @@ function AccountRow({
     ? (users?.find((u) => u.id === account.owner_user_id)?.display_name ?? "공통")
     : "공통";
 
-  const menuItems: AccountActionsMenuItem[] = [];
-  if (account.growlio_account_id) {
-    menuItems.push({
-      icon: <RefreshCw size={16} className={syncPending ? "animate-spin" : ""} />,
-      label: syncPending ? "동기화 중…" : "growlio 동기화",
-      onClick: onSync,
-      disabled: syncPending,
-    });
-  }
-  menuItems.push({ icon: <Pencil size={16} />, label: "수정", onClick: onEdit });
-  menuItems.push({ icon: <Trash2 size={16} />, label: "비활성화", onClick: onDelete, variant: "danger" });
-
   return (
-    <div className="card p-4 sm:p-5 flex items-center justify-between gap-3">
-      <div className="min-w-0">
-        <div className="flex items-center gap-1.5 flex-wrap">
-          <p className="text-sm font-medium text-gray-900 dark:text-gray-50 truncate">{account.name}</p>
-          {account.growlio_account_id && (
-            <StatusBadge
-              size="chip"
-              icon={<Link2 size={11} />}
-              label="growlio 연동"
-              toneClassName={growlioLinkedBadgeStyle()}
-              className="shrink-0"
-            />
-          )}
-        </div>
+    <AssetRow
+      name={account.name}
+      linked={!!account.growlio_account_id}
+      meta={
         <p className="text-xs text-gray-500 dark:text-gray-400">
           {ACCOUNT_TYPE_LABEL[account.account_type]} · {ownerLabel}
         </p>
-        <p className="mt-1 text-base font-bold text-gray-900 dark:text-gray-50">{formatKrw(balance)}</p>
-        {account.growlio_account_id && (
-          <p className="text-[11px] text-gray-400 dark:text-gray-500 mt-0.5">
-            {account.last_synced_at ? `마지막 동기화 ${formatSyncedAt(account.last_synced_at)}` : "아직 동기화하지 않았어요"}
-          </p>
-        )}
-      </div>
-      <div className="flex items-center gap-1 shrink-0">
-        <div className="hidden sm:flex items-center gap-1">
-          {account.growlio_account_id && (
-            <button
-              onClick={onSync}
-              disabled={syncPending}
-              className={`${TOUCH_TARGET_MIN_MOBILE_ONLY} p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-950 rounded-lg transition-colors disabled:opacity-50`}
-              aria-label="growlio 동기화"
-            >
-              <RefreshCw size={16} className={syncPending ? "animate-spin" : ""} />
-            </button>
-          )}
-          <RowActionButtons onEdit={onEdit} onDelete={onDelete} deleteLabel="비활성화" />
-        </div>
-        <div className="sm:hidden">
-          <AccountActionsMenu items={menuItems} ariaLabel={`${account.name} 작업 더 보기`} />
-        </div>
-      </div>
-    </div>
+      }
+      amount={<p className="mt-1 text-base font-bold text-gray-900 dark:text-gray-50">{formatKrw(balance)}</p>}
+      syncedAtLabel={
+        account.last_synced_at ? `마지막 동기화 ${formatSyncedAt(account.last_synced_at)}` : "아직 동기화하지 않았어요"
+      }
+      actions={
+        account.growlio_account_id
+          ? [
+              {
+                icon: <RefreshCw size={16} className={syncPending ? "animate-spin" : ""} />,
+                label: syncPending ? "동기화 중…" : "growlio 동기화",
+                onClick: onSync,
+                disabled: syncPending,
+              },
+            ]
+          : []
+      }
+      onEdit={onEdit}
+      onDelete={onDelete}
+      deleteLabel="비활성화"
+      menuAriaLabel={`${account.name} 작업 더 보기`}
+    />
   );
 }
 
@@ -364,21 +348,11 @@ function AccountFormModal({
             <option value="card">카드</option>
           </select>
         </div>
-        <div>
-          <label className={`block mb-1 font-medium ${LABEL_SM}`}>소유자</label>
-          <select
-            className={`${INPUT_SM} w-full`}
-            value={draft.owner_user_id}
-            onChange={(e) => setDraft((d) => ({ ...d, owner_user_id: e.target.value }))}
-          >
-            <option value="">공통</option>
-            {users?.map((u) => (
-              <option key={u.id} value={u.id}>
-                {u.display_name}
-              </option>
-            ))}
-          </select>
-        </div>
+        <OwnerSelect
+          value={draft.owner_user_id}
+          onChange={(owner_user_id) => setDraft((d) => ({ ...d, owner_user_id }))}
+          users={users}
+        />
         <FormInput
           label={amountLabel}
           type="number"

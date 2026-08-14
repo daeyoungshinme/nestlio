@@ -441,3 +441,59 @@ def test_delete_challenge(seeded_db):
     goal_service.delete_goal(db, challenge.id)
 
     assert goal_service.get_goal(db, challenge.id) is None
+
+
+def test_challenge_with_linked_funding_source_succeeds_when_balance_reaches_target(seeded_db):
+    """버그 회귀 테스트: funding_sources 연동 챌린지는 manual_current_amount가 아니라
+    compute_current_amount(연동 잔액 합) 기준으로 완료 판정해야 한다."""
+    db, user = seeded_db["db"], seeded_db["user"]
+    product = savings_product_service.create_product(db, "챌린지 적금", Decimal("0"), Decimal("100000"))
+    challenge = goal_service.create_goal(
+        db, 1, "외식비 줄이기", None, Decimal("300000"), Decimal("0"),
+        current_amount=Decimal("0"),  # 연동 상태에서는 무시됨
+        funding_sources=[{"type": "savings_product", "id": product.id}],
+        target_date=date(2026, 8, 31), kind="challenge",
+        start_date=date(2026, 8, 1), created_by_id=user.id, now=NOW,
+    )
+    assert challenge.status == "active"  # 잔액 0원, 아직 미달성
+
+    savings_product_service.adjust_balance(db, product.id, Decimal("300000"))
+    db.refresh(challenge)
+
+    updated = goal_service.update_goal(
+        db, challenge.id, 1, challenge.name, None, Decimal("300000"), Decimal("0"),
+        current_amount=Decimal("0"),
+        funding_sources=[{"type": "savings_product", "id": product.id}],
+        target_date=challenge.target_date, start_date=challenge.start_date, now=NOW,
+    )
+    assert updated.status == "succeeded"
+    assert updated.completed_at == NOW
+
+
+def test_sync_challenge_statuses_transitions_challenge_without_save_event(seeded_db):
+    """스케줄러 안전망: 목표를 수정하지 않아도(저장 이벤트 없이) 연동 잔액이 자연 증가해 목표액을
+    넘긴 챌린지가 succeeded로 전환된다."""
+    db, user = seeded_db["db"], seeded_db["user"]
+    product = savings_product_service.create_product(db, "챌린지 적금", Decimal("0"), Decimal("100000"))
+    challenge = goal_service.create_goal(
+        db, 1, "외식비 줄이기", None, Decimal("300000"), Decimal("0"),
+        funding_sources=[{"type": "savings_product", "id": product.id}],
+        target_date=date(2026, 8, 31), kind="challenge",
+        start_date=date(2026, 8, 1), created_by_id=user.id, now=NOW,
+    )
+
+    savings_product_service.adjust_balance(db, product.id, Decimal("300000"))
+    # challenge 자체는 저장(update_goal)하지 않음 — sync_challenge_statuses만 호출
+
+    transitioned = goal_service.sync_challenge_statuses(db, now=NOW)
+
+    assert [g.id for g in transitioned] == [challenge.id]
+    db.refresh(challenge)
+    assert challenge.status == "succeeded"
+    assert challenge.completed_at == NOW
+
+
+def test_sync_challenge_statuses_ignores_challenge_below_target(seeded_db):
+    db, user = seeded_db["db"], seeded_db["user"]
+    _create_challenge(db, user, target=Decimal("300000"), current=Decimal("100000"))
+    assert goal_service.sync_challenge_statuses(db, now=NOW) == []

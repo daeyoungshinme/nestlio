@@ -1,7 +1,9 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
+import type { ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { ChevronLeft, Plus, Power } from "lucide-react";
+import { ChevronLeft, Plus, Power, RotateCcw } from "lucide-react";
 import Button from "@/components/common/Button";
+import CollapsibleGroup from "@/components/common/CollapsibleGroup";
 import ConfirmModal from "@/components/common/ConfirmModal";
 import EmptyState from "@/components/common/EmptyState";
 import Modal from "@/components/common/Modal";
@@ -35,15 +37,63 @@ interface Props {
   onClose: () => void;
 }
 
+function RecurringRow({
+  item,
+  onEdit,
+  action,
+}: {
+  item: RecurringOut;
+  onEdit?: () => void;
+  action: { label: string; icon: ReactNode; onClick: () => void };
+}) {
+  return (
+    <div className="py-3 flex items-center justify-between gap-3">
+      <div className="min-w-0">
+        <div className="flex items-center gap-2">
+          <span
+            className={`shrink-0 px-1.5 py-0.5 rounded text-[10px] font-medium ${transactionTypeBadgeStyle(item.type)}`}
+          >
+            {item.type === "income" ? "수입" : "지출"}
+          </span>
+          <span className="text-sm font-medium text-gray-900 dark:text-gray-50 truncate">{item.name}</span>
+          <span className="shrink-0 text-xs text-gray-400 dark:text-gray-500">{scheduleLabel(item)}</span>
+        </div>
+        <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+          {item.category.name} · {formatKrw(item.amount)} · 다음 예정일 {item.next_due_date}
+        </p>
+      </div>
+      <RowActionButtons
+        onEdit={onEdit}
+        onDelete={action.onClick}
+        deleteLabel={action.label}
+        deleteIcon={action.icon}
+      />
+    </div>
+  );
+}
+
 export default function RecurringManageSheet({ categories, dateFrom, dateTo, onClose }: Props) {
   const [formTarget, setFormTarget] = useState<"new" | RecurringOut | null>(null);
   const [deactivateTarget, setDeactivateTarget] = useState<RecurringOut | null>(null);
 
-  const { data, isLoading } = useQuery({ queryKey: QUERY_KEYS.recurring, queryFn: fetchRecurring });
+  const { data, isLoading } = useQuery({
+    queryKey: QUERY_KEYS.recurring,
+    queryFn: () => fetchRecurring({ include_inactive: true }),
+  });
 
-  const { createMutation, updateMutation, removeMutation: deactivateMutation } = useRecurringMutations({
+  const {
+    createMutation,
+    updateMutation,
+    removeMutation: deactivateMutation,
+    reactivateMutation,
+  } = useRecurringMutations({
     extraInvalidateKeys: [QUERY_KEYS.events(dateFrom, dateTo)],
-    messages: { create: "반복 내역을 등록했습니다.", update: "수정했습니다.", remove: "비활성화했습니다." },
+    messages: {
+      create: "반복 내역을 등록했습니다.",
+      update: "수정했습니다.",
+      remove: "비활성화했습니다.",
+      reactivate: "다시 활성화했습니다.",
+    },
     onCreateSuccess: () => setFormTarget(null),
     onUpdateSuccess: () => setFormTarget(null),
     onRemoveSuccess: () => setDeactivateTarget(null),
@@ -59,6 +109,8 @@ export default function RecurringManageSheet({ categories, dateFrom, dateTo, onC
   };
 
   const showingForm = formTarget !== null;
+  const activeItems = useMemo(() => (data?.items ?? []).filter((item) => item.is_active), [data]);
+  const inactiveItems = useMemo(() => (data?.items ?? []).filter((item) => !item.is_active), [data]);
 
   return (
     <>
@@ -98,35 +150,44 @@ export default function RecurringManageSheet({ categories, dateFrom, dateTo, onC
             )}
 
             <div className="divide-y divide-gray-100 dark:divide-gray-800">
-              {data?.items.map((item) => (
-                <div key={item.id} className="py-3 flex items-center justify-between gap-3">
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-2">
-                      <span
-                        className={`shrink-0 px-1.5 py-0.5 rounded text-[10px] font-medium ${transactionTypeBadgeStyle(item.type)}`}
-                      >
-                        {item.type === "income" ? "수입" : "지출"}
-                      </span>
-                      <span className="text-sm font-medium text-gray-900 dark:text-gray-50 truncate">
-                        {item.name}
-                      </span>
-                      <span className="shrink-0 text-xs text-gray-400 dark:text-gray-500">
-                        {scheduleLabel(item)}
-                      </span>
-                    </div>
-                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-                      {item.category.name} · {formatKrw(item.amount)} · 다음 예정일 {item.next_due_date}
-                    </p>
-                  </div>
-                  <RowActionButtons
-                    onEdit={() => setFormTarget(item)}
-                    onDelete={() => setDeactivateTarget(item)}
-                    deleteLabel="비활성화"
-                    deleteIcon={<Power size={16} />}
-                  />
-                </div>
+              {activeItems.map((item) => (
+                <RecurringRow
+                  key={item.id}
+                  item={item}
+                  onEdit={() => setFormTarget(item)}
+                  action={{
+                    label: "비활성화",
+                    icon: <Power size={16} />,
+                    onClick: () => setDeactivateTarget(item),
+                  }}
+                />
               ))}
             </div>
+
+            {inactiveItems.length > 0 && (
+              <CollapsibleGroup
+                defaultOpen={false}
+                header={
+                  <span className="text-sm font-semibold text-gray-500 dark:text-gray-400">
+                    중지된 반복 내역 ({inactiveItems.length})
+                  </span>
+                }
+              >
+                <div className="divide-y divide-gray-100 dark:divide-gray-800 opacity-60">
+                  {inactiveItems.map((item) => (
+                    <RecurringRow
+                      key={item.id}
+                      item={item}
+                      action={{
+                        label: "재활성화",
+                        icon: <RotateCcw size={16} />,
+                        onClick: () => reactivateMutation.mutate(item.id),
+                      }}
+                    />
+                  ))}
+                </div>
+              </CollapsibleGroup>
+            )}
           </div>
         )}
       </Modal>

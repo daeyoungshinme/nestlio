@@ -24,7 +24,7 @@ import { cancelInvite, createInvite, fetchInvites } from "@/api/invites";
 import { fetchMe, fetchUsers, removeUser, updateMe, updateUser } from "@/api/users";
 import type { CoachingThresholdsOut, InviteOut, NotificationPrefsOut } from "@/types";
 import { QUERY_KEYS } from "@/constants/queryKeys";
-import { INPUT_SM } from "@/constants/inputStyles";
+import { MAX_NOTIFY_RECIPIENTS } from "@/constants/settings";
 import { TOUCH_TARGET_MIN_MOBILE_ONLY } from "@/constants/uiSizes";
 import { extractErrorMessage } from "@/utils/error";
 import { connectionStatusBadgeClass, connectionStatusLabel, inviteStatusLabel, inviteStatusTextClass } from "@/utils/colors";
@@ -50,6 +50,8 @@ const THRESHOLD_FIELDS: { key: keyof CoachingThresholdsOut; label: string }[] = 
   { key: "discretionary_ratio_warn", label: "재량지출 경고" },
   { key: "debt_ratio_warn", label: "부채비율 경고" },
 ];
+
+const onMutationError = (err: unknown) => toast(extractErrorMessage(err), "error");
 
 function inviteStatus(invite: InviteOut): InviteStatus {
   if (invite.accepted_at) return "accepted";
@@ -84,7 +86,7 @@ export default function SettingsPage() {
       setCouplePhotoFile(null);
       toast("부부 사진이 저장되었습니다.", "success");
     },
-    onError: (err) => toast(extractErrorMessage(err), "error"),
+    onError: onMutationError,
   });
 
   const deletePhotoMutation = useMutation({
@@ -94,7 +96,7 @@ export default function SettingsPage() {
       void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.dashboardAll });
       toast("부부 사진을 삭제했습니다.", "success");
     },
-    onError: (err) => toast(extractErrorMessage(err), "error"),
+    onError: onMutationError,
   });
 
   const updateDisplayNameMutation = useMutation({
@@ -106,7 +108,7 @@ export default function SettingsPage() {
       setDisplayNameEdit(null);
       toast("표시 이름을 저장했습니다.", "success");
     },
-    onError: (err) => toast(extractErrorMessage(err), "error"),
+    onError: onMutationError,
   });
 
   const updateSpouseDisplayNameMutation = useMutation({
@@ -118,7 +120,7 @@ export default function SettingsPage() {
       setSpouseDisplayNameEdit(null);
       toast("배우자 표시 이름을 저장했습니다.", "success");
     },
-    onError: (err) => toast(extractErrorMessage(err), "error"),
+    onError: onMutationError,
   });
 
   const removeSpouseMutation = useMutation({
@@ -132,19 +134,19 @@ export default function SettingsPage() {
       setRemoveSpouseConfirmText("");
       toast("배우자를 제거했습니다.", "success");
     },
-    onError: (err) => toast(extractErrorMessage(err), "error"),
+    onError: onMutationError,
   });
 
   const weeklyEmailMutation = useMutation({
     mutationFn: testWeeklyEmail,
     onSuccess: (res) => toast(res.message, res.sent ? "success" : "info"),
-    onError: (err) => toast(extractErrorMessage(err), "error"),
+    onError: onMutationError,
   });
 
   const monthlyEmailMutation = useMutation({
     mutationFn: testMonthlyEmail,
     onSuccess: (res) => toast(res.message, res.sent ? "success" : "info"),
-    onError: (err) => toast(extractErrorMessage(err), "error"),
+    onError: onMutationError,
   });
 
   const thresholdsMutation = useMutation({
@@ -155,7 +157,7 @@ export default function SettingsPage() {
       setThresholdEdits({});
       toast("코칭 임계값을 저장했습니다.", "success");
     },
-    onError: (err) => toast(extractErrorMessage(err), "error"),
+    onError: onMutationError,
   });
 
   const notifyEmailsMutation = useMutation({
@@ -164,13 +166,16 @@ export default function SettingsPage() {
       void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.settings });
       setNewNotifyEmail("");
     },
-    onError: (err) => toast(extractErrorMessage(err), "error"),
+    onError: onMutationError,
   });
 
   const notificationPrefsMutation = useMutation({
     mutationFn: setNotificationPrefs,
-    onSuccess: () => void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.settings }),
-    onError: (err) => toast(extractErrorMessage(err), "error"),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.settings });
+      toast("알림 설정을 저장했습니다.", "success");
+    },
+    onError: onMutationError,
   });
 
   const createInviteMutation = useMutation({
@@ -184,7 +189,7 @@ export default function SettingsPage() {
         toast("초대를 생성했지만 메일 발송에 실패했습니다. 아래 목록에서 링크를 복사해 직접 전달해주세요.", "info");
       }
     },
-    onError: (err) => toast(extractErrorMessage(err), "error"),
+    onError: onMutationError,
   });
 
   const cancelInviteMutation = useMutation({
@@ -193,7 +198,7 @@ export default function SettingsPage() {
       void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.invites });
       toast("초대를 취소했습니다.", "success");
     },
-    onError: (err) => toast(extractErrorMessage(err), "error"),
+    onError: onMutationError,
   });
 
   const copyAcceptUrl = async (url: string) => {
@@ -221,6 +226,19 @@ export default function SettingsPage() {
 
   const notifyEmails = data.notify_emails;
   const connectionStatus = data.google_connected ? "connected" : "disconnected";
+
+  const pendingPrefKey = notificationPrefsMutation.isPending
+    ? NOTIF_PREF_FIELDS.find(({ key }) => notificationPrefsMutation.variables?.[key] !== data.notification_prefs[key])?.key
+    : undefined;
+
+  const isRemovingEmail =
+    notifyEmailsMutation.isPending &&
+    !!notifyEmailsMutation.variables &&
+    notifyEmailsMutation.variables.length < notifyEmails.length;
+  const pendingRemovedEmail = isRemovingEmail
+    ? notifyEmails.find((e) => !notifyEmailsMutation.variables!.includes(e))
+    : undefined;
+  const isAddingEmail = notifyEmailsMutation.isPending && !isRemovingEmail;
 
   return (
     <div className="max-w-lg space-y-4">
@@ -360,14 +378,16 @@ export default function SettingsPage() {
               <p className="text-xs text-gray-500 dark:text-gray-400">
                 이메일로 초대를 보내면, 배우자가 링크를 눌러 직접 계정을 만들 수 있어요.
               </p>
-              <div className="flex gap-2">
-                <input
-                  type="email"
-                  value={inviteEmail}
-                  onChange={(e) => setInviteEmail(e.target.value)}
-                  placeholder="spouse@example.com"
-                  className={`flex-1 ${INPUT_SM}`}
-                />
+              <div className="flex gap-2 items-end">
+                <div className="flex-1">
+                  <FormInput
+                    label="배우자 이메일"
+                    type="email"
+                    value={inviteEmail}
+                    onChange={(e) => setInviteEmail(e.target.value)}
+                    placeholder="spouse@example.com"
+                  />
+                </div>
                 <Button
                   size="sm"
                   icon={<UserPlus size={14} />}
@@ -408,7 +428,8 @@ export default function SettingsPage() {
                           variant="ghost"
                           size="sm"
                           aria-label="초대 취소"
-                          loading={cancelInviteMutation.isPending}
+                          disabled={cancelInviteMutation.isPending && cancelInviteMutation.variables === invite.id}
+                          loading={cancelInviteMutation.isPending && cancelInviteMutation.variables === invite.id}
                           onClick={() => cancelInviteMutation.mutate(invite.id)}
                         >
                           <X size={14} />
@@ -474,7 +495,7 @@ export default function SettingsPage() {
                   id={`notif-pref-${key}`}
                   type="checkbox"
                   checked={data.notification_prefs[key]}
-                  disabled={notificationPrefsMutation.isPending}
+                  disabled={key === pendingPrefKey}
                   onChange={() =>
                     notificationPrefsMutation.mutate({ ...data.notification_prefs, [key]: !data.notification_prefs[key] })
                   }
@@ -500,8 +521,8 @@ export default function SettingsPage() {
                 variant="ghost"
                 size="sm"
                 aria-label="알림 이메일 삭제"
-                disabled={notifyEmails.length <= 1 || notifyEmailsMutation.isPending}
-                loading={notifyEmailsMutation.isPending}
+                disabled={notifyEmails.length <= 1 || email === pendingRemovedEmail}
+                loading={email === pendingRemovedEmail}
                 onClick={() =>
                   notifyEmailsMutation.mutate(
                     notifyEmails.filter((e) => e !== email),
@@ -514,19 +535,21 @@ export default function SettingsPage() {
             </li>
           ))}
         </ul>
-        <div className="flex gap-2">
-          <input
-            type="email"
-            value={newNotifyEmail}
-            onChange={(e) => setNewNotifyEmail(e.target.value)}
-            placeholder="추가할 이메일"
-            className={`flex-1 ${INPUT_SM}`}
-          />
+        <div className="flex gap-2 items-end">
+          <div className="flex-1">
+            <FormInput
+              label="추가할 이메일"
+              type="email"
+              value={newNotifyEmail}
+              onChange={(e) => setNewNotifyEmail(e.target.value)}
+              placeholder="email@example.com"
+            />
+          </div>
           <Button
             size="sm"
             icon={<UserPlus size={14} />}
-            disabled={!newNotifyEmail || notifyEmails.length >= 5 || notifyEmailsMutation.isPending}
-            loading={notifyEmailsMutation.isPending}
+            disabled={!newNotifyEmail || notifyEmails.length >= MAX_NOTIFY_RECIPIENTS || isAddingEmail}
+            loading={isAddingEmail}
             onClick={() =>
               notifyEmailsMutation.mutate(
                 [...notifyEmails, newNotifyEmail.trim().toLowerCase()],

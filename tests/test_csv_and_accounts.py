@@ -32,6 +32,22 @@ def test_export_csv_round_trips_through_import(seeded_db):
     assert len(reimported) == 2
 
 
+def test_import_csv_returns_created_ids_for_undo(seeded_db):
+    db, user = seeded_db["db"], seeded_db["user"]
+    csv_text = (
+        "날짜,구분,카테고리,금액,메모\n"
+        "2026-07-05,지출,식비,10000,점심\n"
+        "2026-07-06,지출,식비,5000,저녁\n"
+    )
+
+    result = transaction_import_service.import_csv(db, csv_text, user.id)
+
+    assert result["created"] == 2
+    assert len(result["created_ids"]) == 2
+    created = {tx.id for tx in transaction_service.list_transactions(db, date(2026, 7, 1), date(2026, 7, 31))}
+    assert set(result["created_ids"]) == created
+
+
 def test_import_csv_skips_unknown_category_and_reports_reason(seeded_db):
     db, user = seeded_db["db"], seeded_db["user"]
     csv_text = "날짜,구분,카테고리,금액,메모\n2026-07-05,지출,없는카테고리,10000,test\n"

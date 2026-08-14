@@ -1,5 +1,5 @@
 import logging
-from datetime import date
+from datetime import date, datetime
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
@@ -37,6 +37,8 @@ def create_goal(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
+    now = datetime.now()
+    today = now.date()
     goal = goal_service.create_goal(
         db,
         payload.priority,
@@ -51,8 +53,8 @@ def create_goal(
         description=payload.description,
         start_date=payload.start_date,
         created_by_id=current_user.id if payload.kind == "challenge" else None,
+        now=now,
     )
-    today = date.today()
     try:
         notification_service.check_and_celebrate_goal_milestone(db, goal.id, today)
     except Exception:
@@ -67,6 +69,8 @@ def update_goal(
     db: Session = Depends(get_db),
     _: User = Depends(get_current_user),
 ):
+    now = datetime.now()
+    today = now.date()
     goal = goal_service.update_goal(
         db,
         goal_id,
@@ -80,10 +84,10 @@ def update_goal(
         payload.target_date,
         description=payload.description,
         start_date=payload.start_date,
+        now=now,
     )
     if goal is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "재무목표를 찾을 수 없습니다.")
-    today = date.today()
     try:
         notification_service.check_and_celebrate_goal_milestone(db, goal.id, today)
     except Exception:

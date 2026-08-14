@@ -11,6 +11,8 @@ from app.dependencies import get_bearer_token, get_current_user
 from app.models.user import User
 from app.schemas.common import CategoryAmountOut
 from app.schemas.transaction import (
+    BulkDeleteIn,
+    BulkDeleteResultOut,
     ImportResultOut,
     SheetImportIn,
     TransactionCreateIn,
@@ -34,14 +36,15 @@ def list_transactions(
     category_id: int | None = None,
     type: Literal["income", "expense"] | None = None,
     user_id: uuid.UUID | None = None,
+    q: str | None = None,
     db: Session = Depends(get_db),
     _: User = Depends(get_current_user),
 ):
     default_from, default_to = month_bounds(date.today())
-    df = date_from or default_from
-    dt = date_to or default_to
-    items = transaction_service.list_transactions(db, df, dt, category_id, type, user_id)
-    totals = transaction_report_service.period_totals(db, df, dt)
+    df = date_from or (None if q else default_from)
+    dt = date_to or (None if q else default_to)
+    items = transaction_service.list_transactions(db, df, dt, category_id, type, user_id, q=q)
+    totals = transaction_report_service.period_totals(db, df or date(2000, 1, 1), dt or date.today())
     return {"items": items, "totals": totals}
 
 
@@ -113,13 +116,14 @@ def export_csv(
     category_id: int | None = None,
     type: Literal["income", "expense"] | None = None,
     user_id: uuid.UUID | None = None,
+    q: str | None = None,
     db: Session = Depends(get_db),
     _: User = Depends(get_current_user),
 ):
     default_from, default_to = month_bounds(date.today())
     df = date_from or default_from
     dt = date_to or default_to
-    items = transaction_service.list_transactions(db, df, dt, category_id, type, user_id)
+    items = transaction_service.list_transactions(db, df, dt, category_id, type, user_id, q=q)
     csv_text = transaction_import_service.export_csv(items)
     return Response(
         content=csv_text.encode("utf-8-sig"),
@@ -160,6 +164,17 @@ def import_sheet(
         )
     except (GoogleSheetsReadError, GoogleNotConnectedError) as exc:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, str(exc)) from exc
+
+
+@router.post("/bulk-delete", response_model=BulkDeleteResultOut)
+def bulk_delete_transactions(
+    payload: BulkDeleteIn,
+    db: Session = Depends(get_db),
+    _: User = Depends(get_current_user),
+    bearer_token: str = Depends(get_bearer_token),
+):
+    deleted, failed = transaction_service.bulk_delete_transactions(db, payload.ids, bearer_token=bearer_token)
+    return {"deleted": deleted, "failed": failed}
 
 
 @router.get("/{tx_id}", response_model=TransactionOut)

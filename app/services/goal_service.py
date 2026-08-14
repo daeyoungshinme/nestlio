@@ -210,13 +210,15 @@ def _apply_funding_sources(goal: FinancialGoal, funding_sources: list[dict] | No
     goal.funding_sources = new_sources
 
 
-def _apply_challenge_completion(goal: FinancialGoal, now: datetime | None = None) -> None:
-    """kind="challenge"에서만 동작 — 진행금액이 목표금액에 도달하면 succeeded로 전환하고 완료
-    시각을 기록한다(실제 축하 알림 발송 여부는 notification_service가 별도로 판단한다)."""
+def _apply_challenge_completion(db: Session, goal: FinancialGoal, now: datetime | None = None) -> None:
+    """kind="challenge"에서만 동작 — 진행금액(compute_current_amount, funding_sources 연동 시
+    연동 잔액 합, 미연동 시 manual_current_amount)이 목표금액에 도달하면 succeeded로 전환하고
+    완료 시각을 기록한다(실제 축하 알림 발송 여부는 notification_service가 별도로 판단한다)."""
     if goal.kind != "challenge":
         return
     now = now or datetime.now()
-    if goal.status == "active" and goal.required_amount > 0 and goal.manual_current_amount >= goal.required_amount:
+    current_amount = compute_current_amount(db, goal)
+    if goal.status == "active" and goal.required_amount > 0 and current_amount >= goal.required_amount:
         goal.status = "succeeded"
         goal.completed_at = now
 
@@ -252,8 +254,11 @@ def create_goal(
         created_by_id=created_by_id,
     )
     _apply_funding_sources(goal, funding_sources)
-    _apply_challenge_completion(goal, now)
     db.add(goal)
+    db.flush()  # 완료 판정(compute_current_amount)이 funding_sources 관계를 조회하려면 goal/fs가
+    # 먼저 세션에 반영(pending -> flushed)되어 있어야 한다 — transient 상태에서는 관계 lazy-load가
+    # 동작하지 않는다.
+    _apply_challenge_completion(db, goal, now)
     db.commit()
     db.refresh(goal)
     return goal
@@ -287,7 +292,8 @@ def update_goal(
     goal.description = description
     goal.start_date = start_date
     _apply_funding_sources(goal, funding_sources)
-    _apply_challenge_completion(goal, now)
+    db.flush()
+    _apply_challenge_completion(db, goal, now)
     db.commit()
     db.refresh(goal)
     return goal
@@ -298,3 +304,24 @@ def delete_goal(db: Session, goal_id: int) -> None:
     if goal is not None:
         db.delete(goal)
         db.commit()
+
+
+def sync_challenge_statuses(db: Session, now: datetime | None = None) -> list[FinancialGoal]:
+    """매일 안전망(app/scheduler/jobs.py::daily_threshold_safety_net) 전용 — 목표를 수정하지
+    않아도 연동 잔액(저축상품 이자, 계좌 입금 등)이 자연히 늘어 목표액을 넘긴 challenge를
+    succeeded로 전환한다. 저장 이벤트가 없으면 _apply_challenge_completion이 호출될 기회 자체가
+    없다는 문제의 보완책. active 상태인 challenge만 재검사한다."""
+    now = now or datetime.now()
+    transitioned: list[FinancialGoal] = []
+    challenges = (
+        db.query(FinancialGoal)
+        .filter(FinancialGoal.kind == "challenge", FinancialGoal.status == "active")
+        .all()
+    )
+    for goal in challenges:
+        _apply_challenge_completion(db, goal, now)
+        if goal.status == "succeeded":
+            transitioned.append(goal)
+    if transitioned:
+        db.commit()
+    return transitioned

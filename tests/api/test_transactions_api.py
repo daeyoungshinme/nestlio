@@ -138,6 +138,58 @@ def test_list_transactions_filters_by_date_range(client, seeded_db):
     assert Decimal(body["totals"]["expense"]) == Decimal("1000")
 
 
+def test_bulk_delete_transactions(client, seeded_db):
+    _override_bearer_token()
+    db, user, food = seeded_db["db"], seeded_db["user"], seeded_db["food"]
+    tx1 = transaction_service.create_transaction(db, user.id, food.id, "expense", Decimal("1000"), date(2026, 7, 1))
+    tx2 = transaction_service.create_transaction(db, user.id, food.id, "expense", Decimal("2000"), date(2026, 7, 2))
+
+    resp = client.post("/api/v1/transactions/bulk-delete", json={"ids": [tx1.id, tx2.id, 999999]})
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["deleted"] == 2
+    assert body["failed"] == [999999]
+    assert client.get(f"/api/v1/transactions/{tx1.id}").status_code == 404
+    assert client.get(f"/api/v1/transactions/{tx2.id}").status_code == 404
+
+
+def test_list_transactions_filters_by_search_query(client, seeded_db):
+    db, user, food, rent = seeded_db["db"], seeded_db["user"], seeded_db["food"], seeded_db["rent"]
+    transaction_service.create_transaction(
+        db, user.id, food.id, "expense", Decimal("10000"), date(2026, 7, 5), description="스타벅스 커피"
+    )
+    transaction_service.create_transaction(
+        db, user.id, rent.id, "expense", Decimal("800000"), date(2026, 7, 1), description="월세"
+    )
+
+    resp = client.get(
+        "/api/v1/transactions",
+        params={"date_from": "2026-07-01", "date_to": "2026-07-31", "q": "커피"},
+    )
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert len(body["items"]) == 1
+    assert body["items"][0]["description"] == "스타벅스 커피"
+
+
+def test_list_transactions_search_query_matches_category_name(client, seeded_db):
+    db, user, food, rent = seeded_db["db"], seeded_db["user"], seeded_db["food"], seeded_db["rent"]
+    transaction_service.create_transaction(db, user.id, food.id, "expense", Decimal("10000"), date(2026, 7, 5))
+    transaction_service.create_transaction(db, user.id, rent.id, "expense", Decimal("800000"), date(2026, 7, 1))
+
+    resp = client.get(
+        "/api/v1/transactions",
+        params={"date_from": "2026-07-01", "date_to": "2026-07-31", "q": "식비"},
+    )
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert len(body["items"]) == 1
+    assert body["items"][0]["category"]["name"] == "식비"
+
+
 def test_import_csv(client):
     csv_text = "날짜,구분,카테고리,금액,메모\n2026-07-05,지출,식비,10000,점심\n"
     resp = client.post(

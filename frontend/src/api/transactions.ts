@@ -1,5 +1,6 @@
 import { api, apiDelete, apiGet, apiPost, apiPut } from "@/api/client";
 import type {
+  BulkDeleteResultOut,
   CategoryAmountOut,
   ImportResultOut,
   SheetImportIn,
@@ -33,6 +34,9 @@ export const updateTransaction = (id: number, payload: TransactionUpdateIn) =>
   apiPut<TransactionOut>(`/transactions/${id}`, payload);
 
 export const deleteTransaction = (id: number) => apiDelete(`/transactions/${id}`);
+
+export const bulkDeleteTransactions = (ids: number[]) =>
+  apiPost<BulkDeleteResultOut>("/transactions/bulk-delete", { ids });
 
 export const importTransactionsCsv = (file: File) => {
   const form = new FormData();

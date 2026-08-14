@@ -3,6 +3,7 @@ import uuid
 from datetime import date, timedelta
 from decimal import Decimal
 
+from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
 from app.models.category import Category
@@ -144,6 +145,22 @@ def delete_transaction(db: Session, tx_id: int, bearer_token: str | None = None)
     return True
 
 
+def bulk_delete_transactions(
+    db: Session, tx_ids: list[int], bearer_token: str | None = None
+) -> tuple[int, list[int]]:
+    """가져오기 되돌리기 등에서 여러 건을 한 번에 지울 때 쓴다. 한 건씩 delete_transaction을
+    재사용해 저축잔액 롤백/growlio push를 단건 삭제와 동일하게 유지하고, 존재하지 않는 id는
+    실패 목록에 담아 나머지를 계속 처리한다(부분 실패로 전체를 막지 않음)."""
+    deleted = 0
+    failed: list[int] = []
+    for tx_id in tx_ids:
+        if delete_transaction(db, tx_id, bearer_token=bearer_token):
+            deleted += 1
+        else:
+            failed.append(tx_id)
+    return deleted, failed
+
+
 def list_transactions(
     db: Session,
     date_from: date | None = None,
@@ -151,6 +168,7 @@ def list_transactions(
     category_id: int | None = None,
     type_: str | None = None,
     user_id: uuid.UUID | None = None,
+    q: str | None = None,
 ) -> list[Transaction]:
     query = db.query(Transaction)
     if date_from is not None:
@@ -163,6 +181,11 @@ def list_transactions(
         query = query.filter(Transaction.type == type_)
     if user_id is not None:
         query = query.filter(Transaction.user_id == user_id)
+    if q and q.strip():
+        like = f"%{q.strip()}%"
+        query = query.join(Category, Transaction.category_id == Category.id).filter(
+            or_(Transaction.description.ilike(like), Category.name.ilike(like))
+        )
     return query.order_by(Transaction.transaction_date.desc(), Transaction.id.desc()).all()
 
 

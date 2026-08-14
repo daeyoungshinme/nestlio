@@ -17,8 +17,15 @@ class CoachingThresholdsOut(BaseModel):
     debt_ratio_warn: float
 
 
-class CoachingThresholdsIn(CoachingThresholdsOut):
-    pass
+class CoachingThresholdsIn(BaseModel):
+    savings_rate_warn: float = Field(ge=0, le=999)
+    savings_rate_critical: float = Field(ge=0, le=999)
+    fixed_cost_ratio_warn: float = Field(ge=0, le=999)
+    fixed_cost_ratio_critical: float = Field(ge=0, le=999)
+    budget_warn_pct: float = Field(ge=0, le=999)
+    budget_critical_pct: float = Field(ge=0, le=999)
+    discretionary_ratio_warn: float = Field(ge=0, le=999)
+    debt_ratio_warn: float = Field(ge=0, le=999)
 
 
 class NotificationPrefsOut(BaseModel):

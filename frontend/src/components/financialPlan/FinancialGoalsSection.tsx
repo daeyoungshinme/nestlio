@@ -333,6 +333,19 @@ export default function FinancialGoalsSection() {
       { label: progressStatusLabel(status), toneClassName: progressStatusBadgeClass(status) },
     ];
 
+    const growlioDetail =
+      growlioAccountId && GROWLIO_APP_URL ? (
+        <a
+          href={growlioPortfolioUrl(growlioAccountId)}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex items-center gap-1 text-xs font-medium text-emerald-600 dark:text-emerald-400 hover:underline"
+        >
+          <ExternalLink size={12} />
+          이 목표의 투자금, growlio에서 포트폴리오로 굴리기
+        </a>
+      ) : null;
+
     const extraDetails: GoalProgressCardExtraDetail[] = [];
     if (goal.funding_sources.length > 0) {
       extraDetails.push({
@@ -349,26 +362,10 @@ export default function FinancialGoalsSection() {
         ),
       });
     }
-    if (growlioAccountId && GROWLIO_APP_URL) {
-      extraDetails.push({
-        key: "growlio",
-        content: (
-          <a
-            href={growlioPortfolioUrl(growlioAccountId)}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex items-center gap-1 text-xs font-medium text-emerald-600 dark:text-emerald-400 hover:underline"
-          >
-            <ExternalLink size={12} />
-            이 목표의 투자금, growlio에서 포트폴리오로 굴리기
-          </a>
-        ),
-      });
-    }
     if (showSurplusHint) {
       extraDetails.push({
         key: "surplus",
-        content: `이번 달 여유자금 ${formatKrw(investableSurplus)}, 이 목표의 투자금에 보태보세요.`,
+        content: `이번 달 여유자금 ${formatKrw(investableSurplus)}, 이 목표의 투자금에 보태보세요. (가계 전체 여유자금이라 growlio 연동된 목표 중 1순위에만 표시돼요)`,
       });
     }
     if (goal.weighted_return_rate_pct !== null && goal.projected_months_with_growth !== null) {
@@ -399,6 +396,7 @@ export default function FinancialGoalsSection() {
             {hasLoanSource && " (대출 차감 반영)"}
           </>
         }
+        pinnedDetail={growlioDetail}
         extraDetails={extraDetails}
         onEdit={() => setFormTarget(goal)}
         onDelete={() => setDeleteTarget(goal.id)}
@@ -543,6 +541,7 @@ function GoalFormModal({
 }) {
   const [draft, setDraft] = useState<Draft>(initial);
   const [currentAge, setCurrentAge] = useState("");
+  const [confirmingResync, setConfirmingResync] = useState(false);
   const isChallenge = draft.kind === "challenge";
   const isLinked =
     draft.savings_product_ids.length > 0 || draft.account_ids.length > 0 || draft.loan_ids.length > 0;
@@ -683,7 +682,7 @@ function GoalFormModal({
     <Modal onClose={onClose} title={title}>
       <form onSubmit={handleSubmit} className="p-6 overflow-y-auto flex flex-col gap-3">
         <p className={FORM_SECTION_LABEL}>기본 정보</p>
-        {existingGoal === null && (
+        {existingGoal === null ? (
           <Button
             type="button"
             variant="secondary"
@@ -694,6 +693,29 @@ function GoalFormModal({
           >
             growlio 투자목표 불러오기
           </Button>
+        ) : (
+          <Button
+            type="button"
+            variant="secondary"
+            size="sm"
+            icon={<Download size={14} />}
+            loading={growlioGoalMutation.isPending}
+            onClick={() => setConfirmingResync(true)}
+          >
+            growlio 값으로 새로고침
+          </Button>
+        )}
+        {confirmingResync && (
+          <ConfirmModal
+            message="growlio에 설정된 최신 투자목표 값(목표금액·월납입액·연동 상품)으로 이 화면의 값을 덮어써요. 지금 입력한 값은 사라져요. 계속할까요?"
+            confirmLabel="새로고침"
+            danger={false}
+            onConfirm={() => {
+              setConfirmingResync(false);
+              growlioGoalMutation.mutate();
+            }}
+            onCancel={() => setConfirmingResync(false)}
+          />
         )}
         <FormInput
           label="재무목표"

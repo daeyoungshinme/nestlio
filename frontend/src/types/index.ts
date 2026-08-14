@@ -203,6 +203,7 @@ export interface TransactionFilters {
   category_id?: number;
   type?: TransactionType;
   user_id?: string;
+  q?: string;
 }
 
 export interface SkippedRowOut {
@@ -214,6 +215,7 @@ export interface SkippedRowOut {
 export interface ImportResultOut {
   created: number;
   skipped: SkippedRowOut[];
+  created_ids: number[];
 }
 
 export interface SheetImportIn {
@@ -221,6 +223,11 @@ export interface SheetImportIn {
   sheet_url?: string;
   spreadsheet_id?: string;
   sheet_name?: string;
+}
+
+export interface BulkDeleteResultOut {
+  deleted: number;
+  failed: number[];
 }
 
 export type RecurringFrequency = "weekly" | "monthly" | "yearly";

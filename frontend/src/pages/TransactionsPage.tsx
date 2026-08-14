@@ -8,12 +8,15 @@ import {
   MoreHorizontal,
   Plus,
   Repeat,
+  Search,
   SlidersHorizontal,
   Tag,
   Upload,
+  X,
 } from "lucide-react";
 import ConfirmModal from "@/components/common/ConfirmModal";
 import EmptyState from "@/components/common/EmptyState";
+import ErrorState from "@/components/common/ErrorState";
 import Modal from "@/components/common/Modal";
 import MonthPicker, { currentYearMonth, shiftYearMonth } from "@/components/common/MonthPicker";
 import SkeletonCard from "@/components/common/SkeletonCard";
@@ -48,9 +51,11 @@ import {
 } from "@/api/transactions";
 import { createEvent, deleteEvent, fetchEvents, importGoogleEvents, updateEvent } from "@/api/events";
 import { useSwipeMonth } from "@/hooks/useSwipeMonth";
+import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { useInvalidateTransactionRelated } from "@/hooks/useInvalidateTransactionRelated";
 import { QUERY_KEYS } from "@/constants/queryKeys";
 import { STALE_TIME } from "@/constants/queryConfig";
+import { INPUT_SM } from "@/constants/inputStyles";
 import { TOUCH_TARGET_COMPACT_MOBILE_ONLY } from "@/constants/uiSizes";
 import { formatKrw } from "@/utils/format";
 import { extractErrorMessage } from "@/utils/error";
@@ -113,6 +118,8 @@ export default function TransactionsPage() {
   const [showMoreMenu, setShowMoreMenu] = useState(false);
   const [showRecurringSheet, setShowRecurringSheet] = useState(false);
   const [showFilterSheet, setShowFilterSheet] = useState(false);
+  const [searchInput, setSearchInput] = useState("");
+  const debouncedQuery = useDebouncedValue(searchInput.trim(), 300);
   const queryClient = useQueryClient();
   const calendarRef = useRef<HTMLDivElement>(null);
   const [searchParams, setSearchParams] = useSearchParams();
@@ -136,17 +143,32 @@ export default function TransactionsPage() {
 
   const { date_from, date_to } = monthBounds(yearMonth);
 
-  const { data: categories } = useQuery({
+  const {
+    data: categories,
+    isError: categoriesError,
+    error: categoriesErrorObj,
+    refetch: refetchCategories,
+  } = useQuery({
     queryKey: QUERY_KEYS.categories(),
     queryFn: () => fetchCategories(),
     staleTime: STALE_TIME.LONG,
   });
-  const { data: accounts } = useQuery({
+  const {
+    data: accounts,
+    isError: accountsError,
+    error: accountsErrorObj,
+    refetch: refetchAccounts,
+  } = useQuery({
     queryKey: QUERY_KEYS.accounts,
     queryFn: fetchAccounts,
     staleTime: STALE_TIME.LONG,
   });
-  const { data: savingsProducts } = useQuery({
+  const {
+    data: savingsProducts,
+    isError: savingsProductsError,
+    error: savingsProductsErrorObj,
+    refetch: refetchSavingsProducts,
+  } = useQuery({
     queryKey: QUERY_KEYS.savingsProducts,
     queryFn: fetchSavingsProducts,
     staleTime: STALE_TIME.MEDIUM,
@@ -160,13 +182,25 @@ export default function TransactionsPage() {
       ...users.map((u) => ({ value: u.id, label: u.id === me.id ? "나" : u.display_name })),
     ];
   }, [me, users]);
-  const { data, isLoading } = useQuery({
-    queryKey: QUERY_KEYS.transactions({ date_from, date_to }),
-    queryFn: () => fetchTransactions({ date_from, date_to }),
+  const {
+    data,
+    isLoading,
+    isError: transactionsError,
+    error: transactionsErrorObj,
+    refetch: refetchTransactions,
+  } = useQuery({
+    queryKey: QUERY_KEYS.transactions({ date_from, date_to, q: debouncedQuery || undefined }),
+    queryFn: () => fetchTransactions({ date_from, date_to, q: debouncedQuery || undefined }),
     placeholderData: keepPreviousData,
   });
   const showExpenseGroups = topFilter === "expense" && categoryFilter === "all";
-  const { data: breakdown, isLoading: breakdownLoading } = useQuery({
+  const {
+    data: breakdown,
+    isLoading: breakdownLoading,
+    isError: breakdownError,
+    error: breakdownErrorObj,
+    refetch: refetchBreakdown,
+  } = useQuery({
     queryKey: QUERY_KEYS.categoryBreakdown({ date_from, date_to, type: "expense", user_id: userFilter }),
     queryFn: () =>
       fetchCategoryBreakdown({
@@ -178,7 +212,13 @@ export default function TransactionsPage() {
     placeholderData: keepPreviousData,
     enabled: showExpenseGroups,
   });
-  const { data: eventData, isLoading: eventsLoading } = useQuery({
+  const {
+    data: eventData,
+    isLoading: eventsLoading,
+    isError: eventsError,
+    error: eventsErrorObj,
+    refetch: refetchEvents,
+  } = useQuery({
     queryKey: QUERY_KEYS.events(date_from, date_to),
     queryFn: () => fetchEvents(date_from, date_to),
     placeholderData: keepPreviousData,
@@ -333,7 +373,7 @@ export default function TransactionsPage() {
   });
 
   const exportCsvMutation = useMutation({
-    mutationFn: () => fetchTransactionsCsv({ date_from, date_to }),
+    mutationFn: () => fetchTransactionsCsv({ date_from, date_to, q: debouncedQuery || undefined }),
     onSuccess: (blob) => triggerBlobDownload(blob, `transactions_${date_from}_${date_to}.csv`),
     onError: (err) => toast(extractErrorMessage(err), "error"),
   });
@@ -368,6 +408,22 @@ export default function TransactionsPage() {
     setSelectedDate(null);
     setEventFormTarget(event);
   };
+
+  if (categoriesError || accountsError || savingsProductsError) {
+    return (
+      <ErrorState
+        message={extractErrorMessage(
+          categoriesErrorObj ?? accountsErrorObj ?? savingsProductsErrorObj,
+          "가계부 정보를 불러오지 못했습니다.",
+        )}
+        onRetry={() => {
+          void refetchCategories();
+          void refetchAccounts();
+          void refetchSavingsProducts();
+        }}
+      />
+    );
+  }
 
   if (!categories || !accounts || !savingsProducts) {
     return <SkeletonCard rows={5} />;
@@ -404,7 +460,15 @@ export default function TransactionsPage() {
       )}
 
       <div ref={calendarRef}>
-        {isLoading || eventsLoading || !data || !eventData ? (
+        {transactionsError || eventsError ? (
+          <ErrorState
+            message={extractErrorMessage(transactionsErrorObj ?? eventsErrorObj, "가계부 내역을 불러오지 못했습니다.")}
+            onRetry={() => {
+              void refetchTransactions();
+              void refetchEvents();
+            }}
+          />
+        ) : isLoading || eventsLoading || !data || !eventData ? (
           <SkeletonCard rows={4} />
         ) : (
           <MonthCalendarGrid
@@ -422,6 +486,32 @@ export default function TransactionsPage() {
               />
             )}
           />
+        )}
+      </div>
+
+      <div className="relative">
+        <Search
+          size={14}
+          className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 dark:text-gray-500"
+          aria-hidden="true"
+        />
+        <input
+          type="search"
+          value={searchInput}
+          onChange={(e) => setSearchInput(e.target.value)}
+          placeholder="메모나 카테고리로 검색"
+          aria-label="거래 내역 검색"
+          className={`${INPUT_SM} w-full pl-9 ${searchInput ? "pr-9" : ""}`}
+        />
+        {searchInput && (
+          <button
+            type="button"
+            onClick={() => setSearchInput("")}
+            aria-label="검색어 지우기"
+            className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+          >
+            <X size={14} aria-hidden="true" />
+          </button>
         )}
       </div>
 
@@ -459,7 +549,13 @@ export default function TransactionsPage() {
           />
         )
       ) : showExpenseGroups ? (
-        breakdownLoading || !expenseGroups ? (
+        breakdownError ? (
+          <ErrorState
+            message={extractErrorMessage(breakdownErrorObj, "카테고리별 지출을 불러오지 못했습니다.")}
+            onRetry={() => void refetchBreakdown()}
+            compact
+          />
+        ) : breakdownLoading || !expenseGroups ? (
           <SkeletonCard rows={3} />
         ) : (
           <ExpenseCategoryGroups
