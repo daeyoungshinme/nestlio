@@ -1,7 +1,6 @@
 import { useState } from "react";
 import type { FormEvent } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Link } from "react-router-dom";
 import { Download, ExternalLink, Plus, RefreshCw } from "lucide-react";
 import Button from "@/components/common/Button";
 import AssetRow from "@/components/accounts/AssetRow";
@@ -434,19 +433,7 @@ function SavingsProductFormModal({
           className="w-full"
           preview={Number(draft.current_balance) > 0 ? formatKrwPreview(Number(draft.current_balance)) : undefined}
         />
-        {product?.monthly_saving_amount_synced ? (
-          <div>
-            <label className="block mb-1 font-medium text-sm text-gray-700 dark:text-gray-300">월 저축액</label>
-            <p className="text-sm text-gray-900 dark:text-gray-50">{formatKrw(draft.monthly_saving_amount)}</p>
-            <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
-              목표 "{product.linked_goal_name}"에서 관리 중이라 여기서 직접 수정할 수 없어요. 값을 바꾸려면{" "}
-              <Link to="/financial-plan" className="text-blue-600 dark:text-blue-400 hover:underline">
-                목표 화면
-              </Link>
-              에서 편집하세요.
-            </p>
-          </div>
-        ) : (
+        {!product && (
           <FormInput
             label="월 저축액"
             type="number"
