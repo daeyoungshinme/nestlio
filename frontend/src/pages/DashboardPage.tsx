@@ -70,7 +70,7 @@ export default function DashboardPage() {
     staleTime: STALE_TIME.SHORT,
   });
   // goal_pace 코칭 문구는 항상 "이번 달 페이스" 기준이어야 하므로, 사용자가 고른 period/anchor와
-  // 무관하게 FinancialGoalsSection과 동일한 쿼리 키(당월 고정)로 따로 가져온다 — 두 화면이 항상
+  // 무관하게 GoalsTab과 동일한 쿼리 키(당월 고정)로 따로 가져온다 — 두 화면이 항상
   // 같은 문구를 보여주도록 캐시를 공유시킨다.
   const { data: monthDashboard } = useQuery({
     queryKey: QUERY_KEYS.dashboard("month", currentYearMonth()),

@@ -7,7 +7,7 @@ from app.config import settings
 from app.models.category import Category
 from app.models.cashflow_plan_item import CashflowPlanItem
 from app.models.recurring_expense import RecurringExpense
-from app.services.transaction_report_service import category_breakdown
+from app.services.transaction_report_service import category_breakdown, trailing_average_by_category
 from app.utils.dates import month_bounds, parse_year_month
 from app.utils.plan_status import pct_of, status_from_pct
 
@@ -56,6 +56,7 @@ def budget_vs_actual(
     start, end = month_bounds(month_start)
     actuals = {row["category_id"]: row["amount"] for row in category_breakdown(db, start, end, "expense")}
     budgets = get_budgets_for_month(db, year_month)
+    suggested = trailing_average_by_category(db, month_start, months=3, type_="expense")
     categories = (
         db.query(Category)
         .filter(Category.is_active.is_(True), Category.kind == "expense")
@@ -77,6 +78,7 @@ def budget_vs_actual(
                 "actual": actual,
                 "pct": pct,
                 "status": _status(pct, warn_pct, critical_pct) if budget_amount else ("warn" if actual else "ok"),
+                "suggested_amount": suggested.get(cat.id),
             }
         )
     return result

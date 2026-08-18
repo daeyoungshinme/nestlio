@@ -104,23 +104,21 @@ export default function CashflowPlanItemForm({
         onChange={(e) => setValues((v) => ({ ...v, name: e.target.value }))}
         required
       />
-      {section === "income" && (
-        <div>
-          <label className={`block mb-1 font-medium ${LABEL_SM}`}>구분</label>
-          <select
-            className={`${INPUT_SM} w-full`}
-            value={values.owner_user_id}
-            onChange={(e) => setValues((v) => ({ ...v, owner_user_id: e.target.value }))}
-          >
-            <option value="">공통</option>
-            {users?.map((u) => (
-              <option key={u.id} value={u.id}>
-                {u.display_name}
-              </option>
-            ))}
-          </select>
-        </div>
-      )}
+      <div>
+        <label className={`block mb-1 font-medium ${LABEL_SM}`}>구분</label>
+        <select
+          className={`${INPUT_SM} w-full`}
+          value={values.owner_user_id}
+          onChange={(e) => setValues((v) => ({ ...v, owner_user_id: e.target.value }))}
+        >
+          <option value="">공통</option>
+          {users?.map((u) => (
+            <option key={u.id} value={u.id}>
+              {u.display_name}
+            </option>
+          ))}
+        </select>
+      </div>
       <FormInput
         label="금액"
         type="number"

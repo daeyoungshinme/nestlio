@@ -26,12 +26,13 @@ def _plan_list(db: Session, year_month: str | None) -> dict:
     month_start = parse_year_month(ym)
     items = cashflow_plan_service.list_items(db, ym)
     actuals = cashflow_plan_service.actuals_for_month(db, ym)
+    suggested = cashflow_plan_service.suggested_totals(db, ym)
     return {
         "year_month": ym,
         "prev_month": year_month_str(shift_month(month_start, -1)),
         "next_month": year_month_str(shift_month(month_start, 1)),
         "items": items,
-        "summary": cashflow_plan_service.compute_summary(items, actuals),
+        "summary": cashflow_plan_service.compute_summary(items, actuals, suggested),
     }
 
 

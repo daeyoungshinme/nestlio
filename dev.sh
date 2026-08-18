@@ -4,9 +4,13 @@ set -euo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")"
 
 MODE="dev"
-if [ "${1:-}" = "run" ]; then
-  MODE="run"
-fi
+KEEP_PORT=0
+for arg in "$@"; do
+  case "$arg" in
+    run) MODE="run" ;;
+    --keep-port) KEEP_PORT=1 ;;
+  esac
+done
 
 BACKEND_PORT=8899
 FRONTEND_PORT=5273
@@ -19,11 +23,49 @@ kill_port() {
     < /dev/null || true
 }
 
-kill_port "$BACKEND_PORT"
-if [ "$MODE" = "dev" ]; then
-  kill_port "$FRONTEND_PORT"
+is_port_in_use() {
+  local port="$1"
+  local result
+  result=$(timeout 10 powershell.exe -NoProfile -Command \
+    "if (Get-NetTCPConnection -LocalPort $port -State Listen -ErrorAction SilentlyContinue) { 'busy' }" \
+    < /dev/null)
+  [ "$result" = "busy" ]
+}
+
+find_free_port() {
+  local port="$1"
+  local tries=0
+  while is_port_in_use "$port"; do
+    tries=$((tries + 1))
+    if [ "$tries" -ge 50 ]; then
+      echo "[dev.sh] ERROR: no free port found near $1" >&2
+      exit 1
+    fi
+    port=$((port + 1))
+  done
+  echo "$port"
+}
+
+if [ "$KEEP_PORT" = "1" ]; then
+  ORIG_BACKEND_PORT="$BACKEND_PORT"
+  BACKEND_PORT=$(find_free_port "$BACKEND_PORT")
+  if [ "$BACKEND_PORT" != "$ORIG_BACKEND_PORT" ]; then
+    echo "[dev.sh] port $ORIG_BACKEND_PORT busy, using $BACKEND_PORT for backend instead (--keep-port)"
+  fi
+  if [ "$MODE" = "dev" ]; then
+    ORIG_FRONTEND_PORT="$FRONTEND_PORT"
+    FRONTEND_PORT=$(find_free_port "$FRONTEND_PORT")
+    if [ "$FRONTEND_PORT" != "$ORIG_FRONTEND_PORT" ]; then
+      echo "[dev.sh] port $ORIG_FRONTEND_PORT busy, using $FRONTEND_PORT for frontend instead (--keep-port)"
+    fi
+  fi
+else
+  kill_port "$BACKEND_PORT"
+  if [ "$MODE" = "dev" ]; then
+    kill_port "$FRONTEND_PORT"
+  fi
+  sleep 1
 fi
-sleep 1
 echo "[dev.sh] stop step done, continuing..."
 
 VENV_PY=".venv/Scripts/python.exe"
@@ -95,6 +137,8 @@ echo "[dev.sh] starting backend (uvicorn --reload) on http://127.0.0.1:$BACKEND_
 BACKEND_PID=$!
 
 echo "[dev.sh] starting frontend (vite dev server) on http://localhost:$FRONTEND_PORT"
+export VITE_DEV_PORT="$FRONTEND_PORT"
+export VITE_BACKEND_PORT="$BACKEND_PORT"
 (cd frontend && npm run dev) &
 FRONTEND_PID=$!
 

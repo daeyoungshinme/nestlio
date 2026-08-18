@@ -231,6 +231,20 @@ def trailing_average_savings(db: Session, anchor: date, months: int = 3) -> Deci
     return total / months
 
 
+def trailing_average_by_section(db: Session, anchor: date, months: int = 3) -> dict[str, Decimal]:
+    """Average income/fixed/variable/irregular totals over the `months` immediately before
+    anchor's month (excludes anchor's month) — section-level counterpart to
+    trailing_average_by_category, used to suggest next month's cashflow plan amounts."""
+    month_starts = [shift_month(anchor, -offset) for offset in range(1, months + 1)]
+    totals_by_month = _monthly_totals_map(db, month_starts)
+    sections = ("income", "fixed", "variable", "irregular")
+    sums = {section: Decimal("0") for section in sections}
+    for totals in totals_by_month.values():
+        for section in sections:
+            sums[section] += totals[section]
+    return {section: total / months for section, total in sums.items()}
+
+
 def category_monthly_trend(
     db: Session, months: int = 6, anchor: date | None = None, type_: str = "expense", top_n: int = 6
 ) -> dict:

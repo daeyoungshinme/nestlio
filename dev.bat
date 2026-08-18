@@ -1,8 +1,31 @@
 @echo off
+setlocal enabledelayedexpansion
 cd /d "%~dp0"
 
 set "MODE=dev"
-if /i "%~1"=="run" set "MODE=run"
+set "KEEP_PORT=0"
+for %%A in (%*) do (
+  if /i "%%A"=="run" set "MODE=run"
+  if /i "%%A"=="--keep-port" set "KEEP_PORT=1"
+)
+
+set "BACKEND_PORT=8899"
+set "FRONTEND_PORT=5273"
+
+if "%KEEP_PORT%"=="1" (
+  set "ORIG_BACKEND_PORT=%BACKEND_PORT%"
+  call :find_free_port %BACKEND_PORT% BACKEND_PORT
+  if not "!BACKEND_PORT!"=="!ORIG_BACKEND_PORT!" (
+    echo [dev.bat] port !ORIG_BACKEND_PORT! busy, using !BACKEND_PORT! for backend instead ^(--keep-port^)
+  )
+  if /i "%MODE%"=="dev" (
+    set "ORIG_FRONTEND_PORT=%FRONTEND_PORT%"
+    call :find_free_port %FRONTEND_PORT% FRONTEND_PORT
+    if not "!FRONTEND_PORT!"=="!ORIG_FRONTEND_PORT!" (
+      echo [dev.bat] port !ORIG_FRONTEND_PORT! busy, using !FRONTEND_PORT! for frontend instead ^(--keep-port^)
+    )
+  )
+)
 
 if not exist ".venv\Scripts\python.exe" (
   echo [dev.bat] .venv not found, creating virtualenv...
@@ -54,18 +77,39 @@ if /i "%MODE%"=="run" (
   call npm run build
   popd
 
-  echo [dev.bat] starting server on http://0.0.0.0:8899
-  "%PYTHON%" -m uvicorn app.main:app --host 0.0.0.0 --port 8899
+  echo [dev.bat] starting server on http://0.0.0.0:%BACKEND_PORT%
+  "%PYTHON%" -m uvicorn app.main:app --host 0.0.0.0 --port %BACKEND_PORT%
 ) else (
-  echo [dev.bat] starting backend (uvicorn --reload) on http://127.0.0.1:8899
+  echo [dev.bat] starting backend (uvicorn --reload) on http://127.0.0.1:%BACKEND_PORT%
   rem --reload-dir app: without it, watchfiles watches the whole project root (frontend\node_modules,
   rem data\*.db, .venv, .git) recursively, which on Windows causes spurious/unstable restarts on
   rem changes unrelated to backend code (Vite cache writes, SQLite file updates, etc).
-  start "nestlio-backend" cmd /k "%PYTHON% -m uvicorn app.main:app --host 127.0.0.1 --port 8899 --reload --reload-dir app"
+  start "nestlio-backend" cmd /k "%PYTHON% -m uvicorn app.main:app --host 127.0.0.1 --port %BACKEND_PORT% --reload --reload-dir app"
 
-  echo [dev.bat] starting frontend (vite dev server) on http://localhost:5273
-  start "nestlio-frontend" cmd /k "cd frontend && npm run dev"
+  echo [dev.bat] starting frontend (vite dev server) on http://localhost:%FRONTEND_PORT%
+  start "nestlio-frontend" cmd /k "set VITE_DEV_PORT=%FRONTEND_PORT%&& set VITE_BACKEND_PORT=%BACKEND_PORT%&& cd frontend && npm run dev"
 
-  echo [dev.bat] ready — open http://localhost:5273 (frontend/backend edits reload automatically)
+  echo [dev.bat] ready — open http://localhost:%FRONTEND_PORT% (frontend/backend edits reload automatically)
   echo [dev.bat] close the two opened windows to stop the dev servers.
 )
+
+goto :eof
+
+:find_free_port
+setlocal
+set "PORT=%~1"
+set "TRIES=0"
+:find_free_port_loop
+set "PORT_STATUS="
+for /f %%R in ('powershell -NoProfile -Command "if (Get-NetTCPConnection -LocalPort %PORT% -State Listen -ErrorAction SilentlyContinue) { 'busy' }"') do set "PORT_STATUS=%%R"
+if "%PORT_STATUS%"=="busy" (
+  set /a TRIES+=1
+  if !TRIES! GEQ 50 (
+    echo [dev.bat] ERROR: no free port found near %~1
+    exit /b 1
+  )
+  set /a PORT+=1
+  goto find_free_port_loop
+)
+endlocal & set "%~2=%PORT%"
+goto :eof

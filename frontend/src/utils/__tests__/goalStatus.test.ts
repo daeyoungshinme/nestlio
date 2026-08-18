@@ -26,6 +26,7 @@ function makeGoal(overrides: Partial<FinancialGoalOut>): FinancialGoalOut {
     effective_status: null,
     created_by_id: null,
     completed_at: null,
+    monthly_targets: [],
     ...overrides,
   };
 }

@@ -4,7 +4,7 @@ from decimal import Decimal
 
 from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, Numeric, String, func
 from sqlalchemy.dialects.postgresql import UUID
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
 
@@ -35,6 +35,35 @@ class SavingsProduct(Base):
     growlio_account_id: Mapped[str | None] = mapped_column(String(36))
     auto_sync_enabled: Mapped[bool] = mapped_column(Boolean, default=False)
     last_synced_at: Mapped[datetime | None] = mapped_column(DateTime)
+
+    # 상품 1개는 최대 1개 목표의 funding source만 될 수 있다(goal_funding_sources.savings_product_id
+    # unique 제약, app/models/goal_funding_source.py 참고) — 연동 시 월 계획액을 그 목표의
+    # monthly_saving_amount와 동기화하기 위한 역참조(app/services/goal_service.py 참고).
+    goal_funding_source: Mapped["GoalFundingSource | None"] = relationship(
+        uselist=False, viewonly=True, lazy="joined"
+    )
+
+    @property
+    def linked_goal_id(self) -> int | None:
+        return self.goal_funding_source.goal_id if self.goal_funding_source else None
+
+    @property
+    def linked_goal_name(self) -> str | None:
+        return self.goal_funding_source.goal.name if self.goal_funding_source else None
+
+    @property
+    def monthly_saving_amount_synced(self) -> bool:
+        """월 계획액이 연동된 목표에서 자동으로 채워지는 중인지 — 그 목표에 연동된 저축상품이 이
+        상품 하나뿐일 때만 참이다. 상품이 여러 개면(부부가 각자 다른 상품으로 한 목표를 모으는
+        경우) 잔액 합산에는 쓰이지만 월 계획액을 어느 상품에 나눠줄지 모호해 계속 수동 입력을
+        받는다(app/services/goal_service.py::_sync_funding_product_monthly_amount와 판정 기준 동일)."""
+        if self.goal_funding_source is None:
+            return False
+        goal = self.goal_funding_source.goal
+        if goal.kind == "irregular":
+            return False
+        linked_product_count = sum(1 for fs in goal.funding_sources if fs.savings_product_id is not None)
+        return linked_product_count == 1
 
     @property
     def return_amount(self) -> Decimal | None:

@@ -132,5 +132,8 @@ export const apiPost = <T>(url: string, data?: unknown, config?: ApiConfig) =>
 export const apiPut = <T>(url: string, data?: unknown, config?: ApiConfig) =>
   api.put<T>(url, data, config).then((r) => r.data);
 
+export const apiPatch = <T>(url: string, data?: unknown, config?: ApiConfig) =>
+  api.patch<T>(url, data, config).then((r) => r.data);
+
 export const apiDelete = <T = unknown>(url: string, config?: ApiConfig) =>
   api.delete<T>(url, config).then((r) => r.data);

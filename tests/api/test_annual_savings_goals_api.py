@@ -1,7 +1,11 @@
+def _even_targets(year: int, monthly: str) -> list[dict]:
+    return [{"year_month": f"{year}-{month:02d}", "target_amount": monthly} for month in range(1, 13)]
+
+
 def test_upsert_and_get_goal(client):
     resp = client.put(
         "/api/v1/annual-savings-goals/2026",
-        json={"target_amount_krw": "12000000", "monthly_target_krw": "1000000"},
+        json={"monthly_targets": _even_targets(2026, "1000000")},
     )
     assert resp.status_code == 200
     assert resp.json()["year"] == 2026
@@ -10,6 +14,7 @@ def test_upsert_and_get_goal(client):
     get_resp = client.get("/api/v1/annual-savings-goals/2026")
     assert get_resp.status_code == 200
     assert get_resp.json()["monthly_target_krw"] == "1000000.00"
+    assert len(get_resp.json()["monthly_targets"]) == 12
 
 
 def test_get_goal_includes_progress_fields(client):
@@ -17,7 +22,7 @@ def test_get_goal_includes_progress_fields(client):
     tests/test_annual_savings_goal_service.py의 compute_progress 케이스가 상세 검증)."""
     from decimal import Decimal
 
-    client.put("/api/v1/annual-savings-goals/2026", json={"target_amount_krw": "12000000"})
+    client.put("/api/v1/annual-savings-goals/2026", json={"monthly_targets": _even_targets(2026, "1000000")})
 
     resp = client.get("/api/v1/annual-savings-goals/2026")
 
@@ -33,8 +38,8 @@ def test_get_goal_not_found(client):
 
 
 def test_list_goals(client):
-    client.put("/api/v1/annual-savings-goals/2025", json={"target_amount_krw": "10000000"})
-    client.put("/api/v1/annual-savings-goals/2026", json={"target_amount_krw": "12000000"})
+    client.put("/api/v1/annual-savings-goals/2025", json={"monthly_targets": _even_targets(2025, "800000")})
+    client.put("/api/v1/annual-savings-goals/2026", json={"monthly_targets": _even_targets(2026, "1000000")})
 
     resp = client.get("/api/v1/annual-savings-goals")
 
@@ -43,7 +48,7 @@ def test_list_goals(client):
 
 
 def test_delete_goal(client):
-    client.put("/api/v1/annual-savings-goals/2026", json={"target_amount_krw": "12000000"})
+    client.put("/api/v1/annual-savings-goals/2026", json={"monthly_targets": _even_targets(2026, "1000000")})
 
     resp = client.delete("/api/v1/annual-savings-goals/2026")
 
@@ -54,7 +59,7 @@ def test_delete_goal(client):
 def test_external_endpoint_exposes_goals_read_only(client):
     """growlio가 사용자 JWT를 그대로 전달해 호출하는 읽기전용 엔드포인트 — client 픽스처가
     get_current_user를 오버라이드하므로 '이미 인증된 호출자'를 가정해 응답 모양만 검증한다."""
-    client.put("/api/v1/annual-savings-goals/2026", json={"target_amount_krw": "12000000"})
+    client.put("/api/v1/annual-savings-goals/2026", json={"monthly_targets": _even_targets(2026, "1000000")})
 
     resp = client.get("/api/v1/external/annual-savings-goals")
 
@@ -63,6 +68,6 @@ def test_external_endpoint_exposes_goals_read_only(client):
         {
             "year": 2026,
             "target_amount_krw": "12000000.00",
-            "monthly_target_krw": None,
+            "monthly_target_krw": "1000000.00",
         }
     ]

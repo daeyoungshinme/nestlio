@@ -63,9 +63,7 @@ export default function CashflowPlanItemRow({
             </p>
           )
         )}
-        {sectionKey === "income" && (
-          <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{ownerLabel}</p>
-        )}
+        <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{ownerLabel}</p>
         {sectionKey === "irregular" && installmentProgressLabel(item) && (
           <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{installmentProgressLabel(item)}</p>
         )}

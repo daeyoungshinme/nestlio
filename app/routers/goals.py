@@ -11,6 +11,7 @@ from app.schemas.financial_goal import (
     FinancialGoalCreateIn,
     FinancialGoalOut,
     FinancialGoalUpdateIn,
+    GoalMonthlyTargetAchievedIn,
     GrowlioGoalSettingsOut,
 )
 from app.services import goal_service, notification_service
@@ -39,22 +40,26 @@ def create_goal(
 ):
     now = datetime.now()
     today = now.date()
-    goal = goal_service.create_goal(
-        db,
-        payload.priority,
-        payload.name,
-        payload.target_age,
-        payload.required_amount,
-        payload.monthly_saving_amount,
-        payload.current_amount,
-        [fs.model_dump() for fs in payload.funding_sources],
-        payload.target_date,
-        kind=payload.kind,
-        description=payload.description,
-        start_date=payload.start_date,
-        created_by_id=current_user.id if payload.kind == "challenge" else None,
-        now=now,
-    )
+    try:
+        goal = goal_service.create_goal(
+            db,
+            payload.priority,
+            payload.name,
+            payload.target_age,
+            payload.required_amount,
+            payload.monthly_saving_amount,
+            payload.current_amount,
+            [fs.model_dump() for fs in payload.funding_sources],
+            payload.target_date,
+            kind=payload.kind,
+            description=payload.description,
+            start_date=payload.start_date,
+            created_by_id=current_user.id if payload.kind == "challenge" else None,
+            monthly_targets=[mt.model_dump() for mt in payload.monthly_targets] if payload.monthly_targets else None,
+            now=now,
+        )
+    except goal_service.DuplicateFundingSourceProductError as exc:
+        raise HTTPException(status.HTTP_409_CONFLICT, str(exc)) from exc
     try:
         notification_service.check_and_celebrate_goal_milestone(db, goal.id, today)
     except Exception:
@@ -71,27 +76,53 @@ def update_goal(
 ):
     now = datetime.now()
     today = now.date()
-    goal = goal_service.update_goal(
-        db,
-        goal_id,
-        payload.priority,
-        payload.name,
-        payload.target_age,
-        payload.required_amount,
-        payload.monthly_saving_amount,
-        payload.current_amount,
-        [fs.model_dump() for fs in payload.funding_sources],
-        payload.target_date,
-        description=payload.description,
-        start_date=payload.start_date,
-        now=now,
-    )
+    try:
+        goal = goal_service.update_goal(
+            db,
+            goal_id,
+            payload.priority,
+            payload.name,
+            payload.target_age,
+            payload.required_amount,
+            payload.monthly_saving_amount,
+            payload.current_amount,
+            [fs.model_dump() for fs in payload.funding_sources],
+            payload.target_date,
+            description=payload.description,
+            start_date=payload.start_date,
+            monthly_targets=[mt.model_dump() for mt in payload.monthly_targets] if payload.monthly_targets else None,
+            now=now,
+        )
+    except goal_service.DuplicateFundingSourceProductError as exc:
+        raise HTTPException(status.HTTP_409_CONFLICT, str(exc)) from exc
     if goal is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "재무목표를 찾을 수 없습니다.")
     try:
         notification_service.check_and_celebrate_goal_milestone(db, goal.id, today)
     except Exception:
         logger.exception("목표 달성 축하 알림 처리 실패 (목표는 정상 저장됨)")
+    return goal_service.to_out(db, goal, today)
+
+
+@router.patch("/{goal_id}/monthly-targets/{year_month}", response_model=FinancialGoalOut)
+def update_monthly_target(
+    goal_id: int,
+    year_month: str,
+    payload: GoalMonthlyTargetAchievedIn,
+    db: Session = Depends(get_db),
+    _: User = Depends(get_current_user),
+):
+    try:
+        goal = goal_service.update_monthly_target_achieved(db, goal_id, year_month, payload.achieved_amount)
+    except goal_service.MonthlyTargetNotFoundError as exc:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, str(exc)) from exc
+    if goal is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "재무목표를 찾을 수 없습니다.")
+    today = date.today()
+    try:
+        notification_service.check_and_celebrate_goal_milestone(db, goal.id, today)
+    except Exception:
+        logger.exception("목표 달성 축하 알림 처리 실패 (월별 목표는 정상 저장됨)")
     return goal_service.to_out(db, goal, today)
 
 

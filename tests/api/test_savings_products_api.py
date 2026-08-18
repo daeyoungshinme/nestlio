@@ -124,6 +124,69 @@ def test_annual_plan_returns_year_and_groups(client, seeded_db):
     assert "target_to_date" in body["savings"]
 
 
+def test_get_product_annual_plan_defaults_from_monthly_saving_amount(client, seeded_db):
+    create_resp = client.post(
+        "/api/v1/savings-products",
+        json={"name": "적금", "current_balance": "0", "monthly_saving_amount": "100000", "product_type": "savings"},
+    )
+    product_id = create_resp.json()["id"]
+
+    resp = client.get(f"/api/v1/savings-products/{product_id}/annual-plan/2026")
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["product_id"] == product_id
+    assert body["start_month"] == "2026-01"
+    assert body["end_month"] == "2026-12"
+    assert len(body["monthly_targets"]) == 12
+    assert all(t["target_amount"] == "100000.00" for t in body["monthly_targets"])
+
+
+def test_get_product_annual_plan_missing_product_returns_404(client, seeded_db):
+    resp = client.get("/api/v1/savings-products/9999/annual-plan/2026")
+
+    assert resp.status_code == 404
+
+
+def test_upsert_product_annual_plan_persists_and_is_read_back(client, seeded_db):
+    create_resp = client.post(
+        "/api/v1/savings-products",
+        json={"name": "적금", "current_balance": "0", "monthly_saving_amount": "0", "product_type": "savings"},
+    )
+    product_id = create_resp.json()["id"]
+
+    upsert_resp = client.put(
+        f"/api/v1/savings-products/{product_id}/annual-plan",
+        json={
+            "year": 2026,
+            "start_month": "2026-06",
+            "end_month": "2026-08",
+            "monthly_targets": [
+                {"year_month": "2026-06", "target_amount": "100000"},
+                {"year_month": "2026-07", "target_amount": "150000"},
+                {"year_month": "2026-08", "target_amount": "200000"},
+            ],
+        },
+    )
+
+    assert upsert_resp.status_code == 200
+    body = upsert_resp.json()
+    assert body["start_month"] == "2026-06"
+    assert [t["target_amount"] for t in body["monthly_targets"]] == ["100000.00", "150000.00", "200000.00"]
+
+    get_resp = client.get(f"/api/v1/savings-products/{product_id}/annual-plan/2026")
+    assert get_resp.json() == body
+
+
+def test_upsert_product_annual_plan_missing_product_returns_404(client, seeded_db):
+    resp = client.put(
+        "/api/v1/savings-products/9999/annual-plan",
+        json={"year": 2026, "start_month": "2026-01", "end_month": "2026-12", "monthly_targets": []},
+    )
+
+    assert resp.status_code == 404
+
+
 def test_growlio_import_creates_one_product_per_selected_account(client, seeded_db):
     _override_bearer_token()
 

@@ -7,11 +7,14 @@ import CashflowPlanQuickAddModal from "@/components/financialPlan/CashflowPlanQu
 import CashflowPlanRecurringLinkModal from "@/components/financialPlan/CashflowPlanRecurringLinkModal";
 import CashflowPlanSectionPanel from "@/components/financialPlan/CashflowPlanSectionPanel";
 import CashflowPlanSplitForm from "@/components/financialPlan/CashflowPlanSplitForm";
+import AnnualPlanPanel from "@/components/financialPlan/AnnualPlanPanel";
+import GoalPurposeSummary from "@/components/financialPlan/GoalPurposeSummary";
+import type { Purpose } from "@/components/financialPlan/GoalPurposeSummary";
 import SavingsInvestmentPlanPanel from "@/components/financialPlan/SavingsInvestmentPlanPanel";
 import Button from "@/components/common/Button";
 import ConfirmModal from "@/components/common/ConfirmModal";
 import Modal from "@/components/common/Modal";
-import MonthPicker, { currentYearMonth } from "@/components/common/MonthPicker";
+import MonthPicker, { currentYearMonth, shiftYearMonth } from "@/components/common/MonthPicker";
 import SkeletonCard from "@/components/common/SkeletonCard";
 import SummaryCard from "@/components/common/SummaryCard";
 import Tabs from "@/components/common/Tabs";
@@ -26,26 +29,19 @@ import { fetchBudgets } from "@/api/budgets";
 import { fetchCategories } from "@/api/categories";
 import { fetchSavingsProductsPlan } from "@/api/savingsProducts";
 import { fetchUsers } from "@/api/users";
+import { SECTIONS, SAVINGS_INVESTMENT_LABEL, SECTION_LABELS, type SectionLabel } from "@/constants/planSections";
 import { QUERY_KEYS } from "@/constants/queryKeys";
 import { STALE_TIME } from "@/constants/queryConfig";
-import { formatKrw } from "@/utils/format";
+import { formatKrw, formatYearMonth } from "@/utils/format";
 import { extractErrorMessage } from "@/utils/error";
+import { worseStatus } from "@/utils/colors";
 import { toast } from "@/utils/toast";
-import type { CashflowPlanItemOut, CashflowSection } from "@/types";
+import type { BudgetRowOut, CashflowPlanItemOut, CashflowSection } from "@/types";
 import type { CashflowPlanItemFormValues } from "@/components/financialPlan/CashflowPlanItemForm";
 import type { CashflowPlanSplitFormValues } from "@/components/financialPlan/CashflowPlanSplitForm";
 
-const SECTIONS = [
-  { key: "income", label: "수입" },
-  { key: "fixed", label: "고정지출" },
-  { key: "variable", label: "변동지출" },
-  { key: "irregular", label: "비정기지출" },
-] as const satisfies { key: CashflowSection; label: string }[];
-
-const SAVINGS_INVESTMENT_LABEL = "저축·투자" as const;
-
-type SectionLabel = (typeof SECTIONS)[number]["label"] | typeof SAVINGS_INVESTMENT_LABEL;
-const SECTION_LABELS = [...SECTIONS.map((s) => s.label), SAVINGS_INVESTMENT_LABEL] as SectionLabel[];
+const VIEW_TABS = ["이번 달 계획", "연간계획"] as const;
+type ViewTab = (typeof VIEW_TABS)[number];
 
 interface ModalState {
   section: CashflowSection;
@@ -53,6 +49,7 @@ interface ModalState {
 }
 
 export default function CashflowPlanTab() {
+  const [view, setView] = useState<ViewTab>("이번 달 계획");
   const [yearMonth, setYearMonth] = useState(currentYearMonth());
   const [activeLabel, setActiveLabel] = useState<SectionLabel>("수입");
   const [modal, setModal] = useState<ModalState | null>(null);
@@ -60,7 +57,10 @@ export default function CashflowPlanTab() {
   const [deleteTarget, setDeleteTarget] = useState<number | null>(null);
   const [recurringLinkTarget, setRecurringLinkTarget] = useState<CashflowPlanItemOut | null>(null);
   const [quickAddTarget, setQuickAddTarget] = useState<CashflowPlanItemOut | null>(null);
+  const [applyingCategoryId, setApplyingCategoryId] = useState<number | null>(null);
   const queryClient = useQueryClient();
+  const nextYearMonth = shiftYearMonth(yearMonth, 1);
+  const nextYearMonthLabel = formatYearMonth(nextYearMonth);
 
   const { data, isLoading } = useQuery({
     queryKey: QUERY_KEYS.cashflowPlan(yearMonth),
@@ -134,14 +134,94 @@ export default function CashflowPlanTab() {
     onError: (err) => toast(extractErrorMessage(err), "error"),
   });
 
+  const applyCategorySuggestionMutation = useMutation({
+    mutationFn: async (row: BudgetRowOut) => {
+      const nextPlan = await fetchCashflowPlan(nextYearMonth);
+      const existing = nextPlan.items.find((i) => i.category_id === row.category_id);
+      return upsertCashflowPlanItem({
+        id: existing?.id ?? null,
+        section: row.type,
+        year_month: nextYearMonth,
+        owner_user_id: existing?.owner_user_id ?? null,
+        name: existing?.name ?? row.name,
+        amount: row.suggested_amount!,
+        category_id: row.category_id,
+        sort_order: existing?.sort_order ?? 0,
+      });
+    },
+    onMutate: (row) => setApplyingCategoryId(row.category_id),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.cashflowPlan(nextYearMonth) });
+      void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.budgets(nextYearMonth) });
+      toast(`${nextYearMonthLabel} 예산에 반영했습니다.`, "success");
+    },
+    onError: (err) => toast(extractErrorMessage(err), "error"),
+    onSettled: () => setApplyingCategoryId(null),
+  });
+
+  const applyIncomeSuggestionMutation = useMutation({
+    mutationFn: async ({ item, suggestedAmount }: { item: CashflowPlanItemOut; suggestedAmount: string }) => {
+      const nextPlan = await fetchCashflowPlan(nextYearMonth);
+      const existing = nextPlan.items.find((i) => i.section === "income" && i.name === item.name);
+      return upsertCashflowPlanItem({
+        id: existing?.id ?? null,
+        section: "income",
+        year_month: nextYearMonth,
+        owner_user_id: existing?.owner_user_id ?? item.owner_user_id,
+        name: existing?.name ?? item.name,
+        amount: suggestedAmount,
+        category_id: null,
+        sort_order: existing?.sort_order ?? 0,
+      });
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.cashflowPlan(nextYearMonth) });
+      toast(`${nextYearMonthLabel} 계획에 반영했습니다.`, "success");
+    },
+    onError: (err) => toast(extractErrorMessage(err), "error"),
+  });
+
+  if (view === "연간계획") {
+    return (
+      <div className="space-y-6">
+        <Tabs tabs={VIEW_TABS} activeTab={view} onChange={setView} />
+        <AnnualPlanPanel />
+      </div>
+    );
+  }
+
   if (isLoading || !data) {
-    return <SkeletonCard rows={6} />;
+    return (
+      <div className="space-y-6">
+        <Tabs tabs={VIEW_TABS} activeTab={view} onChange={setView} />
+        <SkeletonCard rows={6} />
+      </div>
+    );
   }
 
   const summary = data.summary;
   const plannedSavingsInvestmentTotal = savingsPlanData
     ? Number(savingsPlanData.savings.planned) + Number(savingsPlanData.investment.planned)
     : 0;
+  const savingsInvestmentActual =
+    savingsPlanData && savingsPlanData.savings.actual !== null && savingsPlanData.investment.actual !== null
+      ? Number(savingsPlanData.savings.actual) + Number(savingsPlanData.investment.actual)
+      : null;
+  const savingsInvestmentPct =
+    savingsInvestmentActual !== null && plannedSavingsInvestmentTotal > 0
+      ? Math.min((savingsInvestmentActual / plannedSavingsInvestmentTotal) * 100, 999)
+      : null;
+  const purposes: Purpose[] = [
+    { label: "수입", pct: summary.income.pct, status: summary.income.status },
+    { label: "고정지출", pct: summary.fixed.pct, status: summary.fixed.status },
+    { label: "변동지출", pct: summary.variable.pct, status: summary.variable.status },
+    { label: "비정기지출", pct: summary.irregular.pct, status: summary.irregular.status },
+    {
+      label: SAVINGS_INVESTMENT_LABEL,
+      pct: savingsInvestmentPct,
+      status: savingsPlanData ? worseStatus(savingsPlanData.savings.status, savingsPlanData.investment.status) : null,
+    },
+  ];
   const budgetRows = budgetData?.rows ?? [];
   const budgetRowByCategory = new Map(budgetRows.map((row) => [row.category_id, row]));
 
@@ -188,6 +268,8 @@ export default function CashflowPlanTab() {
 
   return (
     <div className="space-y-6">
+      <Tabs tabs={VIEW_TABS} activeTab={view} onChange={setView} />
+
       <div className="flex items-center justify-between flex-wrap gap-3">
         <MonthPicker yearMonth={yearMonth} onChange={setYearMonth} />
         <Button
@@ -226,6 +308,13 @@ export default function CashflowPlanTab() {
         />
       </div>
 
+      <GoalPurposeSummary
+        heading="이번 달 목표 현황"
+        purposes={purposes}
+        activeLabel={activeLabel}
+        onSelect={(label) => setActiveLabel(label as SectionLabel)}
+      />
+
       <Tabs tabs={SECTION_LABELS} activeTab={activeLabel} onChange={setActiveLabel} />
 
       {activeLabel === SAVINGS_INVESTMENT_LABEL ? (
@@ -241,12 +330,19 @@ export default function CashflowPlanTab() {
               sectionSummary={summary[key]}
               users={users}
               budgetRowByCategory={budgetRowByCategory}
+              nextYearMonthLabel={nextYearMonthLabel}
               onAddItem={() => setModal({ section: key, item: null })}
               onSplit={() => setSplitModalOpen(true)}
               onEditItem={(item) => setModal({ section: key, item })}
               onDeleteItem={(item) => setDeleteTarget(item.id)}
               onLinkRecurring={setRecurringLinkTarget}
               onQuickAdd={setQuickAddTarget}
+              onApplyCategorySuggestion={(row) => applyCategorySuggestionMutation.mutate(row)}
+              applyingCategoryId={applyingCategoryId}
+              onApplyIncomeSuggestion={(item, suggestedAmount) =>
+                applyIncomeSuggestionMutation.mutate({ item, suggestedAmount })
+              }
+              applyingIncomeSuggestion={applyIncomeSuggestionMutation.isPending}
             />
           );
         })()

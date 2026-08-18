@@ -4,6 +4,7 @@ from decimal import Decimal
 from sqlalchemy.orm import Session
 
 from app.models.annual_savings_goal import AnnualSavingsGoal
+from app.models.annual_savings_goal_monthly_target import AnnualSavingsGoalMonthlyTarget
 from app.services import goal_service, transaction_report_service
 
 
@@ -15,15 +16,32 @@ def get_goal(db: Session, year: int) -> AnnualSavingsGoal | None:
     return db.query(AnnualSavingsGoal).filter(AnnualSavingsGoal.year == year).first()
 
 
-def upsert_goal(
-    db: Session, year: int, target_amount_krw: Decimal, monthly_target_krw: Decimal | None
-) -> AnnualSavingsGoal:
+def _apply_monthly_targets(goal: AnnualSavingsGoal, monthly_targets: list[dict] | None) -> None:
+    """year_month로 기존 행을 매칭해 target_amount만 갱신하고, 새 월은 새로 만든다 —
+    goal_service._apply_monthly_targets/annual_plan_service._apply_monthly_targets와 동일 패턴.
+    빠진 월은 목록에서 제외돼 delete-orphan으로 삭제된다."""
+    existing_by_month = {mt.year_month: mt for mt in goal.monthly_targets}
+    new_targets: list[AnnualSavingsGoalMonthlyTarget] = []
+    for entry in monthly_targets or []:
+        year_month = entry["year_month"]
+        existing = existing_by_month.get(year_month)
+        if existing is not None:
+            existing.target_amount = entry["target_amount"]
+            new_targets.append(existing)
+        else:
+            new_targets.append(
+                AnnualSavingsGoalMonthlyTarget(year_month=year_month, target_amount=entry["target_amount"])
+            )
+    goal.monthly_targets = new_targets
+
+
+def upsert_goal(db: Session, year: int, monthly_targets: list[dict]) -> AnnualSavingsGoal:
     goal = get_goal(db, year)
     if goal is None:
         goal = AnnualSavingsGoal(year=year)
         db.add(goal)
-    goal.target_amount_krw = target_amount_krw
-    goal.monthly_target_krw = monthly_target_krw
+    _apply_monthly_targets(goal, monthly_targets)
+    goal.target_amount_krw = sum((mt.target_amount for mt in goal.monthly_targets), Decimal("0"))
     db.commit()
     db.refresh(goal)
     return goal
@@ -55,7 +73,10 @@ def compute_progress(db: Session, goal: AnnualSavingsGoal, today: date) -> dict:
 
     is_current_year = goal.year == today.year
     current_month_savings = breakdown[today.month - 1]["savings"] if is_current_year else Decimal("0")
-    monthly_target = goal.monthly_target_krw or (goal.target_amount_krw / 12 if goal.target_amount_krw else None)
+    current_year_month = f"{today.year}-{today.month:02d}"
+    monthly_target = next(
+        (mt.target_amount for mt in goal.monthly_targets if mt.year_month == current_year_month), None
+    )
     monthly_achievement_pct = (
         current_month_savings / monthly_target * 100 if is_current_year and monthly_target else None
     )
@@ -92,6 +113,9 @@ def to_out(db: Session, goal: AnnualSavingsGoal, today: date) -> dict:
         "year": goal.year,
         "target_amount_krw": goal.target_amount_krw,
         "monthly_target_krw": goal.monthly_target_krw,
+        "monthly_targets": [
+            {"year_month": mt.year_month, "target_amount": mt.target_amount} for mt in goal.monthly_targets
+        ],
         "updated_at": goal.updated_at,
         **compute_progress(db, goal, today),
     }

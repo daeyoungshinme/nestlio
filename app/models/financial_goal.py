@@ -8,13 +8,17 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
 from app.models.goal_funding_source import GoalFundingSource
+from app.models.goal_monthly_target import GoalMonthlyTarget
 
 
 class FinancialGoal(Base):
     """`kind`가 `"goal"`(기본, 장기 재무목표)이면 사실상 모든 필드가 재무목표 용도로 쓰이고,
     `"challenge"`(단기 부부 챌린지, 옛 Challenge 모델 흡수)이면 required_amount/manual_current_amount/
     target_date가 각각 목표금액/진행금액/종료일로 쓰이며 description·start_date·status·
-    completed_at·created_by_id가 추가로 채워진다 (goal_service.py 참고)."""
+    completed_at·created_by_id가 추가로 채워진다. `"irregular"`(기간제 비정기 지출 목표)이면
+    start_date~target_date가 계획 기간이고, required_amount/manual_current_amount는 쓰이지 않는
+    대신 monthly_targets(월별 목표·달성 금액)의 합으로 required_amount/current_amount가 파생된다 —
+    funding_sources·target_age도 미사용 (goal_service.py 참고)."""
 
     __tablename__ = "financial_goals"
 
@@ -43,6 +47,9 @@ class FinancialGoal(Base):
 
     funding_sources: Mapped[list["GoalFundingSource"]] = relationship(
         lazy="joined", order_by="GoalFundingSource.id", cascade="all, delete-orphan"
+    )
+    monthly_targets: Mapped[list["GoalMonthlyTarget"]] = relationship(
+        lazy="joined", order_by="GoalMonthlyTarget.year_month", cascade="all, delete-orphan"
     )
 
     # current_amount/progress_pct는 연동된 계좌 잔액이 거래내역 기반 파생값이라 DB 세션 없이는

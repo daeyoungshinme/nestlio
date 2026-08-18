@@ -42,7 +42,9 @@ def upsert_goal(
     db: Session = Depends(get_db),
     _: User = Depends(get_current_user),
 ):
-    goal = annual_savings_goal_service.upsert_goal(db, year, payload.target_amount_krw, payload.monthly_target_krw)
+    goal = annual_savings_goal_service.upsert_goal(
+        db, year, [mt.model_dump() for mt in payload.monthly_targets]
+    )
     return annual_savings_goal_service.to_out(db, goal, date.today())
 
 

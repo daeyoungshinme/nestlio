@@ -135,6 +135,30 @@ def test_compute_summary_irregular_actual_when_present(seeded_db):
     assert summary["irregular"]["status"] == "critical"
 
 
+def test_suggested_totals_is_trailing_average_by_section(seeded_db):
+    db, user, food = seeded_db["db"], seeded_db["user"], seeded_db["food"]
+    _add_tx(db, user, food, "expense", "200000", date(2026, 4, 20))
+    _add_tx(db, user, food, "expense", "100000", date(2026, 5, 20))
+    _add_tx(db, user, food, "expense", "300000", date(2026, 6, 20))
+
+    suggested = cashflow_plan_service.suggested_totals(db, "2026-07")
+
+    assert suggested["variable"] == Decimal("200000")  # (200000+100000+300000)/3
+
+
+def test_compute_summary_includes_suggested_amount(seeded_db):
+    db, user = seeded_db["db"], seeded_db["user"]
+    cashflow_plan_service.upsert_item(db, None, "income", user.id, "근로/사업소득", Decimal("8000000"), 0, "2026-07", user.id)
+
+    summary = cashflow_plan_service.compute_summary(
+        cashflow_plan_service.list_items(db, "2026-07"),
+        actuals={"income": Decimal("7000000")},
+        suggested={"income": Decimal("7500000")},
+    )
+
+    assert summary["income"]["suggested_amount"] == Decimal("7500000")
+
+
 def test_actuals_for_month_matches_category_type(seeded_db):
     db, user, food, rent, events = (
         seeded_db["db"],

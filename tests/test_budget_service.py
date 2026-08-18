@@ -98,6 +98,31 @@ def test_budget_reflects_updated_recurring_amount_for_linked_item(seeded_db):
     assert budgets[food.id] == Decimal("120000")
 
 
+def test_budget_vs_actual_suggested_amount_is_trailing_average(seeded_db):
+    db, user, food = seeded_db["db"], seeded_db["user"], seeded_db["food"]
+    _add_tx(db, user, food, "150000", date(2026, 4, 5))
+    _add_tx(db, user, food, "100000", date(2026, 5, 5))
+    _add_tx(db, user, food, "200000", date(2026, 6, 5))
+    ym = year_month_str(date(2026, 7, 15))
+    _set_budget(db, food, ym, "100000", user.id)
+
+    rows = budget_service.budget_vs_actual(db, ym)
+    food_row = next(r for r in rows if r["category_id"] == food.id)
+
+    assert food_row["suggested_amount"] == Decimal("150000")  # (150000+100000+200000)/3
+
+
+def test_budget_vs_actual_suggested_amount_is_none_without_history(seeded_db):
+    db, user, food = seeded_db["db"], seeded_db["user"], seeded_db["food"]
+    ym = year_month_str(date(2026, 7, 15))
+    _set_budget(db, food, ym, "50000", user.id)
+
+    rows = budget_service.budget_vs_actual(db, ym)
+    food_row = next(r for r in rows if r["category_id"] == food.id)
+
+    assert food_row["suggested_amount"] is None
+
+
 def test_copy_from_previous_month_skips_existing(seeded_db):
     db, user, food, rent = seeded_db["db"], seeded_db["user"], seeded_db["food"], seeded_db["rent"]
     july = year_month_str(date(2026, 7, 15))

@@ -30,10 +30,10 @@ export default defineConfig({
     },
   },
   server: {
-    port: 5273,
+    port: Number(process.env.VITE_DEV_PORT) || 5273,
     proxy: {
       "/api": {
-        target: "http://127.0.0.1:8899",
+        target: `http://127.0.0.1:${process.env.VITE_BACKEND_PORT || 8899}`,
         changeOrigin: true,
       },
     },

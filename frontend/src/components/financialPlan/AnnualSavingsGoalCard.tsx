@@ -1,8 +1,10 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ChevronDown } from "lucide-react";
+import AnnualPlanMonthlyGrid from "@/components/financialPlan/AnnualPlanMonthlyGrid";
 import Button from "@/components/common/Button";
 import FormInput from "@/components/common/FormInput";
+import { currentYearMonth } from "@/components/common/MonthPicker";
 import ProgressBar from "@/components/common/ProgressBar";
 import {
   fetchAnnualSavingsGoals,
@@ -13,6 +15,7 @@ import { QUERY_KEYS } from "@/constants/queryKeys";
 import { formatKrw, formatKrwPreview, formatPercent, toAmountInputValue } from "@/utils/format";
 import { extractErrorMessage } from "@/utils/error";
 import { toast } from "@/utils/toast";
+import type { AnnualSavingsGoalMonthlyTargetIn } from "@/types";
 
 const currentYear = () => new Date().getFullYear();
 
@@ -22,15 +25,18 @@ const currentYear = () => new Date().getFullYear();
  * 투자계좌 거래내역 기준 달성률을 계산해 자체 화면에 보여준다(app/routers/external.py로 목표값만
  * 읽기전용으로 동기화하며, growlio의 진행률과는 서로 다른 데이터 소스임).
  *
- * FinancialGoalsSection 최상단에 붙는 압축된 요약 스트립으로 쓰인다 — 접혔을 때는 "{연도}년
+ * GoalsTab 최상단에 붙는 압축된 요약 스트립으로 쓰인다 — 접혔을 때는 "{연도}년
  * 저축 페이스 {진행률}%" 한 줄 + 진행바만 보이고, 연도 이동·목표금액 입력 폼·이번 달 진행률·
- * 다른 연도 목록은 전부 펼쳤을 때만 나타난다(목표 미설정 연도는 기본 펼침). "재무목표 합계로
- * 채우기" 버튼으로 아래 재무목표 목록의 월 저축금액 합계를 그대로 연간목표에 반영할 수 있어,
- * 두 목표 개념을 입력 한 번으로 이어준다. */
+ * 다른 연도 목록은 전부 펼쳤을 때만 나타난다(목표 미설정 연도는 기본 펼침). 금액 입력은
+ * AnnualPlanItemForm/AnnualPlanMonthlyGrid와 동일한 패턴 — "연간 총액(균등분배용)" 입력 +
+ * 12개월 그리드로, 총액을 넣고 균등분배하거나 달마다 직접 입력해 합산할 수 있다. "재무목표
+ * 합계로 채우기" 버튼으로 아래 재무목표 목록의 월 저축금액 합계를 연간 총액 입력에 반영할 수
+ * 있어, 두 목표 개념을 입력 한 번으로 이어준다(그리드 반영은 "균등분배로 다시 계산" 버튼을
+ * 한 번 더 눌러야 한다 — 이미 달마다 손으로 조정해둔 값을 조용히 덮어쓰지 않기 위해서). */
 export default function AnnualSavingsGoalCard() {
   const [year, setYear] = useState(currentYear());
-  const [targetDraft, setTargetDraft] = useState<string | null>(null);
-  const [monthlyDraft, setMonthlyDraft] = useState<string | null>(null);
+  const [annualTotalDraft, setAnnualTotalDraft] = useState<string | null>(null);
+  const [monthlyTargetsDraft, setMonthlyTargetsDraft] = useState<AnnualSavingsGoalMonthlyTargetIn[] | null>(null);
   const [editOpenOverride, setEditOpenOverride] = useState<boolean | null>(null);
   const queryClient = useQueryClient();
 
@@ -44,23 +50,26 @@ export default function AnnualSavingsGoalCard() {
     queryFn: fetchSuggestedAnnualSavingsGoal,
   });
 
+  const changeYear = (nextYear: number) => {
+    setYear(nextYear);
+    setAnnualTotalDraft(null);
+    setMonthlyTargetsDraft(null);
+  };
+
   const goalOfYear = goals?.find((g) => g.year === year) ?? null;
   const hasTarget = goalOfYear !== null && Number(goalOfYear.target_amount_krw) > 0;
   const editOpen = editOpenOverride ?? !hasTarget;
-  const targetValue = targetDraft ?? (goalOfYear ? toAmountInputValue(goalOfYear.target_amount_krw) : "");
-  const monthlyValue =
-    monthlyDraft ?? (goalOfYear?.monthly_target_krw ? toAmountInputValue(goalOfYear.monthly_target_krw) : "");
+  const annualTotalValue = annualTotalDraft ?? (hasTarget && goalOfYear ? toAmountInputValue(goalOfYear.target_amount_krw) : "");
+  const monthlyTargets =
+    monthlyTargetsDraft ??
+    (goalOfYear?.monthly_targets.map((t) => ({ year_month: t.year_month, target_amount: t.target_amount })) ?? []);
 
   const saveMutation = useMutation({
-    mutationFn: () =>
-      upsertAnnualSavingsGoal(year, {
-        target_amount_krw: targetValue || "0",
-        monthly_target_krw: monthlyValue || null,
-      }),
+    mutationFn: () => upsertAnnualSavingsGoal(year, { monthly_targets: monthlyTargets }),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.annualSavingsGoals });
-      setTargetDraft(null);
-      setMonthlyDraft(null);
+      setAnnualTotalDraft(null);
+      setMonthlyTargetsDraft(null);
       setEditOpenOverride(false);
       toast(`${year}년 저축목표를 저장했습니다.`, "success");
     },
@@ -68,6 +77,8 @@ export default function AnnualSavingsGoalCard() {
   });
 
   const otherYears = (goals ?? []).filter((g) => g.year !== year).sort((a, b) => b.year - a.year);
+  const thisYearMonth = currentYearMonth();
+  const currentMonthTarget = goalOfYear?.monthly_targets.find((t) => t.year_month === thisYearMonth)?.target_amount;
 
   return (
     <div className="card space-y-2">
@@ -105,13 +116,13 @@ export default function AnnualSavingsGoalCard() {
           <div className="flex items-center justify-between gap-2">
             <span className="text-xs text-gray-500 dark:text-gray-400">연도 선택</span>
             <div className="flex items-center gap-2">
-              <Button size="sm" variant="secondary" onClick={() => setYear((y) => y - 1)}>
+              <Button size="sm" variant="secondary" onClick={() => changeYear(year - 1)}>
                 이전 해
               </Button>
               <span className="text-sm font-semibold text-gray-900 dark:text-gray-50 min-w-14 text-center">
                 {year}년
               </span>
-              <Button size="sm" variant="secondary" onClick={() => setYear((y) => y + 1)}>
+              <Button size="sm" variant="secondary" onClick={() => changeYear(year + 1)}>
                 다음 해
               </Button>
             </div>
@@ -141,29 +152,16 @@ export default function AnnualSavingsGoalCard() {
               부부가 함께 정한 연도별 순저축 목표예요. growlio가 이 값을 읽기전용으로 참고해 투자계좌
               입금 실적 기준 달성률도 함께 보여줘요.
             </p>
-            <div className="grid grid-cols-2 gap-3">
-              <FormInput
-                label="연간 목표금액"
-                type="number"
-                inputMode="decimal"
-                value={targetValue}
-                onChange={(e) => setTargetDraft(e.target.value)}
-                className="w-full"
-                preview={Number(targetValue) > 0 ? formatKrwPreview(Number(targetValue)) : undefined}
-              />
-              <FormInput
-                label="월간 목표금액 (선택)"
-                type="number"
-                inputMode="decimal"
-                value={monthlyValue}
-                onChange={(e) => setMonthlyDraft(e.target.value)}
-                className="w-full"
-                preview={Number(monthlyValue) > 0 ? formatKrwPreview(Number(monthlyValue)) : undefined}
-              />
-            </div>
-            <p className="text-xs text-gray-400 dark:text-gray-500">
-              월간 목표금액을 비워두면 연간 목표금액을 12개월로 균등 배분해요.
-            </p>
+            <FormInput
+              label="연간 총액 (균등분배용)"
+              type="number"
+              inputMode="decimal"
+              value={annualTotalValue}
+              onChange={(e) => setAnnualTotalDraft(e.target.value)}
+              className="w-full"
+              hint="아래 '균등분배로 다시 계산' 버튼을 누르면 이 금액을 12개월에 고르게 나눠 채워요."
+              preview={Number(annualTotalValue) > 0 ? formatKrwPreview(Number(annualTotalValue)) : undefined}
+            />
             {suggestion && Number(suggestion.goal_based_annual_target_krw) > 0 && (
               <div className="flex items-center justify-between gap-2 text-xs text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-800/50 rounded-lg px-3 py-2">
                 <span>
@@ -173,10 +171,7 @@ export default function AnnualSavingsGoalCard() {
                 <Button
                   size="sm"
                   variant="secondary"
-                  onClick={() => {
-                    setTargetDraft(toAmountInputValue(suggestion.goal_based_annual_target_krw));
-                    setMonthlyDraft(toAmountInputValue(suggestion.goal_based_monthly_target_krw));
-                  }}
+                  onClick={() => setAnnualTotalDraft(toAmountInputValue(suggestion.goal_based_annual_target_krw))}
                 >
                   재무목표 합계로 채우기
                 </Button>
@@ -191,15 +186,19 @@ export default function AnnualSavingsGoalCard() {
                 <Button
                   size="sm"
                   variant="secondary"
-                  onClick={() => {
-                    setTargetDraft(toAmountInputValue(suggestion.suggested_annual_target_krw));
-                    setMonthlyDraft(toAmountInputValue(suggestion.suggested_monthly_target_krw));
-                  }}
+                  onClick={() => setAnnualTotalDraft(toAmountInputValue(suggestion.suggested_annual_target_krw))}
                 >
                   채우기
                 </Button>
               </div>
             )}
+            <AnnualPlanMonthlyGrid
+              startMonth={`${year}-01`}
+              endMonth={`${year}-12`}
+              targets={monthlyTargets}
+              onChange={setMonthlyTargetsDraft}
+              distributeAmount={annualTotalValue}
+            />
             <Button size="sm" loading={saveMutation.isPending} onClick={() => saveMutation.mutate()}>
               저장
             </Button>
@@ -214,8 +213,7 @@ export default function AnnualSavingsGoalCard() {
                 </div>
                 <ProgressBar pct={Number(goalOfYear.monthly_achievement_pct)} barClassName="bg-blue-500" />
                 <p className="text-xs text-gray-400 dark:text-gray-500">
-                  {formatKrw(goalOfYear.current_month_savings)} /{" "}
-                  {formatKrw(goalOfYear.monthly_target_krw ?? String(Number(goalOfYear.target_amount_krw) / 12))}
+                  {formatKrw(goalOfYear.current_month_savings)} / {formatKrw(currentMonthTarget ?? "0")}
                 </p>
               </div>
             )}
@@ -225,7 +223,7 @@ export default function AnnualSavingsGoalCard() {
                   <button
                     key={g.year}
                     type="button"
-                    onClick={() => setYear(g.year)}
+                    onClick={() => changeYear(g.year)}
                     className="w-full flex items-center justify-between text-xs text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100"
                   >
                     <span>{g.year}년</span>

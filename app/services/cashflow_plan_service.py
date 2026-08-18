@@ -192,32 +192,53 @@ def actuals_for_month(db: Session, year_month: str) -> dict[str, Decimal]:
     }
 
 
+def suggested_totals(db: Session, year_month: str) -> dict[str, Decimal]:
+    """직전 3개월 실적 평균 — 부진한 섹션에 다음 달 계획 제안값으로 쓰인다."""
+    month_start = parse_year_month(year_month)
+    return transaction_report_service.trailing_average_by_section(db, month_start, months=3)
+
+
 def _status(section: str, pct: float) -> str:
     """fixed/variable: 실적이 계획을 초과할수록 위험. income은 방향이 반대(실적이 계획에 못 미칠수록 위험)이므로
     미달분(100-pct)을 같은 임계값과 비교한다 (예: pct<=100-90=10일 때 warn, pct<=100-100=0일 때 critical)."""
     return status_from_pct(pct, settings.budget_warn_pct, settings.budget_critical_pct, invert=(section == "income"))
 
 
-def _section_summary(section: str, planned: Decimal, actual: Decimal | None) -> dict:
+def _section_summary(
+    section: str, planned: Decimal, actual: Decimal | None, suggested_amount: Decimal | None = None
+) -> dict:
     if actual is None:
-        return {"planned": planned, "actual": None, "pct": None, "status": None}
+        return {"planned": planned, "actual": None, "pct": None, "status": None, "suggested_amount": None}
     pct = pct_of(actual, planned)
-    return {"planned": planned, "actual": actual, "pct": pct, "status": _status(section, pct)}
+    return {
+        "planned": planned,
+        "actual": actual,
+        "pct": pct,
+        "status": _status(section, pct),
+        "suggested_amount": suggested_amount,
+    }
 
 
-def compute_summary(items: list[CashflowPlanItem], actuals: dict[str, Decimal] | None = None) -> dict:
+def compute_summary(
+    items: list[CashflowPlanItem],
+    actuals: dict[str, Decimal] | None = None,
+    suggested: dict[str, Decimal] | None = None,
+) -> dict:
     income_total = sum((item.amount for item in items if item.section == "income"), Decimal("0"))
     fixed_total = sum((item.amount for item in items if item.section == "fixed"), Decimal("0"))
     variable_total = sum((item.amount for item in items if item.section == "variable"), Decimal("0"))
     irregular_total = sum((item.amount for item in items if item.section == "irregular"), Decimal("0"))
     expense_total = fixed_total + variable_total + irregular_total
     actuals = actuals or {}
+    suggested = suggested or {}
 
     return {
-        "income": _section_summary("income", income_total, actuals.get("income")),
-        "fixed": _section_summary("fixed", fixed_total, actuals.get("fixed")),
-        "variable": _section_summary("variable", variable_total, actuals.get("variable")),
-        "irregular": _section_summary("irregular", irregular_total, actuals.get("irregular")),
+        "income": _section_summary("income", income_total, actuals.get("income"), suggested.get("income")),
+        "fixed": _section_summary("fixed", fixed_total, actuals.get("fixed"), suggested.get("fixed")),
+        "variable": _section_summary("variable", variable_total, actuals.get("variable"), suggested.get("variable")),
+        "irregular": _section_summary(
+            "irregular", irregular_total, actuals.get("irregular"), suggested.get("irregular")
+        ),
         "expense_total": expense_total,
         "available": income_total - expense_total,
     }

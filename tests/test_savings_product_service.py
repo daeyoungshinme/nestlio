@@ -6,7 +6,7 @@ from unittest.mock import patch
 import pytest
 
 from app.models.category import Category
-from app.services import savings_product_service, transaction_service
+from app.services import goal_service, savings_product_service, transaction_service
 from app.services.growlio_client import GrowlioNotConfiguredError
 
 _OWNER_ID = uuid.uuid4()
@@ -41,6 +41,27 @@ def test_create_and_update_product_owner_user_id(db_session):
     )
 
     assert updated.owner_user_id is None
+
+
+def test_update_product_ignores_monthly_amount_when_linked_to_goal(db_session):
+    """목표에 연동된 상품은 월 계획액이 목표 저장을 통해서만 바뀐다 (app/services/goal_service.py::
+    _sync_funding_product_monthly_amount) — update_product에 다른 값을 보내도 무시된다."""
+    product = savings_product_service.create_product(db_session, "적금", Decimal("0"), Decimal("50000"))
+    goal_service.create_goal(
+        db_session,
+        1,
+        "여행자금",
+        None,
+        Decimal("5000000"),
+        Decimal("200000"),
+        funding_sources=[{"type": "savings_product", "id": product.id}],
+    )
+
+    updated = savings_product_service.update_product(
+        db_session, product.id, "적금", Decimal("0"), Decimal("999999"), "savings"
+    )
+
+    assert updated.monthly_saving_amount == Decimal("200000")
 
 
 def test_create_product_with_explicit_investment_type(db_session):
@@ -462,6 +483,40 @@ def test_compute_plan_summary_matches_planned_and_actual_per_product(seeded_db):
     assert summary["savings"]["actual"] == Decimal("50000")
 
 
+def test_trailing_average_actuals_averages_months_before_anchor(seeded_db):
+    db, user = seeded_db["db"], seeded_db["user"]
+    savings_category = _add_savings_category(db)
+    product = savings_product_service.create_product(db, "적금", Decimal("0"), Decimal("100000"))
+    transaction_service.create_transaction(
+        db, user.id, savings_category.id, "expense", Decimal("40000"), date(2026, 5, 10), savings_product_id=product.id
+    )
+    transaction_service.create_transaction(
+        db, user.id, savings_category.id, "expense", Decimal("60000"), date(2026, 6, 10), savings_product_id=product.id
+    )
+    # anchor 월(7월) 거래는 평균 계산에서 제외돼야 한다
+    transaction_service.create_transaction(
+        db, user.id, savings_category.id, "expense", Decimal("999999"), date(2026, 7, 1), savings_product_id=product.id
+    )
+
+    avg = savings_product_service.trailing_average_actuals(db, "2026-07", months=2)
+
+    assert avg[product.id] == Decimal("50000")  # (40000+60000)/2
+
+
+def test_compute_plan_summary_includes_suggested_monthly_saving_amount(seeded_db):
+    db, user = seeded_db["db"], seeded_db["user"]
+    savings_category = _add_savings_category(db)
+    product = savings_product_service.create_product(db, "적금", Decimal("0"), Decimal("100000"))
+    transaction_service.create_transaction(
+        db, user.id, savings_category.id, "expense", Decimal("80000"), date(2026, 6, 10), savings_product_id=product.id
+    )
+
+    summary = savings_product_service.compute_plan_summary(db, "2026-07")
+
+    item = next(i for i in summary["items"] if i["id"] == product.id)
+    assert item["suggested_monthly_saving_amount"] == Decimal("80000") / 3
+
+
 def test_compute_plan_summary_excludes_real_estate_products(seeded_db):
     db = seeded_db["db"]
     savings_product_service.create_product(
@@ -574,6 +629,117 @@ def test_compute_annual_plan_summary_excludes_real_estate_products(seeded_db):
     assert summary["items"] == []
     assert summary["savings"]["pct"] is None
     assert summary["investment"]["pct"] is None
+
+
+def test_get_annual_plan_defaults_to_monthly_saving_amount_when_unset(db_session):
+    product = savings_product_service.create_product(db_session, "적금", Decimal("0"), Decimal("100000"))
+
+    plan = savings_product_service.get_annual_plan(db_session, product.id, 2026)
+
+    assert plan["start_month"] == "2026-01"
+    assert plan["end_month"] == "2026-12"
+    assert [t["target_amount"] for t in plan["monthly_targets"]] == [Decimal("100000")] * 12
+
+
+def test_get_annual_plan_returns_none_for_missing_product(db_session):
+    assert savings_product_service.get_annual_plan(db_session, 999, 2026) is None
+
+
+def test_upsert_annual_plan_creates_and_reflects_in_get(db_session):
+    product = savings_product_service.create_product(db_session, "적금", Decimal("0"), Decimal("100000"))
+
+    savings_product_service.upsert_annual_plan(
+        db_session,
+        product.id,
+        2026,
+        "2026-06",
+        "2026-12",
+        [{"year_month": f"2026-{m:02d}", "target_amount": Decimal("200000")} for m in range(6, 13)],
+    )
+
+    plan = savings_product_service.get_annual_plan(db_session, product.id, 2026)
+    assert plan["start_month"] == "2026-06"
+    assert plan["end_month"] == "2026-12"
+    assert len(plan["monthly_targets"]) == 7
+    assert all(t["target_amount"] == Decimal("200000") for t in plan["monthly_targets"])
+
+
+def test_upsert_annual_plan_replaces_months_dropped_from_period(db_session):
+    """적용 기간을 좁혀 다시 저장하면 빠진 달의 행은 delete-orphan으로 삭제된다."""
+    product = savings_product_service.create_product(db_session, "적금", Decimal("0"), Decimal("0"))
+    savings_product_service.upsert_annual_plan(
+        db_session,
+        product.id,
+        2026,
+        "2026-01",
+        "2026-12",
+        [{"year_month": f"2026-{m:02d}", "target_amount": Decimal("50000")} for m in range(1, 13)],
+    )
+
+    savings_product_service.upsert_annual_plan(
+        db_session,
+        product.id,
+        2026,
+        "2026-01",
+        "2026-03",
+        [{"year_month": f"2026-{m:02d}", "target_amount": Decimal("50000")} for m in range(1, 4)],
+    )
+
+    plan = savings_product_service.get_annual_plan(db_session, product.id, 2026)
+    assert [t["year_month"] for t in plan["monthly_targets"]] == ["2026-01", "2026-02", "2026-03"]
+
+
+def test_upsert_annual_plan_returns_none_for_missing_product(db_session):
+    assert savings_product_service.upsert_annual_plan(db_session, 999, 2026, "2026-01", "2026-12", []) is None
+
+
+def test_compute_plan_summary_uses_grid_target_when_configured(seeded_db):
+    """그리드에 그 달 목표가 설정된 상품은 monthly_saving_amount가 아니라 그리드 값을 계획액으로
+    쓴다 — 폴백은 그리드가 없을 때만 적용된다."""
+    db, user = seeded_db["db"], seeded_db["user"]
+    savings_category = _add_savings_category(db)
+    product = savings_product_service.create_product(db, "적금", Decimal("0"), Decimal("100000"))
+    savings_product_service.upsert_annual_plan(
+        db, product.id, 2026, "2026-01", "2026-12", [{"year_month": "2026-07", "target_amount": Decimal("300000")}]
+    )
+    transaction_service.create_transaction(
+        db, user.id, savings_category.id, "expense", Decimal("50000"), date(2026, 7, 1), savings_product_id=product.id
+    )
+
+    summary = savings_product_service.compute_plan_summary(db, "2026-07")
+
+    item = next(i for i in summary["items"] if i["id"] == product.id)
+    assert item["planned"] == Decimal("300000")
+
+
+def test_compute_plan_summary_falls_back_to_monthly_saving_amount_for_unconfigured_month(seeded_db):
+    db = seeded_db["db"]
+    product = savings_product_service.create_product(db, "적금", Decimal("0"), Decimal("100000"))
+    savings_product_service.upsert_annual_plan(
+        db, product.id, 2026, "2026-01", "2026-12", [{"year_month": "2026-07", "target_amount": Decimal("300000")}]
+    )
+
+    summary = savings_product_service.compute_plan_summary(db, "2026-08")
+
+    item = next(i for i in summary["items"] if i["id"] == product.id)
+    assert item["planned"] == Decimal("100000")
+
+
+def test_compute_annual_plan_summary_uses_grid_targets_and_falls_back_per_month(seeded_db):
+    db = seeded_db["db"]
+    product = savings_product_service.create_product(db, "적금", Decimal("0"), Decimal("100000"))
+    # 1월만 그리드로 다르게 지정, 나머지 달은 monthly_saving_amount로 폴백
+    savings_product_service.upsert_annual_plan(
+        db, product.id, 2026, "2026-01", "2026-01", [{"year_month": "2026-01", "target_amount": Decimal("500000")}]
+    )
+
+    summary = savings_product_service.compute_annual_plan_summary(db, 2026, as_of=date(2026, 3, 15))
+
+    item = next(i for i in summary["items"] if i["id"] == product.id)
+    # target_to_date(경과 3개월) = 1월 500000(그리드) + 2월 100000 + 3월 100000(폴백)
+    assert item["target_to_date"] == Decimal("700000")
+    # annual_target(12개월) = 500000 + 100000*11
+    assert item["annual_target"] == Decimal("1600000")
 
 
 def test_import_from_growlio_propagates_not_configured_error(db_session):

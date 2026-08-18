@@ -1,5 +1,6 @@
 import { Link } from "react-router-dom";
 import { Layers, Plus, Tag } from "lucide-react";
+import Button from "@/components/common/Button";
 import CashflowPlanItemRow from "@/components/financialPlan/CashflowPlanItemRow";
 import SectionAchievementBar from "@/components/financialPlan/SectionAchievementBar";
 import CategoryBudgetProgress from "@/components/financialPlan/CategoryBudgetProgress";
@@ -13,12 +14,17 @@ interface Props {
   sectionSummary: CashflowPlanSectionSummaryOut;
   users: UserOut[] | undefined;
   budgetRowByCategory: Map<number, BudgetRowOut>;
+  nextYearMonthLabel?: string;
   onAddItem: () => void;
   onSplit: () => void;
   onEditItem: (item: CashflowPlanItemOut) => void;
   onDeleteItem: (item: CashflowPlanItemOut) => void;
   onLinkRecurring: (item: CashflowPlanItemOut) => void;
   onQuickAdd: (item: CashflowPlanItemOut) => void;
+  onApplyCategorySuggestion?: (row: BudgetRowOut) => void;
+  applyingCategoryId?: number | null;
+  onApplyIncomeSuggestion?: (item: CashflowPlanItemOut, suggestedAmount: string) => void;
+  applyingIncomeSuggestion?: boolean;
 }
 
 export default function CashflowPlanSectionPanel({
@@ -28,19 +34,46 @@ export default function CashflowPlanSectionPanel({
   sectionSummary,
   users,
   budgetRowByCategory,
+  nextYearMonthLabel,
   onAddItem,
   onSplit,
   onEditItem,
   onDeleteItem,
   onLinkRecurring,
   onQuickAdd,
+  onApplyCategorySuggestion,
+  applyingCategoryId,
+  onApplyIncomeSuggestion,
+  applyingIncomeSuggestion,
 }: Props) {
+  const showIncomeSuggestion =
+    sectionKey === "income" &&
+    sectionSummary.status !== null &&
+    sectionSummary.status !== "ok" &&
+    sectionSummary.suggested_amount !== null &&
+    items.length === 1;
   const categoryBudgetRows =
     sectionKey === "income"
       ? []
       : Array.from(budgetRowByCategory.values()).filter(
           (row) => row.type === sectionKey && Number(row.budget) > 0,
         );
+
+  const ownerTotals = new Map<string, number>();
+  for (const item of items) {
+    const key = item.owner_user_id ?? "";
+    ownerTotals.set(key, (ownerTotals.get(key) ?? 0) + Number(item.amount));
+  }
+  const hasOwnerSplit = Array.from(ownerTotals.keys()).some((key) => key !== "");
+  const ownerSubtotalParts: string[] = [];
+  if (hasOwnerSplit) {
+    for (const u of users ?? []) {
+      const amount = ownerTotals.get(u.id) ?? 0;
+      if (amount > 0) ownerSubtotalParts.push(`${u.display_name} ${formatKrw(amount)}`);
+    }
+    const commonAmount = ownerTotals.get("") ?? 0;
+    if (commonAmount > 0) ownerSubtotalParts.push(`공통 ${formatKrw(commonAmount)}`);
+  }
 
   return (
     <div className="card">
@@ -79,7 +112,29 @@ export default function CashflowPlanSectionPanel({
           </button>
         </div>
       </div>
+      {ownerSubtotalParts.length > 0 && (
+        <p className="text-xs text-gray-400 dark:text-gray-500 mb-2">{ownerSubtotalParts.join(" · ")}</p>
+      )}
       <SectionAchievementBar label={label} summary={sectionSummary} />
+      {showIncomeSuggestion && (
+        <div className="mb-2 flex items-center justify-between gap-2 rounded-lg bg-amber-50 dark:bg-amber-950 px-2 py-1.5">
+          <p className="text-xs text-amber-700 dark:text-amber-300">
+            최근 3개월 평균 수입은 {formatKrw(sectionSummary.suggested_amount!)}이에요.
+            {nextYearMonthLabel ? ` ${nextYearMonthLabel} 계획에 반영해볼까요?` : ""}
+          </p>
+          {onApplyIncomeSuggestion && (
+            <Button
+              variant="secondary"
+              size="sm"
+              className="shrink-0 !min-h-0 !py-1 !px-2 text-xs"
+              loading={applyingIncomeSuggestion}
+              onClick={() => onApplyIncomeSuggestion(items[0], sectionSummary.suggested_amount!)}
+            >
+              다음 달에 반영
+            </Button>
+          )}
+        </div>
+      )}
       <div>
         {items.map((item) => (
           <CashflowPlanItemRow
@@ -105,7 +160,13 @@ export default function CashflowPlanSectionPanel({
           </p>
           <div className="divide-y divide-gray-50 dark:divide-gray-800/60">
             {categoryBudgetRows.map((row) => (
-              <CategoryBudgetProgress key={row.category_id} row={row} />
+              <CategoryBudgetProgress
+                key={row.category_id}
+                row={row}
+                nextYearMonthLabel={nextYearMonthLabel}
+                onApplySuggestion={onApplyCategorySuggestion}
+                applyingCategoryId={applyingCategoryId}
+              />
             ))}
           </div>
         </div>

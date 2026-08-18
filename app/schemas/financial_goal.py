@@ -6,7 +6,7 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict
 
 FundingSourceType = Literal["savings_product", "account", "loan"]
-GoalKind = Literal["goal", "challenge"]
+GoalKind = Literal["goal", "challenge", "irregular"]
 
 
 class FundingSourceIn(BaseModel):
@@ -19,6 +19,29 @@ class FundingSourceOut(BaseModel):
     id: int
     name: str
     amount: Decimal
+
+
+class GoalMonthlyTargetIn(BaseModel):
+    year_month: str
+    target_amount: Decimal
+
+
+class GoalMonthlyTargetOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    year_month: str
+    target_amount: Decimal
+    achieved_amount: Decimal
+    is_achieved: bool
+    # True면 achieved_amount가 연동된 저축상품/계좌의 거래내역에서 매번 다시 계산된 값이라
+    # 수정할 수 없다(goal_service.compute_linked_monthly_achieved 참고) — kind="goal"이면서
+    # funding_sources가 있는 목표만 해당. False면 사용자가 PATCH .../monthly-targets/{year_month}로
+    # 직접 입력한 값 그대로다.
+    is_auto_computed: bool = False
+
+
+class GoalMonthlyTargetAchievedIn(BaseModel):
+    achieved_amount: Decimal
 
 
 class FinancialGoalOut(BaseModel):
@@ -52,6 +75,8 @@ class FinancialGoalOut(BaseModel):
     effective_status: Literal["active", "succeeded", "expired"] | None = None
     created_by_id: uuid.UUID | None = None
     completed_at: datetime | None = None
+    # kind="irregular"(기간제 비정기 지출 목표)일 때만 채워진다. start_date는 위 챌린지 필드와 공용.
+    monthly_targets: list[GoalMonthlyTargetOut] = []
 
 
 class FinancialGoalCreateIn(BaseModel):
@@ -66,6 +91,7 @@ class FinancialGoalCreateIn(BaseModel):
     current_amount: Decimal = Decimal("0")
     funding_sources: list[FundingSourceIn] = []
     start_date: date | None = None
+    monthly_targets: list[GoalMonthlyTargetIn] | None = None
 
 
 class FinancialGoalUpdateIn(BaseModel):
@@ -79,6 +105,7 @@ class FinancialGoalUpdateIn(BaseModel):
     current_amount: Decimal = Decimal("0")
     funding_sources: list[FundingSourceIn] = []
     start_date: date | None = None
+    monthly_targets: list[GoalMonthlyTargetIn] | None = None
 
 
 class GrowlioGoalSettingsOut(BaseModel):

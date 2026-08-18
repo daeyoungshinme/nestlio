@@ -25,6 +25,9 @@ class SavingsProductOut(BaseModel):
     auto_sync_enabled: bool = False
     last_synced_at: datetime | None = None
     owner_user_id: uuid.UUID | None = None
+    linked_goal_id: int | None = None
+    linked_goal_name: str | None = None
+    monthly_saving_amount_synced: bool = False
 
 
 class SavingsProductCreateIn(BaseModel):
@@ -53,6 +56,7 @@ class SavingsProductPlanItemOut(BaseModel):
     actual: Decimal
     pct: float
     status: Literal["ok", "warn", "critical"]
+    suggested_monthly_saving_amount: Decimal | None = None
 
 
 class SavingsProductPlanGroupOut(BaseModel):
@@ -94,6 +98,31 @@ class SavingsProductAnnualPlanListOut(BaseModel):
     items: list[SavingsProductAnnualPlanItemOut]
     savings: SavingsProductAnnualPlanGroupOut
     investment: SavingsProductAnnualPlanGroupOut
+
+
+class SavingsProductAnnualPlanMonthlyTargetOut(BaseModel):
+    year_month: str
+    target_amount: Decimal
+
+
+class SavingsProductAnnualPlanMonthlyTargetIn(BaseModel):
+    year_month: str
+    target_amount: Decimal
+
+
+class SavingsProductAnnualPlanDetailOut(BaseModel):
+    product_id: int
+    year: int
+    start_month: str
+    end_month: str
+    monthly_targets: list[SavingsProductAnnualPlanMonthlyTargetOut]
+
+
+class SavingsProductAnnualPlanUpsertIn(BaseModel):
+    year: int
+    start_month: str
+    end_month: str
+    monthly_targets: list[SavingsProductAnnualPlanMonthlyTargetIn]
 
 
 class SavingsProductGrowlioLinkIn(BaseModel):

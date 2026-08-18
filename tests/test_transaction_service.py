@@ -428,6 +428,28 @@ def test_trailing_average_savings_is_zero_with_no_transactions(seeded_db):
     assert avg == Decimal("0")
 
 
+def test_trailing_average_by_section_averages_months_before_anchor(seeded_db):
+    db, user, salary, food, rent = (
+        seeded_db["db"],
+        seeded_db["user"],
+        seeded_db["salary"],
+        seeded_db["food"],
+        seeded_db["rent"],
+    )
+    transaction_service.create_transaction(db, user.id, salary.id, "income", Decimal("3000000"), date(2026, 5, 15))
+    transaction_service.create_transaction(db, user.id, food.id, "expense", Decimal("100000"), date(2026, 5, 20))
+    transaction_service.create_transaction(db, user.id, rent.id, "expense", Decimal("800000"), date(2026, 6, 1))
+    # anchor 월(7월) 거래는 평균 계산에서 제외돼야 한다
+    transaction_service.create_transaction(db, user.id, salary.id, "income", Decimal("9000000"), date(2026, 7, 1))
+
+    avg = transaction_report_service.trailing_average_by_section(db, anchor=date(2026, 7, 15), months=2)
+
+    assert avg["income"] == Decimal("1500000")  # (3M + 0) / 2
+    assert avg["variable"] == Decimal("50000")  # (100000 + 0) / 2
+    assert avg["fixed"] == Decimal("400000")  # (0 + 800000) / 2
+    assert avg["irregular"] == Decimal("0")
+
+
 def test_create_transaction_pushes_deposit_to_linked_growlio_account(seeded_db):
     db, user = seeded_db["db"], seeded_db["user"]
     savings_category, product = _add_savings_category_and_product(db, growlio_account_id="growlio-acct-1")

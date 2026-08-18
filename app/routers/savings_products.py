@@ -8,7 +8,9 @@ from app.dependencies import get_bearer_token, get_current_user
 from app.models.user import User
 from app.schemas.savings_product import (
     GrowlioAccountOut,
+    SavingsProductAnnualPlanDetailOut,
     SavingsProductAnnualPlanListOut,
+    SavingsProductAnnualPlanUpsertIn,
     SavingsProductCreateIn,
     SavingsProductGrowlioImportIn,
     SavingsProductGrowlioLinkIn,
@@ -40,6 +42,36 @@ def get_plan_summary(
 def get_annual_plan_summary(year: int | None = None, db: Session = Depends(get_db), _: User = Depends(get_current_user)):
     today = date.today()
     return savings_product_service.compute_annual_plan_summary(db, year or today.year, as_of=today)
+
+
+@router.get("/{product_id}/annual-plan/{year}", response_model=SavingsProductAnnualPlanDetailOut)
+def get_product_annual_plan(
+    product_id: int, year: int, db: Session = Depends(get_db), _: User = Depends(get_current_user)
+):
+    plan = savings_product_service.get_annual_plan(db, product_id, year)
+    if plan is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "저축/투자 상품을 찾을 수 없습니다.")
+    return plan
+
+
+@router.put("/{product_id}/annual-plan", response_model=SavingsProductAnnualPlanDetailOut)
+def upsert_product_annual_plan(
+    product_id: int,
+    payload: SavingsProductAnnualPlanUpsertIn,
+    db: Session = Depends(get_db),
+    _: User = Depends(get_current_user),
+):
+    plan = savings_product_service.upsert_annual_plan(
+        db,
+        product_id,
+        payload.year,
+        payload.start_month,
+        payload.end_month,
+        [t.model_dump() for t in payload.monthly_targets],
+    )
+    if plan is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "저축/투자 상품을 찾을 수 없습니다.")
+    return savings_product_service.get_annual_plan(db, product_id, payload.year)
 
 
 @router.get("/growlio-accounts", response_model=list[GrowlioAccountOut])

@@ -64,6 +64,17 @@ export function planStatusTextClass(status: PlanStatus): string {
   return PLAN_STATUS_TEXT[status];
 }
 
+const PLAN_STATUS_PRIORITY: Record<PlanStatus, number> = { ok: 0, warn: 1, critical: 2 };
+
+/** 두 PlanStatus 중 더 심각한 쪽을 고른다 — 저축/투자처럼 두 그룹의 상태를 하나로 합쳐 보여줄 때
+ * 쓴다(GoalPurposeSummary가 이번 달/연간 뷰 양쪽에서 공유). null은 "아직 계산 불가"로 취급해
+ * 상대편 값을 그대로 반환한다. */
+export function worseStatus(a: PlanStatus | null, b: PlanStatus | null): PlanStatus | null {
+  if (a === null) return b;
+  if (b === null) return a;
+  return PLAN_STATUS_PRIORITY[a] >= PLAN_STATUS_PRIORITY[b] ? a : b;
+}
+
 export type SavingsProductType = "savings" | "investment" | "real_estate" | "emergency_fund";
 
 const SAVINGS_PRODUCT_TYPE_BADGE_STYLE: Record<SavingsProductType, string> = {

@@ -19,6 +19,12 @@ class GoalFundingSource(Base):
         UniqueConstraint("goal_id", "savings_product_id", name="uq_goal_funding_source"),
         UniqueConstraint("goal_id", "account_id", name="uq_goal_funding_source_account"),
         UniqueConstraint("goal_id", "loan_id", name="uq_goal_funding_source_loan"),
+        # 한 상품이 서로 다른 두 목표에 동시에 연동되면 잔액이 두 목표에 중복 집계되므로 막는다 —
+        # 목표 1개가 상품 여러 개를 연동하는 것(부부가 각자 다른 상품으로 모으는 경우)은 계속
+        # 허용하되, 그 경우 월 계획액 자동 동기화는 적용하지 않는다(app/services/goal_service.py::
+        # _sync_funding_product_monthly_amount). NULL(계좌/대출 타입 행)은 이 제약에서 서로
+        # 충돌하지 않는다(표준 UNIQUE는 NULL을 각각 별개 값으로 취급).
+        UniqueConstraint("savings_product_id", name="uq_goal_funding_source_savings_product_unique"),
         CheckConstraint(
             "(CASE WHEN savings_product_id IS NOT NULL THEN 1 ELSE 0 END + "
             "CASE WHEN account_id IS NOT NULL THEN 1 ELSE 0 END + "
@@ -38,3 +44,4 @@ class GoalFundingSource(Base):
     savings_product: Mapped["SavingsProduct"] = relationship(lazy="joined")
     account: Mapped["Account"] = relationship(lazy="joined")
     loan: Mapped["Loan"] = relationship(lazy="joined")
+    goal: Mapped["FinancialGoal"] = relationship(lazy="joined", viewonly=True)

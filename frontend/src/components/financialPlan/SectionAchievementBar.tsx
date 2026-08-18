@@ -1,11 +1,20 @@
 import ProgressBar from "@/components/common/ProgressBar";
 import { formatKrw, formatPercent } from "@/utils/format";
 import { planStatusBarClass, planStatusTextClass } from "@/utils/colors";
-import type { CashflowPlanSectionSummaryOut, SavingsProductAnnualPlanGroupOut, SavingsProductPlanGroupOut } from "@/types";
+import type {
+  AnnualPlanSectionSummaryOut,
+  CashflowPlanSectionSummaryOut,
+  SavingsProductAnnualPlanGroupOut,
+  SavingsProductPlanGroupOut,
+} from "@/types";
 
 interface Props {
   label: string;
-  summary: CashflowPlanSectionSummaryOut | SavingsProductPlanGroupOut | SavingsProductAnnualPlanGroupOut;
+  summary:
+    | CashflowPlanSectionSummaryOut
+    | SavingsProductPlanGroupOut
+    | SavingsProductAnnualPlanGroupOut
+    | AnnualPlanSectionSummaryOut;
 }
 
 export default function SectionAchievementBar({ label, summary }: Props) {

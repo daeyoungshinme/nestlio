@@ -13,6 +13,7 @@ class BudgetRowOut(BaseModel):
     actual: Decimal
     pct: float
     status: Literal["ok", "warn", "critical"]
+    suggested_amount: Decimal | None = None
 
 
 class BudgetListOut(BaseModel):

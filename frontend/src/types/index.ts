@@ -444,6 +444,7 @@ export interface CashflowPlanSectionSummaryOut {
   actual: string | null;
   pct: number | null;
   status: "ok" | "warn" | "critical" | null;
+  suggested_amount: string | null;
 }
 
 export interface CashflowPlanSummaryOut {
@@ -480,6 +481,7 @@ export interface BudgetRowOut {
   actual: string;
   pct: number;
   status: "ok" | "warn" | "critical";
+  suggested_amount: string | null;
 }
 
 export interface BudgetListOut {
@@ -519,7 +521,20 @@ export interface FundingSourceIn {
   id: number;
 }
 
-export type GoalKind = "goal" | "challenge";
+export type GoalKind = "goal" | "challenge" | "irregular";
+
+export interface GoalMonthlyTargetOut {
+  year_month: string;
+  target_amount: string;
+  achieved_amount: string;
+  is_achieved: boolean;
+  is_auto_computed: boolean;
+}
+
+export interface GoalMonthlyTargetIn {
+  year_month: string;
+  target_amount: string;
+}
 
 export interface FinancialGoalOut {
   id: number;
@@ -545,6 +560,8 @@ export interface FinancialGoalOut {
   effective_status: "active" | "succeeded" | "expired" | null;
   created_by_id: string | null;
   completed_at: string | null;
+  // kind==="irregular"(기간제 비정기 지출 목표)일 때만 채워진다. start_date는 위 챌린지 필드와 공용.
+  monthly_targets: GoalMonthlyTargetOut[];
 }
 
 export interface FinancialGoalCreateIn {
@@ -559,6 +576,7 @@ export interface FinancialGoalCreateIn {
   current_amount?: string;
   funding_sources?: FundingSourceIn[];
   start_date?: string | null;
+  monthly_targets?: GoalMonthlyTargetIn[] | null;
 }
 
 export type FinancialGoalUpdateIn = Omit<FinancialGoalCreateIn, "kind">;
@@ -573,10 +591,21 @@ export interface GrowlioGoalSettingsOut {
   annual_dividend_goal: number | null;
 }
 
+export interface AnnualSavingsGoalMonthlyTargetOut {
+  year_month: string;
+  target_amount: string;
+}
+
+export interface AnnualSavingsGoalMonthlyTargetIn {
+  year_month: string;
+  target_amount: string;
+}
+
 export interface AnnualSavingsGoalOut {
   year: number;
   target_amount_krw: string;
   monthly_target_krw: string | null;
+  monthly_targets: AnnualSavingsGoalMonthlyTargetOut[];
   updated_at: string;
   net_savings_ytd: string;
   annual_achievement_pct: string;
@@ -585,8 +614,7 @@ export interface AnnualSavingsGoalOut {
 }
 
 export interface AnnualSavingsGoalUpsertIn {
-  target_amount_krw: string;
-  monthly_target_krw?: string | null;
+  monthly_targets: AnnualSavingsGoalMonthlyTargetIn[];
 }
 
 export interface AnnualSavingsGoalSuggestionOut {
@@ -594,6 +622,91 @@ export interface AnnualSavingsGoalSuggestionOut {
   suggested_annual_target_krw: string;
   goal_based_monthly_target_krw: string;
   goal_based_annual_target_krw: string;
+}
+
+export interface AnnualPlanItemMonthlyTargetOut {
+  year_month: string;
+  target_amount: string;
+}
+
+export interface AnnualPlanItemMonthlyTargetIn {
+  year_month: string;
+  target_amount: string;
+}
+
+export interface AnnualPlanItemOut {
+  id: number;
+  year: number;
+  section: CashflowSection;
+  owner_user_id: string | null;
+  name: string;
+  category_id: number | null;
+  category_name: string | null;
+  category_color: string | null;
+  sort_order: number;
+  updated_at: string;
+  start_month: string;
+  end_month: string;
+  annual_target: string;
+  monthly_targets: AnnualPlanItemMonthlyTargetOut[];
+}
+
+export interface AnnualPlanItemUpsertIn {
+  id: number | null;
+  year: number;
+  section: CashflowSection;
+  owner_user_id: string | null;
+  name: string;
+  category_id: number | null;
+  sort_order: number;
+  start_month: string;
+  end_month: string;
+  monthly_targets: AnnualPlanItemMonthlyTargetIn[];
+}
+
+export interface AnnualPlanSectionMonthOut {
+  year_month: string;
+  target_amount: string;
+  actual: string | null;
+  pct: number | null;
+  status: "ok" | "warn" | "critical" | null;
+}
+
+export interface AnnualPlanSectionSummaryOut {
+  section: CashflowSection;
+  elapsed_months: number;
+  annual_target: string;
+  target_to_date: string;
+  actual: string;
+  pct: number | null;
+  status: "ok" | "warn" | "critical" | null;
+  monthly: AnnualPlanSectionMonthOut[];
+}
+
+export interface AnnualPlanSummaryOut {
+  income: AnnualPlanSectionSummaryOut;
+  fixed: AnnualPlanSectionSummaryOut;
+  variable: AnnualPlanSectionSummaryOut;
+  irregular: AnnualPlanSectionSummaryOut;
+  expense_total: string;
+  available: string;
+}
+
+export interface AnnualPlanListOut {
+  year: number;
+  items: AnnualPlanItemOut[];
+  summary: AnnualPlanSummaryOut;
+}
+
+export interface AnnualCategoryBudgetRowOut {
+  category_id: number;
+  name: string;
+  type: "fixed" | "variable" | "irregular";
+  color: string;
+  budget: string;
+  actual: string;
+  pct: number;
+  status: "ok" | "warn" | "critical";
 }
 
 export type SavingsProductType = "savings" | "investment" | "real_estate" | "emergency_fund";
@@ -613,6 +726,9 @@ export interface SavingsProductOut {
   auto_sync_enabled: boolean;
   last_synced_at: string | null;
   owner_user_id: string | null;
+  linked_goal_id: number | null;
+  linked_goal_name: string | null;
+  monthly_saving_amount_synced: boolean;
 }
 
 export interface SavingsProductCreateIn {
@@ -643,6 +759,7 @@ export interface SavingsProductPlanItemOut {
   actual: string;
   pct: number;
   status: "ok" | "warn" | "critical";
+  suggested_monthly_saving_amount: string | null;
 }
 
 export interface SavingsProductPlanGroupOut {
@@ -684,6 +801,31 @@ export interface SavingsProductAnnualPlanListOut {
   items: SavingsProductAnnualPlanItemOut[];
   savings: SavingsProductAnnualPlanGroupOut;
   investment: SavingsProductAnnualPlanGroupOut;
+}
+
+export interface SavingsProductAnnualPlanMonthlyTargetOut {
+  year_month: string;
+  target_amount: string;
+}
+
+export interface SavingsProductAnnualPlanMonthlyTargetIn {
+  year_month: string;
+  target_amount: string;
+}
+
+export interface SavingsProductAnnualPlanDetailOut {
+  product_id: number;
+  year: number;
+  start_month: string;
+  end_month: string;
+  monthly_targets: SavingsProductAnnualPlanMonthlyTargetOut[];
+}
+
+export interface SavingsProductAnnualPlanUpsertIn {
+  year: number;
+  start_month: string;
+  end_month: string;
+  monthly_targets: SavingsProductAnnualPlanMonthlyTargetIn[];
 }
 
 export interface GrowlioAccountOut {

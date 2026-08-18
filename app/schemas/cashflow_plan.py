@@ -57,6 +57,7 @@ class CashflowPlanSectionSummaryOut(BaseModel):
     actual: Decimal | None
     pct: float | None
     status: Literal["ok", "warn", "critical"] | None
+    suggested_amount: Decimal | None = None
 
 
 class CashflowPlanSummaryOut(BaseModel):

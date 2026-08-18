@@ -1,7 +1,7 @@
 import { useState } from "react";
 import type { FormEvent } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { Download, ExternalLink, Plus, Target, Trophy } from "lucide-react";
+import { Calendar, Download, ExternalLink, Plus, Target, Trophy } from "lucide-react";
 import AnnualSavingsGoalCard from "@/components/financialPlan/AnnualSavingsGoalCard";
 import Button from "@/components/common/Button";
 import CollapsibleGroup from "@/components/common/CollapsibleGroup";
@@ -9,6 +9,7 @@ import ConfirmModal from "@/components/common/ConfirmModal";
 import EmptyState from "@/components/common/EmptyState";
 import FormInput from "@/components/common/FormInput";
 import FundingSourceChecklist from "@/components/financialPlan/FundingSourceChecklist";
+import GoalMonthlyTargetEditor from "@/components/financialPlan/GoalMonthlyTargetEditor";
 import GoalProgressCard from "@/components/financialPlan/GoalProgressCard";
 import type { GoalProgressCardBadge, GoalProgressCardExtraDetail } from "@/components/financialPlan/GoalProgressCard";
 import GoalSectionHeader from "@/components/financialPlan/GoalSectionHeader";
@@ -18,7 +19,14 @@ import Tabs from "@/components/common/Tabs";
 import { currentYearMonth } from "@/components/common/MonthPicker";
 import { fetchAccounts } from "@/api/accounts";
 import { fetchDashboard } from "@/api/dashboard";
-import { createGoal, deleteGoal, fetchGoals, fetchGrowlioGoalSettings, updateGoal } from "@/api/goals";
+import {
+  createGoal,
+  deleteGoal,
+  fetchGoals,
+  fetchGrowlioGoalSettings,
+  updateGoal,
+  updateGoalMonthlyTarget,
+} from "@/api/goals";
 import { fetchLoans } from "@/api/loans";
 import { fetchSavingsProducts } from "@/api/savingsProducts";
 import { FORM_LABEL, FORM_SECTION_LABEL, INLINE_BUTTON_OFFSET, TEXTAREA_SM } from "@/constants/inputStyles";
@@ -29,6 +37,7 @@ import { useCrudMutations } from "@/hooks/useCrudMutations";
 import { insightSeverityStyle, progressStatusBadgeClass, progressStatusLabel } from "@/utils/colors";
 import { computeCardStatus, computeGoalStatus, daysUntil, isGoalAchieved } from "@/utils/goalStatus";
 import { GOAL_SORT_LABELS, sortGoals, type GoalSortLabel } from "@/utils/goalSort";
+import { syncTargetsToPeriod } from "@/utils/monthRange";
 import { extractErrorMessage } from "@/utils/error";
 import { formatDate, formatKrw, formatKrwPreview, formatPercent, toAmountInputValue } from "@/utils/format";
 import { toast } from "@/utils/toast";
@@ -39,6 +48,7 @@ import type {
   FinancialGoalUpdateIn,
   FundingSourceIn,
   GoalKind,
+  GoalMonthlyTargetIn,
   LoanOut,
   SavingsProductOut,
 } from "@/types";
@@ -74,6 +84,7 @@ interface Draft {
   savings_product_ids: string[];
   account_ids: string[];
   loan_ids: string[];
+  monthly_targets: GoalMonthlyTargetIn[];
 }
 
 const EMPTY_GOAL_DRAFT: Draft = {
@@ -90,6 +101,7 @@ const EMPTY_GOAL_DRAFT: Draft = {
   savings_product_ids: [],
   account_ids: [],
   loan_ids: [],
+  monthly_targets: [],
 };
 
 const EMPTY_CHALLENGE_DRAFT: Draft = {
@@ -98,6 +110,18 @@ const EMPTY_CHALLENGE_DRAFT: Draft = {
   start_date: todayIso(),
   target_date: todayIso(),
 };
+
+const EMPTY_IRREGULAR_DRAFT: Draft = {
+  ...EMPTY_GOAL_DRAFT,
+  kind: "irregular",
+  start_date: todayIso(),
+  target_date: todayIso(),
+};
+
+/** "YYYY-MM-DD" -> "YYYY-MM" (GoalMonthlyTargetEditor에 넘길 시작월/종료월 계산용). */
+function toYearMonth(isoDate: string): string {
+  return isoDate.slice(0, 7);
+}
 
 function draftFromGoal(goal: FinancialGoalOut): Draft {
   return {
@@ -114,30 +138,43 @@ function draftFromGoal(goal: FinancialGoalOut): Draft {
     savings_product_ids: goal.funding_sources.filter((fs) => fs.type === "savings_product").map((fs) => String(fs.id)),
     account_ids: goal.funding_sources.filter((fs) => fs.type === "account").map((fs) => String(fs.id)),
     loan_ids: goal.funding_sources.filter((fs) => fs.type === "loan").map((fs) => String(fs.id)),
+    monthly_targets: goal.monthly_targets.map((mt) => ({
+      year_month: mt.year_month,
+      target_amount: toAmountInputValue(mt.target_amount),
+    })),
   };
 }
 
 function toPayload(draft: Draft) {
   const isChallenge = draft.kind === "challenge";
-  const funding_sources: FundingSourceIn[] = isChallenge
-    ? []
-    : [
-        ...draft.savings_product_ids.map((id) => ({ type: "savings_product" as const, id: Number(id) })),
-        ...draft.account_ids.map((id) => ({ type: "account" as const, id: Number(id) })),
-        ...draft.loan_ids.map((id) => ({ type: "loan" as const, id: Number(id) })),
-      ];
+  const isIrregular = draft.kind === "irregular";
+  const isGoal = draft.kind === "goal";
+  const funding_sources: FundingSourceIn[] =
+    isChallenge || isIrregular
+      ? []
+      : [
+          ...draft.savings_product_ids.map((id) => ({ type: "savings_product" as const, id: Number(id) })),
+          ...draft.account_ids.map((id) => ({ type: "account" as const, id: Number(id) })),
+          ...draft.loan_ids.map((id) => ({ type: "loan" as const, id: Number(id) })),
+        ];
+  const requiredAmount = isIrregular
+    ? String(draft.monthly_targets.reduce((sum, t) => sum + (Number(t.target_amount) || 0), 0))
+    : draft.required_amount;
   return {
     kind: draft.kind,
     priority: Number(draft.priority) || 1,
     name: draft.name,
-    description: isChallenge && draft.description.trim() !== "" ? draft.description : null,
-    target_age: isChallenge || draft.target_age === "" ? null : Number(draft.target_age),
+    description: (isChallenge || isIrregular) && draft.description.trim() !== "" ? draft.description : null,
+    target_age: isChallenge || isIrregular || draft.target_age === "" ? null : Number(draft.target_age),
     target_date: draft.target_date === "" ? null : draft.target_date,
-    required_amount: draft.required_amount,
-    monthly_saving_amount: isChallenge ? "0" : draft.monthly_saving_amount,
+    required_amount: requiredAmount,
+    monthly_saving_amount: isChallenge || isIrregular ? "0" : draft.monthly_saving_amount,
     current_amount: draft.current_amount,
     funding_sources,
-    start_date: isChallenge ? draft.start_date : null,
+    start_date: isChallenge || isIrregular ? draft.start_date : null,
+    // 장기목표(goal)는 irregular와 달리 필요금액을 합계로 덮어쓰지 않는다 — 월별 계획은 페이스
+    // 참고용 그리드일 뿐이라 그대로 보낸다(FinancialGoalOut.required_amount 참고).
+    monthly_targets: isIrregular || isGoal ? draft.monthly_targets : null,
   };
 }
 
@@ -157,11 +194,18 @@ function monthsBetween(start: Date, end: Date): number {
   return (end.getFullYear() - start.getFullYear()) * 12 + (end.getMonth() - start.getMonth());
 }
 
-export default function FinancialGoalsSection() {
-  const [formTarget, setFormTarget] = useState<"new-goal" | "new-challenge" | FinancialGoalOut | null>(null);
+/** 목표 탭 — 장기목표/챌린지/비정기목표를 함께 관리한다. 현금흐름 계획(가계 전체 달력월 기준
+ * 수입·지출 계획)과는 별개의 독립 탭이다: 개별 목표는 각자 다른 기간(목표일)을 기준으로 한
+ * "전체 목표 설정 → 월별 계획 → 월별 달성 확인" 루프를 갖기 때문(frontend/CLAUDE.md 참고). */
+export default function GoalsTab() {
+  const yearMonth = currentYearMonth();
+  const [formTarget, setFormTarget] = useState<
+    "new-goal" | "new-challenge" | "new-irregular" | FinancialGoalOut | null
+  >(null);
   const [deleteTarget, setDeleteTarget] = useState<number | null>(null);
   const [sortOption, setSortOption] = useState<GoalSortLabel>("우선순위순");
   const [progressDraft, setProgressDraft] = useState<Record<number, string>>({});
+  const [monthlyTargetDraft, setMonthlyTargetDraft] = useState<Record<string, string>>({});
 
   const { data, isLoading } = useQuery({ queryKey: QUERY_KEYS.financialGoals, queryFn: fetchGoals });
   const { data: savingsProducts } = useQuery({
@@ -185,8 +229,16 @@ export default function FinancialGoalsSection() {
     staleTime: STALE_TIME.SHORT,
   });
 
+  const year = Number(yearMonth.slice(0, 4));
   const { createMutation, updateMutation, removeMutation: deleteMutation, invalidate } = useCrudMutations({
-    invalidateKeys: [QUERY_KEYS.financialGoals],
+    // 목표에 연동된 저축상품의 월 계획액이 목표 저장 시 함께 갱신되므로(app/services/goal_service.py::
+    // _sync_funding_product_monthly_amount), 저축상품 관련 쿼리도 함께 무효화한다.
+    invalidateKeys: [
+      QUERY_KEYS.financialGoals,
+      QUERY_KEYS.savingsProducts,
+      QUERY_KEYS.savingsProductsPlan(yearMonth),
+      QUERY_KEYS.savingsProductsAnnualPlan(year),
+    ],
     api: { create: createGoal, update: updateGoal, remove: deleteGoal },
     messages: { create: "추가했습니다.", update: "저장했습니다.", remove: "삭제했습니다." },
     onCreateSuccess: () => setFormTarget(null),
@@ -214,6 +266,24 @@ export default function FinancialGoalsSection() {
     onError: (err) => toast(extractErrorMessage(err), "error"),
   });
 
+  // 비정기목표·장기목표 카드의 월별 행 인라인 "이번 달 저축액 입력" 저장 전용 — progressMutation과
+  // 같은 톤으로 전체 목표를 다시 보내지 않고 그 달의 achieved_amount만 갱신한다. 연동된 장기목표는
+  // 이 mutation을 쓰지 않는다(자동계산이라 저장 버튼 자체가 없음).
+  const monthlyTargetMutation = useMutation({
+    mutationFn: ({ goalId, yearMonth, achievedAmount }: { goalId: number; yearMonth: string; achievedAmount: string }) =>
+      updateGoalMonthlyTarget(goalId, yearMonth, achievedAmount),
+    onSuccess: (_updated, { goalId, yearMonth }) => {
+      invalidate();
+      setMonthlyTargetDraft((d) => {
+        const next = { ...d };
+        delete next[`${goalId}-${yearMonth}`];
+        return next;
+      });
+      toast("이번 달 저축액을 저장했습니다.", "success");
+    },
+    onError: (err) => toast(extractErrorMessage(err), "error"),
+  });
+
   if (isLoading || !data) {
     return <SkeletonCard rows={4} />;
   }
@@ -229,7 +299,7 @@ export default function FinancialGoalsSection() {
   const activeGoalsByPriority = priorityOrderedGoals.filter((g) => !isGoalAchieved(g));
   const achievedGoals = priorityOrderedGoals.filter((g) => isGoalAchieved(g));
   const activeGoals = sortGoals(activeGoalsByPriority, sortOption);
-  // 여유자금은 가계 전체 단위라 목표마다 반복 표시하면 목표별로 다른 금액처럼 오인될 수 있어,
+  // 여유자금은 가구 전체 단위라 목표마다 반복 표시하면 목표별로 다른 금액처럼 오인될 수 있어,
   // growlio 연동된 활성 목표 중 우선순위가 가장 높은 하나에만 붙인다(정렬 옵션과 무관하게 고정).
   const firstGrowlioLinkedGoalId =
     activeGoalsByPriority.find((g) => findGrowlioInvestmentLink(g, savingsProducts ?? []))?.id ?? null;
@@ -244,7 +314,7 @@ export default function FinancialGoalsSection() {
 
   const handleSubmit = (draft: Draft) => {
     const oldPct = formTarget !== null && typeof formTarget === "object" ? Number(formTarget.progress_pct) : 0;
-    if (formTarget === "new-goal" || formTarget === "new-challenge") {
+    if (formTarget === "new-goal" || formTarget === "new-challenge" || formTarget === "new-irregular") {
       createMutation.mutate(toPayload(draft), { onSuccess: (goal) => celebrateIfCrossed(oldPct, goal) });
     } else if (formTarget) {
       updateMutation.mutate(
@@ -257,6 +327,14 @@ export default function FinancialGoalsSection() {
   const handleUpdateProgress = (goal: FinancialGoalOut, current_amount: string) => {
     const payload = { ...toPayload(draftFromGoal(goal)), current_amount };
     progressMutation.mutate({ id: goal.id, payload });
+  };
+
+  const handleUpdateMonthlyTarget = (goal: FinancialGoalOut, yearMonth: string, achievedAmount: string) => {
+    const oldPct = Number(goal.progress_pct);
+    monthlyTargetMutation.mutate(
+      { goalId: goal.id, yearMonth, achievedAmount },
+      { onSuccess: (updated) => celebrateIfCrossed(oldPct, updated) },
+    );
   };
 
   /** 활성/달성 목표 목록이 공유하는 카드 조립. 챌린지(kind="challenge")는 재무목표와 필드
@@ -323,15 +401,117 @@ export default function FinancialGoalsSection() {
       );
     }
 
+    if (goal.kind === "irregular") {
+      const status = computeCardStatus(goal);
+      const badges: GoalProgressCardBadge[] = [
+        { label: progressStatusLabel(status), toneClassName: progressStatusBadgeClass(status) },
+        { label: "비정기목표", toneClassName: progressStatusBadgeClass("neutral") },
+      ];
+      // 아직 달성하지 못한 가장 이른 달을 "지금 채워야 할 달"로 삼아 인라인 입력을 붙인다 —
+      // 지난 달을 고치고 싶으면 수정 모달에서 기간·월별 계획을 다시 조정한다.
+      const activeMonth = goal.monthly_targets.find((mt) => !mt.is_achieved) ?? null;
+      const draftKey = activeMonth ? `${goal.id}-${activeMonth.year_month}` : null;
+      const monthlyDraftValue =
+        draftKey !== null
+          ? (monthlyTargetDraft[draftKey] ?? toAmountInputValue(activeMonth!.achieved_amount))
+          : "0";
+
+      return (
+        <GoalProgressCard
+          key={goal.id}
+          title={goal.name}
+          badges={badges}
+          subtitle={
+            <>
+              {goal.description && (
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5 truncate">{goal.description}</p>
+              )}
+              {goal.start_date && goal.target_date && (
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5 truncate">
+                  {formatDate(goal.start_date)} ~ {formatDate(goal.target_date)}
+                </p>
+              )}
+            </>
+          }
+          pct={Number(goal.progress_pct)}
+          primaryDetail={
+            <>
+              {formatKrw(goal.current_amount)} / 목표 {formatKrw(goal.required_amount)}
+            </>
+          }
+          extraDetails={[
+            {
+              key: "monthly-targets",
+              content: (
+                <div className="rounded-lg border border-gray-200 dark:border-gray-700 divide-y divide-gray-100 dark:divide-gray-800 max-h-40 overflow-y-auto">
+                  {goal.monthly_targets.map((mt) => (
+                    <div key={mt.year_month} className="flex items-center justify-between gap-2 px-2 py-1.5">
+                      <span className="truncate">
+                        {mt.is_achieved ? "✅ " : ""}
+                        {mt.year_month}
+                      </span>
+                      <span className="shrink-0">
+                        {formatKrw(mt.achieved_amount)} / {formatKrw(mt.target_amount)}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              ),
+            },
+          ]}
+          onEdit={() => setFormTarget(goal)}
+          onDelete={() => setDeleteTarget(goal.id)}
+          footer={
+            activeMonth &&
+            draftKey !== null && (
+              <div className="flex items-start flex-wrap gap-2 pt-1">
+                <FormInput
+                  label={`${activeMonth.year_month} 저축액 입력`}
+                  type="number"
+                  inputMode="decimal"
+                  value={monthlyDraftValue}
+                  onChange={(e) => setMonthlyTargetDraft((d) => ({ ...d, [draftKey]: e.target.value }))}
+                  className="w-full sm:w-40"
+                  preview={Number(monthlyDraftValue) > 0 ? formatKrwPreview(Number(monthlyDraftValue)) : undefined}
+                />
+                <Button
+                  size="sm"
+                  loading={monthlyTargetMutation.isPending && monthlyTargetMutation.variables?.goalId === goal.id}
+                  onClick={() => handleUpdateMonthlyTarget(goal, activeMonth.year_month, monthlyDraftValue)}
+                  className={`${INLINE_BUTTON_OFFSET} ${TOUCH_TARGET_MIN_HEIGHT}`}
+                >
+                  저장
+                </Button>
+              </div>
+            )
+          }
+        />
+      );
+    }
+
     const growlioAccountId = findGrowlioInvestmentLink(goal, savingsProducts ?? []);
     const showSurplusHint =
       goal.id === firstGrowlioLinkedGoalId && GROWLIO_APP_URL && Number(investableSurplus) > 0;
     const hasLoanSource = goal.funding_sources.some((fs) => fs.type === "loan");
     const status = computeGoalStatus(goal);
 
+    // 이번 달 아직 달성 못한 가장 이른 달 — 연동 목표는 거래내역 기반 자동계산값(is_auto_computed)이라
+    // 저장 버튼 없이 읽기 전용으로 보여주고, 미연동 목표는 비정기목표와 같은 인라인 입력을 쓴다
+    // (app/services/goal_service.py::compute_linked_monthly_achieved 참고).
+    const activeMonth = goal.monthly_targets.find((mt) => !mt.is_achieved) ?? null;
+    const isAutoComputed = activeMonth?.is_auto_computed ?? false;
+    const draftKey = activeMonth && !isAutoComputed ? `${goal.id}-${activeMonth.year_month}` : null;
+    const monthlyDraftValue =
+      draftKey !== null
+        ? (monthlyTargetDraft[draftKey] ?? toAmountInputValue(activeMonth!.achieved_amount))
+        : "0";
+
     const badges: GoalProgressCardBadge[] = [
       { label: progressStatusLabel(status), toneClassName: progressStatusBadgeClass(status) },
     ];
+    if (isAutoComputed) {
+      badges.push({ label: "이번 달 자동계산", toneClassName: progressStatusBadgeClass("neutral") });
+    }
 
     const growlioDetail =
       growlioAccountId && GROWLIO_APP_URL ? (
@@ -351,11 +531,31 @@ export default function FinancialGoalsSection() {
       extraDetails.push({
         key: "funding-sources",
         content: (
-          <div className="space-y-0.5">
+          <div className="rounded-lg border border-gray-200 dark:border-gray-700 divide-y divide-gray-100 dark:divide-gray-800 max-h-40 overflow-y-auto">
             {goal.funding_sources.map((fs) => (
-              <div key={`${fs.type}-${fs.id}`} className="flex items-center justify-between gap-2">
+              <div key={`${fs.type}-${fs.id}`} className="flex items-center justify-between gap-2 px-2 py-1.5">
                 <span className="truncate">{fs.name}</span>
                 <span className="shrink-0">{formatKrw(fs.amount)}</span>
+              </div>
+            ))}
+          </div>
+        ),
+      });
+    }
+    if (goal.monthly_targets.length > 0) {
+      extraDetails.push({
+        key: "monthly-targets",
+        content: (
+          <div className="rounded-lg border border-gray-200 dark:border-gray-700 divide-y divide-gray-100 dark:divide-gray-800 max-h-40 overflow-y-auto">
+            {goal.monthly_targets.map((mt) => (
+              <div key={mt.year_month} className="flex items-center justify-between gap-2 px-2 py-1.5">
+                <span className="truncate">
+                  {mt.is_achieved ? "✅ " : ""}
+                  {mt.year_month}
+                </span>
+                <span className="shrink-0">
+                  {formatKrw(mt.achieved_amount)} / {formatKrw(mt.target_amount)}
+                </span>
               </div>
             ))}
           </div>
@@ -400,6 +600,34 @@ export default function FinancialGoalsSection() {
         extraDetails={extraDetails}
         onEdit={() => setFormTarget(goal)}
         onDelete={() => setDeleteTarget(goal.id)}
+        footer={
+          activeMonth && isAutoComputed ? (
+            <p className="text-xs text-gray-400 dark:text-gray-500 pt-1">
+              {activeMonth.year_month} 이번 달 자동계산: {formatKrw(activeMonth.achieved_amount)} /{" "}
+              {formatKrw(activeMonth.target_amount)}
+            </p>
+          ) : activeMonth && draftKey !== null ? (
+            <div className="flex items-start flex-wrap gap-2 pt-1">
+              <FormInput
+                label={`${activeMonth.year_month} 저축액 입력`}
+                type="number"
+                inputMode="decimal"
+                value={monthlyDraftValue}
+                onChange={(e) => setMonthlyTargetDraft((d) => ({ ...d, [draftKey]: e.target.value }))}
+                className="w-full sm:w-40"
+                preview={Number(monthlyDraftValue) > 0 ? formatKrwPreview(Number(monthlyDraftValue)) : undefined}
+              />
+              <Button
+                size="sm"
+                loading={monthlyTargetMutation.isPending && monthlyTargetMutation.variables?.goalId === goal.id}
+                onClick={() => handleUpdateMonthlyTarget(goal, activeMonth.year_month, monthlyDraftValue)}
+                className={`${INLINE_BUTTON_OFFSET} ${TOUCH_TARGET_MIN_HEIGHT}`}
+              >
+                저장
+              </Button>
+            </div>
+          ) : undefined
+        }
       />
     );
   };
@@ -409,27 +637,36 @@ export default function FinancialGoalsSection() {
       ? EMPTY_GOAL_DRAFT
       : formTarget === "new-challenge"
         ? EMPTY_CHALLENGE_DRAFT
-        : formTarget !== null
-          ? draftFromGoal(formTarget)
-          : null;
+        : formTarget === "new-irregular"
+          ? EMPTY_IRREGULAR_DRAFT
+          : formTarget !== null
+            ? draftFromGoal(formTarget)
+            : null;
   const modalTitle =
     formTarget === "new-goal"
       ? "재무목표 추가"
       : formTarget === "new-challenge"
         ? "챌린지 추가"
-        : formTarget !== null && formTarget.kind === "challenge"
-          ? "챌린지 수정"
-          : "재무목표 수정";
+        : formTarget === "new-irregular"
+          ? "비정기 목표 추가"
+          : formTarget !== null && formTarget.kind === "challenge"
+            ? "챌린지 수정"
+            : formTarget !== null && formTarget.kind === "irregular"
+              ? "비정기 목표 수정"
+              : "재무목표 수정";
 
   return (
     <div className="space-y-6">
       <AnnualSavingsGoalCard />
 
       <GoalSectionHeader
-        title="재무목표"
-        description="구체적인 용도별 저축 목표와, 기간을 정해 부부가 함께 짧게 도전하는 챌린지를 함께 관리해요. 저축·투자 상품이나 계좌를 연동하면 잔액이 자동으로 반영돼요."
+        title="장기 목표 · 챌린지 · 비정기목표"
+        description="전체 목표금액과 목표일을 정하면 월별 계획이 자동으로 나뉘어요. 저축·투자 상품이나 계좌를 연동하면 이번 달 달성 여부까지 거래내역으로 자동 확인돼요. 부부가 짧게 도전하는 챌린지, 여행자금·명절비용처럼 기간을 정해 모으는 비정기 목표도 함께 관리해요."
         action={
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
+            <Button size="sm" variant="secondary" icon={<Calendar size={14} />} onClick={() => setFormTarget("new-irregular")}>
+              비정기 목표 추가
+            </Button>
             <Button size="sm" variant="secondary" icon={<Trophy size={14} />} onClick={() => setFormTarget("new-challenge")}>
               챌린지 추가
             </Button>
@@ -494,7 +731,11 @@ export default function FinancialGoalsSection() {
         <GoalFormModal
           initial={modalInitial}
           title={modalTitle}
-          submitLabel={formTarget === "new-goal" || formTarget === "new-challenge" ? "추가" : "저장"}
+          submitLabel={
+            formTarget === "new-goal" || formTarget === "new-challenge" || formTarget === "new-irregular"
+              ? "추가"
+              : "저장"
+          }
           submitting={isSaving}
           savingsProducts={savingsProducts ?? []}
           accounts={accounts ?? []}
@@ -543,8 +784,52 @@ function GoalFormModal({
   const [currentAge, setCurrentAge] = useState("");
   const [confirmingResync, setConfirmingResync] = useState(false);
   const isChallenge = draft.kind === "challenge";
+  const isIrregular = draft.kind === "irregular";
   const isLinked =
     draft.savings_product_ids.length > 0 || draft.account_ids.length > 0 || draft.loan_ids.length > 0;
+  // 다른 목표에 이미 연동된 상품은 선택지에서 제외 — 연동되면 어느 목표를 따를지 모호해지기 때문.
+  // 지금 이 목표에 이미 연동된 상품(existingGoal.id와 일치)은 계속 보여준다.
+  const availableSavingsProducts = savingsProducts.filter(
+    (p) => p.linked_goal_id === null || p.linked_goal_id === existingGoal?.id,
+  );
+
+  // 시작일/종료일이 바뀌면 월별 목표금액 행도 그 기간에 맞춰 다시 맞춘다 — 겹치는 달의 금액은 보존.
+  const syncMonthlyTargetsToPeriod = (startDate: string, targetDate: string, existing: GoalMonthlyTargetIn[]) =>
+    syncTargetsToPeriod(toYearMonth(startDate), toYearMonth(targetDate), existing);
+
+  // 이미 지난 달인데 목표에 못 미친 금액(부족분)을, 아직 달성하지 못한 이번 달 이후 달들에
+  // 균등하게 나눠 더한다. 이미 지난/달성한 달의 target_amount는 건드리지 않는다 — 기록 보존.
+  const handleRedistributeShortfall = () => {
+    if (!existingGoal) return;
+    const nowYm = currentYearMonth();
+    const achievedByMonth = new Map(existingGoal.monthly_targets.map((mt) => [mt.year_month, mt.achieved_amount]));
+    const pastShortfall = existingGoal.monthly_targets
+      .filter((mt) => mt.year_month < nowYm)
+      .reduce((sum, mt) => sum + Math.max(0, Number(mt.target_amount) - Number(mt.achieved_amount)), 0);
+    const remainingMonths = draft.monthly_targets.filter((t) => {
+      if (t.year_month < nowYm) return false;
+      const achieved = achievedByMonth.get(t.year_month);
+      return achieved === undefined || Number(achieved) < Number(t.target_amount);
+    });
+    if (pastShortfall <= 0 || remainingMonths.length === 0) {
+      toast("재배분할 부족분이 없어요.", "info");
+      return;
+    }
+    const addPerMonth = pastShortfall / remainingMonths.length;
+    const remainingSet = new Set(remainingMonths.map((t) => t.year_month));
+    setDraft((d) => ({
+      ...d,
+      monthly_targets: d.monthly_targets.map((t) =>
+        remainingSet.has(t.year_month)
+          ? { ...t, target_amount: String(Math.round(Number(t.target_amount) + addPerMonth)) }
+          : t,
+      ),
+    }));
+    toast(
+      `부족분 ${formatKrw(Math.round(pastShortfall))}을 남은 ${remainingMonths.length}개월에 나눠 반영했어요. 저장을 눌러야 적용돼요.`,
+      "success",
+    );
+  };
 
   const growlioGoalMutation = useMutation({
     mutationFn: fetchGrowlioGoalSettings,
@@ -553,7 +838,8 @@ function GoalFormModal({
         toast("growlio에 설정된 투자목표가 없어요.", "error");
         return;
       }
-      const growlioProductIds = savingsProducts.filter(isGrowlioLinkedInvestment).map((p) => String(p.id));
+      // 다른 목표에 이미 연동된 상품은 후보에서 제외(availableSavingsProducts 참고).
+      const growlioProductIds = availableSavingsProducts.filter(isGrowlioLinkedInvestment).map((p) => String(p.id));
       setDraft((d) => ({
         ...d,
         name: d.name.trim() === "" ? "growlio 투자목표" : d.name,
@@ -652,6 +938,75 @@ function GoalFormModal({
     );
   }
 
+  if (isIrregular) {
+    return (
+      <Modal onClose={onClose} title={title}>
+        <form onSubmit={handleSubmit} className="p-6 overflow-y-auto flex flex-col gap-3">
+          <FormInput
+            label="비정기 목표 이름"
+            value={draft.name}
+            onChange={(e) => setDraft((d) => ({ ...d, name: e.target.value }))}
+            className="w-full"
+            required
+          />
+          <div>
+            <label className={FORM_LABEL}>설명 (선택)</label>
+            <textarea
+              value={draft.description}
+              onChange={(e) => setDraft((d) => ({ ...d, description: e.target.value }))}
+              className={`w-full ${TEXTAREA_SM}`}
+              rows={2}
+            />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <FormInput
+              label="시작일"
+              type="date"
+              value={draft.start_date}
+              onChange={(e) =>
+                setDraft((d) => ({
+                  ...d,
+                  start_date: e.target.value,
+                  monthly_targets: syncMonthlyTargetsToPeriod(e.target.value, d.target_date, d.monthly_targets),
+                }))
+              }
+              className="w-full"
+            />
+            <FormInput
+              label="종료일"
+              type="date"
+              value={draft.target_date}
+              onChange={(e) =>
+                setDraft((d) => ({
+                  ...d,
+                  target_date: e.target.value,
+                  monthly_targets: syncMonthlyTargetsToPeriod(d.start_date, e.target.value, d.monthly_targets),
+                }))
+              }
+              className="w-full"
+              min={draft.start_date}
+            />
+          </div>
+          <GoalMonthlyTargetEditor
+            mode="irregular"
+            startMonth={toYearMonth(draft.start_date)}
+            endMonth={toYearMonth(draft.target_date)}
+            targets={draft.monthly_targets}
+            onChange={(monthly_targets) => setDraft((d) => ({ ...d, monthly_targets }))}
+          />
+          {existingGoal && (
+            <Button type="button" variant="secondary" size="sm" onClick={handleRedistributeShortfall}>
+              부족분 재배분 제안
+            </Button>
+          )}
+          <Button type="submit" loading={submitting} className="mt-2">
+            {submitLabel}
+          </Button>
+        </form>
+      </Modal>
+    );
+  }
+
   // 수정 모드에서 아직 아무것도 고치지 않았다면(초안이 저장된 값과 같다면) 백엔드가 이미 계산해
   // 내려준 months_remaining/suggested_monthly_amount(app/services/goal_service.py::
   // compute_months_remaining/compute_suggested_monthly_amount)를 그대로 보여준다. 목표일/나이/
@@ -677,6 +1032,12 @@ function GoalFormModal({
       : monthsRemaining !== null && monthsRemaining > 0
         ? Math.max(0, Math.round((Number(draft.required_amount) - Number(draft.current_amount)) / monthsRemaining))
         : null;
+
+  // 장기목표의 "현재 진행액" — 연동이면 백엔드가 내려준 현재 잔액 합, 미연동이면 폼에 입력된 값.
+  // 균등분배 버튼이 "필요금액 - 여기까지 모은 금액"을 남은 달에 나누는 기준이 된다.
+  const currentProgressForDistribution =
+    isLinked && existingGoal ? Number(existingGoal.current_amount) : Number(draft.current_amount) || 0;
+  const hasMonthlyPlan = draft.monthly_targets.length > 0;
 
   return (
     <Modal onClose={onClose} title={title}>
@@ -736,7 +1097,14 @@ function GoalFormModal({
             label="목표일 (두 분이 함께 정한 날짜)"
             type="date"
             value={draft.target_date}
-            onChange={(e) => setDraft((d) => ({ ...d, target_date: e.target.value }))}
+            onChange={(e) =>
+              setDraft((d) => ({
+                ...d,
+                target_date: e.target.value,
+                monthly_targets:
+                  e.target.value === "" ? [] : syncMonthlyTargetsToPeriod(todayIso(), e.target.value, d.monthly_targets),
+              }))
+            }
             className="w-full"
           />
         </div>
@@ -769,13 +1137,17 @@ function GoalFormModal({
         >
           <FundingSourceChecklist
             label="연동할 저축/투자 상품 (복수 선택 가능)"
-            items={savingsProducts}
+            items={availableSavingsProducts}
             getId={(p) => p.id}
             getName={(p) => p.name}
             getAmountLabel={(p) => formatKrw(p.current_balance)}
             selectedIds={draft.savings_product_ids}
             onToggle={(id) => toggleId("savings_product_ids", id)}
-            emptyMessage="등록된 저축/투자 상품이 없어요."
+            emptyMessage="연동 가능한 저축/투자 상품이 없어요."
+            hint="상품을 1개만 연동하면 그 상품의 월 계획액이 이 목표의 월 저축액으로 자동 설정되고
+            저축상품 화면에서 직접 수정할 수 없어져요. 부부가 각자 다른 상품으로 함께 모을 때처럼
+            여러 개를 연동하면 잔액은 합산되지만 월 계획액은 각 상품에서 계속 따로 입력해요.
+            다른 목표에 이미 연동된 상품은 목록에 나오지 않아요."
           />
           <FundingSourceChecklist
             label="연동할 계좌 (복수 선택 가능)"
@@ -806,6 +1178,11 @@ function GoalFormModal({
           <div className="rounded-lg border border-gray-200 dark:border-gray-700 px-3 py-2.5 text-sm text-gray-500 dark:text-gray-400">
             현재 저축액은 연동된 항목들의 잔액 합(대출은 차감)으로 자동 계산돼요.
           </div>
+        ) : hasMonthlyPlan ? (
+          <div className="rounded-lg border border-gray-200 dark:border-gray-700 px-3 py-2.5 text-sm text-gray-500 dark:text-gray-400">
+            현재 저축액은 아래 월별 계획의 달성액 합계로 자동 계산돼요. 저장한 뒤 목표 카드에서
+            매달 저축액을 입력해 채워가세요.
+          </div>
         ) : (
           <FormInput
             label="현재 저축액"
@@ -815,6 +1192,16 @@ function GoalFormModal({
             onChange={(e) => setDraft((d) => ({ ...d, current_amount: e.target.value }))}
             className="w-full"
             preview={Number(draft.current_amount) > 0 ? formatKrwPreview(Number(draft.current_amount)) : undefined}
+          />
+        )}
+        {draft.target_date !== "" && (
+          <GoalMonthlyTargetEditor
+            mode="goal"
+            startMonth={toYearMonth(todayIso())}
+            endMonth={toYearMonth(draft.target_date)}
+            targets={draft.monthly_targets}
+            onChange={(monthly_targets) => setDraft((d) => ({ ...d, monthly_targets }))}
+            distributeAmount={String(Math.max(0, Number(draft.required_amount) - currentProgressForDistribution))}
           />
         )}
         <div className="rounded-lg border border-gray-200 dark:border-gray-700 p-3 space-y-2">

@@ -33,9 +33,13 @@ export const QUERY_KEYS = {
   financialGoals: ["financial-goals"] as const,
   annualSavingsGoals: ["annual-savings-goals"] as const,
   annualSavingsGoalSuggestion: ["annual-savings-goals", "suggestion"] as const,
+  annualPlan: (year: number) => ["annual-plan", year] as const,
+  annualCategoryBudgets: (year: number) => ["annual-plan", "category-budgets", year] as const,
   savingsProducts: ["savings-products"] as const,
   savingsProductsPlan: (yearMonth: string) => ["savings-products", "plan", yearMonth] as const,
   savingsProductsAnnualPlan: (year: number) => ["savings-products", "annual-plan", year] as const,
+  savingsProductAnnualPlanDetail: (productId: number, year: number) =>
+    ["savings-products", productId, "annual-plan", year] as const,
   growlioInvestmentAccounts: ["growlio-accounts", "savings-products"] as const,
   growlioBankAccounts: ["growlio-accounts", "accounts"] as const,
   growlioRealEstateAccounts: ["growlio-accounts", "real-estate"] as const,

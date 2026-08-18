@@ -4,23 +4,31 @@ import { ArrowRight, Pencil, RefreshCw } from "lucide-react";
 import { Link } from "react-router-dom";
 import Button from "@/components/common/Button";
 import EmptyState from "@/components/common/EmptyState";
-import FormInput from "@/components/common/FormInput";
+import Modal from "@/components/common/Modal";
 import SkeletonCard from "@/components/common/SkeletonCard";
 import StatusBadge from "@/components/common/StatusBadge";
 import Tabs from "@/components/common/Tabs";
+import SavingsProductAnnualPlanForm from "@/components/financialPlan/SavingsProductAnnualPlanForm";
 import SectionAchievementBar from "@/components/financialPlan/SectionAchievementBar";
 import {
+  fetchSavingsProductAnnualPlanDetail,
   fetchSavingsProducts,
   fetchSavingsProductsAnnualPlan,
   fetchSavingsProductsPlan,
   syncSavingsProduct,
-  updateSavingsProduct,
+  upsertSavingsProductAnnualPlan,
 } from "@/api/savingsProducts";
-import { INLINE_BUTTON_OFFSET } from "@/constants/inputStyles";
+import { fetchUsers } from "@/api/users";
 import { QUERY_KEYS } from "@/constants/queryKeys";
-import { TOUCH_TARGET_MIN_HEIGHT, TOUCH_TARGET_MIN_MOBILE_ONLY } from "@/constants/uiSizes";
-import { formatKrw, formatKrwPreview, formatPercent, formatSyncedAt, toAmountInputValue } from "@/utils/format";
-import { planStatusTextClass, savingsProductTypeBadgeStyle, savingsProductTypeLabel } from "@/utils/colors";
+import { STALE_TIME } from "@/constants/queryConfig";
+import { TOUCH_TARGET_MIN_MOBILE_ONLY } from "@/constants/uiSizes";
+import { formatKrw, formatPercent, formatSyncedAt } from "@/utils/format";
+import {
+  linkedGoalBadgeStyle,
+  planStatusTextClass,
+  savingsProductTypeBadgeStyle,
+  savingsProductTypeLabel,
+} from "@/utils/colors";
 import { extractErrorMessage } from "@/utils/error";
 import { toast } from "@/utils/toast";
 import type {
@@ -29,7 +37,7 @@ import type {
   SavingsProductOut,
   SavingsProductPlanGroupOut,
   SavingsProductPlanItemOut,
-  SavingsProductUpdateIn,
+  UserOut,
 } from "@/types";
 
 const ACCOUNTS_SAVINGS_TAB_LINK = "/accounts?tab=저축·투자";
@@ -43,6 +51,9 @@ interface NormalizedItem {
   detailText: string;
   pct: number;
   status: "ok" | "warn" | "critical";
+  /** "이번 달" 뷰에서만 존재 — 제안값(최근 3개월 평균)이 이미 계획액과 같은지 비교하는 데 쓰인다. */
+  planned: string | null;
+  suggestedMonthlySavingAmount: string | null;
 }
 
 function normalizeMonthItem(item: SavingsProductPlanItemOut): NormalizedItem {
@@ -53,6 +64,8 @@ function normalizeMonthItem(item: SavingsProductPlanItemOut): NormalizedItem {
     detailText: `계획 ${formatKrw(item.planned)} · 이번 달 실제 ${formatKrw(item.actual)}`,
     pct: item.pct,
     status: item.status,
+    planned: item.planned,
+    suggestedMonthlySavingAmount: item.suggested_monthly_saving_amount,
   };
 }
 
@@ -64,6 +77,8 @@ function normalizeAnnualItem(item: SavingsProductAnnualPlanItemOut): NormalizedI
     detailText: `지금까지 목표 ${formatKrw(item.target_to_date)} · 올해 누적 ${formatKrw(item.actual)} (연간목표 ${formatKrw(item.annual_target)})`,
     pct: item.pct,
     status: item.status,
+    planned: null,
+    suggestedMonthlySavingAmount: null,
   };
 }
 
@@ -78,31 +93,43 @@ function groupHeaderText(viewMode: ViewMode, summary: SavingsProductPlanGroupOut
 function ProductRow({
   item,
   product,
+  users,
   yearMonth,
   year,
 }: {
   item: NormalizedItem;
   product?: SavingsProductOut;
+  users: UserOut[] | undefined;
   yearMonth: string;
   year: number;
 }) {
-  const [isEditing, setIsEditing] = useState(false);
-  const [draft, setDraft] = useState<string | null>(null);
+  const ownerLabel = product?.owner_user_id
+    ? (users?.find((u) => u.id === product.owner_user_id)?.display_name ?? "공통")
+    : "공통";
+
+  const [isPlanModalOpen, setIsPlanModalOpen] = useState(false);
   const queryClient = useQueryClient();
 
   const invalidate = () => {
     void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.savingsProductsPlan(yearMonth) });
     void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.savingsProductsAnnualPlan(year) });
+    void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.savingsProductAnnualPlanDetail(item.id, year) });
     void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.savingsProducts });
   };
 
-  const updateMutation = useMutation({
-    mutationFn: (payload: SavingsProductUpdateIn) => updateSavingsProduct(item.id, payload),
+  const { data: planDetail, isLoading: isPlanLoading } = useQuery({
+    queryKey: QUERY_KEYS.savingsProductAnnualPlanDetail(item.id, year),
+    queryFn: () => fetchSavingsProductAnnualPlanDetail(item.id, year),
+    enabled: isPlanModalOpen,
+  });
+
+  const upsertPlanMutation = useMutation({
+    mutationFn: (values: { start_month: string; end_month: string; monthly_targets: { year_month: string; target_amount: string }[] }) =>
+      upsertSavingsProductAnnualPlan(item.id, { year, ...values }),
     onSuccess: () => {
       invalidate();
-      toast("월 계획액을 저장했습니다.", "success");
-      setIsEditing(false);
-      setDraft(null);
+      toast("월별 계획을 저장했습니다.", "success");
+      setIsPlanModalOpen(false);
     },
     onError: (err) => toast(extractErrorMessage(err), "error"),
   });
@@ -116,23 +143,33 @@ function ProductRow({
     onError: (err) => toast(extractErrorMessage(err), "error"),
   });
 
-  const amountValue = draft ?? (product ? toAmountInputValue(product.monthly_saving_amount) : "");
+  const applySuggestionMutation = useMutation({
+    mutationFn: async () => {
+      const plan = await fetchSavingsProductAnnualPlanDetail(item.id, year);
+      const monthlyTargets = plan.monthly_targets.map((t) =>
+        t.year_month === yearMonth ? { ...t, target_amount: item.suggestedMonthlySavingAmount! } : t,
+      );
+      return upsertSavingsProductAnnualPlan(item.id, {
+        year,
+        start_month: plan.start_month,
+        end_month: plan.end_month,
+        monthly_targets: monthlyTargets,
+      });
+    },
+    onSuccess: () => {
+      invalidate();
+      toast("제안값을 월 계획액에 반영했습니다.", "success");
+    },
+    onError: (err) => toast(extractErrorMessage(err), "error"),
+  });
 
-  const handleCancel = () => {
-    setDraft(null);
-    setIsEditing(false);
-  };
-
-  const handleSave = () => {
-    if (!product) return;
-    updateMutation.mutate({
-      name: product.name,
-      current_balance: product.current_balance,
-      monthly_saving_amount: amountValue,
-      product_type: product.product_type,
-      principal_amount: product.principal_amount,
-    });
-  };
+  const showSuggestion =
+    product &&
+    !product.monthly_saving_amount_synced &&
+    item.status !== "ok" &&
+    item.suggestedMonthlySavingAmount !== null &&
+    item.planned !== null &&
+    Number(item.suggestedMonthlySavingAmount) !== Number(item.planned);
 
   return (
     <div className="py-2 border-b border-gray-100 dark:border-gray-800 last:border-0">
@@ -146,8 +183,23 @@ function ProductRow({
               className="shrink-0"
             />
             <p className="text-sm font-medium text-gray-900 dark:text-gray-50 truncate">{item.name}</p>
+            {product?.linked_goal_id !== null && product?.linked_goal_id !== undefined && (
+              <StatusBadge
+                size="chip"
+                label={`목표: ${product.linked_goal_name}`}
+                toneClassName={linkedGoalBadgeStyle()}
+                className="shrink-0 max-w-[120px] truncate"
+                title={
+                  product.monthly_saving_amount_synced
+                    ? `목표 "${product.linked_goal_name}"에서 월 계획액을 관리해요`
+                    : `목표 "${product.linked_goal_name}"의 잔액 합산에 포함돼요`
+                }
+              />
+            )}
           </div>
-          <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{item.detailText}</p>
+          <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+            {ownerLabel} · {item.detailText}
+          </p>
           {product?.growlio_account_id && (
             <p className="text-[11px] text-gray-400 dark:text-gray-500 mt-0.5">
               {product.last_synced_at ? `마지막 동기화 ${formatSyncedAt(product.last_synced_at)}` : "아직 동기화하지 않았어요"}
@@ -155,10 +207,11 @@ function ProductRow({
           )}
         </div>
         <div className="flex items-center gap-0.5 shrink-0">
-          {product && !isEditing && (
+          {product && !product.monthly_saving_amount_synced && (
             <button
-              onClick={() => setIsEditing(true)}
-              aria-label="월 계획액 수정"
+              onClick={() => setIsPlanModalOpen(true)}
+              aria-label="월별 계획 편집"
+              title="월별 계획 편집"
               className={`${TOUCH_TARGET_MIN_MOBILE_ONLY} p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-950 rounded-lg transition-colors`}
             >
               <Pencil size={14} />
@@ -177,26 +230,41 @@ function ProductRow({
           <span className={`text-sm font-semibold ${planStatusTextClass(item.status)}`}>{formatPercent(item.pct)}</span>
         </div>
       </div>
-      {isEditing && (
-        <div className="mt-2 flex items-start flex-wrap gap-2">
-          <FormInput
-            label="월 계획액"
-            type="number"
-            inputMode="decimal"
-            value={amountValue}
-            onChange={(e) => setDraft(e.target.value)}
-            className="w-full sm:w-40"
-            preview={Number(amountValue) > 0 ? formatKrwPreview(Number(amountValue)) : undefined}
-          />
-          <div className={`flex gap-2 ${INLINE_BUTTON_OFFSET}`}>
-            <Button size="sm" loading={updateMutation.isPending} onClick={handleSave} className={TOUCH_TARGET_MIN_HEIGHT}>
-              저장
-            </Button>
-            <Button variant="ghost" size="sm" onClick={handleCancel} className={TOUCH_TARGET_MIN_HEIGHT}>
-              취소
-            </Button>
-          </div>
+      {showSuggestion && (
+        <div className="mt-2 flex items-center justify-between gap-2 rounded-lg bg-amber-50 dark:bg-amber-950 px-2 py-1.5">
+          <p className="text-xs text-amber-700 dark:text-amber-300">
+            최근 3개월 평균 납입액은 {formatKrw(item.suggestedMonthlySavingAmount!)}이에요.
+          </p>
+          <Button
+            variant="secondary"
+            size="sm"
+            className="shrink-0 !min-h-0 !py-1 !px-2 text-xs"
+            loading={applySuggestionMutation.isPending}
+            onClick={() => applySuggestionMutation.mutate()}
+          >
+            월 계획액에 반영
+          </Button>
         </div>
+      )}
+      {isPlanModalOpen && (
+        <Modal onClose={() => setIsPlanModalOpen(false)} title={`${item.name} 월별 계획 편집 (${year}년)`}>
+          <div className="p-6 overflow-y-auto">
+            {isPlanLoading || !planDetail ? (
+              <SkeletonCard rows={3} />
+            ) : (
+              <SavingsProductAnnualPlanForm
+                year={year}
+                initialValues={{
+                  start_month: planDetail.start_month,
+                  end_month: planDetail.end_month,
+                  monthly_targets: planDetail.monthly_targets,
+                }}
+                submitting={upsertPlanMutation.isPending}
+                onSubmit={(values) => upsertPlanMutation.mutate(values)}
+              />
+            )}
+          </div>
+        </Modal>
       )}
     </div>
   );
@@ -208,6 +276,7 @@ function TypeGroup({
   headerValueText,
   items,
   productById,
+  users,
   yearMonth,
   year,
 }: {
@@ -216,6 +285,7 @@ function TypeGroup({
   headerValueText: string;
   items: NormalizedItem[];
   productById: Map<number, SavingsProductOut>;
+  users: UserOut[] | undefined;
   yearMonth: string;
   year: number;
 }) {
@@ -229,15 +299,30 @@ function TypeGroup({
       <SectionAchievementBar label={label} summary={summary} />
       <div>
         {items.map((item) => (
-          <ProductRow key={item.id} item={item} product={productById.get(item.id)} yearMonth={yearMonth} year={year} />
+          <ProductRow
+            key={item.id}
+            item={item}
+            product={productById.get(item.id)}
+            users={users}
+            yearMonth={yearMonth}
+            year={year}
+          />
         ))}
       </div>
     </div>
   );
 }
 
-export default function SavingsInvestmentPlanPanel({ yearMonth }: { yearMonth: string }) {
-  const [viewMode, setViewMode] = useState<ViewMode>("이번 달");
+export default function SavingsInvestmentPlanPanel({
+  yearMonth,
+  initialViewMode = "이번 달",
+}: {
+  yearMonth: string;
+  /** 연간계획 화면에 임베드될 때 "올해 누적" 모드로 바로 보여주기 위한 초깃값 — 이후 사용자가
+   * 직접 토글하는 것은 그대로 가능하다. */
+  initialViewMode?: ViewMode;
+}) {
+  const [viewMode, setViewMode] = useState<ViewMode>(initialViewMode);
   const year = Number(yearMonth.slice(0, 4));
 
   const { data: monthData, isLoading: isMonthLoading } = useQuery({
@@ -254,6 +339,7 @@ export default function SavingsInvestmentPlanPanel({ yearMonth }: { yearMonth: s
     queryKey: QUERY_KEYS.savingsProducts,
     queryFn: fetchSavingsProducts,
   });
+  const { data: users } = useQuery({ queryKey: QUERY_KEYS.users, queryFn: fetchUsers, staleTime: STALE_TIME.LONG });
 
   const isMonthMode = viewMode === "이번 달";
   const isLoading = isMonthMode ? isMonthLoading || !monthData : isAnnualLoading || !annualData;
@@ -302,6 +388,7 @@ export default function SavingsInvestmentPlanPanel({ yearMonth }: { yearMonth: s
             headerValueText={groupHeaderText(viewMode, savingsSummary)}
             items={savingsItems}
             productById={productById}
+            users={users}
             yearMonth={yearMonth}
             year={year}
           />
@@ -311,6 +398,7 @@ export default function SavingsInvestmentPlanPanel({ yearMonth }: { yearMonth: s
             headerValueText={groupHeaderText(viewMode, investmentSummary)}
             items={investmentItems}
             productById={productById}
+            users={users}
             yearMonth={yearMonth}
             year={year}
           />

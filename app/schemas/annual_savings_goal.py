@@ -4,12 +4,25 @@ from decimal import Decimal
 from pydantic import BaseModel, ConfigDict
 
 
+class AnnualSavingsGoalMonthlyTargetOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    year_month: str
+    target_amount: Decimal
+
+
+class AnnualSavingsGoalMonthlyTargetIn(BaseModel):
+    year_month: str
+    target_amount: Decimal
+
+
 class AnnualSavingsGoalOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     year: int
     target_amount_krw: Decimal
     monthly_target_krw: Decimal | None
+    monthly_targets: list[AnnualSavingsGoalMonthlyTargetOut]
     updated_at: datetime
     net_savings_ytd: Decimal
     annual_achievement_pct: Decimal
@@ -18,8 +31,10 @@ class AnnualSavingsGoalOut(BaseModel):
 
 
 class AnnualSavingsGoalUpsertIn(BaseModel):
-    target_amount_krw: Decimal
-    monthly_target_krw: Decimal | None = None
+    """target_amount_krw는 더 이상 직접 입력받지 않는다 — monthly_targets(1~12월) 합계로
+    서비스가 파생시킨다(app/services/annual_savings_goal_service.py::upsert_goal)."""
+
+    monthly_targets: list[AnnualSavingsGoalMonthlyTargetIn]
 
 
 class AnnualSavingsGoalSuggestionOut(BaseModel):
@@ -36,7 +51,8 @@ class AnnualSavingsGoalSuggestionOut(BaseModel):
 class AnnualSavingsGoalExternalOut(BaseModel):
     """growlio 등 외부 서비스에 노출하는 읽기전용 형태 — target 값만 담는다. 진행률/달성률은
     각 서비스가 자기 자신의 거래내역으로 독립 계산하므로(app/services/annual_savings_goal_service.py
-    ::compute_progress는 nestlio 화면 전용) 여기서는 내려주지 않는다."""
+    ::compute_progress는 nestlio 화면 전용) 여기서는 내려주지 않는다. monthly_target_krw는
+    AnnualSavingsGoal.monthly_target_krw property(target_amount_krw/12)에서 하위호환으로 채워진다."""
 
     model_config = ConfigDict(from_attributes=True)
 
