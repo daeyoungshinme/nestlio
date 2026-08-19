@@ -117,7 +117,7 @@ def test_create_event_notifies_other_spouse_only(mock_connected, mock_send, seed
 
     mock_send.assert_called_once()
     _, kwargs = mock_send.call_args
-    assert kwargs["to"] == spouse2.email
+    assert kwargs["to"] == [spouse2.email]
 
 
 @patch("app.services.event_service.gmail_service.send_email")

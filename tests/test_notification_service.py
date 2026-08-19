@@ -5,7 +5,7 @@ from unittest.mock import patch
 import pytest
 
 from app.models.user import User
-from app.services import cashflow_plan_service, goal_service, notification_prefs_service, notification_service
+from app.services import cashflow_plan_service, goal_service, notification_service, notification_settings_service
 
 
 @patch("app.services.notification_service.is_connected", return_value=True)
@@ -183,7 +183,7 @@ def test_check_all_goal_milestones_counts_only_newly_celebrated(seeded_db):
 @patch("app.services.notification_service.gmail_service.send_email")
 def test_goal_milestone_skipped_when_pref_disabled(mock_send, mock_connected, seeded_db):
     db, user = seeded_db["db"], seeded_db["user"]
-    notification_prefs_service.set_prefs(db, {"goal_milestone": False}, user.id)
+    notification_settings_service.set_prefs(db, {"goal_milestone": False}, user.id)
     goal = goal_service.create_goal(db, 1, "내집마련", 40, Decimal("1000000"), Decimal("100000"), Decimal("1000000"))
 
     sent = notification_service.check_and_celebrate_goal_milestone(db, goal.id)
@@ -196,7 +196,7 @@ def test_goal_milestone_skipped_when_pref_disabled(mock_send, mock_connected, se
 @patch("app.services.notification_service.gmail_service.send_email")
 def test_weekly_summary_skipped_when_pref_disabled(mock_send, mock_connected, seeded_db):
     db, user = seeded_db["db"], seeded_db["user"]
-    notification_prefs_service.set_prefs(db, {"email_weekly": False}, user.id)
+    notification_settings_service.set_prefs(db, {"email_weekly": False}, user.id)
 
     sent = notification_service.send_weekly_summary(db, today=date(2026, 7, 29))
 

@@ -18,3 +18,6 @@ class Category(Base):
     is_debt: Mapped[bool] = mapped_column(Boolean, default=False)
     is_savings: Mapped[bool] = mapped_column(Boolean, default=False)
     sort_order: Mapped[int] = mapped_column(Integer, default=0)
+    # 일반 2인 가구 지출 가이드라인과 비교하기 위한 표준 카테고리 태그 (app/constants/benchmark_groups.py 참고).
+    # 미지정(None)이면 벤치마크 비교 대상에서 제외된다.
+    benchmark_group: Mapped[str | None] = mapped_column(String(30), nullable=True)

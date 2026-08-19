@@ -15,6 +15,8 @@ from app.services import (
 from app.services.coaching_engine import (
     Insight,
     budget_overrun_insights,
+    category_benchmark_insights,
+    category_benchmark_rows,
     debt_ratio_insight,
     discretionary_ratio_insight,
     emergency_fund_insight,
@@ -143,6 +145,64 @@ def test_debt_ratio_boundaries(debt, expected):
         assert insight is None
     else:
         assert insight.severity == expected
+
+
+# --- category benchmark: 표준 그룹별 소득 대비 지출 vs 가이드라인 비율 ----------------------
+
+_BENCHMARK_PCTS = {"food": 15, "leisure": 10}
+
+
+def test_category_benchmark_rows_skips_untagged_categories():
+    totals = _totals(1_000_000, 500_000, 0, 500_000)
+    breakdown = [
+        {"name": "장보기", "amount": Decimal("200000"), "benchmark_group": None},
+        {"name": "기타", "amount": Decimal("100000"), "benchmark_group": "other"},  # 가이드라인 없는 그룹
+    ]
+    assert category_benchmark_rows(totals, breakdown, _BENCHMARK_PCTS) == []
+
+
+def test_category_benchmark_rows_sums_multiple_categories_into_same_group():
+    totals = _totals(1_000_000, 300_000, 0, 300_000)
+    breakdown = [
+        {"name": "장보기", "amount": Decimal("100000"), "benchmark_group": "food"},
+        {"name": "배달음식", "amount": Decimal("100000"), "benchmark_group": "food"},
+    ]
+    rows = category_benchmark_rows(totals, breakdown, _BENCHMARK_PCTS)
+    assert len(rows) == 1
+    assert rows[0]["group"] == "food"
+    assert rows[0]["amount"] == Decimal("200000")
+    assert rows[0]["pct"] == pytest.approx(20.0)
+
+
+@pytest.mark.parametrize(
+    "amount,expected_status",
+    [(140_000, "ok"), (150_000, "warn"), (200_000, "warn")],  # 15%는 정확히 임계값 -> warn
+)
+def test_category_benchmark_rows_status_boundary(amount, expected_status):
+    totals = _totals(1_000_000, amount, 0, amount)
+    breakdown = [{"name": "장보기", "amount": Decimal(amount), "benchmark_group": "food"}]
+    rows = category_benchmark_rows(totals, breakdown, _BENCHMARK_PCTS)
+    assert rows[0]["status"] == expected_status
+
+
+def test_category_benchmark_rows_empty_when_no_income():
+    totals = _totals(0, 0, 0, 0)
+    breakdown = [{"name": "장보기", "amount": Decimal("100000"), "benchmark_group": "food"}]
+    assert category_benchmark_rows(totals, breakdown, _BENCHMARK_PCTS) == []
+
+
+def test_category_benchmark_insights_only_includes_warn_rows_sorted_by_overage():
+    totals = _totals(1_000_000, 450_000, 0, 450_000)
+    breakdown = [
+        {"name": "장보기", "amount": Decimal("160000"), "benchmark_group": "food"},  # 16% vs 15% -> +1pt
+        {"name": "여가", "amount": Decimal("140000"), "benchmark_group": "leisure"},  # 14% vs 10% -> +4pt
+        {"name": "교통", "amount": Decimal("150000"), "benchmark_group": "transport"},  # 가이드라인 없음, 무시
+    ]
+    rows = category_benchmark_rows(totals, breakdown, _BENCHMARK_PCTS)
+    insights = category_benchmark_insights(rows)
+    assert [i.rule_code for i in insights] == ["category_benchmark", "category_benchmark"]
+    assert "여가" in insights[0].message  # 초과폭이 더 큰 항목(여가/문화, +4pt)이 먼저
+    assert "식비" in insights[1].message  # 표준 그룹 라벨 기준 메시지(원래 카테고리명 "장보기"가 아님)
 
 
 # --- goal pace: actual savings vs sum of goals' monthly_saving_amount ----------------------

@@ -9,7 +9,7 @@ from app.models.event import Event
 from app.models.notification_log import NotificationLog
 from app.models.recurring_expense import RecurringExpense
 from app.models.user import User
-from app.services import gmail_service, notification_prefs_service
+from app.services import gmail_service, notification_settings_service
 from app.services.google_auth import GoogleNotConnectedError, is_connected
 from app.utils.dates import advance_due_date
 
@@ -273,7 +273,7 @@ def send_due_reminders(db: Session, now: datetime, window_minutes: int = 15) -> 
     [now, now + window_minutes). Meant to be called by a periodic scheduler job."""
     if not is_connected():
         return 0
-    if not notification_prefs_service.is_enabled(db, "event_reminder"):
+    if not notification_settings_service.is_enabled(db, "event_reminder"):
         return 0
 
     sent = 0
@@ -282,7 +282,7 @@ def send_due_reminders(db: Session, now: datetime, window_minutes: int = 15) -> 
         for occurrence in _due_occurrences(event, now, window_minutes):
             if _already_notified(db, event.id, occurrence):
                 continue
-            _send_reminder_email(event, occurrence)
+            _send_reminder_email(db, event, occurrence)
             _log_notified(db, event.id, occurrence)
             sent += 1
     return sent
@@ -326,24 +326,29 @@ def _log_notified(db: Session, event_id: int, occurrence: datetime) -> None:
     db.commit()
 
 
-def _send_reminder_email(event: Event, occurrence: datetime) -> None:
+def _send_reminder_email(db: Session, event: Event, occurrence: datetime) -> None:
     body = _event_summary_text(event, occurrence)
     try:
-        gmail_service.send_email(f"[Nestlio] 일정 리마인더: {event.title}", body)
+        gmail_service.send_email(
+            f"[Nestlio] 일정 리마인더: {event.title}", body, to=notification_settings_service.get_recipients(db)
+        )
     except Exception:
         logger.exception("일정 리마인더 이메일 발송 실패: %s", event.title)
 
 
 def _notify_other_spouse(db: Session, event: Event, actor_id: uuid.UUID, action_label: str) -> None:
+    """설정된 수신자 목록(notification_settings_service.get_recipients) 중 행위자 본인 이메일은
+    제외하고 보낸다 - 자기 자신에게 "방금 내가 한 행동" 메일을 보낼 필요는 없기 때문. 다른 발송
+    경로(notification_service)와 달리 이 함수만 행위자를 배제하는 이유가 여기 있다."""
     if not is_connected():
         return
-    recipients = db.query(User).filter(User.id != actor_id).all()
+    actor = db.get(User, actor_id)
+    recipients = [email for email in notification_settings_service.get_recipients(db) if actor is None or email != actor.email]
     if not recipients:
         return
-    to = ", ".join(u.email for u in recipients)
     body = _event_summary_text(event, event.start_at, header=action_label)
     try:
-        gmail_service.send_email(f"[Nestlio] {action_label}: {event.title}", body, to=to)
+        gmail_service.send_email(f"[Nestlio] {action_label}: {event.title}", body, to=recipients)
     except Exception:
         logger.exception("일정 알림 이메일 발송 실패: %s", event.title)
 

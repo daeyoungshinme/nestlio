@@ -5,15 +5,14 @@ from decimal import Decimal
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
-from app.config import settings
 from app.models.savings_product import SavingsProduct
 from app.models.savings_product_annual_plan import SavingsProductAnnualPlan
 from app.models.savings_product_annual_plan_monthly_target import SavingsProductAnnualPlanMonthlyTarget
 from app.models.transaction import Transaction
-from app.services import growlio_client
+from app.services import growlio_client, plan_targets
 from app.services.growlio_client import GrowlioSyncError
 from app.utils.dates import month_bounds, parse_year_month, shift_month, year_bounds, year_month_str
-from app.utils.plan_status import pct_of, status_from_pct
+from app.utils.plan_status import pct_of
 
 PLAN_PRODUCT_TYPES = ("savings", "investment")
 
@@ -68,25 +67,6 @@ def trailing_average_actuals(db: Session, year_month: str, months: int = 3) -> d
         for product_id, amount in actuals_for_month(db, year_month_str(shift_month(month_start, -offset))).items():
             totals[product_id] = totals.get(product_id, Decimal("0")) + amount
     return {product_id: total / months for product_id, total in totals.items()}
-
-
-def _apply_monthly_targets(plan: SavingsProductAnnualPlan, monthly_targets: list[dict] | None) -> None:
-    """year_month로 기존 행을 매칭해 target_amount만 갱신하고, 새 월은 새로 만든다 —
-    annual_plan_service._apply_monthly_targets와 동일 패턴. 빠진 월은 목록에서 제외돼 delete-orphan으로
-    삭제된다."""
-    existing_by_month = {mt.year_month: mt for mt in plan.monthly_targets}
-    new_targets: list[SavingsProductAnnualPlanMonthlyTarget] = []
-    for entry in monthly_targets or []:
-        year_month = entry["year_month"]
-        existing = existing_by_month.get(year_month)
-        if existing is not None:
-            existing.target_amount = entry["target_amount"]
-            new_targets.append(existing)
-        else:
-            new_targets.append(
-                SavingsProductAnnualPlanMonthlyTarget(year_month=year_month, target_amount=entry["target_amount"])
-            )
-    plan.monthly_targets = new_targets
 
 
 def get_annual_plan(db: Session, product_id: int, year: int) -> dict | None:
@@ -144,7 +124,7 @@ def upsert_annual_plan(
         db.add(plan)
     plan.start_month = start_month
     plan.end_month = end_month
-    _apply_monthly_targets(plan, monthly_targets)
+    plan_targets.apply_monthly_targets(plan, monthly_targets, SavingsProductAnnualPlanMonthlyTarget)
     db.commit()
     db.refresh(plan)
     return plan
@@ -171,19 +151,13 @@ def _monthly_targets_by_product_for_year(db: Session, product_ids: list[int], ye
     return result
 
 
-def _plan_status(pct: float) -> str:
-    """저축/투자 계획 달성률은 미달(실적이 계획에 못 미침)이 위험이므로 income 섹션과 같은 방향으로 판단한다
-    (utils/plan_status.status_from_pct의 invert 옵션) — 새 임계값을 추가하지 않고 기존 예산 경고/위험 기준을 재사용한다."""
-    return status_from_pct(pct, settings.budget_warn_pct, settings.budget_critical_pct, invert=True)
-
-
 def _plan_group(planned: Decimal, actual: Decimal) -> dict:
     pct = pct_of(actual, planned, zero_planned_default=None)
     return {
         "planned": planned,
         "actual": actual,
         "pct": pct,
-        "status": _plan_status(pct) if pct is not None else None,
+        "status": plan_targets.savings_status(pct) if pct is not None else None,
     }
 
 
@@ -264,21 +238,13 @@ def yearly_monthly_actuals(db: Session, year: int) -> list[Decimal]:
     return [totals[month] for month in range(1, 13)]
 
 
-def _elapsed_months(year: int, as_of: date) -> int:
-    if year < as_of.year:
-        return 12
-    if year > as_of.year:
-        return 0
-    return as_of.month
-
-
 def compute_annual_plan_summary(db: Session, year: int, as_of: date) -> dict:
     """상품별 연간 누적 계획 대비 그 해 누적 실적(actuals_for_year)을 비교한다. 계획액은 달마다
     SavingsProductAnnualPlan(월별 그리드)에 값이 있으면 그 값을, 없으면 product.monthly_saving_amount로
     폴백해 12개월치를 합산한다(_monthly_targets_by_product_for_year). 월별 compute_plan_summary와
     달리 특정 달의 미달/초과가 다음 달로 이월되는 문제를 자연히 상쇄한다 — 한 달을 걸러도 이후 달에
     몰아 넣으면 누적 기준으로는 계획대로 납입한 것으로 인정된다."""
-    elapsed_months = _elapsed_months(year, as_of)
+    elapsed_months = plan_targets.elapsed_months(year, as_of)
     products = [p for p in list_products(db) if p.product_type in PLAN_PRODUCT_TYPES]
     actuals = actuals_for_year(db, year)
     targets_by_product = _monthly_targets_by_product_for_year(db, [p.id for p in products], year)

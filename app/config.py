@@ -37,6 +37,18 @@ class Settings(BaseSettings):
     discretionary_ratio_warn: float = 15
     debt_ratio_warn: float = 30
 
+    # 표준 카테고리(app/constants/benchmark_groups.py)별 "일반적인 2인 가구" 지출 가이드라인.
+    # 통계청 등 공식 통계 연동이 아니라 통상적으로 통용되는 참고 비율(소득 대비 %)이며,
+    # 설정 화면(coaching_settings_service)에서 부부가 직접 조정할 수 있다.
+    benchmark_food_warn_pct: float = 15
+    benchmark_housing_warn_pct: float = 28
+    benchmark_communication_warn_pct: float = 5
+    benchmark_transport_warn_pct: float = 10
+    benchmark_leisure_warn_pct: float = 10
+    benchmark_healthcare_warn_pct: float = 6
+    benchmark_education_warn_pct: float = 10
+    benchmark_insurance_warn_pct: float = 8
+
     max_upload_size_mb: float = 5
 
     # /internal/jobs/* 엔드포인트 인증용 공유 시크릿 (GitHub Actions 예약 워크플로가 호출)

@@ -3,21 +3,24 @@ from datetime import date
 from decimal import Decimal
 
 from sqlalchemy import func
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 
-from app.config import settings
 from app.models.annual_plan_item import AnnualPlanItem
 from app.models.annual_plan_item_monthly_target import AnnualPlanItemMonthlyTarget
 from app.models.category import Category
-from app.services import transaction_report_service
+from app.services import plan_targets, transaction_report_service
 from app.utils.dates import year_bounds
-from app.utils.plan_status import pct_of, status_from_pct
+from app.utils.plan_status import pct_of
 
 SECTIONS = ("income", "fixed", "variable", "irregular")
 
 
 def list_items(db: Session, year: int, section: str | None = None) -> list[AnnualPlanItem]:
-    query = db.query(AnnualPlanItem).filter(AnnualPlanItem.year == year)
+    query = (
+        db.query(AnnualPlanItem)
+        .options(selectinload(AnnualPlanItem.monthly_targets))
+        .filter(AnnualPlanItem.year == year)
+    )
     if section is not None:
         query = query.filter(AnnualPlanItem.section == section)
     return query.order_by(AnnualPlanItem.section, AnnualPlanItem.sort_order).all()
@@ -34,23 +37,6 @@ def monthly_targets_for_month(db: Session, year_month: str) -> list[tuple[Annual
         .filter(AnnualPlanItem.year == year, AnnualPlanItemMonthlyTarget.year_month == year_month)
         .all()
     )
-
-
-def _apply_monthly_targets(item: AnnualPlanItem, monthly_targets: list[dict] | None) -> None:
-    """year_month로 기존 행을 매칭해 target_amount만 갱신하고, 새 월은 새로 만든다 —
-    goal_service._apply_monthly_targets와 동일 패턴. 빠진 월은 목록에서 제외돼 delete-orphan으로
-    삭제된다."""
-    existing_by_month = {mt.year_month: mt for mt in item.monthly_targets}
-    new_targets: list[AnnualPlanItemMonthlyTarget] = []
-    for entry in monthly_targets or []:
-        year_month = entry["year_month"]
-        existing = existing_by_month.get(year_month)
-        if existing is not None:
-            existing.target_amount = entry["target_amount"]
-            new_targets.append(existing)
-        else:
-            new_targets.append(AnnualPlanItemMonthlyTarget(year_month=year_month, target_amount=entry["target_amount"]))
-    item.monthly_targets = new_targets
 
 
 def upsert_item(
@@ -81,7 +67,7 @@ def upsert_item(
     item.updated_by = updated_by
     item.start_month = start_month
     item.end_month = end_month
-    _apply_monthly_targets(item, monthly_targets)
+    plan_targets.apply_monthly_targets(item, monthly_targets, AnnualPlanItemMonthlyTarget)
     db.commit()
     db.refresh(item)
     return item
@@ -115,20 +101,6 @@ def item_to_out(item: AnnualPlanItem) -> dict:
     }
 
 
-def _elapsed_months(year: int, today: date) -> int:
-    if year < today.year:
-        return 12
-    if year > today.year:
-        return 0
-    return today.month
-
-
-def _status(section: str, pct: float) -> str:
-    """지출 3섹션(fixed/variable/irregular)은 실적이 계획을 초과할수록 위험, income은 반대(실적이
-    계획에 못 미칠수록 위험)이므로 cashflow_plan_service._status와 동일하게 invert를 나눈다."""
-    return status_from_pct(pct, settings.budget_warn_pct, settings.budget_critical_pct, invert=(section == "income"))
-
-
 def _section_monthly_targets(db: Session, year: int, section: str) -> dict[str, Decimal]:
     """그 섹션에 속한 모든 항목의 월별 목표금액을 월별로 합산한다 — 섹션 총액은 저장하지 않고
     항목 합으로 파생시킨다(월간 CashflowPlanItem.compute_summary와 동일 원칙)."""
@@ -142,10 +114,9 @@ def _section_monthly_targets(db: Session, year: int, section: str) -> dict[str, 
     return {year_month: amount or Decimal("0") for year_month, amount in rows}
 
 
-def section_summary(db: Session, year: int, section: str, today: date) -> dict:
-    elapsed_months = _elapsed_months(year, today)
+def section_summary(db: Session, year: int, section: str, today: date, breakdown: list[dict]) -> dict:
+    elapsed_months = plan_targets.elapsed_months(year, today)
     targets_by_month = _section_monthly_targets(db, year, section)
-    breakdown = transaction_report_service.yearly_monthly_breakdown(db, year)
 
     monthly_out = []
     actual_total = Decimal("0")
@@ -161,7 +132,7 @@ def section_summary(db: Session, year: int, section: str, today: date) -> dict:
                 "target_amount": target,
                 "actual": actual,
                 "pct": pct,
-                "status": _status(section, pct) if pct is not None else None,
+                "status": plan_targets.budget_status(section, pct) if pct is not None else None,
             }
         )
         if actual is not None:
@@ -179,13 +150,14 @@ def section_summary(db: Session, year: int, section: str, today: date) -> dict:
         "actual": actual_total,
         "pct": pct,
         "annual_pct": annual_pct,
-        "status": _status(section, pct) if pct is not None else None,
+        "status": plan_targets.budget_status(section, pct) if pct is not None else None,
         "monthly": monthly_out,
     }
 
 
 def summary_for_year(db: Session, year: int, today: date) -> dict:
-    sections = {section: section_summary(db, year, section, today) for section in SECTIONS}
+    breakdown = transaction_report_service.yearly_monthly_breakdown(db, year)
+    sections = {section: section_summary(db, year, section, today, breakdown) for section in SECTIONS}
     expense_total = sum(
         (sections[section]["annual_target"] for section in ("fixed", "variable", "irregular")), Decimal("0")
     )
@@ -235,7 +207,7 @@ def category_budget_vs_actual(db: Session, year: int) -> list[dict]:
                 "budget": budget_amount,
                 "actual": actual,
                 "pct": pct,
-                "status": _status(cat.type, pct) if budget_amount else ("warn" if actual else "ok"),
+                "status": plan_targets.budget_status(cat.type, pct) if budget_amount else ("warn" if actual else "ok"),
             }
         )
     return result

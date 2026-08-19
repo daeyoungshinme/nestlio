@@ -15,6 +15,14 @@ class CoachingThresholdsOut(BaseModel):
     budget_critical_pct: float
     discretionary_ratio_warn: float
     debt_ratio_warn: float
+    benchmark_food_warn_pct: float
+    benchmark_housing_warn_pct: float
+    benchmark_communication_warn_pct: float
+    benchmark_transport_warn_pct: float
+    benchmark_leisure_warn_pct: float
+    benchmark_healthcare_warn_pct: float
+    benchmark_education_warn_pct: float
+    benchmark_insurance_warn_pct: float
 
 
 class CoachingThresholdsIn(BaseModel):
@@ -26,6 +34,14 @@ class CoachingThresholdsIn(BaseModel):
     budget_critical_pct: float = Field(ge=0, le=999)
     discretionary_ratio_warn: float = Field(ge=0, le=999)
     debt_ratio_warn: float = Field(ge=0, le=999)
+    benchmark_food_warn_pct: float = Field(ge=0, le=999)
+    benchmark_housing_warn_pct: float = Field(ge=0, le=999)
+    benchmark_communication_warn_pct: float = Field(ge=0, le=999)
+    benchmark_transport_warn_pct: float = Field(ge=0, le=999)
+    benchmark_leisure_warn_pct: float = Field(ge=0, le=999)
+    benchmark_healthcare_warn_pct: float = Field(ge=0, le=999)
+    benchmark_education_warn_pct: float = Field(ge=0, le=999)
+    benchmark_insurance_warn_pct: float = Field(ge=0, le=999)
 
 
 class NotificationPrefsOut(BaseModel):

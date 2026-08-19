@@ -12,8 +12,10 @@ def list_categories(db: Session, active_only: bool = True, kind: str | None = No
     return query.order_by(Category.type, Category.sort_order, Category.name).all()
 
 
-def create_category(db: Session, name: str, type_: str, color: str, kind: str = "expense") -> Category:
-    category = Category(name=name, kind=kind, type=type_, color=color, sort_order=999)
+def create_category(
+    db: Session, name: str, type_: str, color: str, kind: str = "expense", benchmark_group: str | None = None
+) -> Category:
+    category = Category(name=name, kind=kind, type=type_, color=color, sort_order=999, benchmark_group=benchmark_group)
     db.add(category)
     db.commit()
     db.refresh(category)
@@ -21,7 +23,13 @@ def create_category(db: Session, name: str, type_: str, color: str, kind: str = 
 
 
 def update_category(
-    db: Session, category_id: int, name: str, type_: str, color: str, kind: str | None = None
+    db: Session,
+    category_id: int,
+    name: str,
+    type_: str,
+    color: str,
+    kind: str | None = None,
+    benchmark_group: str | None = None,
 ) -> Category | None:
     category = db.get(Category, category_id)
     if category is None:
@@ -31,6 +39,7 @@ def update_category(
     category.color = color
     if kind is not None:
         category.kind = kind
+    category.benchmark_group = benchmark_group
     db.commit()
     db.refresh(category)
     return category

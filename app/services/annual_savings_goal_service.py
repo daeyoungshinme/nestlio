@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 
 from app.models.annual_savings_goal import AnnualSavingsGoal
 from app.models.annual_savings_goal_monthly_target import AnnualSavingsGoalMonthlyTarget
-from app.services import goal_service, transaction_report_service
+from app.services import goal_service, plan_targets, transaction_report_service
 
 
 def list_goals(db: Session) -> list[AnnualSavingsGoal]:
@@ -16,31 +16,12 @@ def get_goal(db: Session, year: int) -> AnnualSavingsGoal | None:
     return db.query(AnnualSavingsGoal).filter(AnnualSavingsGoal.year == year).first()
 
 
-def _apply_monthly_targets(goal: AnnualSavingsGoal, monthly_targets: list[dict] | None) -> None:
-    """year_month로 기존 행을 매칭해 target_amount만 갱신하고, 새 월은 새로 만든다 —
-    goal_service._apply_monthly_targets/annual_plan_service._apply_monthly_targets와 동일 패턴.
-    빠진 월은 목록에서 제외돼 delete-orphan으로 삭제된다."""
-    existing_by_month = {mt.year_month: mt for mt in goal.monthly_targets}
-    new_targets: list[AnnualSavingsGoalMonthlyTarget] = []
-    for entry in monthly_targets or []:
-        year_month = entry["year_month"]
-        existing = existing_by_month.get(year_month)
-        if existing is not None:
-            existing.target_amount = entry["target_amount"]
-            new_targets.append(existing)
-        else:
-            new_targets.append(
-                AnnualSavingsGoalMonthlyTarget(year_month=year_month, target_amount=entry["target_amount"])
-            )
-    goal.monthly_targets = new_targets
-
-
 def upsert_goal(db: Session, year: int, monthly_targets: list[dict]) -> AnnualSavingsGoal:
     goal = get_goal(db, year)
     if goal is None:
         goal = AnnualSavingsGoal(year=year)
         db.add(goal)
-    _apply_monthly_targets(goal, monthly_targets)
+    plan_targets.apply_monthly_targets(goal, monthly_targets, AnnualSavingsGoalMonthlyTarget)
     goal.target_amount_krw = sum((mt.target_amount for mt in goal.monthly_targets), Decimal("0"))
     db.commit()
     db.refresh(goal)

@@ -38,6 +38,31 @@ def test_update_category(client):
     assert body["color"] == "#fb7185"
 
 
+def test_create_category_with_benchmark_group(client):
+    resp = client.post(
+        "/api/v1/categories",
+        json={"name": "배달음식", "kind": "expense", "type": "variable", "color": "#f97316", "benchmark_group": "food"},
+    )
+    assert resp.status_code == 201
+    body = resp.json()
+    assert body["benchmark_group"] == "food"
+
+    update_resp = client.put(
+        f"/api/v1/categories/{body['id']}",
+        json={"name": "배달음식", "kind": "expense", "type": "variable", "color": "#f97316", "benchmark_group": None},
+    )
+    assert update_resp.status_code == 200
+    assert update_resp.json()["benchmark_group"] is None
+
+
+def test_create_category_rejects_unknown_benchmark_group(client):
+    resp = client.post(
+        "/api/v1/categories",
+        json={"name": "잡비", "kind": "expense", "type": "variable", "color": "#000000", "benchmark_group": "not_a_group"},
+    )
+    assert resp.status_code == 422
+
+
 def test_update_category_not_found(client):
     resp = client.put(
         "/api/v1/categories/999999",

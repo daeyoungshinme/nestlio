@@ -7,6 +7,7 @@ from decimal import Decimal
 from sqlalchemy.orm import Session
 
 from app.config import settings
+from app.constants.benchmark_groups import BENCHMARK_GROUPS
 from app.models.financial_goal import FinancialGoal
 from app.services import (
     budget_service,
@@ -145,6 +146,59 @@ def debt_ratio_insight(
     if ratio >= warn_pct:
         return Insight("debt_ratio", "warning", f"대출상환이 소득의 {ratio:.0f}%입니다. (권장 {warn_pct:.0f}% 이하)")
     return None
+
+
+CATEGORY_BENCHMARK_TOP_N = 2
+
+
+def category_benchmark_rows(
+    totals: dict, category_breakdown: list[dict], benchmark_pcts: dict[str, float]
+) -> list[dict]:
+    """카테고리별 지출을 표준 그룹(app.constants.benchmark_groups.BENCHMARK_GROUPS)으로 합산해
+    소득 대비 비중을 "일반적인 2인 가구" 가이드라인 비율과 비교한다. `benchmark_group`이
+    태깅되지 않은 카테고리(대부분의 기존 카테고리)는 집계에서 제외되고, 태깅됐더라도
+    benchmark_pcts에 없는 그룹("other" 등 가이드라인이 없는 그룹)도 결과에 포함하지 않는다."""
+    income = totals["income"]
+    if income <= 0:
+        return []
+    group_totals: dict[str, Decimal] = {}
+    for row in category_breakdown:
+        group = row.get("benchmark_group")
+        if not group or group not in benchmark_pcts:
+            continue
+        group_totals[group] = group_totals.get(group, Decimal("0")) + row["amount"]
+    rows = []
+    for group, amount in group_totals.items():
+        benchmark_pct = benchmark_pcts[group]
+        pct = _pct(amount, income)
+        rows.append(
+            {
+                "group": group,
+                "label": BENCHMARK_GROUPS.get(group, group),
+                "amount": amount,
+                "pct": pct,
+                "benchmark_pct": benchmark_pct,
+                "status": "warn" if pct >= benchmark_pct else "ok",
+            }
+        )
+    return rows
+
+
+def category_benchmark_insights(rows: list[dict]) -> list[Insight]:
+    """category_benchmark_rows 결과 중 가이드라인을 초과한 그룹만 초과폭이 큰 순으로 변환한다.
+    compute_insights가 상위 CATEGORY_BENCHMARK_TOP_N개만 대시보드 알림에 노출한다 — 전체 비교표는
+    연간 리포트(app/routers/reports.py)가 별도로 보여준다."""
+    warn_rows = [row for row in rows if row["status"] == "warn"]
+    warn_rows.sort(key=lambda row: row["pct"] - row["benchmark_pct"], reverse=True)
+    return [
+        Insight(
+            "category_benchmark",
+            "warning",
+            f"{row['label']} 지출이 소득의 {row['pct']:.0f}%로 일반적인 가이드라인"
+            f"({row['benchmark_pct']:.0f}%)보다 높아요. 여유가 생기면 저축·투자를 늘려보는 건 어때요?",
+        )
+        for row in warn_rows
+    ]
 
 
 def goal_pace_insight(totals: dict, goals: list[dict]) -> Insight | None:
@@ -328,6 +382,10 @@ def compute_insights(
             insights.append(candidate)
     insights.extend(budget_overrun_insights(budget_rows))
     insights.extend(variable_spend_trend_insights(breakdown, trailing_avg))
+
+    benchmark_pcts = {group: thresholds[f"benchmark_{group}_warn_pct"] for group in BENCHMARK_GROUPS if group != "other"}
+    benchmark_rows = category_benchmark_rows(totals, breakdown, benchmark_pcts)
+    insights.extend(category_benchmark_insights(benchmark_rows)[:CATEGORY_BENCHMARK_TOP_N])
 
     current_balance, avg_fixed = fund_context if fund_context is not None else emergency_fund_context(db, month_start)
     if current_balance is not None:

@@ -1,4 +1,5 @@
 from decimal import Decimal
+from typing import Literal
 
 from pydantic import BaseModel
 
@@ -15,6 +16,15 @@ class YearlyMonthRowOut(BaseModel):
     savings: Decimal
 
 
+class CategoryBenchmarkRowOut(BaseModel):
+    group: str
+    label: str
+    amount: Decimal
+    pct: float
+    benchmark_pct: float
+    status: Literal["ok", "warn"]
+
+
 class YearlyReportOut(BaseModel):
     year: int
     prev_year: int
@@ -22,6 +32,7 @@ class YearlyReportOut(BaseModel):
     monthly: list[YearlyMonthRowOut]
     totals: TotalsOut
     breakdown: list[CategoryAmountOut]
+    benchmark: list[CategoryBenchmarkRowOut]
 
 
 class CategoryTrendSeriesOut(BaseModel):

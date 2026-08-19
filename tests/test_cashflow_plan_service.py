@@ -444,6 +444,30 @@ def test_annual_fallback_skips_month_with_existing_matching_item(seeded_db):
     assert real_item.amount == Decimal("850000")
 
 
+def test_annual_fallback_still_shows_when_only_category_matches_not_name(seeded_db):
+    """같은 카테고리를 쓰지만 이름이 다른 실제 항목이 이미 있어도, 연간계획 항목은 폴백으로 계속
+    노출되어야 한다 — category_id만으로 매칭하면 이 연간계획 항목이 통째로 가려지는 게 이번에 고친 버그다."""
+    db, user, rent = seeded_db["db"], seeded_db["user"], seeded_db["rent"]
+    annual_plan_service.upsert_item(
+        db, None, 2026, "fixed", None, "월세", rent.id, 0, user.id, "2026-01", "2026-12",
+        monthly_targets=[{"year_month": "2026-07", "target_amount": Decimal("800000")}],
+    )
+    cashflow_plan_service.upsert_item(
+        db, None, "fixed", None, "관리비", Decimal("150000"), 1, "2026-07", user.id, category_id=rent.id
+    )
+
+    items = cashflow_plan_service.list_items_with_annual_fallback(db, "2026-07")
+
+    assert len(items) == 2
+    real_item = next(i for i in items if i.id is not None)
+    fallback = next(i for i in items if i.id is None)
+    assert real_item.name == "관리비"
+    assert real_item.amount == Decimal("150000")
+    assert fallback.name == "월세"
+    assert fallback.from_annual_plan is True
+    assert fallback.amount == Decimal("800000")
+
+
 def test_editing_annual_fallback_promotes_it_and_detaches_from_future_annual_edits(seeded_db):
     db, user, rent = seeded_db["db"], seeded_db["user"], seeded_db["rent"]
     annual_item = annual_plan_service.upsert_item(

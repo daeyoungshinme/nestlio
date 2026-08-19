@@ -12,7 +12,7 @@ class NotificationLog(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     notif_type: Mapped[str] = mapped_column(String(30))
     # 'email_weekly' | 'email_monthly' | 'threshold_alert' | 'event_reminder' | 'goal_milestone'
-    # | 'challenge_success' — on/off 토글은 app/services/notification_prefs_service.py 참고.
+    # | 'challenge_success' — on/off 토글은 app/services/notification_settings_service.py 참고.
     related_type: Mapped[str | None] = mapped_column(String(30), nullable=True)
     related_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
     # dedupe key: 'YYYY-MM' for monthly/threshold notifs, 'YYYY-MM-DD' (week start) for weekly,

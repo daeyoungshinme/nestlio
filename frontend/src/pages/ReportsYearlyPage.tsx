@@ -1,6 +1,7 @@
+import { useNavigate } from "react-router-dom";
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { ChevronLeft, ChevronRight, Scale } from "lucide-react";
 import {
   Bar,
   BarChart,
@@ -22,7 +23,9 @@ import EmptyState from "@/components/common/EmptyState";
 import { fetchCategoryTrend, fetchYearlyReport } from "@/api/reports";
 import { QUERY_KEYS } from "@/constants/queryKeys";
 import { TOUCH_TARGET_MIN_MOBILE_ONLY } from "@/constants/uiSizes";
-import { formatKrw, formatKrwCompact, formatYearMonth } from "@/utils/format";
+import { formatKrw, formatKrwCompact, formatPercent, formatYearMonth } from "@/utils/format";
+import { planStatusBarClass, planStatusTextClass } from "@/utils/colors";
+import type { CategoryBenchmarkRowOut } from "@/types";
 import { PieChart as PieChartIcon, TrendingUp } from "lucide-react";
 
 const CATEGORY_TREND_MONTHS = 6;
@@ -31,6 +34,7 @@ const MONTH_TICK_FORMATTER = (value: string) => value.replace("월", "");
 const TREND_TICK_FORMATTER = (value: string) => value.replace(/^\d+년\s*/, "");
 
 export default function ReportsYearlyPage() {
+  const navigate = useNavigate();
   const [year, setYear] = useState(new Date().getFullYear());
   const [hiddenSeries, setHiddenSeries] = useState<Set<string>>(new Set());
   const toggleSeries = (name: string) => {
@@ -144,6 +148,27 @@ export default function ReportsYearlyPage() {
       </div>
 
       <div className="card">
+        <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1">가구 평균 대비 지출 비교</h3>
+        <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
+          공식 통계가 아닌 일반적인 가이드라인 참고값이에요. 설정에서 조정할 수 있어요.
+        </p>
+        {data.benchmark.length === 0 ? (
+          <EmptyState
+            icon={Scale}
+            title="카테고리에 표준 카테고리를 지정하면 비교해드려요"
+            compact
+            action={{ label: "카테고리 관리로 이동", onClick: () => navigate("/categories") }}
+          />
+        ) : (
+          <div className="space-y-3">
+            {data.benchmark.map((row) => (
+              <CategoryBenchmarkRow key={row.group} row={row} />
+            ))}
+          </div>
+        )}
+      </div>
+
+      <div className="card">
         <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">카테고리별 소비 추이 (최근 {CATEGORY_TREND_MONTHS}개월)</h3>
         {isTrendLoading || !trend || !trendData ? (
           <SkeletonCard rows={2} />
@@ -191,6 +216,32 @@ export default function ReportsYearlyPage() {
             </ResponsiveContainer>
           </div>
         )}
+      </div>
+    </div>
+  );
+}
+
+function CategoryBenchmarkRow({ row }: { row: CategoryBenchmarkRowOut }) {
+  // 마커(가이드라인 지점)가 항상 막대 안쪽에 보이도록, 실제 비중과 가이드라인 중 큰 쪽의 1.5배를 기준 스케일로 잡는다.
+  const scale = Math.max(row.pct, row.benchmark_pct) * 1.5 || 1;
+  const barPct = Math.min((row.pct / scale) * 100, 100);
+  const markerPct = Math.min((row.benchmark_pct / scale) * 100, 100);
+
+  return (
+    <div className="py-1">
+      <div className="flex items-center justify-between text-xs text-gray-500 dark:text-gray-400">
+        <span className="truncate">{row.label}</span>
+        <span className={`shrink-0 font-semibold ${planStatusTextClass(row.status)}`}>
+          {formatPercent(row.pct)} (가이드라인 {formatPercent(row.benchmark_pct)})
+        </span>
+      </div>
+      <div className="relative mt-1 w-full h-2 bg-gray-100 dark:bg-gray-800 rounded-full overflow-hidden">
+        <div className={`h-full ${planStatusBarClass(row.status)}`} style={{ width: `${barPct}%` }} />
+        <div
+          className="absolute top-0 h-full w-0.5 bg-gray-500 dark:bg-gray-400"
+          style={{ left: `${markerPct}%` }}
+          aria-hidden="true"
+        />
       </div>
     </div>
   );

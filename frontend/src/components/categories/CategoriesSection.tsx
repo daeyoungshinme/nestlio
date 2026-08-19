@@ -13,8 +13,9 @@ import { COLOR_INPUT_SM, INLINE_BUTTON_OFFSET, INPUT_SM, LABEL_SM } from "@/cons
 import { createCategory, deactivateCategory, fetchCategories, updateCategory } from "@/api/categories";
 import { QUERY_KEYS } from "@/constants/queryKeys";
 import { STALE_TIME } from "@/constants/queryConfig";
+import { BENCHMARK_GROUP_LABELS, BENCHMARK_GROUP_ORDER } from "@/constants/benchmarkGroups";
 import { useCrudMutations } from "@/hooks/useCrudMutations";
-import type { CategoryOut, CategoryType } from "@/types";
+import type { BenchmarkGroup, CategoryOut, CategoryType } from "@/types";
 
 const TYPE_LABEL: Record<CategoryType, string> = {
   fixed: "고정지출",
@@ -29,9 +30,10 @@ interface FormState {
   kind: "income" | "expense";
   type: CategoryType;
   color: string;
+  benchmark_group: BenchmarkGroup | "";
 }
 
-const emptyForm: FormState = { name: "", kind: "expense", type: "variable", color: "#888888" };
+const emptyForm: FormState = { name: "", kind: "expense", type: "variable", color: "#888888", benchmark_group: "" };
 
 export default function CategoriesSection() {
   const [form, setForm] = useState<FormState>(emptyForm);
@@ -59,13 +61,22 @@ export default function CategoriesSection() {
 
   const handleSubmit = (e: FormEvent) => {
     e.preventDefault();
-    createMutation.mutate(form);
+    createMutation.mutate({ ...form, benchmark_group: form.benchmark_group || null });
   };
 
   const handleEditSubmit = (e: FormEvent) => {
     e.preventDefault();
     if (!editing) return;
-    updateMutation.mutate({ id: editing.id, payload: { name: editing.name, kind: editing.kind, type: editing.type, color: editing.color } });
+    updateMutation.mutate({
+      id: editing.id,
+      payload: {
+        name: editing.name,
+        kind: editing.kind,
+        type: editing.type,
+        color: editing.color,
+        benchmark_group: editing.benchmark_group,
+      },
+    });
   };
 
   if (isLoading || !data) {
@@ -112,6 +123,21 @@ export default function CategoriesSection() {
               {TYPE_ORDER.map((type) => (
                 <option key={type} value={type}>
                   {TYPE_LABEL[type]}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="flex-1 min-w-[140px]">
+            <label className={`block mb-1 font-medium ${LABEL_SM}`}>표준 카테고리(선택)</label>
+            <select
+              className={`${INPUT_SM} w-full`}
+              value={form.benchmark_group}
+              onChange={(e) => setForm((f) => ({ ...f, benchmark_group: e.target.value as BenchmarkGroup | "" }))}
+            >
+              <option value="">지정 안 함</option>
+              {BENCHMARK_GROUP_ORDER.map((group) => (
+                <option key={group} value={group}>
+                  {BENCHMARK_GROUP_LABELS[group]}
                 </option>
               ))}
             </select>
@@ -207,6 +233,23 @@ export default function CategoriesSection() {
                 </select>
               </div>
               <div>
+                <label className={`block mb-1 font-medium ${LABEL_SM}`}>표준 카테고리(선택)</label>
+                <select
+                  className={`${INPUT_SM} w-full`}
+                  value={editing.benchmark_group ?? ""}
+                  onChange={(e) =>
+                    setEditing((c) => (c ? { ...c, benchmark_group: (e.target.value || null) as BenchmarkGroup | null } : c))
+                  }
+                >
+                  <option value="">지정 안 함</option>
+                  {BENCHMARK_GROUP_ORDER.map((group) => (
+                    <option key={group} value={group}>
+                      {BENCHMARK_GROUP_LABELS[group]}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
                 <label className={`block mb-1 font-medium ${LABEL_SM}`}>색상</label>
                 <input
                   type="color"
@@ -253,7 +296,14 @@ function CategoryCard({
         />
         <div className="min-w-0">
           <p className="text-sm font-medium text-gray-900 dark:text-gray-50 truncate">{category.name}</p>
-          <Badge type={category.type} label={category.kind === "income" ? "수입" : TYPE_LABEL[category.type]} />
+          <div className="flex items-center gap-1 flex-wrap">
+            <Badge type={category.type} label={category.kind === "income" ? "수입" : TYPE_LABEL[category.type]} />
+            {category.benchmark_group && (
+              <span className="text-[11px] text-gray-400 dark:text-gray-500">
+                {BENCHMARK_GROUP_LABELS[category.benchmark_group]}
+              </span>
+            )}
+          </div>
         </div>
       </div>
       <RowActionButtons onEdit={onEdit} onDelete={onDeactivate} deleteLabel="비활성화" />

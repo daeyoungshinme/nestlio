@@ -16,6 +16,14 @@ THRESHOLD_FIELDS = (
     "budget_critical_pct",
     "discretionary_ratio_warn",
     "debt_ratio_warn",
+    "benchmark_food_warn_pct",
+    "benchmark_housing_warn_pct",
+    "benchmark_communication_warn_pct",
+    "benchmark_transport_warn_pct",
+    "benchmark_leisure_warn_pct",
+    "benchmark_healthcare_warn_pct",
+    "benchmark_education_warn_pct",
+    "benchmark_insurance_warn_pct",
 )
 
 

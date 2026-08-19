@@ -1,5 +1,6 @@
 import { Pencil, Repeat, Send, Trash2 } from "lucide-react";
 import AccountActionsMenu, { type AccountActionsMenuItem } from "@/components/common/AccountActionsMenu";
+import RowActionButtons from "@/components/common/RowActionButtons";
 import { formatKrw } from "@/utils/format";
 import { installmentProgressLabel } from "@/utils/installment";
 import { recurringLinkBadgeLabel, recurringLinkBadgeStyle } from "@/utils/colors";
@@ -41,6 +42,14 @@ export default function CashflowPlanItemRow({
     menuItems.push({ icon: <Repeat size={16} />, label: "반복내역으로 등록", onClick: onLinkRecurring });
   }
   menuItems.push({ icon: <Send size={16} />, label: "가계부에 지금 추가", onClick: onQuickAdd });
+
+  const mobileMenuItems: AccountActionsMenuItem[] = [
+    ...menuItems,
+    { icon: <Pencil size={16} />, label: "수정", onClick: onEdit },
+    ...(item.id !== null
+      ? [{ icon: <Trash2 size={16} />, label: "삭제", onClick: onDelete, variant: "danger" as const }]
+      : []),
+  ];
 
   return (
     <div className="flex items-center justify-between gap-3 py-2 border-b border-gray-100 dark:border-gray-800 last:border-0">
@@ -89,23 +98,13 @@ export default function CashflowPlanItemRow({
             {recurringLinkBadgeLabel(item.recurring_active ?? false)}
           </span>
         )}
-        <AccountActionsMenu items={menuItems} ariaLabel={`${item.name} 작업 더 보기`} />
-        <button
-          onClick={onEdit}
-          className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-950 rounded-lg transition-colors"
-          aria-label="수정"
-        >
-          <Pencil size={16} />
-        </button>
-        {item.id !== null && (
-          <button
-            onClick={onDelete}
-            className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950 rounded-lg transition-colors"
-            aria-label="삭제"
-          >
-            <Trash2 size={16} />
-          </button>
-        )}
+        <div className="hidden sm:flex items-center gap-1">
+          <AccountActionsMenu items={menuItems} ariaLabel={`${item.name} 작업 더 보기`} />
+          <RowActionButtons onEdit={onEdit} onDelete={item.id !== null ? onDelete : undefined} />
+        </div>
+        <div className="sm:hidden">
+          <AccountActionsMenu items={mobileMenuItems} ariaLabel={`${item.name} 작업 더 보기`} />
+        </div>
       </div>
     </div>
   );

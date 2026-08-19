@@ -25,7 +25,9 @@
 
 ## Google 연동 가드
 
-- `daily_due_date_check`의 캘린더 동기화, `weekly_summary_email`/`monthly_summary_email`/`daily_threshold_safety_net`은 모두 `google_auth.is_connected()`를 먼저 확인한 뒤에만 Google API를 호출한다 (연동 안 된 상태에서도 앱이 정상 동작해야 하므로).
+- `daily_due_date_check`의 캘린더 동기화와 `event_reminder_check`는 `jobs.py` 안에서 직접 `google_auth.is_connected()`를 확인한 뒤에만 Google API를 호출한다.
+- `weekly_summary_email`/`monthly_summary_email`/`daily_threshold_safety_net`은 `jobs.py`에는 가드가 없다 — 대신 한 단계 아래 `notification_service`의 각 send 함수(`send_weekly_summary`/`send_monthly_summary`/threshold·milestone 체크)가 내부적으로 `is_connected()`를 확인해, 미연결 상태여도 인앱 알림(`NotificationLog`)은 항상 남기고 실제 이메일 발송만 건너뛴다.
+- 결과적으로 연동 안 된 상태에서도 앱이 정상 동작한다는 목표는 동일하지만, 가드 위치는 잡마다 다르다 — 새 잡을 추가할 때 어느 계층에서 가드할지 확인한다.
 
 ## 보안
 

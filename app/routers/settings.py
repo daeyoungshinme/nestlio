@@ -14,9 +14,8 @@ from app.schemas.settings import (
 from app.services import (
     coaching_settings_service,
     couple_photo_service,
-    notification_prefs_service,
     notification_service,
-    notify_recipients_service,
+    notification_settings_service,
 )
 from app.services.gmail_service import GmailSendError
 from app.services.google_auth import is_connected
@@ -27,9 +26,9 @@ router = APIRouter(prefix="/settings", tags=["settings"])
 def _settings_out(db: Session) -> dict:
     return {
         "google_connected": is_connected(),
-        "notify_emails": notify_recipients_service.get_recipients(db),
+        "notify_emails": notification_settings_service.get_recipients(db),
         "coaching_thresholds": coaching_settings_service.get_thresholds(db),
-        "notification_prefs": notification_prefs_service.get_prefs(db),
+        "notification_prefs": notification_settings_service.get_prefs(db),
         "couple_photo_url": couple_photo_service.get_photo_url(),
     }
 
@@ -45,7 +44,7 @@ def set_notify_emails(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    notify_recipients_service.set_recipients(db, payload.emails, current_user.id)
+    notification_settings_service.set_recipients(db, payload.emails, current_user.id)
     return _settings_out(db)
 
 
@@ -65,7 +64,7 @@ def set_notification_prefs(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    notification_prefs_service.set_prefs(db, payload.model_dump(), current_user.id)
+    notification_settings_service.set_prefs(db, payload.model_dump(), current_user.id)
     return _settings_out(db)
 
 
@@ -100,7 +99,7 @@ def test_weekly(db: Session = Depends(get_db), _: User = Depends(get_current_use
     # 알림 파이프라인과 달리 미연동/꺼짐 상태에서는 조용히 건너뛰지 않고 409로 알린다.
     if not is_connected():
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Google 계정이 연결되어 있지 않습니다.")
-    if not notification_prefs_service.is_enabled(db, "email_weekly"):
+    if not notification_settings_service.is_enabled(db, "email_weekly"):
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="주간 요약 알림이 꺼져 있습니다. 설정에서 켜주세요.")
     try:
         sent = notification_service.send_weekly_summary(db, force=True)
@@ -113,7 +112,7 @@ def test_weekly(db: Session = Depends(get_db), _: User = Depends(get_current_use
 def test_monthly(db: Session = Depends(get_db), _: User = Depends(get_current_user)):
     if not is_connected():
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Google 계정이 연결되어 있지 않습니다.")
-    if not notification_prefs_service.is_enabled(db, "email_monthly"):
+    if not notification_settings_service.is_enabled(db, "email_monthly"):
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="월간 요약 알림이 꺼져 있습니다. 설정에서 켜주세요.")
     try:
         sent = notification_service.send_monthly_summary(db, force=True)

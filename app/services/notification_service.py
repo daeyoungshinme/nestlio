@@ -13,8 +13,7 @@ from app.services import (
     gmail_service,
     goal_service,
     milestone_service,
-    notification_prefs_service,
-    notify_recipients_service,
+    notification_settings_service,
     transaction_report_service,
 )
 from app.services.google_auth import is_connected
@@ -87,7 +86,7 @@ def send_weekly_summary(db: Session, today: date | None = None, force: bool = Fa
     today = today or date.today()
     start, end = week_bounds(today)
     period_key = start.isoformat()
-    if not force and not notification_prefs_service.is_enabled(db, "email_weekly"):
+    if not force and not notification_settings_service.is_enabled(db, "email_weekly"):
         return False
     if not force and _already_sent(db, "email_weekly", period_key):
         return False
@@ -97,7 +96,7 @@ def send_weekly_summary(db: Session, today: date | None = None, force: bool = Fa
     if is_connected():
         html = email_templates.build_weekly_summary_html(start, end, totals, breakdown)
         gmail_service.send_email(
-            f"[Nestlio] 주간 요약 ({start} ~ {end})", body, to=notify_recipients_service.get_recipients(db), html_body=html
+            f"[Nestlio] 주간 요약 ({start} ~ {end})", body, to=notification_settings_service.get_recipients(db), html_body=html
         )
     _log_sent(db, "email_weekly", period_key, detail=body[:500])
     return True
@@ -108,7 +107,7 @@ def send_monthly_summary(db: Session, today: date | None = None, force: bool = F
     prev_month_anchor = shift_month(today, -1)
     start, end = month_bounds(prev_month_anchor)
     period_key = year_month_str(start)
-    if not force and not notification_prefs_service.is_enabled(db, "email_monthly"):
+    if not force and not notification_settings_service.is_enabled(db, "email_monthly"):
         return False
     if not force and _already_sent(db, "email_monthly", period_key):
         return False
@@ -124,7 +123,7 @@ def send_monthly_summary(db: Session, today: date | None = None, force: bool = F
     if is_connected():
         html = email_templates.build_monthly_summary_html(start, end, totals, breakdown, insights)
         gmail_service.send_email(
-            f"[Nestlio] {period_key} 월간 요약", body, to=notify_recipients_service.get_recipients(db), html_body=html
+            f"[Nestlio] {period_key} 월간 요약", body, to=notification_settings_service.get_recipients(db), html_body=html
         )
     _log_sent(db, "email_monthly", period_key, detail=body[:500])
     return True
@@ -136,7 +135,7 @@ def _send_threshold_alert(db: Session, row: dict, year_month: str) -> bool:
     category_id = row["category_id"]
     if row["status"] not in ("warn", "critical") or row["budget"] <= 0:
         return False
-    if not notification_prefs_service.is_enabled(db, "threshold_alert"):
+    if not notification_settings_service.is_enabled(db, "threshold_alert"):
         return False
     period_key = f"{year_month}:{row['status']}"
     if _already_sent(db, "threshold_alert", period_key, related_id=category_id):
@@ -149,7 +148,7 @@ def _send_threshold_alert(db: Session, row: dict, year_month: str) -> bool:
     )
     if is_connected():
         gmail_service.send_email(
-            f"[Nestlio] 예산 {level} - {row['name']}", body, to=notify_recipients_service.get_recipients(db)
+            f"[Nestlio] 예산 {level} - {row['name']}", body, to=notification_settings_service.get_recipients(db)
         )
     _log_sent(db, "threshold_alert", period_key, related_id=category_id, detail=body[:200])
     return True
@@ -182,7 +181,7 @@ def _celebrate_goal_milestone(db: Session, goal, today: date | None = None) -> b
         return False
     notif_type = "challenge_success" if is_challenge else "goal_milestone"
     related_type = "challenge" if is_challenge else "goal"
-    if not notification_prefs_service.is_enabled(db, notif_type):
+    if not notification_settings_service.is_enabled(db, notif_type):
         return False
     if milestone_service.already_logged(db, notif_type, goal.id, milestone):
         return False
@@ -207,7 +206,7 @@ def _celebrate_goal_milestone(db: Session, goal, today: date | None = None) -> b
                 body += f"\n목표일까지 D-{remaining_days}, 이제 {remaining_amount:,.0f}원만 더 모으면 돼요."
         subject = f"[Nestlio] 우리 부부 목표 달성 축하 - {goal.name} {milestone}%"
     if is_connected():
-        gmail_service.send_email(subject, body, to=notify_recipients_service.get_recipients(db))
+        gmail_service.send_email(subject, body, to=notification_settings_service.get_recipients(db))
     milestone_service.log(db, notif_type, related_type, goal.id, milestone, body)
     return True
 

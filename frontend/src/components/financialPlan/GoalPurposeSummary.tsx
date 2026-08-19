@@ -24,7 +24,7 @@ export default function GoalPurposeSummary({ heading, purposes, activeLabel, onS
   return (
     <div>
       <h3 className="text-xs font-semibold text-gray-500 dark:text-gray-400 mb-2">{heading}</h3>
-      <div className="grid grid-cols-5 gap-1.5 sm:gap-2">
+      <div className="grid grid-cols-3 sm:grid-cols-5 gap-1.5 sm:gap-2">
         {purposes.map((p) => (
           <button
             key={p.label}

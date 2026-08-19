@@ -3,11 +3,12 @@ from datetime import date
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
+from app.constants.benchmark_groups import BENCHMARK_GROUPS
 from app.database import get_db
 from app.dependencies import get_current_user
 from app.models.user import User
 from app.schemas.reports import CategoryTrendOut, YearlyReportOut
-from app.services import transaction_report_service
+from app.services import coaching_engine, coaching_settings_service, transaction_report_service
 from app.utils.dates import year_bounds
 
 router = APIRouter(prefix="/reports", tags=["reports"])
@@ -20,6 +21,9 @@ def yearly(year: int | None = None, db: Session = Depends(get_db), _: User = Dep
     totals = transaction_report_service.yearly_totals(db, year)
     start, end = year_bounds(year)
     breakdown = transaction_report_service.category_breakdown(db, start, end, "expense")
+    thresholds = coaching_settings_service.get_thresholds(db)
+    benchmark_pcts = {group: thresholds[f"benchmark_{group}_warn_pct"] for group in BENCHMARK_GROUPS if group != "other"}
+    benchmark = coaching_engine.category_benchmark_rows(totals, breakdown, benchmark_pcts)
     return {
         "year": year,
         "prev_year": year - 1,
@@ -27,6 +31,7 @@ def yearly(year: int | None = None, db: Session = Depends(get_db), _: User = Dep
         "monthly": monthly,
         "totals": totals,
         "breakdown": breakdown,
+        "benchmark": benchmark,
     }
 
 

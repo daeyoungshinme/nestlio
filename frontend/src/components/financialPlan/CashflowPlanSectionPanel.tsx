@@ -5,6 +5,7 @@ import CollapsibleGroup from "@/components/common/CollapsibleGroup";
 import CashflowPlanItemRow from "@/components/financialPlan/CashflowPlanItemRow";
 import SectionAchievementBar from "@/components/financialPlan/SectionAchievementBar";
 import CategoryBudgetProgress from "@/components/financialPlan/CategoryBudgetProgress";
+import { TOUCH_TARGET_MIN_MOBILE_ONLY } from "@/constants/uiSizes";
 import { groupItemsByCategory } from "@/utils/categoryGroup";
 import { formatKrw } from "@/utils/format";
 import type {
@@ -114,7 +115,7 @@ export default function CashflowPlanSectionPanel({
           {sectionKey === "irregular" && (
             <button
               onClick={onSplit}
-              className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-950 rounded-lg transition-colors"
+              className={`${TOUCH_TARGET_MIN_MOBILE_ONLY} p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-950 rounded-lg transition-colors`}
               aria-label="할부로 등록"
               title="할부로 등록"
             >
@@ -124,7 +125,7 @@ export default function CashflowPlanSectionPanel({
           {sectionKey !== "income" && (
             <Link
               to="/categories"
-              className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-950 rounded-lg transition-colors"
+              className={`${TOUCH_TARGET_MIN_MOBILE_ONLY} p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-950 rounded-lg transition-colors`}
               aria-label="카테고리 관리"
               title="카테고리 관리 — 여기서 태깅할 카테고리를 추가/수정할 수 있어요"
             >
@@ -133,7 +134,7 @@ export default function CashflowPlanSectionPanel({
           )}
           <button
             onClick={onAddItem}
-            className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-950 rounded-lg transition-colors"
+            className={`${TOUCH_TARGET_MIN_MOBILE_ONLY} p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-950 rounded-lg transition-colors`}
             aria-label={`${label} 항목 추가`}
           >
             <Plus size={16} />

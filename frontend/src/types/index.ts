@@ -28,6 +28,18 @@ export interface InviteAcceptIn {
 
 export type CategoryType = "fixed" | "variable" | "irregular";
 
+// app/constants/benchmark_groups.py의 BENCHMARK_GROUPS 키를 손으로 미러링.
+export type BenchmarkGroup =
+  | "food"
+  | "housing"
+  | "communication"
+  | "transport"
+  | "leisure"
+  | "healthcare"
+  | "education"
+  | "insurance"
+  | "other";
+
 export interface CategoryOut {
   id: number;
   name: string;
@@ -40,6 +52,7 @@ export interface CategoryOut {
   is_debt: boolean;
   is_savings: boolean;
   sort_order: number;
+  benchmark_group: BenchmarkGroup | null;
 }
 
 export interface CategoryCreateIn {
@@ -47,6 +60,7 @@ export interface CategoryCreateIn {
   kind: "income" | "expense";
   type: CategoryType;
   color: string;
+  benchmark_group?: BenchmarkGroup | null;
 }
 
 export type CategoryUpdateIn = CategoryCreateIn;
@@ -288,6 +302,15 @@ export interface YearlyMonthRowOut {
   savings: string;
 }
 
+export interface CategoryBenchmarkRowOut {
+  group: BenchmarkGroup;
+  label: string;
+  amount: string;
+  pct: number;
+  benchmark_pct: number;
+  status: "ok" | "warn";
+}
+
 export interface YearlyReportOut {
   year: number;
   prev_year: number;
@@ -295,6 +318,7 @@ export interface YearlyReportOut {
   monthly: YearlyMonthRowOut[];
   totals: TotalsOut;
   breakdown: CategoryAmountOut[];
+  benchmark: CategoryBenchmarkRowOut[];
 }
 
 export interface CategoryTrendSeriesOut {
@@ -362,6 +386,14 @@ export interface CoachingThresholdsOut {
   budget_critical_pct: number;
   discretionary_ratio_warn: number;
   debt_ratio_warn: number;
+  benchmark_food_warn_pct: number;
+  benchmark_housing_warn_pct: number;
+  benchmark_communication_warn_pct: number;
+  benchmark_transport_warn_pct: number;
+  benchmark_leisure_warn_pct: number;
+  benchmark_healthcare_warn_pct: number;
+  benchmark_education_warn_pct: number;
+  benchmark_insurance_warn_pct: number;
 }
 
 export type CoachingThresholdsIn = CoachingThresholdsOut;

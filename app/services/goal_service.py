@@ -9,7 +9,7 @@ from app.models.financial_goal import FinancialGoal
 from app.models.goal_funding_source import GoalFundingSource
 from app.models.goal_monthly_target import GoalMonthlyTarget
 from app.models.transaction import Transaction
-from app.services import account_service, growlio_client
+from app.services import account_service, growlio_client, plan_targets
 from app.utils.dates import month_bounds, months_between, parse_year_month
 
 
@@ -339,23 +339,6 @@ def _sync_funding_product_monthly_amount(goal: FinancialGoal) -> None:
         linked_products[0].monthly_saving_amount = goal.monthly_saving_amount
 
 
-def _apply_monthly_targets(goal: FinancialGoal, monthly_targets: list[dict] | None) -> None:
-    """year_month로 기존 행을 매칭해 target_amount만 갱신(achieved_amount는 보존)하고, 새 월은
-    achieved_amount=0으로 생성한다. 빠진 월은 목록에서 제외돼 delete-orphan으로 삭제된다 —
-    _apply_funding_sources와 동일한 패턴(app/services/CLAUDE.md 관례 준수)."""
-    existing_by_month = {mt.year_month: mt for mt in goal.monthly_targets}
-    new_targets: list[GoalMonthlyTarget] = []
-    for item in monthly_targets or []:
-        year_month = item["year_month"]
-        existing = existing_by_month.get(year_month)
-        if existing is not None:
-            existing.target_amount = item["target_amount"]
-            new_targets.append(existing)
-        else:
-            new_targets.append(GoalMonthlyTarget(year_month=year_month, target_amount=item["target_amount"]))
-    goal.monthly_targets = new_targets
-
-
 def _apply_challenge_completion(db: Session, goal: FinancialGoal, now: datetime | None = None) -> None:
     """kind="challenge"에서만 동작 — 진행금액(compute_current_amount, funding_sources 연동 시
     연동 잔액 합, 미연동 시 manual_current_amount)이 목표금액에 도달하면 succeeded로 전환하고
@@ -403,7 +386,7 @@ def create_goal(
         created_by_id=created_by_id,
     )
     _apply_funding_sources(db, goal, funding_sources)
-    _apply_monthly_targets(goal, monthly_targets)
+    plan_targets.apply_monthly_targets(goal, monthly_targets, GoalMonthlyTarget)
     db.add(goal)
     db.flush()  # 완료 판정(compute_current_amount)이 funding_sources 관계를 조회하려면 goal/fs가
     # 먼저 세션에 반영(pending -> flushed)되어 있어야 한다 — transient 상태에서는 관계 lazy-load가
@@ -446,7 +429,7 @@ def update_goal(
     goal.description = description
     goal.start_date = start_date
     _apply_funding_sources(db, goal, funding_sources)
-    _apply_monthly_targets(goal, monthly_targets)
+    plan_targets.apply_monthly_targets(goal, monthly_targets, GoalMonthlyTarget)
     db.flush()
     _sync_funding_product_monthly_amount(goal)
     _apply_challenge_completion(db, goal, now)

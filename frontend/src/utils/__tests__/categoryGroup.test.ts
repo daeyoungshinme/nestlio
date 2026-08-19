@@ -22,6 +22,7 @@ function makeCategory(id: number, sort_order: number, name = `cat${id}`): Catego
     is_debt: false,
     is_savings: false,
     sort_order,
+    benchmark_group: null,
   };
 }
 

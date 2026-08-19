@@ -49,6 +49,7 @@ const INSIGHT_LINKS: Partial<Record<string, { to: string; label: string }>> = {
   variable_spend_trend: { to: "/transactions", label: "가계부 보기" },
   discretionary_ratio: { to: "/transactions", label: "가계부 보기" },
   debt_ratio: { to: "/transactions", label: "가계부 보기" },
+  category_benchmark: { to: "/reports/yearly", label: "연간 리포트 보기" },
   budget_overrun: { to: "/financial-plan?tab=현금흐름 계획", label: "현금흐름 계획 보기" },
   emergency_fund: { to: "/accounts?tab=저축·투자", label: "저축·투자 보기" },
   savings_execution: { to: "/accounts?tab=저축·투자", label: "저축·투자 보기" },

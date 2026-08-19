@@ -2,7 +2,11 @@ from datetime import date
 from decimal import Decimal
 
 from app.models.annual_plan_item_monthly_target import AnnualPlanItemMonthlyTarget
-from app.services import annual_plan_service, transaction_service
+from app.services import annual_plan_service, transaction_report_service, transaction_service
+
+
+def _breakdown(db, year: int) -> list[dict]:
+    return transaction_report_service.yearly_monthly_breakdown(db, year)
 
 
 def _monthly(*, jan=None, feb=None, mar=None) -> list[dict]:
@@ -253,7 +257,7 @@ def test_section_summary_derives_target_from_item_sum(seeded_db):
         monthly_targets=_monthly(jan="500000", feb="500000"),
     )
 
-    summary = annual_plan_service.section_summary(db, 2026, "income", today=date(2026, 2, 28))
+    summary = annual_plan_service.section_summary(db, 2026, "income", today=date(2026, 2, 28), breakdown=_breakdown(db, 2026))
 
     assert summary["elapsed_months"] == 2
     assert summary["target_to_date"] == Decimal("7000000")  # (3M+0.5M)*2
@@ -277,7 +281,7 @@ def test_section_summary_annual_target_includes_months_beyond_elapsed(seeded_db)
         monthly_targets=_monthly(jan="1000000", mar="1000000"),
     )
 
-    summary = annual_plan_service.section_summary(db, 2026, "income", today=date(2026, 1, 31))
+    summary = annual_plan_service.section_summary(db, 2026, "income", today=date(2026, 1, 31), breakdown=_breakdown(db, 2026))
 
     assert summary["elapsed_months"] == 1
     assert summary["target_to_date"] == Decimal("1000000")  # 1월치만
@@ -305,7 +309,7 @@ def test_section_summary_annual_pct_uses_full_year_target_unlike_pct(seeded_db):
     )
     transaction_service.create_transaction(db, user.id, salary.id, "income", Decimal("2000000"), date(2026, 1, 15))
 
-    summary = annual_plan_service.section_summary(db, 2026, "income", today=date(2026, 1, 31))
+    summary = annual_plan_service.section_summary(db, 2026, "income", today=date(2026, 1, 31), breakdown=_breakdown(db, 2026))
 
     assert summary["target_to_date"] == Decimal("500000")
     assert summary["annual_target"] == Decimal("10000000")
@@ -334,7 +338,7 @@ def test_section_summary_income_actual_from_transactions(seeded_db):
     # 아직 오지 않은 3월 거래 — today가 2월이므로 집계에 포함되면 안 된다
     transaction_service.create_transaction(db, user.id, salary.id, "income", Decimal("9000000"), date(2026, 3, 1))
 
-    summary = annual_plan_service.section_summary(db, 2026, "income", today=date(2026, 2, 28))
+    summary = annual_plan_service.section_summary(db, 2026, "income", today=date(2026, 2, 28), breakdown=_breakdown(db, 2026))
 
     assert summary["actual"] == Decimal("6000000")
     assert summary["pct"] == 100.0
@@ -350,7 +354,7 @@ def test_section_summary_expense_over_target_is_critical(seeded_db):
     )
     transaction_service.create_transaction(db, user.id, food.id, "expense", Decimal("200000"), date(2026, 1, 10))
 
-    summary = annual_plan_service.section_summary(db, 2026, "variable", today=date(2026, 1, 31))
+    summary = annual_plan_service.section_summary(db, 2026, "variable", today=date(2026, 1, 31), breakdown=_breakdown(db, 2026))
 
     assert summary["actual"] == Decimal("200000")
     assert summary["target_to_date"] == Decimal("100000")
@@ -363,7 +367,7 @@ def test_section_summary_income_under_target_is_critical(seeded_db):
         db, None, 2026, "income", None, "월급", None, 0, user.id, "2026-01", "2026-12", monthly_targets=_monthly(jan="1000000")
     )
 
-    summary = annual_plan_service.section_summary(db, 2026, "income", today=date(2026, 1, 31))
+    summary = annual_plan_service.section_summary(db, 2026, "income", today=date(2026, 1, 31), breakdown=_breakdown(db, 2026))
 
     assert summary["actual"] == Decimal("0")
     assert summary["status"] == "critical"
@@ -375,7 +379,7 @@ def test_section_summary_future_year_has_null_pct(seeded_db):
         db, None, 2027, "income", None, "월급", None, 0, user.id, "2027-01", "2027-12", monthly_targets=_monthly(jan="1000000")
     )
 
-    summary = annual_plan_service.section_summary(db, 2027, "income", today=date(2026, 6, 1))
+    summary = annual_plan_service.section_summary(db, 2027, "income", today=date(2026, 6, 1), breakdown=_breakdown(db, 2027))
 
     assert summary["elapsed_months"] == 0
     assert summary["actual"] == Decimal("0")
@@ -385,7 +389,7 @@ def test_section_summary_future_year_has_null_pct(seeded_db):
 
 def test_section_summary_empty_section_has_zero_targets(seeded_db):
     db = seeded_db["db"]
-    summary = annual_plan_service.section_summary(db, 2026, "fixed", today=date(2026, 3, 1))
+    summary = annual_plan_service.section_summary(db, 2026, "fixed", today=date(2026, 3, 1), breakdown=_breakdown(db, 2026))
     assert summary["target_to_date"] == Decimal("0")
     assert all(m["target_amount"] == Decimal("0.00") for m in summary["monthly"])
 

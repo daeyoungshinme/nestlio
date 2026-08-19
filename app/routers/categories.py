@@ -27,7 +27,9 @@ def create_category(
     db: Session = Depends(get_db),
     _: User = Depends(get_current_user),
 ):
-    return category_service.create_category(db, payload.name, payload.type, payload.color, payload.kind)
+    return category_service.create_category(
+        db, payload.name, payload.type, payload.color, payload.kind, payload.benchmark_group
+    )
 
 
 @router.put("/{category_id}", response_model=CategoryOut)
@@ -38,7 +40,7 @@ def update_category(
     _: User = Depends(get_current_user),
 ):
     category = category_service.update_category(
-        db, category_id, payload.name, payload.type, payload.color, payload.kind
+        db, category_id, payload.name, payload.type, payload.color, payload.kind, payload.benchmark_group
     )
     if category is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "카테고리를 찾을 수 없습니다.")

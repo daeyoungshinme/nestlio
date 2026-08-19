@@ -79,6 +79,7 @@ def category_breakdown(
             Category.type,
             Category.is_discretionary,
             Category.is_debt,
+            Category.benchmark_group,
             func.sum(Transaction.amount),
         )
         .join(Transaction, Transaction.category_id == Category.id)
@@ -100,7 +101,8 @@ def category_breakdown(
             "type": r[3],
             "is_discretionary": r[4],
             "is_debt": r[5],
-            "amount": r[6],
+            "benchmark_group": r[6],
+            "amount": r[7],
         }
         for r in rows
     ]

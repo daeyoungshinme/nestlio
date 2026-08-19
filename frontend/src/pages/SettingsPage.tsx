@@ -49,6 +49,14 @@ const THRESHOLD_FIELDS: { key: keyof CoachingThresholdsOut; label: string }[] = 
   { key: "budget_critical_pct", label: "예산 위험" },
   { key: "discretionary_ratio_warn", label: "재량지출 경고" },
   { key: "debt_ratio_warn", label: "부채비율 경고" },
+  { key: "benchmark_food_warn_pct", label: "식비 가이드라인" },
+  { key: "benchmark_housing_warn_pct", label: "주거/공과금 가이드라인" },
+  { key: "benchmark_communication_warn_pct", label: "통신비 가이드라인" },
+  { key: "benchmark_transport_warn_pct", label: "교통비 가이드라인" },
+  { key: "benchmark_leisure_warn_pct", label: "여가/문화 가이드라인" },
+  { key: "benchmark_healthcare_warn_pct", label: "의료/건강 가이드라인" },
+  { key: "benchmark_education_warn_pct", label: "교육 가이드라인" },
+  { key: "benchmark_insurance_warn_pct", label: "보험 가이드라인" },
 ];
 
 const onMutationError = (err: unknown) => toast(extractErrorMessage(err), "error");

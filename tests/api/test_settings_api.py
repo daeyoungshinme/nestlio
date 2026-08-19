@@ -57,6 +57,14 @@ def test_set_coaching_thresholds_overrides_and_persists(mock_is_connected, clien
         "budget_critical_pct": 95,
         "discretionary_ratio_warn": 20,
         "debt_ratio_warn": 35,
+        "benchmark_food_warn_pct": 16,
+        "benchmark_housing_warn_pct": 29,
+        "benchmark_communication_warn_pct": 6,
+        "benchmark_transport_warn_pct": 11,
+        "benchmark_leisure_warn_pct": 11,
+        "benchmark_healthcare_warn_pct": 7,
+        "benchmark_education_warn_pct": 11,
+        "benchmark_insurance_warn_pct": 9,
     }
     resp = client.put("/api/v1/settings/coaching-thresholds", json=payload)
     assert resp.status_code == 200

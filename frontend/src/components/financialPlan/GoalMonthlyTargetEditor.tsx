@@ -1,5 +1,5 @@
 import Button from "@/components/common/Button";
-import { FORM_LABEL } from "@/constants/inputStyles";
+import { FORM_LABEL, INPUT_SM } from "@/constants/inputStyles";
 import { buildYearMonthRange, distributeAmountEvenly } from "@/utils/monthRange";
 import { formatKrw, formatKrwPreview, toAmountInputValue } from "@/utils/format";
 import type { GoalMonthlyTargetIn } from "@/types";
@@ -72,7 +72,7 @@ export default function GoalMonthlyTargetEditor({
                 inputMode="decimal"
                 value={amount}
                 onChange={(e) => setAmount(ym, e.target.value)}
-                className="flex-1 min-w-0 rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-2 py-1 text-sm"
+                className={`flex-1 min-w-0 ${INPUT_SM}`}
               />
               <span className="text-xs text-gray-400 dark:text-gray-500 shrink-0 w-24 text-right">
                 {Number(amount) > 0 ? formatKrwPreview(Number(amount)) : ""}

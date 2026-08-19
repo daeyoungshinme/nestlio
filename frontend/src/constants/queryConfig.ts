@@ -14,4 +14,7 @@ export const PERSIST_QUERY_KEYS = new Set([
   "accounts",
   "net-worth",
   "financial-goals",
+  "cashflow-plan",
+  "annual-plan",
+  "savings-products",
 ]);
