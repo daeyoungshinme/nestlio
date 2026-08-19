@@ -4,12 +4,11 @@ from decimal import ROUND_DOWN, Decimal
 
 from sqlalchemy.orm import Session
 
-from app.config import settings
 from app.models.cashflow_plan_item import CashflowPlanItem
 from app.models.recurring_expense import RecurringExpense
-from app.services import annual_plan_service, transaction_report_service
+from app.services import annual_plan_service, plan_targets, transaction_report_service
 from app.utils.dates import month_bounds, parse_year_month, shift_month, year_month_str
-from app.utils.plan_status import pct_of, status_from_pct
+from app.utils.plan_status import pct_of
 
 EXPENSE_SECTIONS = ("fixed", "variable", "irregular")
 ACHIEVEMENT_SECTIONS = ("income", "fixed", "variable", "irregular")
@@ -149,11 +148,22 @@ def delete_item(db: Session, id: int) -> None:
 
 def _item_key(item: CashflowPlanItem) -> tuple:
     """카테고리 태깅 항목은 (section, category_id)로, 자유 텍스트 항목은 (section, name)으로 식별한다 —
-    같은 카테고리를 이름이 다른 두 항목으로 중복 복사하지 않기 위함. AnnualPlanItem도 section/category_id/name
-    속성을 그대로 갖고 있어 이 함수를 duck typing으로 그대로 재사용할 수 있다(list_items_with_annual_fallback)."""
+    같은 카테고리를 이름이 다른 두 항목으로 중복 복사하지 않기 위함 (copy_from_previous_month 전용:
+    카테고리 태깅 항목은 "카테고리당 한 줄"이라는 예산 라인 개념이라 이름이 달라도 중복으로 보지 않는다).
+    AnnualPlanItem도 section/category_id/name 속성을 그대로 갖고 있어 이 함수를 duck typing으로 재사용할
+    수 있지만, list_items_with_annual_fallback은 이 함수 대신 이름까지 비교하는 _annual_fallback_key()를
+    쓴다 — 그쪽은 연간계획에 등록된 서로 다른 항목이 같은 카테고리를 공유해도 각자 노출돼야 하기 때문이다."""
     if item.category_id is not None:
         return (item.section, item.category_id)
     return (item.section, item.name)
+
+
+def _annual_fallback_key(item) -> tuple:
+    """list_items_with_annual_fallback 전용 매칭 키. _item_key와 달리 카테고리 태깅 항목도 이름까지
+    포함한 (section, category_id, name)을 쓴다 — category_id만으로 매칭하면 같은 카테고리를 쓰는 서로
+    다른 이름의 연간계획 항목이 전부 가려지는 버그가 있었다(예: 이번 달 계획에 저축 카테고리로 "비상금"이
+    수기 등록돼 있으면 같은 카테고리인 연간계획의 "청약저축"까지 이름이 다름에도 통째로 가려짐)."""
+    return (item.section, item.category_id, item.name)
 
 
 @dataclass
@@ -191,13 +201,15 @@ def list_items_with_annual_fallback(db: Session, year_month: str) -> list[Cashfl
     텍스트 항목은 이름을, 태깅 항목은 카테고리를 키로 매칭해 이름을 바꾸면 승격된 행을 못 찾아 중복 폴백이
     생기거나, 반대로 무관한 실제 항목이 같은 카테고리를 써서 새 이름의 연간계획 값이 영구히 가려졌다).
     annual_plan_item_id로 연결되지 않은(연간계획과 무관하게 독립적으로 만들어진) 실제 항목에 한해서만
-    _item_key()(카테고리 태깅 항목은 (section, category_id), 자유 텍스트는 (section, name))로 대체 매칭한다."""
+    _annual_fallback_key()((section, category_id, name) — 카테고리와 이름이 모두 같아야 매칭)로 대체
+    매칭한다. category_id만으로 매칭하면 같은 카테고리를 쓰는 다른 이름의 연간계획 항목까지 전부
+    가려지므로 이름도 함께 비교한다."""
     items = list_items(db, year_month)
     linked_annual_ids = {item.annual_plan_item_id for item in items if item.annual_plan_item_id is not None}
-    existing_keys = {_item_key(item) for item in items if item.annual_plan_item_id is None}
+    existing_keys = {_annual_fallback_key(item) for item in items if item.annual_plan_item_id is None}
     fallback_items: list[_AnnualPlanFallbackItem] = []
     for annual_item, target_amount in annual_plan_service.monthly_targets_for_month(db, year_month):
-        if annual_item.id in linked_annual_ids or _item_key(annual_item) in existing_keys:
+        if annual_item.id in linked_annual_ids or _annual_fallback_key(annual_item) in existing_keys:
             continue
         fallback_items.append(
             _AnnualPlanFallbackItem(
@@ -266,12 +278,6 @@ def suggested_totals(db: Session, year_month: str) -> dict[str, Decimal]:
     return transaction_report_service.trailing_average_by_section(db, month_start, months=3)
 
 
-def _status(section: str, pct: float) -> str:
-    """fixed/variable: 실적이 계획을 초과할수록 위험. income은 방향이 반대(실적이 계획에 못 미칠수록 위험)이므로
-    미달분(100-pct)을 같은 임계값과 비교한다 (예: pct<=100-90=10일 때 warn, pct<=100-100=0일 때 critical)."""
-    return status_from_pct(pct, settings.budget_warn_pct, settings.budget_critical_pct, invert=(section == "income"))
-
-
 def _section_summary(
     section: str, planned: Decimal, actual: Decimal | None, suggested_amount: Decimal | None = None
 ) -> dict:
@@ -282,7 +288,7 @@ def _section_summary(
         "planned": planned,
         "actual": actual,
         "pct": pct,
-        "status": _status(section, pct),
+        "status": plan_targets.budget_status(section, pct),
         "suggested_amount": suggested_amount,
     }
 

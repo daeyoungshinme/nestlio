@@ -33,9 +33,10 @@
 
 ## coaching_engine.py
 
-- 순수 계산 함수로만 구성한다 (DB 쓰기, 외부 I/O 없음). 입력은 이미 조회된 집계값들, 출력은 `Insight` dataclass.
+- DB 쓰기는 전혀 없다. 대부분의 함수는 순수 계산 함수로, 입력은 이미 조회된 집계값들이고 출력은 `Insight` dataclass다 — 이 함수들은 파라미터화 테스트로 경계값을 촘촘히 검증한다(`tests/test_coaching_engine.py`).
+- 다만 `emergency_fund_context`/`compute_surplus_allocation`/`compute_insights` 3개는 예외로, `db: Session`을 받아 직접 조회(`savings_product_service.get_emergency_fund_balance`, `transaction_report_service.monthly_trend` 등)까지 겸하는 "DB-aware 래퍼"다 — 호출부(`app/routers/dashboard.py`)가 매번 재조회하지 않도록 조회와 순수 계산을 한데 묶어놓은 것이며, 새 순수 계산 함수를 추가할 때 이 3개까지 순수 함수로 착각하지 않는다.
 - 임계값(경고/위험 기준)은 하드코딩하지 않고 `app/config.py`의 `settings`에서 가져온다.
-- 순수 함수이기 때문에 단위 테스트가 촘촘하다 (`tests/test_coaching_engine.py`) — 새 룰 추가 시 동일하게 파라미터화 테스트로 경계값을 검증한다.
+- 새 룰 추가 시 순수 계산 함수는 동일하게 파라미터화 테스트로 경계값을 검증한다.
 
 ## transaction_service.py / transaction_report_service.py / transaction_import_service.py
 
@@ -58,12 +59,22 @@
 
 **전체 동기화(`sync_all_*`) 패턴**: `account_service.sync_all_accounts`/`savings_product_service.sync_all_from_growlio`/`real_estate_service.sync_all_from_growlio`가 공유하는 규칙 — growlio 목록은 (건별 `sync_account`/`sync_from_growlio`처럼 매번 재호출하지 않고) **1회만 조회**해 연동된 항목 전체에 매칭한다. 배우자 소유 등으로 매칭에 실패한 항목은 예외를 던져 전체를 중단시키지 않고 `{id, name, reason}` 형태로 `failed` 리스트에 담아 나머지 항목 동기화를 계속 진행하며, 반환 타입은 `tuple[동기화된_개수: int, failed: list[dict]]`로 통일한다. 새로운 growlio 연동 리소스 타입에 "전체 동기화"를 추가할 때도 이 시그니처와 부분 실패 처리 방식을 따른다.
 
+## 연간계획류 공용 헬퍼 (plan_targets.py)
+
+`AnnualPlanItem`/`AnnualSavingsGoal`/`SavingsProductAnnualPlan`/`FinancialGoal` 4개 도메인 모두 "부모 엔티티 + 월별 target 테이블" 구조를 갖고 있어, `annual_plan_service`/`annual_savings_goal_service`/`savings_product_service`/`goal_service`/`cashflow_plan_service`가 `app/services/plan_targets.py`의 아래 헬퍼를 공유한다 — growlio 연동 공용 헬퍼(`growlio_client.py`)와 같은 원칙으로, 도메인별 upsert/CRUD 골격 자체는 억지로 통합하지 않고 정말 동일한 조각만 뽑았다.
+
+- `apply_monthly_targets(parent, monthly_targets, target_cls)`: year_month로 기존 월별 target 행을 매칭해 갱신/생성하고 빠진 월은 delete-orphan으로 삭제한다. `GoalMonthlyTarget.achieved_amount`처럼 target_amount 외의 컬럼이 있어도 기존 행은 그대로 재사용하므로 건드리지 않는다.
+- `elapsed_months(year, today)`: 그 해의 몇 월까지 실적을 집계할 수 있는지.
+- `budget_status(section, pct)` / `savings_status(pct)`: `utils/plan_status.status_from_pct`를 감싸는 임계값 판정 래퍼 — `budget_status`는 section이 `"income"`일 때만 invert(annual_plan_service/cashflow_plan_service가 공유), `savings_status`는 항상 invert(savings_product_service 전용).
+
+새 "부모 + 월별 target" 도메인을 추가할 때도 이 4개를 먼저 재사용할 수 있는지 확인한다.
+
 ## 연간계획 → 이번 달 계획 폴백 (annual_plan_service ↔ cashflow_plan_service)
 
 `cashflow_plan_service.list_items_with_annual_fallback(db, year_month)`는 실제 `CashflowPlanItem` 목록에 더해, 연간계획(`AnnualPlanItem`)에는 그 달 금액이 있지만 아직 `CashflowPlanItem`으로 저장된 적은 없는 항목을 조회 시점에만 가상으로 만들어 끼워 넣는다 — 사용자가 연간계획에서 월별 금액을 미리 채워두면 매달 "이번 달 계획"에 직접 항목을 복사해 넣지 않아도 되게 하기 위함이다. 라우터는 `list_items` 대신 이 함수를 쓴다.
 
 - 가상 항목은 `_AnnualPlanFallbackItem` dataclass로 만든다 — `CashflowPlanItem`과 같은 속성 이름(`section`/`amount`/`category_id`/... )을 가져 `compute_summary`/`CashflowPlanItemOut` 양쪽에서 실제 항목과 구분 없이 duck typing으로 다뤄진다. 저장된 적이 없으므로 `id=None`, `from_annual_plan=True`로만 구분한다.
-- 매칭은 `_item_key()`(카테고리 태깅 항목은 `(section, category_id)`, 자유 텍스트 항목은 `(section, name)`)로 한다 — `AnnualPlanItem`도 같은 속성을 가지므로 이 함수를 그대로 재사용할 수 있다. 이미 실제 항목이 있는 조합은 건드리지 않으므로, 사용자가 한 번 저장하면 그 순간부터 실제 항목이 되어 이후 연간계획을 바꿔도 그 달 값은 그대로 유지된다.
+- 매칭은 `_annual_fallback_key()`(`(section, category_id, name)` — 카테고리와 이름이 모두 같아야 매칭)로 한다 — `AnnualPlanItem`도 같은 속성을 가지므로 이 함수를 그대로 재사용할 수 있다. `copy_from_previous_month`가 쓰는 `_item_key()`(카테고리 태깅 항목은 `(section, category_id)`만으로 "카테고리당 한 줄" 개념으로 매칭)와는 의도적으로 다르다 — `_item_key()`를 여기서도 그대로 썼더니 같은 카테고리를 쓰는 다른 이름의 연간계획 항목까지 전부 가려지는 버그가 있었다. 이미 실제 항목이 있는 조합은 건드리지 않으므로, 사용자가 한 번 저장하면 그 순간부터 실제 항목이 되어 이후 연간계획을 바꿔도 그 달 값은 그대로 유지된다.
 - 라우터/스키마 쪽에서 `id`가 `None`일 수 있다는 점을 항상 감안한다 — 반복거래 연결·삭제처럼 실제 행이 있어야만 가능한 동작은 `item.id is not None`으로 먼저 가드한다(`CashflowPlanItemRow.tsx`의 `canLinkRecurring`/삭제 버튼 참고).
 
 같은 패턴(월별 목표를 상위 계획에서 상세 화면으로 자동 폴백)이 필요해지면 `_item_key`/`_AnnualPlanFallbackItem`을 그대로 본떠 만들되, 실제로 상위/하위 계획이 같은 식별 키를 공유하는 경우에만 이 duck-typing 재사용이 성립한다는 점을 확인한다.

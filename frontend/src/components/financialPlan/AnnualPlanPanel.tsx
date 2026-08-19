@@ -71,6 +71,9 @@ export default function AnnualPlanPanel() {
     void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.annualPlan(year) });
     void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.annualCategoryBudgets(year) });
     void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.dashboardAll });
+    // "이번 달 계획"은 서브뷰 전환만으로는 언마운트되지 않아 자동으로 다시 fetch되지 않으므로,
+    // 연간계획 저장 직후 폴백 항목이 즉시 반영되도록 월과 무관하게 전부 무효화한다.
+    void queryClient.invalidateQueries({ queryKey: ["cashflow-plan"] });
   };
 
   const upsertMutation = useMutation({
