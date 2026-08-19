@@ -22,6 +22,7 @@ import SummaryCards from "@/components/common/SummaryCards";
 import EmptyState from "@/components/common/EmptyState";
 import { fetchCategoryTrend, fetchYearlyReport } from "@/api/reports";
 import { QUERY_KEYS } from "@/constants/queryKeys";
+import { STALE_TIME } from "@/constants/queryConfig";
 import { TOUCH_TARGET_MIN_MOBILE_ONLY } from "@/constants/uiSizes";
 import { formatKrw, formatKrwCompact, formatPercent, formatYearMonth } from "@/utils/format";
 import { planStatusBarClass, planStatusTextClass } from "@/utils/colors";
@@ -48,10 +49,15 @@ export default function ReportsYearlyPage() {
       return next;
     });
   };
-  const { data, isLoading } = useQuery({ queryKey: QUERY_KEYS.yearlyReport(year), queryFn: () => fetchYearlyReport(year) });
+  const { data, isLoading } = useQuery({
+    queryKey: QUERY_KEYS.yearlyReport(year),
+    queryFn: () => fetchYearlyReport(year),
+    staleTime: STALE_TIME.MEDIUM,
+  });
   const { data: trend, isLoading: isTrendLoading } = useQuery({
     queryKey: QUERY_KEYS.categoryTrend(CATEGORY_TREND_MONTHS),
     queryFn: () => fetchCategoryTrend(CATEGORY_TREND_MONTHS),
+    staleTime: STALE_TIME.MEDIUM,
   });
 
   if (isLoading || !data) {

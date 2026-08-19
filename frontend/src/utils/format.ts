@@ -1,3 +1,5 @@
+import type { UserOut } from "@/types";
+
 const KRW_FORMATTER = new Intl.NumberFormat("ko-KR", { maximumFractionDigits: 0 });
 
 /** "12345.00" | 12345 | null -> "12,345원" */
@@ -71,6 +73,13 @@ export function formatWeekRange(mondayIso: string, sundayIso: string): string {
   const [, m1, d1] = mondayIso.split("-").map(Number);
   const [, m2, d2] = sundayIso.split("-").map(Number);
   return `${m1}/${d1} - ${m2}/${d2}`;
+}
+
+/** owner_user_id가 없거나 users 목록에서 매칭되지 않으면 "공통"(부부 공동) — AnnualPlanItemRow/
+ * CashflowPlanItemRow가 공유한다. */
+export function resolveOwnerLabel(ownerUserId: string | null, users: UserOut[] | undefined): string {
+  if (!ownerUserId) return "공통";
+  return users?.find((u) => u.id === ownerUserId)?.display_name ?? "공통";
 }
 
 /** growlio 연동 항목의 "마지막 동기화" 타임스탬프 표시. 예: "2026-08-11T09:00:00" -> "8/11 09:00" */

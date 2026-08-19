@@ -41,19 +41,15 @@ def compute_progress(db: Session, goal: AnnualSavingsGoal, today: date) -> dict:
     연간/월간 달성률을 계산한다. growlio는 자기 자신의 거래내역으로 별도 계산하므로
     이 함수의 결과는 nestlio 화면 표시 전용이며 growlio에 내려주지 않는다."""
     breakdown = transaction_report_service.yearly_monthly_breakdown(db, goal.year)
-    if goal.year < today.year:
-        included = breakdown
-    elif goal.year == today.year:
-        included = breakdown[: today.month]
-    else:
-        included = []
+    elapsed = plan_targets.elapsed_months(goal.year, today)
+    included = breakdown[:elapsed]
     net_savings_ytd = sum((row["savings"] for row in included), Decimal("0"))
     annual_achievement_pct = (
         net_savings_ytd / goal.target_amount_krw * 100 if goal.target_amount_krw else Decimal("0")
     )
 
     is_current_year = goal.year == today.year
-    current_month_savings = breakdown[today.month - 1]["savings"] if is_current_year else Decimal("0")
+    current_month_savings = breakdown[elapsed - 1]["savings"] if is_current_year else Decimal("0")
     current_year_month = f"{today.year}-{today.month:02d}"
     monthly_target = next(
         (mt.target_amount for mt in goal.monthly_targets if mt.year_month == current_year_month), None

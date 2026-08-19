@@ -1,7 +1,7 @@
 import Button from "@/components/common/Button";
 import { FORM_LABEL, INPUT_SM } from "@/constants/inputStyles";
-import { buildYearMonthRange, distributeAmountEvenly } from "@/utils/monthRange";
-import { formatKrw, formatKrwPreview, toAmountInputValue } from "@/utils/format";
+import { useMonthlyTargetGrid } from "@/hooks/useMonthlyTargetGrid";
+import { formatKrw, formatKrwPreview } from "@/utils/format";
 import type { GoalMonthlyTargetIn } from "@/types";
 
 interface Props {
@@ -30,22 +30,12 @@ export default function GoalMonthlyTargetEditor({
   onChange,
   distributeAmount,
 }: Props) {
-  const months = buildYearMonthRange(startMonth, endMonth);
-  const amountByMonth = new Map(targets.map((t) => [t.year_month, toAmountInputValue(t.target_amount)]));
-  const total = targets.reduce((sum, t) => sum + (Number(t.target_amount) || 0), 0);
-
-  const setAmount = (yearMonth: string, amount: string) => {
-    const next = months.map((ym) => ({
-      year_month: ym,
-      target_amount: ym === yearMonth ? amount : (amountByMonth.get(ym) ?? "0"),
-    }));
-    onChange(next);
-  };
-
-  const handleDistributeEvenly = () => {
-    const distributed = distributeAmountEvenly(distributeAmount ?? "0", months);
-    onChange(months.map((ym) => ({ year_month: ym, target_amount: distributed[ym] ?? "0" })));
-  };
+  const { months, amountByMonth, total, setAmount, handleDistributeEvenly } = useMonthlyTargetGrid(
+    startMonth,
+    endMonth,
+    targets,
+    onChange,
+  );
 
   if (months.length === 0) {
     return <p className="text-xs text-gray-400 dark:text-gray-500">시작월과 종료월을 먼저 정해주세요.</p>;
@@ -56,7 +46,12 @@ export default function GoalMonthlyTargetEditor({
       <div className="flex items-center justify-between gap-2">
         <label className={FORM_LABEL}>월별 목표금액</label>
         {mode === "goal" && (
-          <Button type="button" variant="secondary" size="sm" onClick={handleDistributeEvenly}>
+          <Button
+            type="button"
+            variant="secondary"
+            size="sm"
+            onClick={() => handleDistributeEvenly(distributeAmount ?? "0")}
+          >
             균등분배로 다시 계산
           </Button>
         )}

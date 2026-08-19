@@ -1,7 +1,7 @@
 import { Pencil, Repeat, Send, Trash2 } from "lucide-react";
 import AccountActionsMenu, { type AccountActionsMenuItem } from "@/components/common/AccountActionsMenu";
 import RowActionButtons from "@/components/common/RowActionButtons";
-import { formatKrw } from "@/utils/format";
+import { formatKrw, resolveOwnerLabel } from "@/utils/format";
 import { installmentProgressLabel } from "@/utils/installment";
 import { recurringLinkBadgeLabel, recurringLinkBadgeStyle } from "@/utils/colors";
 import type { CashflowPlanItemOut, CashflowSection, UserOut } from "@/types";
@@ -30,9 +30,7 @@ export default function CashflowPlanItemRow({
   onLinkRecurring,
   onQuickAdd,
 }: Props) {
-  const ownerLabel = item.owner_user_id
-    ? (users?.find((u) => u.id === item.owner_user_id)?.display_name ?? "공통")
-    : "공통";
+  const ownerLabel = resolveOwnerLabel(item.owner_user_id, users);
 
   const canLinkRecurring =
     item.id !== null && (sectionKey === "income" || sectionKey === "fixed") && item.recurring_expense_id === null;

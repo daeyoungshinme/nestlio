@@ -41,7 +41,7 @@ def dashboard(
     current_ym = year_month_str(start)
     goals = goal_service.list_goals(db)
     actual_saved = net_worth_service.savings_delta(db, current_ym)
-    month_start = start.replace(day=1)
+    month_start = month_bounds(anchor)[0]
     fund_context = coaching_engine.emergency_fund_context(db, month_start)
     insights = coaching_engine.compute_insights(
         db,

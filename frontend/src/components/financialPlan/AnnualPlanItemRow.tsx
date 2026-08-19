@@ -1,7 +1,7 @@
 import { Pencil, Trash2 } from "lucide-react";
 import AccountActionsMenu, { type AccountActionsMenuItem } from "@/components/common/AccountActionsMenu";
 import RowActionButtons from "@/components/common/RowActionButtons";
-import { formatKrw } from "@/utils/format";
+import { formatKrw, resolveOwnerLabel } from "@/utils/format";
 import type { AnnualPlanItemOut, UserOut } from "@/types";
 
 interface Props {
@@ -17,9 +17,7 @@ interface Props {
 
 /** CashflowPlanItemRow의 연간 버전 — 할부/반복거래 연동 배지는 연간 항목에 해당 개념이 없어 뺐다. */
 export default function AnnualPlanItemRow({ item, users, showCategory = true, onEdit, onDelete }: Props) {
-  const ownerLabel = item.owner_user_id
-    ? (users?.find((u) => u.id === item.owner_user_id)?.display_name ?? "공통")
-    : "공통";
+  const ownerLabel = resolveOwnerLabel(item.owner_user_id, users);
 
   const mobileMenuItems: AccountActionsMenuItem[] = [
     { icon: <Pencil size={16} />, label: "수정", onClick: onEdit },

@@ -7,8 +7,10 @@ import {
   formatPercent,
   formatYearMonth,
   pctOf,
+  resolveOwnerLabel,
   toAmountInputValue,
 } from "@/utils/format";
+import type { UserOut } from "@/types";
 
 describe("formatKrw", () => {
   it("formats a decimal string with thousands separators and 원 suffix", () => {
@@ -112,5 +114,28 @@ describe("toAmountInputValue", () => {
 
   it("accepts a plain number", () => {
     expect(toAmountInputValue(500000)).toBe("500000");
+  });
+});
+
+describe("resolveOwnerLabel", () => {
+  const users: UserOut[] = [
+    { id: "u1", email: "a@example.com", display_name: "민지" },
+    { id: "u2", email: "b@example.com", display_name: "준호" },
+  ];
+
+  it("returns 공통 when owner_user_id is null", () => {
+    expect(resolveOwnerLabel(null, users)).toBe("공통");
+  });
+
+  it("returns the matching user's display name", () => {
+    expect(resolveOwnerLabel("u2", users)).toBe("준호");
+  });
+
+  it("returns 공통 when the owner id doesn't match any user", () => {
+    expect(resolveOwnerLabel("unknown", users)).toBe("공통");
+  });
+
+  it("returns 공통 when users is undefined", () => {
+    expect(resolveOwnerLabel("u1", undefined)).toBe("공통");
   });
 });
