@@ -178,6 +178,28 @@ def test_upsert_product_annual_plan_persists_and_is_read_back(client, seeded_db)
     assert get_resp.json() == body
 
 
+def test_upsert_product_annual_plan_accepts_blank_target_amount_as_zero(client, seeded_db):
+    create_resp = client.post(
+        "/api/v1/savings-products",
+        json={"name": "적금", "current_balance": "0", "monthly_saving_amount": "0", "product_type": "savings"},
+    )
+    product_id = create_resp.json()["id"]
+
+    upsert_resp = client.put(
+        f"/api/v1/savings-products/{product_id}/annual-plan",
+        json={
+            "year": 2026,
+            "start_month": "2026-06",
+            "end_month": "2026-06",
+            "monthly_targets": [{"year_month": "2026-06", "target_amount": ""}],
+        },
+    )
+
+    assert upsert_resp.status_code == 200
+    body = upsert_resp.json()
+    assert body["monthly_targets"] == [{"year_month": "2026-06", "target_amount": "0.00"}]
+
+
 def test_upsert_product_annual_plan_missing_product_returns_404(client, seeded_db):
     resp = client.put(
         "/api/v1/savings-products/9999/annual-plan",

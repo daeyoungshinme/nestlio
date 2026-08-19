@@ -397,7 +397,7 @@ export interface TestEmailResultOut {
 export type CashflowSection = "income" | "fixed" | "variable" | "irregular";
 
 export interface CashflowPlanItemOut {
-  id: number;
+  id: number | null;
   section: CashflowSection;
   year_month: string;
   owner_user_id: string | null;
@@ -412,6 +412,14 @@ export interface CashflowPlanItemOut {
   installment_total_amount: string | null;
   recurring_expense_id: number | null;
   recurring_active: boolean | null;
+  /** 연간계획 월별 금액으로 자동 채워졌을 뿐 아직 저장된 적 없는 항목이면 true (id도 null). 수정해서
+   * 저장하면 실제 항목이 되어 false로 바뀐다. */
+  from_annual_plan: boolean;
+  /** 가상 폴백 항목(from_annual_plan=true)은 원본 AnnualPlanItem.id — 같은 카테고리에 연간계획 항목이
+   * 여러 개 있어도 항목별로 구분 가능한 유일한 값 (React key로 사용, CashflowPlanSectionPanel 참고). 폴백을
+   * 수정/저장해 승격시키면 실제 행에도 이 값이 저장되어 계속 채워진 채로 조회된다 — 연간계획 항목 이름이
+   * 나중에 바뀌어도 원본과의 연결을 유지하기 위함(upsertCashflowPlanItem 호출 시 그대로 실어 보낼 것). */
+  annual_plan_item_id: number | null;
 }
 
 export interface CashflowPlanItemUpsertIn {
@@ -423,6 +431,7 @@ export interface CashflowPlanItemUpsertIn {
   amount: string;
   category_id?: number | null;
   sort_order?: number;
+  annual_plan_item_id?: number | null;
 }
 
 export interface CashflowPlanItemSplitIn {
@@ -679,6 +688,7 @@ export interface AnnualPlanSectionSummaryOut {
   target_to_date: string;
   actual: string;
   pct: number | null;
+  annual_pct: number | null;
   status: "ok" | "warn" | "critical" | null;
   monthly: AnnualPlanSectionMonthOut[];
 }
@@ -792,6 +802,7 @@ export interface SavingsProductAnnualPlanGroupOut {
   target_to_date: string;
   actual: string | null;
   pct: number | null;
+  annual_pct: number | null;
   status: "ok" | "warn" | "critical" | null;
 }
 

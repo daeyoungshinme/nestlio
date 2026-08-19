@@ -5,6 +5,8 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict
 
+from app.schemas.common import KrwAmount
+
 FundingSourceType = Literal["savings_product", "account", "loan"]
 GoalKind = Literal["goal", "challenge", "irregular"]
 
@@ -23,7 +25,7 @@ class FundingSourceOut(BaseModel):
 
 class GoalMonthlyTargetIn(BaseModel):
     year_month: str
-    target_amount: Decimal
+    target_amount: KrwAmount
 
 
 class GoalMonthlyTargetOut(BaseModel):

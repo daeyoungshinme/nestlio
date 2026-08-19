@@ -6,6 +6,7 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict
 
 from app.schemas.cashflow_plan import CashflowSection
+from app.schemas.common import KrwAmount
 
 
 class AnnualPlanItemMonthlyTargetOut(BaseModel):
@@ -15,7 +16,7 @@ class AnnualPlanItemMonthlyTargetOut(BaseModel):
 
 class AnnualPlanItemMonthlyTargetIn(BaseModel):
     year_month: str
-    target_amount: Decimal
+    target_amount: KrwAmount
 
 
 class AnnualPlanItemOut(BaseModel):
@@ -65,6 +66,7 @@ class AnnualPlanSectionSummaryOut(BaseModel):
     target_to_date: Decimal
     actual: Decimal
     pct: float | None
+    annual_pct: float | None
     status: Literal["ok", "warn", "critical"] | None
     monthly: list[AnnualPlanSectionMonthOut]
 

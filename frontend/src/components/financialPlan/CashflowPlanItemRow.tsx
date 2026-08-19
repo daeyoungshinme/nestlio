@@ -9,6 +9,10 @@ interface Props {
   item: CashflowPlanItemOut;
   sectionKey: CashflowSection;
   users: UserOut[] | undefined;
+  /** 카테고리별로 그룹핑된 목록 안에서 렌더링될 때는 그룹 헤더에 이미 카테고리가 표시되므로
+   * 항목 행의 카테고리 dot+이름을 생략한다 (기본값 true, "카테고리 미연결" 경고는 그룹 여부와
+   * 무관하게 항상 표시). */
+  showCategory?: boolean;
   onEdit: () => void;
   onDelete: () => void;
   onLinkRecurring: () => void;
@@ -19,6 +23,7 @@ export default function CashflowPlanItemRow({
   item,
   sectionKey,
   users,
+  showCategory = true,
   onEdit,
   onDelete,
   onLinkRecurring,
@@ -29,7 +34,7 @@ export default function CashflowPlanItemRow({
     : "공통";
 
   const canLinkRecurring =
-    (sectionKey === "income" || sectionKey === "fixed") && item.recurring_expense_id === null;
+    item.id !== null && (sectionKey === "income" || sectionKey === "fixed") && item.recurring_expense_id === null;
 
   const menuItems: AccountActionsMenuItem[] = [];
   if (canLinkRecurring) {
@@ -49,13 +54,15 @@ export default function CashflowPlanItemRow({
           )}
         </p>
         {item.category_name ? (
-          <p className="mt-0.5 flex items-center gap-1.5 text-xs text-gray-500 dark:text-gray-400">
-            <span
-              className="inline-block w-2 h-2 rounded-full shrink-0"
-              style={{ backgroundColor: item.category_color ?? undefined }}
-            />
-            {item.category_name}
-          </p>
+          showCategory && (
+            <p className="mt-0.5 flex items-center gap-1.5 text-xs text-gray-500 dark:text-gray-400">
+              <span
+                className="inline-block w-2 h-2 rounded-full shrink-0"
+                style={{ backgroundColor: item.category_color ?? undefined }}
+              />
+              {item.category_name}
+            </p>
+          )
         ) : (
           sectionKey !== "income" && (
             <p className="mt-0.5 text-xs text-amber-600 dark:text-amber-400">
@@ -70,6 +77,11 @@ export default function CashflowPlanItemRow({
       </div>
       <div className="flex items-center gap-1 shrink-0">
         <span className="text-sm font-semibold text-gray-700 dark:text-gray-300">{formatKrw(item.amount)}</span>
+        {item.from_annual_plan && (
+          <span className="px-1.5 py-0.5 rounded text-[10px] font-medium whitespace-nowrap bg-blue-50 text-blue-600 dark:bg-blue-950 dark:text-blue-300">
+            연간계획
+          </span>
+        )}
         {(sectionKey === "income" || sectionKey === "fixed") && item.recurring_expense_id !== null && (
           <span
             className={`px-1.5 py-0.5 rounded text-[10px] font-medium whitespace-nowrap ${recurringLinkBadgeStyle(item.recurring_active ?? false)}`}
@@ -85,13 +97,15 @@ export default function CashflowPlanItemRow({
         >
           <Pencil size={16} />
         </button>
-        <button
-          onClick={onDelete}
-          className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950 rounded-lg transition-colors"
-          aria-label="삭제"
-        >
-          <Trash2 size={16} />
-        </button>
+        {item.id !== null && (
+          <button
+            onClick={onDelete}
+            className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950 rounded-lg transition-colors"
+            aria-label="삭제"
+          >
+            <Trash2 size={16} />
+          </button>
+        )}
       </div>
     </div>
   );

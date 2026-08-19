@@ -24,7 +24,7 @@ router = APIRouter(prefix="/cashflow-plan", tags=["cashflow-plan"])
 def _plan_list(db: Session, year_month: str | None) -> dict:
     ym = year_month or year_month_str(date.today())
     month_start = parse_year_month(ym)
-    items = cashflow_plan_service.list_items(db, ym)
+    items = cashflow_plan_service.list_items_with_annual_fallback(db, ym)
     actuals = cashflow_plan_service.actuals_for_month(db, ym)
     suggested = cashflow_plan_service.suggested_totals(db, ym)
     return {
@@ -62,6 +62,7 @@ def upsert_plan_item(
         payload.year_month,
         current_user.id,
         category_id=payload.category_id,
+        annual_plan_item_id=payload.annual_plan_item_id,
     )
     return _plan_list(db, payload.year_month)
 

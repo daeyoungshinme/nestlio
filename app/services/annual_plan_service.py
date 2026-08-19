@@ -23,6 +23,19 @@ def list_items(db: Session, year: int, section: str | None = None) -> list[Annua
     return query.order_by(AnnualPlanItem.section, AnnualPlanItem.sort_order).all()
 
 
+def monthly_targets_for_month(db: Session, year_month: str) -> list[tuple[AnnualPlanItem, Decimal]]:
+    """그 달에 값이 설정된 모든 AnnualPlanItem과 해당 월 목표금액 쌍을 반환한다 —
+    savings_product_service._monthly_targets_by_product_for_year와 동일 패턴. cashflow_plan_service가
+    이번 달 계획에 값이 없는 항목을 연간계획 값으로 자동 채우는 폴백에 쓴다."""
+    year = int(year_month[:4])
+    return (
+        db.query(AnnualPlanItem, AnnualPlanItemMonthlyTarget.target_amount)
+        .join(AnnualPlanItemMonthlyTarget, AnnualPlanItemMonthlyTarget.item_id == AnnualPlanItem.id)
+        .filter(AnnualPlanItem.year == year, AnnualPlanItemMonthlyTarget.year_month == year_month)
+        .all()
+    )
+
+
 def _apply_monthly_targets(item: AnnualPlanItem, monthly_targets: list[dict] | None) -> None:
     """year_month로 기존 행을 매칭해 target_amount만 갱신하고, 새 월은 새로 만든다 —
     goal_service._apply_monthly_targets와 동일 패턴. 빠진 월은 목록에서 제외돼 delete-orphan으로
@@ -155,14 +168,17 @@ def section_summary(db: Session, year: int, section: str, today: date) -> dict:
             actual_total += actual
             target_to_date += target
 
+    annual_target = sum(targets_by_month.values(), Decimal("0"))
     pct = pct_of(actual_total, target_to_date, zero_planned_default=None)
+    annual_pct = pct_of(actual_total, annual_target, zero_planned_default=None)
     return {
         "section": section,
         "elapsed_months": elapsed_months,
-        "annual_target": sum(targets_by_month.values(), Decimal("0")),
+        "annual_target": annual_target,
         "target_to_date": target_to_date,
         "actual": actual_total,
         "pct": pct,
+        "annual_pct": annual_pct,
         "status": _status(section, pct) if pct is not None else None,
         "monthly": monthly_out,
     }

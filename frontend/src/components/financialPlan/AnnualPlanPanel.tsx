@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Link } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import AnnualPlanItemForm from "@/components/financialPlan/AnnualPlanItemForm";
 import AnnualPlanSectionPanel from "@/components/financialPlan/AnnualPlanSectionPanel";
@@ -18,7 +19,7 @@ import { fetchUsers } from "@/api/users";
 import { SECTIONS, SAVINGS_INVESTMENT_LABEL, SECTION_LABELS, type SectionLabel } from "@/constants/planSections";
 import { QUERY_KEYS } from "@/constants/queryKeys";
 import { STALE_TIME } from "@/constants/queryConfig";
-import { formatKrw } from "@/utils/format";
+import { formatKrw, pctOf } from "@/utils/format";
 import { extractErrorMessage } from "@/utils/error";
 import { worseStatus } from "@/utils/colors";
 import { toast } from "@/utils/toast";
@@ -107,10 +108,7 @@ export default function AnnualPlanPanel() {
     savingsAnnualData && savingsAnnualData.savings.actual !== null && savingsAnnualData.investment.actual !== null
       ? Number(savingsAnnualData.savings.actual) + Number(savingsAnnualData.investment.actual)
       : null;
-  const savingsInvestmentPct =
-    savingsInvestmentActual !== null && savingsInvestmentTargetToDate > 0
-      ? Math.min((savingsInvestmentActual / savingsInvestmentTargetToDate) * 100, 999)
-      : null;
+  const savingsInvestmentPct = pctOf(savingsInvestmentActual, savingsInvestmentTargetToDate);
   const purposes: Purpose[] = [
     { label: "수입", pct: summary.income.pct, status: summary.income.status },
     { label: "고정지출", pct: summary.fixed.pct, status: summary.fixed.status },
@@ -159,8 +157,15 @@ export default function AnnualPlanPanel() {
 
       <p className="text-xs text-gray-400 dark:text-gray-500">
         연간 계획 금액과 올해 지금까지의 실제 내역을 비교해 달성율을 보여줘요. 카테고리를 태깅하면 그 카테고리의
-        실제 지출과도 비교돼요.
+        실제 지출과도 비교돼요. 여기서 입력한 월별 금액은 아직 해당 월에 계획 항목이 없으면 "이번 달 계획"에도
+        자동으로 반영돼요.
       </p>
+      <Link
+        to="/financial-plan?tab=목표"
+        className="block text-xs text-gray-500 dark:text-gray-400 hover:text-emerald-600 dark:hover:text-emerald-400"
+      >
+        개별 재무목표의 월별 계획·달성 현황은 목표 탭에서 확인해요 →
+      </Link>
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         <SummaryCard label="계획 수입 합계" value={formatKrw(summary.income.annual_target)} tone="positive" />
         <SummaryCard label="계획 지출 합계" value={formatKrw(summary.expense_total)} />
@@ -190,7 +195,7 @@ export default function AnnualPlanPanel() {
       <Tabs tabs={SECTION_LABELS} activeTab={activeLabel} onChange={setActiveLabel} />
 
       {activeLabel === SAVINGS_INVESTMENT_LABEL ? (
-        <SavingsInvestmentPlanPanel yearMonth={`${year}-01`} initialViewMode="올해 누적" />
+        <SavingsInvestmentPlanPanel yearMonth={`${year}-01`} initialViewMode="올해 누적" showViewToggle={false} />
       ) : (
         (() => {
           const { key, label } = SECTIONS.find((s) => s.label === activeLabel)!;
@@ -205,6 +210,7 @@ export default function AnnualPlanPanel() {
               items={items}
               sectionSummary={summary[key]}
               users={users}
+              categories={categories ?? []}
               categoryBudgetRows={categoryBudgetRows}
               onAddItem={() => setItemModal({ section: key, item: null })}
               onEditItem={(item) => setItemModal({ section: key, item })}

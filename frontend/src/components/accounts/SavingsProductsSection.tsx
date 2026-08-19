@@ -1,7 +1,8 @@
 import { useState } from "react";
 import type { FormEvent } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Download, ExternalLink, Plus, RefreshCw } from "lucide-react";
+import { ArrowRight, Download, ExternalLink, Plus, RefreshCw } from "lucide-react";
+import { Link } from "react-router-dom";
 import Button from "@/components/common/Button";
 import AssetRow from "@/components/accounts/AssetRow";
 import type { AssetRowAction } from "@/components/accounts/AssetRow";
@@ -353,6 +354,14 @@ function SavingsProductRow({
               </span>
             )}
           </p>
+          {(product.product_type === "savings" || product.product_type === "investment") && (
+            <Link
+              to="/financial-plan?tab=현금흐름 계획&view=이번 달 계획"
+              className="inline-flex items-center gap-1 text-xs text-gray-500 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 mt-1"
+            >
+              월별 계획 보기 <ArrowRight size={12} />
+            </Link>
+          )}
         </>
       }
       amount={<p className="mt-1 text-base font-bold text-gray-900 dark:text-gray-50">{formatKrw(product.current_balance)}</p>}

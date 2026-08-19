@@ -284,6 +284,35 @@ def test_section_summary_annual_target_includes_months_beyond_elapsed(seeded_db)
     assert summary["annual_target"] == Decimal("2000000")  # 1월 + 3월, 경과 여부와 무관하게 전체 합
 
 
+def test_section_summary_annual_pct_uses_full_year_target_unlike_pct(seeded_db):
+    """pct는 '지금까지 목표'(target_to_date) 대비라 몰아서 계획된 미래 달 때문에 100%를 넘게
+    보일 수 있는데, annual_pct는 연간 전체 목표 대비라 같은 상황에서도 낮게 나온다 — 두 값이
+    서로 다른 질문에 답한다는 걸 확인한다."""
+    db, user, salary = seeded_db["db"], seeded_db["user"], seeded_db["salary"]
+    annual_plan_service.upsert_item(
+        db,
+        None,
+        2026,
+        "income",
+        None,
+        "월급",
+        None,
+        0,
+        user.id,
+        "2026-01",
+        "2026-12",
+        monthly_targets=_monthly(jan="500000", mar="9500000"),
+    )
+    transaction_service.create_transaction(db, user.id, salary.id, "income", Decimal("2000000"), date(2026, 1, 15))
+
+    summary = annual_plan_service.section_summary(db, 2026, "income", today=date(2026, 1, 31))
+
+    assert summary["target_to_date"] == Decimal("500000")
+    assert summary["annual_target"] == Decimal("10000000")
+    assert summary["pct"] == 400.0
+    assert summary["annual_pct"] == 20.0
+
+
 def test_section_summary_income_actual_from_transactions(seeded_db):
     db, user, salary = seeded_db["db"], seeded_db["user"], seeded_db["salary"]
     annual_plan_service.upsert_item(

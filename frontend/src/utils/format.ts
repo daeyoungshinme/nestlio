@@ -45,6 +45,16 @@ export function formatPercent(value: number, digits = 0): string {
   return `${value.toFixed(digits)}%`;
 }
 
+/** 백엔드 app/utils/plan_status.py::pct_of와 동일한 규칙 — 계획(planned)이 0이어도 실적이 있으면
+ * 0%/null이 아니라 100%로 간주한다("목표 없이 썼다/모았다"). 여러 그룹의 planned/actual을 합산해
+ * 통합 pct를 만드는 화면(예: 저축·투자 = savings + investment)에서 백엔드와 어긋나지 않도록 쓴다. */
+export function pctOf(actual: number | null, planned: number, cap = 999): number | null {
+  if (actual === null) return null;
+  if (planned > 0) return Math.min((actual / planned) * 100, cap);
+  if (actual !== 0) return 100;
+  return null;
+}
+
 /** "2026-07-01" -> "2026.07.01" */
 export function formatDate(isoDate: string): string {
   return isoDate.replaceAll("-", ".");

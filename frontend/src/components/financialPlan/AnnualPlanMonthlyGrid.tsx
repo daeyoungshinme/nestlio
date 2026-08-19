@@ -38,12 +38,19 @@ export default function AnnualPlanMonthlyGrid({ startMonth, endMonth, targets, o
     onChange(months.map((ym) => ({ year_month: ym, target_amount: distributed[ym] ?? "0" })));
   };
 
-  /** 이 달에 입력된 금액을 적용 기간의 나머지 달에 그대로 복사한다(기존 값 덮어씀) — 월급처럼
-   * 매달 같은 금액을 반복 입력하지 않아도 되도록 하는 단축 버튼. distributeAmountEvenly(총액을
-   * 나눠 채움)와 달리 이미 입력한 값을 복사만 한다. */
+  /** 이 달에 입력된 금액을 이 달부터 적용 기간의 끝까지("나머지" 달)에 그대로 복사한다(기존 값
+   * 덮어씀) — 월급처럼 매달 같은 금액을 반복 입력하지 않아도 되도록 하는 단축 버튼.
+   * distributeAmountEvenly(총액을 나눠 채움)와 달리 이미 입력한 값을 복사만 한다. 소스 월보다
+   * 이전 달은 라벨("나머지 달에 적용")대로 건드리지 않는다 — 중간 달에서 눌러도 이미 입력해둔
+   * 이전 달 값이 실수로 덮어써지지 않도록 한다. */
   const applyToRemaining = (sourceYearMonth: string) => {
     const sourceAmount = amountByMonth.get(sourceYearMonth) ?? "0";
-    onChange(months.map((ym) => ({ year_month: ym, target_amount: sourceAmount })));
+    onChange(
+      months.map((ym) => ({
+        year_month: ym,
+        target_amount: ym >= sourceYearMonth ? sourceAmount : (amountByMonth.get(ym) ?? "0"),
+      })),
+    );
   };
 
   return (

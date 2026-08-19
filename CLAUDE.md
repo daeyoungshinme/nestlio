@@ -26,7 +26,7 @@
 ## 디렉토리별 컨벤션 (routers / schemas / models / utils)
 
 - **routers**: 모든 라우터가 `Depends(get_current_user)`로 인증 확인, `response_model=`으로 응답 스키마를 명시한다. 없는 리소스는 `HTTPException(404)`, 잘못된 상태 전이는 `HTTPException(409)` 등으로 표현한다.
-- **schemas** (`app/schemas/`): 리소스별 Pydantic 요청/응답 모델. ORM 객체를 그대로 반환해도 되도록 출력 모델은 `ConfigDict(from_attributes=True)`를 쓴다.
+- **schemas** (`app/schemas/`): 리소스별 Pydantic 요청/응답 모델. ORM 객체를 그대로 반환해도 되도록 출력 모델은 `ConfigDict(from_attributes=True)`를 쓴다. 사용자가 지울 수 있는 금액 입력 필드(`*In` 스키마의 `target_amount` 등)는 `Decimal` 대신 `app/schemas/common.py`의 `KrwAmount`를 쓴다 — `<input type="number">`를 비우면 `e.target.value`가 빈 문자열로 전송되는데 `Decimal`은 이를 파싱하지 못해 422가 나므로, 빈 문자열을 0으로 취급하는 `BeforeValidator`가 붙어 있다.
 - **models**: SQLAlchemy 2.0 스타일로 `app.database.Base` 상속. 자주 조인되는 관계는 `lazy="joined"`로 선언 (예: `Transaction.user`/`category`/`account`).
 - **utils**: 날짜 연산은 반드시 `app/utils/dates.py`의 헬퍼(`month_bounds`, `year_bounds`, `shift_month`, `advance_due_date` 등)를 재사용한다. 직접 `timedelta` 연산으로 월/연 경계를 계산하지 않는다.
 - **금액**: 항상 `Decimal` 사용 (float 금지).

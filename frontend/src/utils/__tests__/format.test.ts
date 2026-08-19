@@ -6,6 +6,7 @@ import {
   formatNumber,
   formatPercent,
   formatYearMonth,
+  pctOf,
   toAmountInputValue,
 } from "@/utils/format";
 
@@ -61,6 +62,33 @@ describe("formatNumber", () => {
 describe("formatPercent", () => {
   it("rounds to 0 decimal digits by default", () => {
     expect(formatPercent(42.6)).toBe("43%");
+  });
+});
+
+describe("pctOf", () => {
+  it("divides actual by planned when planned is positive", () => {
+    expect(pctOf(50, 200)).toBe(25);
+  });
+
+  it("caps at 999 by default", () => {
+    expect(pctOf(100000, 1)).toBe(999);
+  });
+
+  it("accepts a custom cap", () => {
+    expect(pctOf(300, 100, 200)).toBe(200);
+  });
+
+  it("treats planned=0 with nonzero actual as 100% (계획 없이 실적 있음)", () => {
+    expect(pctOf(50, 0)).toBe(100);
+  });
+
+  it("returns null when both planned and actual are 0", () => {
+    expect(pctOf(0, 0)).toBeNull();
+  });
+
+  it("returns null when actual is null regardless of planned", () => {
+    expect(pctOf(null, 100)).toBeNull();
+    expect(pctOf(null, 0)).toBeNull();
   });
 });
 

@@ -3,6 +3,8 @@ from decimal import Decimal
 
 from pydantic import BaseModel, ConfigDict
 
+from app.schemas.common import KrwAmount
+
 
 class AnnualSavingsGoalMonthlyTargetOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
@@ -13,7 +15,7 @@ class AnnualSavingsGoalMonthlyTargetOut(BaseModel):
 
 class AnnualSavingsGoalMonthlyTargetIn(BaseModel):
     year_month: str
-    target_amount: Decimal
+    target_amount: KrwAmount
 
 
 class AnnualSavingsGoalOut(BaseModel):

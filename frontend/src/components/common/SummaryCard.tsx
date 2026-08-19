@@ -6,6 +6,8 @@ interface Props {
   className?: string;
   /** value의 툴팁 텍스트. 미지정 시 value로 폴백 — value가 축약 표기일 때 전체 금액을 보여주기 위함. */
   title?: string;
+  /** sub 아래에 한 줄 더 보여주는 작은 배지 텍스트(계획 대비 % 등). 색상은 호출부가 결정한다. */
+  badge?: { label: string; toneClassName: string };
 }
 
 const TONE_CLASS: Record<NonNullable<Props["tone"]>, string> = {
@@ -14,7 +16,7 @@ const TONE_CLASS: Record<NonNullable<Props["tone"]>, string> = {
   negative: "text-red-600 dark:text-red-400",
 };
 
-export default function SummaryCard({ label, value, tone = "default", sub, className, title }: Props) {
+export default function SummaryCard({ label, value, tone = "default", sub, className, title, badge }: Props) {
   return (
     <div className={`card min-w-0 ${className ?? ""}`}>
       <p className="text-xs text-gray-500 dark:text-gray-400 truncate">{label}</p>
@@ -22,6 +24,7 @@ export default function SummaryCard({ label, value, tone = "default", sub, class
         {value}
       </p>
       {sub && <p className="mt-0.5 text-xs text-gray-400 dark:text-gray-500 truncate">{sub}</p>}
+      {badge && <p className={`mt-0.5 text-xs font-medium truncate ${badge.toneClassName}`}>{badge.label}</p>}
     </div>
   );
 }

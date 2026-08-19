@@ -1,11 +1,20 @@
 import { Link } from "react-router-dom";
 import { Layers, Plus, Tag } from "lucide-react";
 import Button from "@/components/common/Button";
+import CollapsibleGroup from "@/components/common/CollapsibleGroup";
 import CashflowPlanItemRow from "@/components/financialPlan/CashflowPlanItemRow";
 import SectionAchievementBar from "@/components/financialPlan/SectionAchievementBar";
 import CategoryBudgetProgress from "@/components/financialPlan/CategoryBudgetProgress";
+import { groupItemsByCategory } from "@/utils/categoryGroup";
 import { formatKrw } from "@/utils/format";
-import type { BudgetRowOut, CashflowPlanItemOut, CashflowPlanSectionSummaryOut, CashflowSection, UserOut } from "@/types";
+import type {
+  BudgetRowOut,
+  CashflowPlanItemOut,
+  CashflowPlanSectionSummaryOut,
+  CashflowSection,
+  CategoryOut,
+  UserOut,
+} from "@/types";
 
 interface Props {
   sectionKey: CashflowSection;
@@ -13,6 +22,7 @@ interface Props {
   items: CashflowPlanItemOut[];
   sectionSummary: CashflowPlanSectionSummaryOut;
   users: UserOut[] | undefined;
+  categories: CategoryOut[];
   budgetRowByCategory: Map<number, BudgetRowOut>;
   nextYearMonthLabel?: string;
   onAddItem: () => void;
@@ -33,6 +43,7 @@ export default function CashflowPlanSectionPanel({
   items,
   sectionSummary,
   users,
+  categories,
   budgetRowByCategory,
   nextYearMonthLabel,
   onAddItem,
@@ -74,6 +85,23 @@ export default function CashflowPlanSectionPanel({
     const commonAmount = ownerTotals.get("") ?? 0;
     if (commonAmount > 0) ownerSubtotalParts.push(`공통 ${formatKrw(commonAmount)}`);
   }
+
+  const categoryGroups = groupItemsByCategory(items, categories);
+  const showCategoryGroups = categoryGroups.length > 1;
+
+  const renderItem = (item: CashflowPlanItemOut, showCategory: boolean) => (
+    <CashflowPlanItemRow
+      key={item.id ?? `annual-${item.annual_plan_item_id}`}
+      item={item}
+      sectionKey={sectionKey}
+      users={users}
+      showCategory={showCategory}
+      onEdit={() => onEditItem(item)}
+      onDelete={() => onDeleteItem(item)}
+      onLinkRecurring={() => onLinkRecurring(item)}
+      onQuickAdd={() => onQuickAdd(item)}
+    />
+  );
 
   return (
     <div className="card">
@@ -136,18 +164,31 @@ export default function CashflowPlanSectionPanel({
         </div>
       )}
       <div>
-        {items.map((item) => (
-          <CashflowPlanItemRow
-            key={item.id}
-            item={item}
-            sectionKey={sectionKey}
-            users={users}
-            onEdit={() => onEditItem(item)}
-            onDelete={() => onDeleteItem(item)}
-            onLinkRecurring={() => onLinkRecurring(item)}
-            onQuickAdd={() => onQuickAdd(item)}
-          />
-        ))}
+        {showCategoryGroups
+          ? categoryGroups.map((group) => {
+              const groupTotal = group.items.reduce((sum, item) => sum + Number(item.amount), 0);
+              return (
+                <CollapsibleGroup
+                  key={group.category_id ?? "uncategorized"}
+                  header={
+                    <>
+                      <span
+                        className="inline-block w-2 h-2 rounded-full shrink-0"
+                        style={{ backgroundColor: group.category_color ?? "#9ca3af" }}
+                      />
+                      <span className="text-sm font-medium text-gray-700 dark:text-gray-300 truncate">
+                        {group.category_name ?? "미분류"}
+                      </span>
+                    </>
+                  }
+                  amount={formatKrw(groupTotal)}
+                  defaultOpen
+                >
+                  {group.items.map((item) => renderItem(item, false))}
+                </CollapsibleGroup>
+              );
+            })
+          : items.map((item) => renderItem(item, true))}
         {items.length === 0 && (
           <p className="text-sm text-gray-400 dark:text-gray-500 py-4 text-center">등록된 항목이 없습니다.</p>
         )}

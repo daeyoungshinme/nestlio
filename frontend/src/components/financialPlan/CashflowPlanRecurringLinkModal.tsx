@@ -31,7 +31,8 @@ export default function CashflowPlanRecurringLinkModal({ item, categories, onClo
     createRecurringMutation.mutate(buildRecurringPayload(values), {
       onSuccess: (created) => {
         linkRecurringMutation.mutate(
-          { itemId: item.id, payload: { recurring_expense_id: created.id } },
+          // 반복내역 연결 메뉴는 item.id가 있는(이미 저장된) 항목에서만 열리므로 non-null 단언이 안전하다.
+          { itemId: item.id!, payload: { recurring_expense_id: created.id } },
           {
             onSuccess: () => {
               onLinked();

@@ -11,13 +11,14 @@ import CoupleContributionCard from "@/components/dashboard/CoupleContributionCar
 import InvestSurplusCard from "@/components/dashboard/InvestSurplusCard";
 import GoalProgressCard from "@/components/financialPlan/GoalProgressCard";
 import type { GoalProgressCardBadge } from "@/components/financialPlan/GoalProgressCard";
-import SummaryCards from "@/components/common/SummaryCards";
+import SummaryCards, { type PlanCardSummary, type PlanSummaryLabel } from "@/components/common/SummaryCards";
 import SkeletonCard from "@/components/common/SkeletonCard";
 import EmptyState from "@/components/common/EmptyState";
 import Modal from "@/components/common/Modal";
 import QuickAddFab from "@/components/common/QuickAddFab";
 import TransactionForm from "@/components/transactions/TransactionForm";
 import { fetchDashboard } from "@/api/dashboard";
+import { fetchCashflowPlan } from "@/api/cashflowPlan";
 import { fetchGrowlioUnlinkedNetWorth, fetchNetWorth } from "@/api/netWorth";
 import { fetchSettings } from "@/api/settings";
 import { fetchGoals } from "@/api/goals";
@@ -30,9 +31,9 @@ import { useAuthStore } from "@/stores/authStore";
 import { useInvalidateTransactionRelated } from "@/hooks/useInvalidateTransactionRelated";
 import { QUERY_KEYS } from "@/constants/queryKeys";
 import { STALE_TIME } from "@/constants/queryConfig";
-import { insightSeverityStyle, progressStatusBadgeClass, progressStatusLabel } from "@/utils/colors";
+import { insightSeverityStyle, progressStatusBadgeClass, progressStatusLabel, worseStatus } from "@/utils/colors";
 import { computeCardStatus, daysUntil } from "@/utils/goalStatus";
-import { formatDate, formatKrw, formatKrwCompact, formatWeekRange, formatYearMonth } from "@/utils/format";
+import { formatDate, formatKrw, formatKrwCompact, formatWeekRange, formatYearMonth, pctOf } from "@/utils/format";
 import { splitSavingsAndRealEstate } from "@/utils/netWorth";
 import { extractErrorMessage } from "@/utils/error";
 import { toast } from "@/utils/toast";
@@ -48,7 +49,7 @@ const INSIGHT_LINKS: Partial<Record<string, { to: string; label: string }>> = {
   variable_spend_trend: { to: "/transactions", label: "가계부 보기" },
   discretionary_ratio: { to: "/transactions", label: "가계부 보기" },
   debt_ratio: { to: "/transactions", label: "가계부 보기" },
-  budget_overrun: { to: "/financial-plan?tab=현금흐름 계획", label: "예산 보기" },
+  budget_overrun: { to: "/financial-plan?tab=현금흐름 계획", label: "현금흐름 계획 보기" },
   emergency_fund: { to: "/accounts?tab=저축·투자", label: "저축·투자 보기" },
   savings_execution: { to: "/accounts?tab=저축·투자", label: "저축·투자 보기" },
 };
@@ -69,13 +70,23 @@ export default function DashboardPage() {
     queryFn: () => fetchDashboard(period, anchor),
     staleTime: STALE_TIME.SHORT,
   });
-  // goal_pace 코칭 문구는 항상 "이번 달 페이스" 기준이어야 하므로, 사용자가 고른 period/anchor와
-  // 무관하게 GoalsTab과 동일한 쿼리 키(당월 고정)로 따로 가져온다 — 두 화면이 항상
-  // 같은 문구를 보여주도록 캐시를 공유시킨다.
+  // goal_pace 코칭 문구를 보여주는 화면은 대시보드뿐이다(GoalsTab 배너는 중복이라 제거함).
+  // 문구는 항상 "이번 달 페이스" 기준이어야 하므로, 사용자가 고른 period/anchor와 무관하게
+  // 당월 고정 쿼리로 따로 가져온다 — GoalsTab이 investable_surplus 조회에 쓰는 쿼리와
+  // 쿼리 키가 같아 자연히 캐시를 공유한다.
   const { data: monthDashboard } = useQuery({
     queryKey: QUERY_KEYS.dashboard("month", currentYearMonth()),
     queryFn: () => fetchDashboard("month", currentYearMonth()),
     staleTime: STALE_TIME.SHORT,
+  });
+  // SummaryCards에 "계획 대비 %"를 보여주기 위한 계획 데이터. day/week 기간에는 월 단위 계획과
+  // 비교하는 게 의미가 없으므로 period === "month"일 때만 가져온다. CashflowPlanTab과 같은
+  // 쿼리 키를 써서 두 탭을 오가도 캐시를 재사용한다.
+  const { data: planData } = useQuery({
+    queryKey: QUERY_KEYS.cashflowPlan(yearMonth),
+    queryFn: () => fetchCashflowPlan(yearMonth),
+    staleTime: STALE_TIME.SHORT,
+    enabled: period === "month",
   });
   const { data: settingsData } = useQuery({
     queryKey: QUERY_KEYS.settings,
@@ -176,6 +187,30 @@ export default function DashboardPage() {
   const visibleInsights = data.insights.filter((i) => i.rule_code !== "goal_pace");
   const isCurrentPeriod = anchor === (period === "month" ? currentYearMonth() : currentDateIso());
 
+  // SummaryCards의 "계획 대비 %" — 수입/고정/변동/비정기는 백엔드가 이미 계산한 pct/status를
+  // 그대로 쓴다. 지출(합계)/저축은 서버에 대응하는 섹션이 없는 파생값이라 프론트에서 직접
+  // pctOf/worseStatus(둘 다 기존 유틸)로 계산한다.
+  const planSummary: Record<PlanSummaryLabel, PlanCardSummary> | undefined =
+    period === "month" && planData
+      ? {
+          income: { pct: planData.summary.income.pct, status: planData.summary.income.status },
+          fixed: { pct: planData.summary.fixed.pct, status: planData.summary.fixed.status },
+          variable: { pct: planData.summary.variable.pct, status: planData.summary.variable.status },
+          irregular: { pct: planData.summary.irregular.pct, status: planData.summary.irregular.status },
+          expense: {
+            pct: pctOf(Number(data.totals.expense), Number(planData.summary.expense_total)),
+            status: worseStatus(
+              planData.summary.fixed.status,
+              worseStatus(planData.summary.variable.status, planData.summary.irregular.status),
+            ),
+          },
+          savings: {
+            pct: pctOf(Number(data.totals.savings), Number(planData.summary.available)),
+            status: null,
+          },
+        }
+      : undefined;
+
   return (
     <div className="space-y-6">
       {settingsData?.couple_photo_url && (
@@ -207,6 +242,7 @@ export default function DashboardPage() {
 
       {visibleInsights.length > 0 && (
         <div className="space-y-2">
+          <p className="text-xs text-gray-400 dark:text-gray-500">코칭 알림</p>
           {visibleInsights.map((insight, i) => {
             const link = INSIGHT_LINKS[insight.rule_code];
             return (
@@ -226,11 +262,11 @@ export default function DashboardPage() {
         </div>
       )}
 
-      <SummaryCards totals={data.totals} collapsible />
+      <SummaryCards totals={data.totals} collapsible planSummary={planSummary} />
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {!topGoal ? (
-          <Link to="/financial-plan?tab=재무목표" className="relative card block hover:border-emerald-300 dark:hover:border-emerald-700 transition-colors">
+          <Link to="/financial-plan?tab=목표" className="relative card block hover:border-emerald-300 dark:hover:border-emerald-700 transition-colors">
             <ChevronRight size={16} className="absolute top-5 right-5 text-gray-300 dark:text-gray-600" aria-hidden="true" />
             <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">우리 부부 목표</h3>
             <EmptyState
@@ -241,7 +277,7 @@ export default function DashboardPage() {
             />
           </Link>
         ) : (
-          <Link to="/financial-plan?tab=재무목표" className="relative block">
+          <Link to="/financial-plan?tab=목표" className="relative block">
             <ChevronRight size={16} className="absolute top-5 right-5 text-gray-300 dark:text-gray-600 z-10" aria-hidden="true" />
             <GoalProgressCard
               className="hover:border-emerald-300 dark:hover:border-emerald-700 transition-colors"

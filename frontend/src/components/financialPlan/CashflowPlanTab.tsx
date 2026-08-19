@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Copy } from "lucide-react";
 import CashflowPlanItemForm from "@/components/financialPlan/CashflowPlanItemForm";
@@ -32,7 +32,7 @@ import { fetchUsers } from "@/api/users";
 import { SECTIONS, SAVINGS_INVESTMENT_LABEL, SECTION_LABELS, type SectionLabel } from "@/constants/planSections";
 import { QUERY_KEYS } from "@/constants/queryKeys";
 import { STALE_TIME } from "@/constants/queryConfig";
-import { formatKrw, formatYearMonth } from "@/utils/format";
+import { formatKrw, formatYearMonth, pctOf } from "@/utils/format";
 import { extractErrorMessage } from "@/utils/error";
 import { worseStatus } from "@/utils/colors";
 import { toast } from "@/utils/toast";
@@ -43,13 +43,29 @@ import type { CashflowPlanSplitFormValues } from "@/components/financialPlan/Cas
 const VIEW_TABS = ["이번 달 계획", "연간계획"] as const;
 type ViewTab = (typeof VIEW_TABS)[number];
 
+function isViewTab(value: string | null): value is ViewTab {
+  return (VIEW_TABS as readonly string[]).includes(value ?? "");
+}
+
 interface ModalState {
   section: CashflowSection;
   item: CashflowPlanItemOut | null;
 }
 
 export default function CashflowPlanTab() {
-  const [view, setView] = useState<ViewTab>("이번 달 계획");
+  const [searchParams, setSearchParams] = useSearchParams();
+  const viewParam = searchParams.get("view");
+  const view: ViewTab = isViewTab(viewParam) ? viewParam : "이번 달 계획";
+  const setView = (next: ViewTab) => {
+    setSearchParams(
+      (prev) => {
+        const nextParams = new URLSearchParams(prev);
+        nextParams.set("view", next);
+        return nextParams;
+      },
+      { replace: true },
+    );
+  };
   const [yearMonth, setYearMonth] = useState(currentYearMonth());
   const [activeLabel, setActiveLabel] = useState<SectionLabel>("수입");
   const [modal, setModal] = useState<ModalState | null>(null);
@@ -207,10 +223,7 @@ export default function CashflowPlanTab() {
     savingsPlanData && savingsPlanData.savings.actual !== null && savingsPlanData.investment.actual !== null
       ? Number(savingsPlanData.savings.actual) + Number(savingsPlanData.investment.actual)
       : null;
-  const savingsInvestmentPct =
-    savingsInvestmentActual !== null && plannedSavingsInvestmentTotal > 0
-      ? Math.min((savingsInvestmentActual / plannedSavingsInvestmentTotal) * 100, 999)
-      : null;
+  const savingsInvestmentPct = pctOf(savingsInvestmentActual, plannedSavingsInvestmentTotal);
   const purposes: Purpose[] = [
     { label: "수입", pct: summary.income.pct, status: summary.income.status },
     { label: "고정지출", pct: summary.fixed.pct, status: summary.fixed.status },
@@ -249,6 +262,7 @@ export default function CashflowPlanTab() {
         amount: values.amount,
         category_id: values.category_id ? Number(values.category_id) : null,
         sort_order: item?.sort_order ?? sectionCount,
+        annual_plan_item_id: item?.annual_plan_item_id ?? null,
       },
       { onSuccess: () => setModal(null) },
     );
@@ -318,7 +332,7 @@ export default function CashflowPlanTab() {
       <Tabs tabs={SECTION_LABELS} activeTab={activeLabel} onChange={setActiveLabel} />
 
       {activeLabel === SAVINGS_INVESTMENT_LABEL ? (
-        <SavingsInvestmentPlanPanel yearMonth={yearMonth} />
+        <SavingsInvestmentPlanPanel yearMonth={yearMonth} showViewToggle={false} />
       ) : (
         (() => {
           const { key, label } = SECTIONS.find((s) => s.label === activeLabel)!;
@@ -329,6 +343,7 @@ export default function CashflowPlanTab() {
               items={data.items.filter((i) => i.section === key)}
               sectionSummary={summary[key]}
               users={users}
+              categories={allCategories ?? []}
               budgetRowByCategory={budgetRowByCategory}
               nextYearMonthLabel={nextYearMonthLabel}
               onAddItem={() => setModal({ section: key, item: null })}

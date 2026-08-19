@@ -57,3 +57,13 @@
 각 서비스의 가져오기 루프 본문(생성할 모델 필드)은 도메인마다 달라(Account는 `account_type`, SavingsProduct는 `product_type`/`principal_amount`, RealEstate는 대출 페어링까지) 그대로 두고, 위 3개 헬퍼만 공유한다 — 전체 `import_from_growlio` 함수 자체를 억지로 통합하지 않는다.
 
 **전체 동기화(`sync_all_*`) 패턴**: `account_service.sync_all_accounts`/`savings_product_service.sync_all_from_growlio`/`real_estate_service.sync_all_from_growlio`가 공유하는 규칙 — growlio 목록은 (건별 `sync_account`/`sync_from_growlio`처럼 매번 재호출하지 않고) **1회만 조회**해 연동된 항목 전체에 매칭한다. 배우자 소유 등으로 매칭에 실패한 항목은 예외를 던져 전체를 중단시키지 않고 `{id, name, reason}` 형태로 `failed` 리스트에 담아 나머지 항목 동기화를 계속 진행하며, 반환 타입은 `tuple[동기화된_개수: int, failed: list[dict]]`로 통일한다. 새로운 growlio 연동 리소스 타입에 "전체 동기화"를 추가할 때도 이 시그니처와 부분 실패 처리 방식을 따른다.
+
+## 연간계획 → 이번 달 계획 폴백 (annual_plan_service ↔ cashflow_plan_service)
+
+`cashflow_plan_service.list_items_with_annual_fallback(db, year_month)`는 실제 `CashflowPlanItem` 목록에 더해, 연간계획(`AnnualPlanItem`)에는 그 달 금액이 있지만 아직 `CashflowPlanItem`으로 저장된 적은 없는 항목을 조회 시점에만 가상으로 만들어 끼워 넣는다 — 사용자가 연간계획에서 월별 금액을 미리 채워두면 매달 "이번 달 계획"에 직접 항목을 복사해 넣지 않아도 되게 하기 위함이다. 라우터는 `list_items` 대신 이 함수를 쓴다.
+
+- 가상 항목은 `_AnnualPlanFallbackItem` dataclass로 만든다 — `CashflowPlanItem`과 같은 속성 이름(`section`/`amount`/`category_id`/... )을 가져 `compute_summary`/`CashflowPlanItemOut` 양쪽에서 실제 항목과 구분 없이 duck typing으로 다뤄진다. 저장된 적이 없으므로 `id=None`, `from_annual_plan=True`로만 구분한다.
+- 매칭은 `_item_key()`(카테고리 태깅 항목은 `(section, category_id)`, 자유 텍스트 항목은 `(section, name)`)로 한다 — `AnnualPlanItem`도 같은 속성을 가지므로 이 함수를 그대로 재사용할 수 있다. 이미 실제 항목이 있는 조합은 건드리지 않으므로, 사용자가 한 번 저장하면 그 순간부터 실제 항목이 되어 이후 연간계획을 바꿔도 그 달 값은 그대로 유지된다.
+- 라우터/스키마 쪽에서 `id`가 `None`일 수 있다는 점을 항상 감안한다 — 반복거래 연결·삭제처럼 실제 행이 있어야만 가능한 동작은 `item.id is not None`으로 먼저 가드한다(`CashflowPlanItemRow.tsx`의 `canLinkRecurring`/삭제 버튼 참고).
+
+같은 패턴(월별 목표를 상위 계획에서 상세 화면으로 자동 폴백)이 필요해지면 `_item_key`/`_AnnualPlanFallbackItem`을 그대로 본떠 만들되, 실제로 상위/하위 계획이 같은 식별 키를 공유하는 경우에만 이 duck-typing 재사용이 성립한다는 점을 확인한다.

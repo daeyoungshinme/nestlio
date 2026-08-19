@@ -94,7 +94,11 @@ export default function AnnualPlanItemForm({
           value={categoryId}
           onChange={(catId) => {
             setCategoryId(catId);
-            setName(catId ? (sectionCategories.find((c) => String(c.id) === catId)?.name ?? "") : "");
+            setName((prev) =>
+              prev.trim() === "" && catId
+                ? (sectionCategories.find((c) => String(c.id) === catId)?.name ?? prev)
+                : prev,
+            );
           }}
           label="카테고리"
           placeholder="선택 안 함 (자유 입력 항목)"
@@ -106,7 +110,6 @@ export default function AnnualPlanItemForm({
         value={name}
         onChange={(e) => setName(e.target.value)}
         required
-        disabled={!!categoryId}
       />
       <div>
         <label className={`block mb-1 font-medium ${LABEL_SM}`}>구분</label>

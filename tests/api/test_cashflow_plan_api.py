@@ -262,6 +262,58 @@ def test_link_recurring_endpoint_404_for_missing_recurring_expense(client, seede
     assert resp.status_code == 404
 
 
+def test_annual_plan_monthly_target_auto_fills_month_with_no_plan_item(client, seeded_db):
+    rent = seeded_db["rent"]
+    annual_resp = client.put(
+        "/api/v1/annual-plan/items",
+        json={
+            "id": None,
+            "year": 2026,
+            "section": "fixed",
+            "owner_user_id": None,
+            "name": "월세",
+            "category_id": rent.id,
+            "sort_order": 0,
+            "start_month": "2026-01",
+            "end_month": "2026-12",
+            "monthly_targets": [{"year_month": "2026-07", "target_amount": "800000"}],
+        },
+    )
+    annual_item_id = annual_resp.json()["items"][0]["id"]
+
+    resp = client.get("/api/v1/cashflow-plan", params={"year_month": "2026-07"})
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert len(body["items"]) == 1
+    item = body["items"][0]
+    assert item["id"] is None
+    assert item["from_annual_plan"] is True
+    assert item["annual_plan_item_id"] == annual_item_id
+    assert Decimal(item["amount"]) == Decimal("800000")
+    assert Decimal(body["summary"]["fixed"]["planned"]) == Decimal("800000")
+
+    # Editing/saving the auto-filled item promotes it to a real, independently-owned plan item.
+    save_resp = client.put(
+        "/api/v1/cashflow-plan/items",
+        json={
+            "id": item["id"],
+            "section": item["section"],
+            "year_month": "2026-07",
+            "owner_user_id": item["owner_user_id"],
+            "name": item["name"],
+            "amount": "900000",
+            "category_id": item["category_id"],
+            "sort_order": item["sort_order"],
+        },
+    )
+    saved_item = save_resp.json()["items"][0]
+    assert saved_item["id"] is not None
+    assert saved_item["from_annual_plan"] is False
+    assert saved_item["annual_plan_item_id"] is None
+    assert Decimal(saved_item["amount"]) == Decimal("900000")
+
+
 def test_delete_plan_item(client, seeded_db):
     put_resp = client.put(
         "/api/v1/cashflow-plan/items",

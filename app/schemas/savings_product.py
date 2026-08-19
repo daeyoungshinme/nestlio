@@ -5,6 +5,7 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict
 
+from app.schemas.common import KrwAmount
 from app.schemas.growlio import GrowlioImportIn, GrowlioSyncAllOut
 
 
@@ -89,6 +90,7 @@ class SavingsProductAnnualPlanGroupOut(BaseModel):
     target_to_date: Decimal
     actual: Decimal | None
     pct: float | None
+    annual_pct: float | None
     status: Literal["ok", "warn", "critical"] | None
 
 
@@ -107,7 +109,7 @@ class SavingsProductAnnualPlanMonthlyTargetOut(BaseModel):
 
 class SavingsProductAnnualPlanMonthlyTargetIn(BaseModel):
     year_month: str
-    target_amount: Decimal
+    target_amount: KrwAmount
 
 
 class SavingsProductAnnualPlanDetailOut(BaseModel):

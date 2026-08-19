@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowRight, Pencil, RefreshCw } from "lucide-react";
+import { ArrowRight, Pencil } from "lucide-react";
 import { Link } from "react-router-dom";
 import Button from "@/components/common/Button";
 import EmptyState from "@/components/common/EmptyState";
@@ -15,14 +15,13 @@ import {
   fetchSavingsProducts,
   fetchSavingsProductsAnnualPlan,
   fetchSavingsProductsPlan,
-  syncSavingsProduct,
   upsertSavingsProductAnnualPlan,
 } from "@/api/savingsProducts";
 import { fetchUsers } from "@/api/users";
 import { QUERY_KEYS } from "@/constants/queryKeys";
 import { STALE_TIME } from "@/constants/queryConfig";
 import { TOUCH_TARGET_MIN_MOBILE_ONLY } from "@/constants/uiSizes";
-import { formatKrw, formatPercent, formatSyncedAt } from "@/utils/format";
+import { formatKrw, formatPercent } from "@/utils/format";
 import {
   linkedGoalBadgeStyle,
   planStatusTextClass,
@@ -134,15 +133,6 @@ function ProductRow({
     onError: (err) => toast(extractErrorMessage(err), "error"),
   });
 
-  const syncMutation = useMutation({
-    mutationFn: () => syncSavingsProduct(item.id),
-    onSuccess: () => {
-      invalidate();
-      toast("growlio 잔액을 동기화했습니다.", "success");
-    },
-    onError: (err) => toast(extractErrorMessage(err), "error"),
-  });
-
   const applySuggestionMutation = useMutation({
     mutationFn: async () => {
       const plan = await fetchSavingsProductAnnualPlanDetail(item.id, year);
@@ -200,11 +190,6 @@ function ProductRow({
           <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
             {ownerLabel} · {item.detailText}
           </p>
-          {product?.growlio_account_id && (
-            <p className="text-[11px] text-gray-400 dark:text-gray-500 mt-0.5">
-              {product.last_synced_at ? `마지막 동기화 ${formatSyncedAt(product.last_synced_at)}` : "아직 동기화하지 않았어요"}
-            </p>
-          )}
         </div>
         <div className="flex items-center gap-0.5 shrink-0">
           {product && !product.monthly_saving_amount_synced && (
@@ -215,16 +200,6 @@ function ProductRow({
               className={`${TOUCH_TARGET_MIN_MOBILE_ONLY} p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-950 rounded-lg transition-colors`}
             >
               <Pencil size={14} />
-            </button>
-          )}
-          {product?.growlio_account_id && (
-            <button
-              onClick={() => syncMutation.mutate()}
-              disabled={syncMutation.isPending}
-              aria-label="growlio 동기화"
-              className={`${TOUCH_TARGET_MIN_MOBILE_ONLY} p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-950 rounded-lg transition-colors disabled:opacity-50`}
-            >
-              <RefreshCw size={14} className={syncMutation.isPending ? "animate-spin" : ""} />
             </button>
           )}
           <span className={`text-sm font-semibold ${planStatusTextClass(item.status)}`}>{formatPercent(item.pct)}</span>
@@ -316,11 +291,16 @@ function TypeGroup({
 export default function SavingsInvestmentPlanPanel({
   yearMonth,
   initialViewMode = "이번 달",
+  showViewToggle = true,
 }: {
   yearMonth: string;
-  /** 연간계획 화면에 임베드될 때 "올해 누적" 모드로 바로 보여주기 위한 초깃값 — 이후 사용자가
-   * 직접 토글하는 것은 그대로 가능하다. */
+  /** 이번 달 계획/연간계획 화면에 임베드될 때 각 화면의 스코프(월/연)에 맞는 모드로 고정해서
+   * 보여주기 위한 초깃값. showViewToggle=false면 이후에도 이 값으로 고정된다. */
   initialViewMode?: ViewMode;
+  /** false면 뷰 토글 대신 반대쪽 뷰(연간계획 ↔ 이번 달 계획)로 가는 링크만 보여준다 — 같은
+   * 저축상품 데이터를 두 화면에서 완전히 중복 열람하지 않도록, 각 화면은 자기 스코프의 뷰만
+   * 보여주고 서로 링크로만 연결한다. */
+  showViewToggle?: boolean;
 }) {
   const [viewMode, setViewMode] = useState<ViewMode>(initialViewMode);
   const year = Number(yearMonth.slice(0, 4));
@@ -358,13 +338,26 @@ export default function SavingsInvestmentPlanPanel({
   const savingsItems = items.filter((i) => i.product_type === "savings");
   const investmentItems = items.filter((i) => i.product_type === "investment");
 
+  const otherViewLink = isMonthMode
+    ? { to: "/financial-plan?tab=현금흐름 계획&view=연간계획", label: "연간 누적 보기" }
+    : { to: "/financial-plan?tab=현금흐름 계획&view=이번 달 계획", label: "이번 달 상세 보기" };
+
   return (
     <div className="space-y-4">
-      <Tabs tabs={VIEW_MODE_TABS} activeTab={viewMode} onChange={setViewMode} variant="pill" />
+      {showViewToggle ? (
+        <Tabs tabs={VIEW_MODE_TABS} activeTab={viewMode} onChange={setViewMode} variant="pill" />
+      ) : (
+        <Link
+          to={otherViewLink.to}
+          className="inline-flex items-center gap-1 text-xs text-gray-500 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400"
+        >
+          {otherViewLink.label} <ArrowRight size={12} />
+        </Link>
+      )}
 
       <p className="text-xs text-gray-400 dark:text-gray-500">
         {isMonthMode
-          ? "자산현황에 등록된 저축/투자 상품의 월 저축액(계획)과 이번 달 가계부에 기록된 실제 납입액을 비교해요. 월 계획액 수정과 growlio 동기화는 여기서 바로 할 수 있고, 상품 추가나 growlio 연동 설정은 자산현황에서 해요."
+          ? "자산현황에 등록된 저축/투자 상품의 월 저축액(계획)과 이번 달 가계부에 기록된 실제 납입액을 비교해요. 월 계획액 수정은 여기서 바로 할 수 있고, 상품 추가·잔액 동기화는 자산현황에서 해요."
           : "연초부터 지금까지 계획대로 누적 납입했는지 비교해요. 특정 달을 거르고 다음 달에 몰아 넣어도 누적 기준으로는 계획대로 낸 것으로 반영돼요."}
       </p>
 

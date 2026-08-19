@@ -43,6 +43,12 @@ class CashflowPlanItem(Base):
     recurring_expense_id: Mapped[int | None] = mapped_column(
         ForeignKey("recurring_expenses.id", ondelete="SET NULL"), nullable=True
     )
+    # 연간계획 폴백 항목(cashflow_plan_service._AnnualPlanFallbackItem)을 수정/저장해 실제 행으로
+    # 승격시켰을 때만 채워진다 — 이후 연간계획 쪽 이름/카테고리가 바뀌어도 list_items_with_annual_fallback이
+    # (section, category_id/name) 문자열 매칭 대신 이 값으로 원본 AnnualPlanItem을 찾아 중복 폴백을 막는다.
+    annual_plan_item_id: Mapped[int | None] = mapped_column(
+        ForeignKey("annual_plan_items.id", ondelete="SET NULL"), nullable=True
+    )
     updated_by: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
     updated_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), onupdate=func.now())
 

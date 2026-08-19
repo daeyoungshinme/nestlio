@@ -88,6 +88,11 @@ export default function LedgerDayModal({
               일정 추가
             </Button>
 
+            <p className="text-xs text-gray-400 dark:text-gray-500">
+              고정지출 납부일 등을 잊지 않게 도와주는 개인 일정·리마인더예요. 등록하면 알림 시각에 이메일로
+              알려드려요.
+            </p>
+
             {recurringDue.length > 0 && (
               <div className="space-y-2">
                 {recurringDue.map((recurring) => (

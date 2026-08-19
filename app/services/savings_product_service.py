@@ -313,11 +313,13 @@ def compute_annual_plan_summary(db: Session, year: int, as_of: date) -> dict:
 
     def _group_out(product_type: str) -> dict:
         group = _plan_group(target_to_date_by_type[product_type], actual_by_type[product_type])
+        annual_pct = pct_of(actual_by_type[product_type], annual_target_by_type[product_type], zero_planned_default=None)
         return {
             "annual_target": annual_target_by_type[product_type],
             "target_to_date": group["planned"],
             "actual": group["actual"],
             "pct": group["pct"],
+            "annual_pct": annual_pct,
             "status": group["status"],
         }
 

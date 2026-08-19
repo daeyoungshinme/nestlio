@@ -14,6 +14,7 @@ import {
 import { QUERY_KEYS } from "@/constants/queryKeys";
 import { formatKrw, formatKrwPreview, formatPercent, toAmountInputValue } from "@/utils/format";
 import { extractErrorMessage } from "@/utils/error";
+import { planStatusTextClass } from "@/utils/colors";
 import { toast } from "@/utils/toast";
 import type { AnnualSavingsGoalMonthlyTargetIn } from "@/types";
 
@@ -80,6 +81,13 @@ export default function AnnualSavingsGoalCard() {
   const thisYearMonth = currentYearMonth();
   const currentMonthTarget = goalOfYear?.monthly_targets.find((t) => t.year_month === thisYearMonth)?.target_amount;
 
+  // 가구 전체 연간 저축목표와 아래 개별 재무목표들의 월 저축금액 합계(연 환산)가 서로 다를 수 있어,
+  // 입력 화면을 펼치지 않아도 눈치챌 수 있도록 상시 비교 문구를 보여준다(편집 화면의 "재무목표
+  // 합계로 채우기" 배너는 값을 우연히 볼 때만 노출돼 정합성 확인용으로는 부족했다).
+  const goalBasedAnnualTotal = suggestion ? Number(suggestion.goal_based_annual_target_krw) : 0;
+  const goalTotalDiff = hasTarget && goalOfYear ? goalBasedAnnualTotal - Number(goalOfYear.target_amount_krw) : 0;
+  const showGoalTotalDiff = hasTarget && suggestion !== undefined && Math.abs(goalTotalDiff) >= 1;
+
   return (
     <div className="card space-y-2">
       <button
@@ -104,7 +112,15 @@ export default function AnnualSavingsGoalCard() {
 
       {!editOpen &&
         (hasTarget && goalOfYear ? (
-          <ProgressBar pct={Number(goalOfYear.annual_achievement_pct)} />
+          <>
+            <ProgressBar pct={Number(goalOfYear.annual_achievement_pct)} />
+            {showGoalTotalDiff && (
+              <p className={`text-xs ${planStatusTextClass("warn")}`}>
+                재무목표 합계(연 {formatKrw(String(goalBasedAnnualTotal))})와 {formatKrw(String(Math.abs(goalTotalDiff)))}{" "}
+                {goalTotalDiff > 0 ? "부족" : "초과"}해요.
+              </p>
+            )}
+          </>
         ) : (
           <p className="text-xs text-gray-500 dark:text-gray-400">
             아직 {year}년 저축목표를 정하지 않았어요. 펼쳐서 금액을 정해보세요.
@@ -140,6 +156,12 @@ export default function AnnualSavingsGoalCard() {
               <p className="text-xs text-gray-400 dark:text-gray-500">
                 {formatKrw(goalOfYear.net_savings_ytd)} / {formatKrw(goalOfYear.target_amount_krw)}
               </p>
+              {showGoalTotalDiff && (
+                <p className={`text-xs ${planStatusTextClass("warn")}`}>
+                  재무목표 합계(연 {formatKrw(String(goalBasedAnnualTotal))})와{" "}
+                  {formatKrw(String(Math.abs(goalTotalDiff)))} {goalTotalDiff > 0 ? "부족" : "초과"}해요.
+                </p>
+              )}
             </div>
           ) : (
             <p className="text-xs text-gray-500 dark:text-gray-400">

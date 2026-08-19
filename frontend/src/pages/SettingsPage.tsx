@@ -37,7 +37,7 @@ const NOTIF_PREF_FIELDS: { key: keyof NotificationPrefsOut; label: string; hint:
   { key: "threshold_alert", label: "예산 초과 경고", hint: "카테고리 예산이 주의/위험 기준을 넘으면 알림" },
   { key: "goal_milestone", label: "목표 마일스톤 달성", hint: "재무목표가 25/50/75/100%에 도달하면 축하 알림" },
   { key: "challenge_success", label: "챌린지 성공", hint: "부부 챌린지를 달성하면 축하 알림" },
-  { key: "event_reminder", label: "일정 알림", hint: "등록한 일정의 알림 시각이 되면 이메일" },
+  { key: "event_reminder", label: "일정 알림", hint: "등록한 개인 일정·리마인더의 알림 시각이 되면 이메일" },
 ];
 
 const THRESHOLD_FIELDS: { key: keyof CoachingThresholdsOut; label: string }[] = [

@@ -1,4 +1,5 @@
 import uuid
+from dataclasses import dataclass
 from decimal import ROUND_DOWN, Decimal
 
 from sqlalchemy.orm import Session
@@ -6,7 +7,7 @@ from sqlalchemy.orm import Session
 from app.config import settings
 from app.models.cashflow_plan_item import CashflowPlanItem
 from app.models.recurring_expense import RecurringExpense
-from app.services import transaction_report_service
+from app.services import annual_plan_service, transaction_report_service
 from app.utils.dates import month_bounds, parse_year_month, shift_month, year_month_str
 from app.utils.plan_status import pct_of, status_from_pct
 
@@ -40,6 +41,7 @@ def upsert_item(
     year_month: str,
     updated_by: uuid.UUID,
     category_id: int | None = None,
+    annual_plan_item_id: int | None = None,
 ) -> CashflowPlanItem:
     item = db.get(CashflowPlanItem, id) if id is not None else None
     if item is None:
@@ -52,6 +54,7 @@ def upsert_item(
             own_category_id=category_id,
             sort_order=sort_order,
             updated_by=updated_by,
+            annual_plan_item_id=annual_plan_item_id,
         )
         db.add(item)
     else:
@@ -62,6 +65,8 @@ def upsert_item(
         item.own_category_id = category_id
         item.sort_order = sort_order
         item.updated_by = updated_by
+        if annual_plan_item_id is not None:
+            item.annual_plan_item_id = annual_plan_item_id
     db.commit()
     db.refresh(item)
     return item
@@ -144,10 +149,73 @@ def delete_item(db: Session, id: int) -> None:
 
 def _item_key(item: CashflowPlanItem) -> tuple:
     """카테고리 태깅 항목은 (section, category_id)로, 자유 텍스트 항목은 (section, name)으로 식별한다 —
-    같은 카테고리를 이름이 다른 두 항목으로 중복 복사하지 않기 위함."""
+    같은 카테고리를 이름이 다른 두 항목으로 중복 복사하지 않기 위함. AnnualPlanItem도 section/category_id/name
+    속성을 그대로 갖고 있어 이 함수를 duck typing으로 그대로 재사용할 수 있다(list_items_with_annual_fallback)."""
     if item.category_id is not None:
         return (item.section, item.category_id)
     return (item.section, item.name)
+
+
+@dataclass
+class _AnnualPlanFallbackItem:
+    """연간계획에는 월별 금액이 있지만 그 달 CashflowPlanItem이 아직 없을 때 조회 시점에만 만들어 끼워 넣는
+    가상 항목. CashflowPlanItem과 같은 속성 이름을 가져 compute_summary/CashflowPlanItemOut 양쪽에서
+    실제 항목과 구분 없이 다뤄진다 — 저장된 적이 없으므로 id는 None, from_annual_plan만 true로 표시한다."""
+
+    section: str
+    year_month: str
+    owner_user_id: uuid.UUID | None
+    name: str
+    amount: Decimal
+    category_id: int | None
+    category_name: str | None
+    category_color: str | None
+    sort_order: int
+    id: int | None = None
+    installment_no: int | None = None
+    installment_total: int | None = None
+    installment_total_amount: Decimal | None = None
+    recurring_expense_id: int | None = None
+    recurring_active: bool | None = None
+    from_annual_plan: bool = True
+    annual_plan_item_id: int | None = None
+
+
+def list_items_with_annual_fallback(db: Session, year_month: str) -> list[CashflowPlanItem | _AnnualPlanFallbackItem]:
+    """이번 달 계획 목록 = 실제 CashflowPlanItem + (아직 그 달에 없는 항목만) 연간계획 월별 금액으로 채운
+    가상 항목. 이미 실제 항목이 있는 연간계획 항목은 건드리지 않는다 — 사용자가 한 번 수정해서 저장하면
+    그 순간부터 실제 항목이 되어 이후 연간계획을 바꿔도 그 달 값은 그대로 유지된다.
+
+    "이미 실제 항목이 있다"는 우선 실제 항목의 annual_plan_item_id(승격 시 upsert_item이 저장)로 판정한다 —
+    이러면 연간계획 항목의 이름/카테고리가 나중에 바뀌어도 승격된 행과의 연결이 끊기지 않는다(과거 버그: 자유
+    텍스트 항목은 이름을, 태깅 항목은 카테고리를 키로 매칭해 이름을 바꾸면 승격된 행을 못 찾아 중복 폴백이
+    생기거나, 반대로 무관한 실제 항목이 같은 카테고리를 써서 새 이름의 연간계획 값이 영구히 가려졌다).
+    annual_plan_item_id로 연결되지 않은(연간계획과 무관하게 독립적으로 만들어진) 실제 항목에 한해서만
+    _item_key()(카테고리 태깅 항목은 (section, category_id), 자유 텍스트는 (section, name))로 대체 매칭한다."""
+    items = list_items(db, year_month)
+    linked_annual_ids = {item.annual_plan_item_id for item in items if item.annual_plan_item_id is not None}
+    existing_keys = {_item_key(item) for item in items if item.annual_plan_item_id is None}
+    fallback_items: list[_AnnualPlanFallbackItem] = []
+    for annual_item, target_amount in annual_plan_service.monthly_targets_for_month(db, year_month):
+        if annual_item.id in linked_annual_ids or _item_key(annual_item) in existing_keys:
+            continue
+        fallback_items.append(
+            _AnnualPlanFallbackItem(
+                section=annual_item.section,
+                year_month=year_month,
+                owner_user_id=annual_item.owner_user_id,
+                name=annual_item.name,
+                amount=target_amount,
+                category_id=annual_item.category_id,
+                category_name=annual_item.category.name if annual_item.category else None,
+                category_color=annual_item.category.color if annual_item.category else None,
+                sort_order=annual_item.sort_order,
+                annual_plan_item_id=annual_item.id,
+            )
+        )
+    merged: list[CashflowPlanItem | _AnnualPlanFallbackItem] = [*items, *fallback_items]
+    merged.sort(key=lambda i: (i.section, i.sort_order))
+    return merged
 
 
 def copy_from_previous_month(db: Session, year_month: str, updated_by: uuid.UUID) -> int:

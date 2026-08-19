@@ -618,6 +618,35 @@ def test_compute_annual_plan_summary_catches_up_after_a_skipped_month(seeded_db)
     assert annual_item["status"] == "ok"
 
 
+def test_compute_annual_plan_summary_group_annual_pct_uses_full_year_target(seeded_db):
+    """그룹 pct는 target_to_date(지금까지 목표) 대비라 연말에 몰린 계획 때문에 100%를 넘어도,
+    annual_pct는 annual_target(연간 전체) 대비라 같은 상황에서 낮게 나온다."""
+    db, user = seeded_db["db"], seeded_db["user"]
+    savings_category = _add_savings_category(db)
+    product = savings_product_service.create_product(db, "적금", Decimal("0"), Decimal("0"))
+    savings_product_service.upsert_annual_plan(
+        db,
+        product.id,
+        2026,
+        "2026-01",
+        "2026-12",
+        [
+            {"year_month": "2026-01", "target_amount": Decimal("100000")},
+            {"year_month": "2026-12", "target_amount": Decimal("1100000")},
+        ],
+    )
+    transaction_service.create_transaction(
+        db, user.id, savings_category.id, "expense", Decimal("400000"), date(2026, 1, 10), savings_product_id=product.id
+    )
+
+    summary = savings_product_service.compute_annual_plan_summary(db, 2026, as_of=date(2026, 1, 31))
+
+    assert summary["savings"]["target_to_date"] == Decimal("100000")
+    assert summary["savings"]["annual_target"] == Decimal("1200000")
+    assert summary["savings"]["pct"] == 400.0
+    assert summary["savings"]["annual_pct"] == pytest.approx(33.333, rel=1e-3)
+
+
 def test_compute_annual_plan_summary_excludes_real_estate_products(seeded_db):
     db = seeded_db["db"]
     savings_product_service.create_product(
