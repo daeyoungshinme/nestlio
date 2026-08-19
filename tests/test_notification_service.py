@@ -333,3 +333,66 @@ def test_mark_all_read(mock_send, seeded_db):
     assert marked == 2
     assert marked_again == 0
     assert notification_service.unread_count(db, user.id) == 0
+
+
+@patch("app.services.notification_service.gmail_service.send_email")
+@patch("app.services.notification_service.is_connected", return_value=True)
+def test_add_reaction_and_list_notifications_includes_it(mock_connected, mock_send, seeded_db):
+    db, user = seeded_db["db"], seeded_db["user"]
+    spouse = _second_user(db)
+    goal = goal_service.create_goal(db, 1, "내집마련", 40, Decimal("1000000"), Decimal("100000"), Decimal("250000"))  # 25%
+    notification_service.check_and_celebrate_goal_milestone(db, goal.id)
+    [log] = notification_service.list_notifications(db, user.id)
+    assert log["reactions"] == []
+
+    notification_service.add_reaction(db, spouse.id, log["id"], "🎉", "축하해요!")
+
+    [log_after] = notification_service.list_notifications(db, user.id)
+    assert len(log_after["reactions"]) == 1
+    reaction = log_after["reactions"][0]
+    assert reaction["emoji"] == "🎉"
+    assert reaction["message"] == "축하해요!"
+    assert reaction["display_name"] == "Spouse 2"
+
+
+@patch("app.services.notification_service.gmail_service.send_email")
+def test_add_reaction_overwrites_previous_reaction_from_same_user(mock_send, seeded_db):
+    db, user = seeded_db["db"], seeded_db["user"]
+    notification_service.send_weekly_summary(db, today=date(2026, 7, 29))
+    [log] = notification_service.list_notifications(db, user.id)
+
+    notification_service.add_reaction(db, user.id, log["id"], "🎉")
+    notification_service.add_reaction(db, user.id, log["id"], "👏")
+
+    [log_after] = notification_service.list_notifications(db, user.id)
+    assert len(log_after["reactions"]) == 1
+    assert log_after["reactions"][0]["emoji"] == "👏"
+
+
+@patch("app.services.notification_service.gmail_service.send_email")
+def test_add_reaction_rejects_unknown_emoji(mock_send, seeded_db):
+    db, user = seeded_db["db"], seeded_db["user"]
+    notification_service.send_weekly_summary(db, today=date(2026, 7, 29))
+    [log] = notification_service.list_notifications(db, user.id)
+
+    with pytest.raises(notification_service.InvalidReactionError):
+        notification_service.add_reaction(db, user.id, log["id"], "😈")
+
+
+def test_add_reaction_unknown_notification_raises(seeded_db):
+    db, user = seeded_db["db"], seeded_db["user"]
+    with pytest.raises(notification_service.NotificationNotFoundError):
+        notification_service.add_reaction(db, user.id, 999999, "🎉")
+
+
+@patch("app.services.notification_service.gmail_service.send_email")
+def test_remove_reaction(mock_send, seeded_db):
+    db, user = seeded_db["db"], seeded_db["user"]
+    notification_service.send_weekly_summary(db, today=date(2026, 7, 29))
+    [log] = notification_service.list_notifications(db, user.id)
+    notification_service.add_reaction(db, user.id, log["id"], "🎉")
+
+    notification_service.remove_reaction(db, user.id, log["id"])
+
+    [log_after] = notification_service.list_notifications(db, user.id)
+    assert log_after["reactions"] == []

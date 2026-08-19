@@ -532,6 +532,14 @@ export interface BudgetListOut {
   rows: BudgetRowOut[];
 }
 
+export interface NotificationReactionOut {
+  user_id: string;
+  display_name: string;
+  emoji: string;
+  message: string | null;
+  created_at: string;
+}
+
 export interface NotificationOut {
   id: number;
   notif_type: string;
@@ -541,6 +549,7 @@ export interface NotificationOut {
   sent_at: string;
   detail: string | null;
   is_read: boolean;
+  reactions: NotificationReactionOut[];
 }
 
 export interface NotificationListOut {

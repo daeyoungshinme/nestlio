@@ -9,6 +9,7 @@ import CashflowPlanSectionPanel from "@/components/financialPlan/CashflowPlanSec
 import CashflowPlanSplitForm from "@/components/financialPlan/CashflowPlanSplitForm";
 import AnnualPlanPanel from "@/components/financialPlan/AnnualPlanPanel";
 import GoalPurposeSummary from "@/components/financialPlan/GoalPurposeSummary";
+import PlanBreadcrumb from "@/components/financialPlan/PlanBreadcrumb";
 import type { Purpose } from "@/components/financialPlan/GoalPurposeSummary";
 import SavingsInvestmentPlanPanel from "@/components/financialPlan/SavingsInvestmentPlanPanel";
 import Button from "@/components/common/Button";
@@ -283,6 +284,7 @@ export default function CashflowPlanTab() {
   return (
     <div className="space-y-6">
       <Tabs tabs={VIEW_TABS} activeTab={view} onChange={setView} />
+      <PlanBreadcrumb segments={["목표", "현금흐름 계획", "이번 달 계획", activeLabel]} />
 
       <div className="flex items-center justify-between flex-wrap gap-3">
         <MonthPicker yearMonth={yearMonth} onChange={setYearMonth} />

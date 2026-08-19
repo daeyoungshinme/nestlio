@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import AnnualPlanItemForm from "@/components/financialPlan/AnnualPlanItemForm";
 import AnnualPlanSectionPanel from "@/components/financialPlan/AnnualPlanSectionPanel";
 import GoalPurposeSummary from "@/components/financialPlan/GoalPurposeSummary";
+import PlanBreadcrumb from "@/components/financialPlan/PlanBreadcrumb";
 import type { Purpose } from "@/components/financialPlan/GoalPurposeSummary";
 import SavingsInvestmentPlanPanel from "@/components/financialPlan/SavingsInvestmentPlanPanel";
 import Button from "@/components/common/Button";
@@ -146,6 +147,8 @@ export default function AnnualPlanPanel() {
 
   return (
     <div className="space-y-6">
+      <PlanBreadcrumb segments={["목표", "현금흐름 계획", "연간계획", activeLabel]} />
+
       <div className="flex items-center justify-between gap-2">
         <span className="text-sm font-semibold text-gray-700 dark:text-gray-300">{year}년 연간계획</span>
         <div className="flex items-center gap-2">

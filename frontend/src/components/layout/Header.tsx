@@ -4,10 +4,17 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Bell, PiggyBank } from "lucide-react";
 import Modal from "@/components/common/Modal";
 import EmptyState from "@/components/common/EmptyState";
-import { fetchNotifications, markAllNotificationsRead, markNotificationRead } from "@/api/notifications";
+import {
+  fetchNotifications,
+  markAllNotificationsRead,
+  markNotificationRead,
+  reactToNotification,
+} from "@/api/notifications";
+import { fetchMe } from "@/api/users";
 import { QUERY_KEYS } from "@/constants/queryKeys";
 import { SIDEBAR_NAV_ITEMS } from "@/constants/nav";
-import { TOUCH_TARGET_MIN } from "@/constants/uiSizes";
+import { STALE_TIME } from "@/constants/queryConfig";
+import { TOUCH_TARGET_COMPACT_MOBILE_ONLY, TOUCH_TARGET_MIN } from "@/constants/uiSizes";
 import { formatDate } from "@/utils/format";
 import { extractErrorMessage } from "@/utils/error";
 import { toast } from "@/utils/toast";
@@ -21,6 +28,11 @@ const NOTIF_TYPE_LABEL: Record<string, string> = {
   challenge_success: "챌린지 성공",
   event_reminder: "일정 알림",
 };
+
+// 목표 마일스톤 축하 알림에만 응원 반응을 남길 수 있다 — 다른 알림 종류(예산 경고 등)는
+// 축하할 대상이 아니라서 반응 UI 자체를 노출하지 않는다.
+const REACTABLE_NOTIF_TYPES = new Set(["goal_milestone", "challenge_success"]);
+const REACTION_EMOJIS = ["🎉", "👏", "❤️", "💪", "🥳"];
 
 function notificationTitle(n: NotificationOut): string {
   return NOTIF_TYPE_LABEL[n.notif_type] ?? n.notif_type;
@@ -45,6 +57,7 @@ export default function Header() {
     queryFn: fetchNotifications,
     refetchInterval: 60_000,
   });
+  const { data: me } = useQuery({ queryKey: QUERY_KEYS.me, queryFn: fetchMe, staleTime: STALE_TIME.LONG });
 
   const invalidate = () => queryClient.invalidateQueries({ queryKey: QUERY_KEYS.notifications });
 
@@ -56,6 +69,12 @@ export default function Header() {
 
   const readAllMutation = useMutation({
     mutationFn: markAllNotificationsRead,
+    onSuccess: () => void invalidate(),
+    onError: (err) => toast(extractErrorMessage(err), "error"),
+  });
+
+  const reactMutation = useMutation({
+    mutationFn: reactToNotification,
     onSuccess: () => void invalidate(),
     onError: (err) => toast(extractErrorMessage(err), "error"),
   });
@@ -103,29 +122,64 @@ export default function Header() {
               {data && data.items.length === 0 && (
                 <EmptyState icon={Bell} title="알림이 없습니다" compact />
               )}
-              {data?.items.map((n) => (
-                <button
-                  key={n.id}
-                  onClick={() => !n.is_read && readMutation.mutate(n.id)}
-                  className={`w-full text-left px-3 py-3 rounded-lg transition-colors ${
-                    n.is_read
-                      ? "text-gray-500 dark:text-gray-400"
-                      : "bg-blue-50 dark:bg-blue-950 text-gray-900 dark:text-gray-50"
-                  } hover:bg-gray-100 dark:hover:bg-gray-800`}
-                >
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="text-sm font-medium">{notificationTitle(n)}</span>
-                    <span className="text-xs text-gray-400 dark:text-gray-500 shrink-0">
-                      {formatDate(n.sent_at.slice(0, 10))}
-                    </span>
+              {data?.items.map((n) => {
+                const myReaction = me ? n.reactions.find((r) => r.user_id === me.id) : undefined;
+                const otherReactions = me ? n.reactions.filter((r) => r.user_id !== me.id) : n.reactions;
+                return (
+                  <div
+                    key={n.id}
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => !n.is_read && readMutation.mutate(n.id)}
+                    onKeyDown={(e) => {
+                      if (e.key !== "Enter" && e.key !== " ") return;
+                      e.preventDefault();
+                      if (!n.is_read) readMutation.mutate(n.id);
+                    }}
+                    className={`w-full text-left px-3 py-3 rounded-lg transition-colors cursor-pointer ${
+                      n.is_read
+                        ? "text-gray-500 dark:text-gray-400"
+                        : "bg-blue-50 dark:bg-blue-950 text-gray-900 dark:text-gray-50"
+                    } hover:bg-gray-100 dark:hover:bg-gray-800`}
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-sm font-medium">{notificationTitle(n)}</span>
+                      <span className="text-xs text-gray-400 dark:text-gray-500 shrink-0">
+                        {formatDate(n.sent_at.slice(0, 10))}
+                      </span>
+                    </div>
+                    {n.detail && (
+                      <p className="mt-1 text-xs text-gray-500 dark:text-gray-400 whitespace-pre-line line-clamp-2">
+                        {n.detail}
+                      </p>
+                    )}
+                    {REACTABLE_NOTIF_TYPES.has(n.notif_type) && (
+                      <div onClick={(e) => e.stopPropagation()} className="mt-2 flex items-center flex-wrap gap-1.5">
+                        {REACTION_EMOJIS.map((emoji) => (
+                          <button
+                            key={emoji}
+                            onClick={() => reactMutation.mutate({ id: n.id, emoji })}
+                            aria-label={`${emoji}로 응원하기`}
+                            aria-pressed={myReaction?.emoji === emoji}
+                            className={`${TOUCH_TARGET_COMPACT_MOBILE_ONLY} rounded-full text-sm transition-colors ${
+                              myReaction?.emoji === emoji
+                                ? "bg-blue-100 dark:bg-blue-900 ring-2 ring-blue-400 dark:ring-blue-600"
+                                : "bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700"
+                            }`}
+                          >
+                            {emoji}
+                          </button>
+                        ))}
+                        {otherReactions.length > 0 && (
+                          <span className="text-xs text-gray-500 dark:text-gray-400">
+                            {otherReactions.map((r) => `${r.emoji} ${r.display_name}`).join(" · ")}
+                          </span>
+                        )}
+                      </div>
+                    )}
                   </div>
-                  {n.detail && (
-                    <p className="mt-1 text-xs text-gray-500 dark:text-gray-400 whitespace-pre-line line-clamp-2">
-                      {n.detail}
-                    </p>
-                  )}
-                </button>
-              ))}
+                );
+              })}
             </div>
           </div>
         </Modal>

@@ -24,6 +24,7 @@ import { cancelInvite, createInvite, fetchInvites } from "@/api/invites";
 import { fetchMe, fetchUsers, removeUser, updateMe, updateUser } from "@/api/users";
 import type { CoachingThresholdsOut, InviteOut, NotificationPrefsOut } from "@/types";
 import { QUERY_KEYS } from "@/constants/queryKeys";
+import { COACHING_THRESHOLD_PRESETS } from "@/constants/coachingPresets";
 import { MAX_NOTIFY_RECIPIENTS } from "@/constants/settings";
 import { TOUCH_TARGET_MIN_MOBILE_ONLY } from "@/constants/uiSizes";
 import { extractErrorMessage } from "@/utils/error";
@@ -599,6 +600,20 @@ export default function SettingsPage() {
           <p className="text-xs text-gray-500 dark:text-gray-400">
             대시보드 코칭 인사이트가 발동하는 기준(%)이에요. 두 분의 소비 성향에 맞게 조정할 수 있어요.
           </p>
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-xs text-gray-500 dark:text-gray-400">프리셋으로 채우기:</span>
+            {COACHING_THRESHOLD_PRESETS.map((preset) => (
+              <Button
+                key={preset.key}
+                type="button"
+                variant="secondary"
+                size="sm"
+                onClick={() => setThresholdEdits(preset.values)}
+              >
+                {preset.label}
+              </Button>
+            ))}
+          </div>
           <div className="grid grid-cols-2 gap-3">
             {THRESHOLD_FIELDS.map(({ key, label }) => (
               <FormInput

@@ -17,6 +17,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
+import ProgressBar from "@/components/common/ProgressBar";
 import SkeletonCard from "@/components/common/SkeletonCard";
 import SummaryCards from "@/components/common/SummaryCards";
 import EmptyState from "@/components/common/EmptyState";
@@ -241,13 +242,8 @@ function CategoryBenchmarkRow({ row }: { row: CategoryBenchmarkRowOut }) {
           {formatPercent(row.pct)} (가이드라인 {formatPercent(row.benchmark_pct)})
         </span>
       </div>
-      <div className="relative mt-1 w-full h-2 bg-gray-100 dark:bg-gray-800 rounded-full overflow-hidden">
-        <div className={`h-full ${planStatusBarClass(row.status)}`} style={{ width: `${barPct}%` }} />
-        <div
-          className="absolute top-0 h-full w-0.5 bg-gray-500 dark:bg-gray-400"
-          style={{ left: `${markerPct}%` }}
-          aria-hidden="true"
-        />
+      <div className="mt-1">
+        <ProgressBar pct={barPct} barClassName={planStatusBarClass(row.status)} markerPct={markerPct} />
       </div>
     </div>
   );

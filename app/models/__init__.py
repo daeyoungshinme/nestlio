@@ -14,6 +14,7 @@ from app.models.loan import Loan
 from app.models.net_worth_snapshot import NetWorthSnapshot
 from app.models.notification_log import NotificationLog
 from app.models.notification_read import NotificationRead
+from app.models.notification_reaction import NotificationReaction
 from app.models.recurring_expense import RecurringExpense
 from app.models.savings_product import SavingsProduct
 from app.models.savings_product_annual_plan import SavingsProductAnnualPlan
@@ -39,6 +40,7 @@ __all__ = [
     "NetWorthSnapshot",
     "NotificationLog",
     "NotificationRead",
+    "NotificationReaction",
     "RecurringExpense",
     "SavingsProduct",
     "SavingsProductAnnualPlan",

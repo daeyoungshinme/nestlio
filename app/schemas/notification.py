@@ -1,6 +1,22 @@
+import uuid
 from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict
+
+
+class NotificationReactionOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    user_id: uuid.UUID
+    display_name: str
+    emoji: str
+    message: str | None
+    created_at: datetime
+
+
+class NotificationReactionIn(BaseModel):
+    emoji: str
+    message: str | None = None
 
 
 class NotificationOut(BaseModel):
@@ -14,6 +30,7 @@ class NotificationOut(BaseModel):
     sent_at: datetime
     detail: str | None
     is_read: bool
+    reactions: list[NotificationReactionOut] = []
 
 
 class NotificationListOut(BaseModel):
