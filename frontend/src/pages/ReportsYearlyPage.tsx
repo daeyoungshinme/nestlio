@@ -17,20 +17,26 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
+import Tabs from "@/components/common/Tabs";
 import ProgressBar from "@/components/common/ProgressBar";
 import SkeletonCard from "@/components/common/SkeletonCard";
+import ErrorState from "@/components/common/ErrorState";
 import SummaryCards from "@/components/common/SummaryCards";
 import EmptyState from "@/components/common/EmptyState";
 import { fetchCategoryTrend, fetchYearlyReport } from "@/api/reports";
+import { fetchUsers } from "@/api/users";
 import { QUERY_KEYS } from "@/constants/queryKeys";
 import { STALE_TIME } from "@/constants/queryConfig";
 import { TOUCH_TARGET_MIN_MOBILE_ONLY } from "@/constants/uiSizes";
 import { formatKrw, formatKrwCompact, formatPercent, formatYearMonth } from "@/utils/format";
+import { extractErrorMessage } from "@/utils/error";
 import { planStatusBarClass, planStatusTextClass } from "@/utils/colors";
 import type { CategoryBenchmarkRowOut } from "@/types";
 import { PieChart as PieChartIcon, TrendingUp } from "lucide-react";
 
 const CATEGORY_TREND_MONTHS = 6;
+const ALL_OWNERS_TAB = "전체";
+const SHARED_OWNER_TAB = "공통";
 
 const MONTH_TICK_FORMATTER = (value: string) => value.replace("월", "");
 const TREND_TICK_FORMATTER = (value: string) => value.replace(/^\d+년\s*/, "");
@@ -38,6 +44,7 @@ const TREND_TICK_FORMATTER = (value: string) => value.replace(/^\d+년\s*/, "");
 export default function ReportsYearlyPage() {
   const navigate = useNavigate();
   const [year, setYear] = useState(new Date().getFullYear());
+  const [ownerTab, setOwnerTab] = useState(ALL_OWNERS_TAB);
   const [hiddenSeries, setHiddenSeries] = useState<Set<string>>(new Set());
   const toggleSeries = (name: string) => {
     setHiddenSeries((prev) => {
@@ -50,9 +57,26 @@ export default function ReportsYearlyPage() {
       return next;
     });
   };
-  const { data, isLoading } = useQuery({
-    queryKey: QUERY_KEYS.yearlyReport(year),
-    queryFn: () => fetchYearlyReport(year),
+  const { data: users } = useQuery({ queryKey: QUERY_KEYS.users, queryFn: fetchUsers, staleTime: STALE_TIME.LONG });
+  // 배우자별/공통 지출을 비교하는 탭 — 카테고리별 지출·가구 평균 대비 비교 두 카드에만 적용된다
+  // (월별 수입/지출, 소득 등 SummaryCards 총계는 항상 가구 전체 기준으로 유지).
+  const ownerTabs = [ALL_OWNERS_TAB, ...(users?.map((u) => u.display_name) ?? []), SHARED_OWNER_TAB];
+  const ownerParam =
+    ownerTab === ALL_OWNERS_TAB
+      ? undefined
+      : ownerTab === SHARED_OWNER_TAB
+        ? "shared"
+        : users?.find((u) => u.display_name === ownerTab)?.id;
+
+  const {
+    data,
+    isLoading,
+    isError,
+    error,
+    refetch,
+  } = useQuery({
+    queryKey: QUERY_KEYS.yearlyReport(year, ownerParam),
+    queryFn: () => fetchYearlyReport(year, ownerParam),
     staleTime: STALE_TIME.MEDIUM,
   });
   const { data: trend, isLoading: isTrendLoading } = useQuery({
@@ -60,6 +84,15 @@ export default function ReportsYearlyPage() {
     queryFn: () => fetchCategoryTrend(CATEGORY_TREND_MONTHS),
     staleTime: STALE_TIME.MEDIUM,
   });
+
+  if (isError) {
+    return (
+      <ErrorState
+        message={extractErrorMessage(error, "연간 리포트를 불러오지 못했습니다.")}
+        onRetry={() => void refetch()}
+      />
+    );
+  }
 
   if (isLoading || !data) {
     return <SkeletonCard rows={4} />;
@@ -119,8 +152,12 @@ export default function ReportsYearlyPage() {
         </div>
       </div>
 
+      <Tabs tabs={ownerTabs} activeTab={ownerTab} onChange={setOwnerTab} variant="pill" />
+
       <div className="card">
-        <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">카테고리별 지출</h3>
+        <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">
+          카테고리별 지출{ownerTab !== ALL_OWNERS_TAB ? ` · ${ownerTab}` : ""}
+        </h3>
         {pieData.length === 0 ? (
           <EmptyState icon={PieChartIcon} title="이 해에 지출 내역이 없어요" compact />
         ) : (
@@ -155,9 +192,13 @@ export default function ReportsYearlyPage() {
       </div>
 
       <div className="card">
-        <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1">가구 평균 대비 지출 비교</h3>
+        <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1">
+          가구 평균 대비 지출 비교{ownerTab !== ALL_OWNERS_TAB ? ` · ${ownerTab}` : ""}
+        </h3>
         <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
-          공식 통계가 아닌 일반적인 가이드라인 참고값이에요. 설정에서 조정할 수 있어요.
+          {ownerTab !== ALL_OWNERS_TAB
+            ? "가구 소득 대비 이 몫의 지출 비중이에요. 공식 통계가 아닌 일반적인 가이드라인 참고값이에요."
+            : "공식 통계가 아닌 일반적인 가이드라인 참고값이에요. 설정에서 조정할 수 있어요."}
         </p>
         {data.benchmark.length === 0 ? (
           <EmptyState

@@ -27,7 +27,7 @@ import {
 } from "@/api/accounts";
 import { QUERY_KEYS } from "@/constants/queryKeys";
 import { useCrudMutations } from "@/hooks/useCrudMutations";
-import { formatKrw, formatKrwPreview, formatSyncedAt, toAmountInputValue } from "@/utils/format";
+import { formatKrw, formatKrwPreview, formatSyncedAt, resolveOwnerLabel, toAmountInputValue } from "@/utils/format";
 import { extractErrorMessage } from "@/utils/error";
 import { toast } from "@/utils/toast";
 import type { AccountOut, AccountWithBalanceOut, UserOut } from "@/types";
@@ -262,9 +262,7 @@ function AccountRow({
   onDelete: () => void;
 }) {
   const { account, balance } = row;
-  const ownerLabel = account.owner_user_id
-    ? (users?.find((u) => u.id === account.owner_user_id)?.display_name ?? "공통")
-    : "공통";
+  const ownerLabel = resolveOwnerLabel(account.owner_user_id, users);
 
   return (
     <AssetRow

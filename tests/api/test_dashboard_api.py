@@ -17,14 +17,25 @@ def test_dashboard_today_returns_totals_and_insights(client, seeded_db):
     assert body["period"] == "today"
     assert Decimal(body["totals"]["income"]) == Decimal("100000")
     assert isinstance(body["insights"], list)
-    assert body["by_user"] == [
+    # create_transaction() was called without owner_user_id, so it lands in the "공통"
+    # (shared) bucket rather than under Spouse 1 - owner_totals always includes both.
+    assert body["owner_totals"] == [
         {
-            "user_id": str(user.id),
+            "owner_user_id": str(user.id),
             "display_name": "Spouse 1",
+            "income": "0",
+            "expense": "0",
+            "savings": "0",
+            "savings_investment": "0",
+        },
+        {
+            "owner_user_id": None,
+            "display_name": "공통",
             "income": "100000.00",
             "expense": "0",
             "savings": "100000.00",
-        }
+            "savings_investment": "0",
+        },
     ]
     assert set(body["surplus_allocation"].keys()) == {"emergency_fund_portion", "investable_portion"}
 
@@ -68,5 +79,5 @@ def test_monthly_retrospective_summarizes_previous_completed_month(client, seede
     assert body["year_month"] == year_month_str(prev_start)
     assert Decimal(body["totals"]["income"]) == Decimal("50000")
     assert Decimal(body["totals"]["expense"]) == Decimal("20000")
-    assert body["by_user"][0]["display_name"] == "Spouse 1"
+    assert body["owner_totals"][0]["display_name"] == "Spouse 1"
     assert body["top_categories"][0]["name"] == "식비"

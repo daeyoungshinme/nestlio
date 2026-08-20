@@ -35,13 +35,16 @@ def dashboard(
         start, end = month_bounds(anchor)
 
     totals = transaction_report_service.period_totals(db, start, end)
-    by_user = transaction_report_service.totals_by_user(db, start, end)
+    owner_totals = transaction_report_service.totals_by_owner(db, start, end)
     expense_breakdown = transaction_report_service.category_breakdown(db, start, end, "expense")
-    trend = transaction_report_service.monthly_trend(db, months=6, anchor=end)
     current_ym = year_month_str(start)
     goals = goal_service.list_goals(db)
     actual_saved = net_worth_service.savings_delta(db, current_ym)
     month_start = month_bounds(anchor)[0]
+    owner_category_breakdown, owner_overspend_highlights = transaction_report_service.owner_spending_detail(
+        db, start, end, owner_totals, month_start
+    )
+    trend = transaction_report_service.monthly_trend(db, months=6, anchor=end)
     fund_context = coaching_engine.emergency_fund_context(db, month_start)
     insights = coaching_engine.compute_insights(
         db,
@@ -65,8 +68,10 @@ def dashboard(
         "start": start,
         "end": end,
         "totals": totals,
-        "by_user": by_user,
+        "owner_totals": owner_totals,
         "expense_breakdown": expense_breakdown,
+        "owner_category_breakdown": owner_category_breakdown,
+        "owner_overspend_highlights": owner_overspend_highlights,
         "trend": trend,
         "insights": insights,
         "current_ym": current_ym,
@@ -88,7 +93,7 @@ def monthly_retrospective(
     year_month = year_month_str(start)
 
     totals = transaction_report_service.period_totals(db, start, end)
-    by_user = transaction_report_service.totals_by_user(db, start, end)
+    owner_totals = transaction_report_service.totals_by_owner(db, start, end)
     breakdown = transaction_report_service.category_breakdown(db, start, end, "expense")
     insights = coaching_engine.compute_insights(db, year_month, totals=totals, breakdown=breakdown)
 
@@ -97,7 +102,7 @@ def monthly_retrospective(
         "start": start,
         "end": end,
         "totals": totals,
-        "by_user": by_user,
+        "owner_totals": owner_totals,
         "top_categories": breakdown[:3],
         "insights": insights,
     }

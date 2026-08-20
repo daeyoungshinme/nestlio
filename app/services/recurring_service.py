@@ -1,3 +1,4 @@
+import logging
 import uuid
 from calendar import monthrange
 from datetime import date, timedelta
@@ -9,6 +10,8 @@ from app.models.recurring_expense import RecurringExpense
 from app.models.transaction import Transaction
 from app.services.transaction_service import create_transaction
 from app.utils.dates import add_months_with_day, advance_recurring_date
+
+logger = logging.getLogger(__name__)
 
 
 def list_recurring(db: Session, active_only: bool = True) -> list[RecurringExpense]:
@@ -142,27 +145,34 @@ def generate_due_transactions(db: Session, today: date | None = None) -> list[Tr
     )
     created: list[Transaction] = []
     for recurring in due_items:
-        # a recurring expense can be overdue by more than one period (e.g. app was off) -
-        # post one transaction per elapsed period rather than skipping ahead silently.
-        guard = 0
-        while recurring.next_due_date <= today and guard < 24:
-            guard += 1
-            if recurring.end_date and recurring.next_due_date > recurring.end_date:
-                recurring.is_active = False
-                break
-            tx = create_transaction(
-                db,
-                user_id=recurring.created_by,
-                category_id=recurring.category_id,
-                type_=recurring.type,
-                amount=recurring.amount,
-                transaction_date=recurring.next_due_date,
-                description=recurring.name,
-                recurring_expense_id=recurring.id,
-            )
-            created.append(tx)
-            recurring.next_due_date = advance_recurring_date(
-                recurring.next_due_date, recurring.frequency, recurring.day_of_month, recurring.days_of_month
-            )
-        db.commit()
+        try:
+            # a recurring expense can be overdue by more than one period (e.g. app was off) -
+            # post one transaction per elapsed period rather than skipping ahead silently.
+            guard = 0
+            while recurring.next_due_date <= today and guard < 24:
+                guard += 1
+                if recurring.end_date and recurring.next_due_date > recurring.end_date:
+                    recurring.is_active = False
+                    break
+                tx = create_transaction(
+                    db,
+                    user_id=recurring.created_by,
+                    category_id=recurring.category_id,
+                    type_=recurring.type,
+                    amount=recurring.amount,
+                    transaction_date=recurring.next_due_date,
+                    description=recurring.name,
+                    recurring_expense_id=recurring.id,
+                )
+                created.append(tx)
+                recurring.next_due_date = advance_recurring_date(
+                    recurring.next_due_date, recurring.frequency, recurring.day_of_month, recurring.days_of_month
+                )
+        except Exception:
+            # idempotent per due date — a failed recurring is simply retried on the next run,
+            # so one bad item shouldn't block the rest of due_items from being posted. Roll back
+            # so a failed flush/commit above doesn't poison the session for the remaining items.
+            db.rollback()
+            logger.exception("고정지출 거래 생성 실패: %s", recurring.name)
+    db.commit()
     return created

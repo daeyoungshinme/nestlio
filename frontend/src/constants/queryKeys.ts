@@ -21,7 +21,7 @@ export const QUERY_KEYS = {
   /** Prefix for invalidating every events date-range variant at once. */
   eventsAll: ["events"] as const,
   accounts: ["accounts"] as const,
-  yearlyReport: (year: number) => ["yearly-report", year] as const,
+  yearlyReport: (year: number, owner?: string) => ["yearly-report", year, owner ?? "all"] as const,
   categoryTrend: (months: number) => ["category-trend", months] as const,
   settings: ["settings"] as const,
   me: ["me"] as const,

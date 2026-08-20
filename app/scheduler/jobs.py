@@ -17,6 +17,7 @@ def daily_due_date_check() -> None:
         _sync_upcoming_calendar_events(db)
     except Exception:
         logger.exception("고정지출 거래 생성/캘린더 동기화 실패")
+        raise
     finally:
         db.close()
 
@@ -44,6 +45,7 @@ def weekly_summary_email() -> None:
         notification_service.send_weekly_summary(db)
     except Exception:
         logger.exception("주간 요약 알림 처리 실패")
+        raise
     finally:
         db.close()
 
@@ -55,6 +57,7 @@ def monthly_summary_email() -> None:
         notification_service.send_monthly_summary(db)
     except Exception:
         logger.exception("월간 요약 알림 처리 실패")
+        raise
     finally:
         db.close()
 
@@ -66,14 +69,22 @@ def daily_threshold_safety_net() -> None:
     넘는 경우를 잡기 위함(goal_service.sync_challenge_statuses). Google 미연결이어도 인앱
     알림함에는 항상 기록된다 (이메일만 조건부)."""
     db = SessionLocal()
+    errors: list[str] = []
     try:
-        notification_service.check_all_categories_threshold(db)
-        goal_service.sync_challenge_statuses(db, now=datetime.now())
-        notification_service.check_all_goal_milestones(db)
-    except Exception:
-        logger.exception("예산 초과/목표 달성/챌린지 상태 안전망 체크 실패")
+        for step_name, step in (
+            ("예산 초과 체크", lambda: notification_service.check_all_categories_threshold(db)),
+            ("챌린지 상태 재평가", lambda: goal_service.sync_challenge_statuses(db, now=datetime.now())),
+            ("목표 달성 체크", lambda: notification_service.check_all_goal_milestones(db)),
+        ):
+            try:
+                step()
+            except Exception:
+                logger.exception("안전망 체크 실패: %s", step_name)
+                errors.append(step_name)
     finally:
         db.close()
+    if errors:
+        raise RuntimeError(f"안전망 체크 일부 실패: {', '.join(errors)}")
 
 
 def monthly_net_worth_snapshot() -> None:
@@ -83,6 +94,7 @@ def monthly_net_worth_snapshot() -> None:
         net_worth_service.record_snapshot(db, today=date.today())
     except Exception:
         logger.exception("순자산 스냅샷 기록 실패")
+        raise
     finally:
         db.close()
 
@@ -96,5 +108,6 @@ def event_reminder_check() -> None:
         event_service.send_due_reminders(db, now=datetime.now(), window_minutes=15)
     except Exception:
         logger.exception("일정 리마인더 발송 실패")
+        raise
     finally:
         db.close()

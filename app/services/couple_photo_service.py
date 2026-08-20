@@ -40,12 +40,15 @@ def save_photo(raw: bytes, content_type: str | None) -> str:
     if not _storage_configured():
         raise PhotoStorageError("SUPABASE_SERVICE_ROLE_KEY가 설정되어 있지 않아 사진을 저장할 수 없습니다.")
 
-    resp = httpx.put(
-        _object_url(),
-        content=raw,
-        headers={**_auth_headers(), "Content-Type": content_type, "x-upsert": "true"},
-        timeout=30,
-    )
+    try:
+        resp = httpx.put(
+            _object_url(),
+            content=raw,
+            headers={**_auth_headers(), "Content-Type": content_type, "x-upsert": "true"},
+            timeout=30,
+        )
+    except httpx.HTTPError as exc:
+        raise PhotoStorageError("사진 업로드 중 네트워크 오류가 발생했습니다.") from exc
     if resp.status_code >= 400:
         raise PhotoStorageError(f"사진 업로드에 실패했습니다: {resp.status_code} {resp.text}")
     return f"/media/{OBJECT_KEY}?t={int(time.time())}"
@@ -62,7 +65,10 @@ def _is_not_found(resp: httpx.Response) -> bool:
 def get_photo_url() -> str | None:
     if not _storage_configured():
         return None
-    resp = httpx.head(_object_url(), headers=_auth_headers(), timeout=10)
+    try:
+        resp = httpx.head(_object_url(), headers=_auth_headers(), timeout=10)
+    except httpx.HTTPError as exc:
+        raise PhotoStorageError("사진 조회 중 네트워크 오류가 발생했습니다.") from exc
     if _is_not_found(resp):
         return None
     if resp.status_code >= 400:
@@ -73,7 +79,10 @@ def get_photo_url() -> str | None:
 def get_photo_bytes() -> tuple[bytes, str] | None:
     if not _storage_configured():
         return None
-    resp = httpx.get(_object_url(), headers=_auth_headers(), timeout=30)
+    try:
+        resp = httpx.get(_object_url(), headers=_auth_headers(), timeout=30)
+    except httpx.HTTPError as exc:
+        raise PhotoStorageError("사진 조회 중 네트워크 오류가 발생했습니다.") from exc
     if _is_not_found(resp):
         return None
     if resp.status_code >= 400:
@@ -85,12 +94,15 @@ def get_photo_bytes() -> tuple[bytes, str] | None:
 def delete_photo() -> None:
     if not _storage_configured():
         return
-    resp = httpx.request(
-        "DELETE",
-        f"{settings.supabase_project_url}/storage/v1/object/{settings.supabase_storage_bucket}",
-        headers=_auth_headers(),
-        json={"prefixes": [OBJECT_KEY]},
-        timeout=10,
-    )
+    try:
+        resp = httpx.request(
+            "DELETE",
+            f"{settings.supabase_project_url}/storage/v1/object/{settings.supabase_storage_bucket}",
+            headers=_auth_headers(),
+            json={"prefixes": [OBJECT_KEY]},
+            timeout=10,
+        )
+    except httpx.HTTPError as exc:
+        raise PhotoStorageError("사진 삭제 중 네트워크 오류가 발생했습니다.") from exc
     if resp.status_code >= 400 and not _is_not_found(resp):
         raise PhotoStorageError(f"사진 삭제에 실패했습니다: {resp.status_code} {resp.text}")

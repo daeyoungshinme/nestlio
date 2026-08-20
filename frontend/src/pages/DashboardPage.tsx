@@ -13,6 +13,7 @@ import GoalProgressCard from "@/components/financialPlan/GoalProgressCard";
 import type { GoalProgressCardBadge } from "@/components/financialPlan/GoalProgressCard";
 import SummaryCards, { type PlanCardSummary, type PlanSummaryLabel } from "@/components/common/SummaryCards";
 import SkeletonCard from "@/components/common/SkeletonCard";
+import ErrorState from "@/components/common/ErrorState";
 import EmptyState from "@/components/common/EmptyState";
 import Modal from "@/components/common/Modal";
 import QuickAddFab from "@/components/common/QuickAddFab";
@@ -66,7 +67,13 @@ export default function DashboardPage() {
 
   const anchor = period === "month" ? yearMonth : period === "week" ? week : day;
 
-  const { data, isLoading } = useQuery({
+  const {
+    data,
+    isLoading,
+    isError,
+    error,
+    refetch,
+  } = useQuery({
     queryKey: QUERY_KEYS.dashboard(period, anchor),
     queryFn: () => fetchDashboard(period, anchor),
     staleTime: STALE_TIME.SHORT,
@@ -149,6 +156,15 @@ export default function DashboardPage() {
     onError: (err) => toast(extractErrorMessage(err), "error"),
   });
 
+  if (isError) {
+    return (
+      <ErrorState
+        message={extractErrorMessage(error, "대시보드 정보를 불러오지 못했습니다.")}
+        onRetry={() => void refetch()}
+      />
+    );
+  }
+
   if (isLoading || !data) {
     return (
       <div className="space-y-6">
@@ -178,7 +194,7 @@ export default function DashboardPage() {
       </p>
     ) : null;
   const goalPaceInsight = monthDashboard?.insights.find((i) => i.rule_code === "goal_pace");
-  const totalUserSavings = data.by_user.reduce((sum, u) => sum + Math.max(0, Number(u.savings)), 0);
+  const totalOwnerSavings = data.owner_totals.reduce((sum, o) => sum + Math.max(0, Number(o.savings)), 0);
   const sparklineData = data.trend.map((row) => ({
     year_month: row.year_month,
     savings: Number(row.income) - Number(row.expense),
@@ -381,8 +397,10 @@ export default function DashboardPage() {
                 ? `${formatWeekRange(data.start, data.end)} 함께 모은 돈`
                 : `${formatDate(data.start)} 함께 모은 돈`
         }
-        byUser={data.by_user}
-        totalUserSavings={totalUserSavings}
+        ownerTotals={data.owner_totals}
+        ownerCategoryBreakdown={data.owner_category_breakdown}
+        ownerOverspendHighlights={data.owner_overspend_highlights}
+        totalOwnerSavings={totalOwnerSavings}
       />
 
       <button

@@ -30,7 +30,14 @@ import {
 import { fetchGoals } from "@/api/goals";
 import { QUERY_KEYS } from "@/constants/queryKeys";
 import { useCrudMutations } from "@/hooks/useCrudMutations";
-import { formatKrw, formatKrwPreview, formatPercent, formatSyncedAt, toAmountInputValue } from "@/utils/format";
+import {
+  formatKrw,
+  formatKrwPreview,
+  formatPercent,
+  formatSyncedAt,
+  resolveOwnerLabel,
+  toAmountInputValue,
+} from "@/utils/format";
 import { extractErrorMessage } from "@/utils/error";
 import { toast } from "@/utils/toast";
 import {
@@ -291,9 +298,7 @@ function SavingsProductRow({
   onEdit: () => void;
   onDelete: () => void;
 }) {
-  const ownerLabel = product.owner_user_id
-    ? (users?.find((u) => u.id === product.owner_user_id)?.display_name ?? "공통")
-    : "공통";
+  const ownerLabel = resolveOwnerLabel(product.owner_user_id, users);
   const showsExternalLink = isGrowlioLinkedInvestment(product) && !!GROWLIO_APP_URL;
 
   const actions: AssetRowAction[] = [];

@@ -183,9 +183,12 @@ def current_balance(db: Session, account: Account) -> Decimal:
     return Decimal(account.initial_balance) + Decimal(income) - Decimal(expense)
 
 
-def list_with_balances(db: Session) -> list[dict]:
-    accounts = list_accounts(db)
-    account_ids = [account.id for account in accounts]
+def balances_for(db: Session, account_ids: list[int]) -> dict[int, Decimal]:
+    """account_id별 현재 잔액(초기잔액 + 입금 - 출금)을 한 번의 쿼리로 계산한다 — 계좌 개수만큼
+    current_balance()를 반복 호출하는 N+1을 피하기 위한 배치 버전."""
+    if not account_ids:
+        return {}
+    accounts = db.query(Account).filter(Account.id.in_(account_ids)).all()
     rows = (
         db.query(Transaction.account_id, Transaction.type, func.sum(Transaction.amount))
         .filter(Transaction.account_id.in_(account_ids))
@@ -196,14 +199,17 @@ def list_with_balances(db: Session) -> list[dict]:
     for account_id, tx_type, amount in rows:
         totals.setdefault(account_id, {})[tx_type] = amount or Decimal("0")
 
-    return [
-        {
-            "account": account,
-            "balance": (
-                Decimal(account.initial_balance)
-                + totals.get(account.id, {}).get("income", Decimal("0"))
-                - totals.get(account.id, {}).get("expense", Decimal("0"))
-            ),
-        }
+    return {
+        account.id: (
+            Decimal(account.initial_balance)
+            + totals.get(account.id, {}).get("income", Decimal("0"))
+            - totals.get(account.id, {}).get("expense", Decimal("0"))
+        )
         for account in accounts
-    ]
+    }
+
+
+def list_with_balances(db: Session) -> list[dict]:
+    accounts = list_accounts(db)
+    balances = balances_for(db, [account.id for account in accounts])
+    return [{"account": account, "balance": balances[account.id]} for account in accounts]

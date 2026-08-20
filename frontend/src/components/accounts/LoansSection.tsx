@@ -16,7 +16,7 @@ import { createLoan, deactivateLoan, fetchLoans, updateLoan } from "@/api/loans"
 import { QUERY_KEYS } from "@/constants/queryKeys";
 import { INPUT_SM, LABEL_SM } from "@/constants/inputStyles";
 import { useCrudMutations } from "@/hooks/useCrudMutations";
-import { formatKrw, formatKrwPreview, formatSyncedAt, toAmountInputValue } from "@/utils/format";
+import { formatKrw, formatKrwPreview, formatSyncedAt, resolveOwnerLabel, toAmountInputValue } from "@/utils/format";
 import { extractErrorMessage } from "@/utils/error";
 import type { LoanOut, RepaymentMethod, UserOut } from "@/types";
 
@@ -188,9 +188,7 @@ function LoanRow({
   onDelete: () => void;
 }) {
   const navigate = useNavigate();
-  const ownerLabel = loan.owner_user_id
-    ? (users?.find((u) => u.id === loan.owner_user_id)?.display_name ?? "공통")
-    : "공통";
+  const ownerLabel = resolveOwnerLabel(loan.owner_user_id, users);
 
   return (
     <AssetRow

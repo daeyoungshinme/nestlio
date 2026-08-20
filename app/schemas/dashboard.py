@@ -1,3 +1,4 @@
+import uuid
 from datetime import date
 from decimal import Decimal
 from typing import Literal
@@ -5,7 +6,22 @@ from typing import Literal
 from pydantic import BaseModel
 
 from app.schemas.coaching import InsightOut, SurplusAllocationOut
-from app.schemas.common import CategoryAmountOut, TotalsOut, TrendRowOut, UserTotalsOut
+from app.schemas.common import CategoryAmountOut, OwnerTotalsOut, TotalsOut, TrendRowOut
+
+
+class OwnerCategoryBreakdownOut(BaseModel):
+    owner_user_id: uuid.UUID | None
+    display_name: str
+    categories: list[CategoryAmountOut]
+
+
+class OwnerOverspendHighlightOut(BaseModel):
+    owner_user_id: uuid.UUID | None
+    display_name: str
+    category_name: str
+    amount: Decimal
+    avg_amount: Decimal
+    delta: Decimal
 
 
 class DashboardOut(BaseModel):
@@ -13,8 +29,10 @@ class DashboardOut(BaseModel):
     start: date
     end: date
     totals: TotalsOut
-    by_user: list[UserTotalsOut]
+    owner_totals: list[OwnerTotalsOut]
     expense_breakdown: list[CategoryAmountOut]
+    owner_category_breakdown: list[OwnerCategoryBreakdownOut]
+    owner_overspend_highlights: list[OwnerOverspendHighlightOut]
     trend: list[TrendRowOut]
     insights: list[InsightOut]
     current_ym: str
@@ -28,6 +46,6 @@ class MonthlyRetrospectiveOut(BaseModel):
     start: date
     end: date
     totals: TotalsOut
-    by_user: list[UserTotalsOut]
+    owner_totals: list[OwnerTotalsOut]
     top_categories: list[CategoryAmountOut]
     insights: list[InsightOut]

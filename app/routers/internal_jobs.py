@@ -38,5 +38,8 @@ def run_job(job_name: str):
     job = JOB_REGISTRY.get(job_name)
     if job is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "unknown job")
-    job()
+    try:
+        job()
+    except Exception as exc:
+        raise HTTPException(status.HTTP_500_INTERNAL_SERVER_ERROR, f"job '{job_name}' failed") from exc
     return {"job": job_name, "status": "ok"}

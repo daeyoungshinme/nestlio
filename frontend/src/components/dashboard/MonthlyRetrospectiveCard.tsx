@@ -20,7 +20,7 @@ export default function MonthlyRetrospectiveCard() {
     return <SkeletonCard rows={2} />;
   }
 
-  const totalSavings = data.by_user.reduce((sum, u) => sum + Math.max(0, Number(u.savings)), 0);
+  const totalSavings = data.owner_totals.reduce((sum, o) => sum + Math.max(0, Number(o.savings)), 0);
 
   return (
     <div className="card">

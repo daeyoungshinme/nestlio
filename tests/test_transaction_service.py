@@ -326,6 +326,113 @@ def test_category_breakdown_filters_by_user(seeded_db):
     assert breakdown[0]["amount"] == Decimal("50000")
 
 
+def test_totals_by_owner_splits_per_spouse_and_shared(seeded_db):
+    db, user, food, rent = seeded_db["db"], seeded_db["user"], seeded_db["food"], seeded_db["rent"]
+    spouse2 = User(email="spouse2@example.com", display_name="Spouse 2")
+    db.add(spouse2)
+    db.commit()
+    db.refresh(spouse2)
+
+    # recorded by user, but owned by spouse2 - totals_by_owner must follow owner_user_id, not
+    # who recorded it (that's what totals_by_user does, and it's the wrong axis for this).
+    transaction_service.create_transaction(
+        db, user.id, food.id, "expense", Decimal("30000"), date(2026, 7, 6), owner_user_id=spouse2.id
+    )
+    transaction_service.create_transaction(
+        db, user.id, rent.id, "income", Decimal("2000000"), date(2026, 7, 1), owner_user_id=user.id
+    )
+    # no owner_user_id -> shared ("공통")
+    transaction_service.create_transaction(db, user.id, food.id, "expense", Decimal("100000"), date(2026, 7, 10))
+
+    by_owner = transaction_report_service.totals_by_owner(db, date(2026, 7, 1), date(2026, 7, 31))
+
+    by_name = {row["display_name"]: row for row in by_owner}
+    assert set(by_name) == {"Spouse 1", "Spouse 2", "공통"}
+    assert by_name["Spouse 1"]["income"] == Decimal("2000000")
+    assert by_name["Spouse 1"]["expense"] == Decimal("0")
+    assert by_name["Spouse 2"]["expense"] == Decimal("30000")
+    assert by_name["Spouse 2"]["income"] == Decimal("0")
+    assert by_name["공통"]["owner_user_id"] is None
+    assert by_name["공통"]["expense"] == Decimal("100000")
+    assert by_name["공통"]["savings"] == Decimal("-100000")
+
+
+def test_totals_by_owner_always_includes_shared_bucket_even_with_no_transactions(seeded_db):
+    db = seeded_db["db"]
+
+    by_owner = transaction_report_service.totals_by_owner(db, date(2026, 7, 1), date(2026, 7, 31))
+
+    by_name = {row["display_name"]: row for row in by_owner}
+    assert by_name["공통"]["income"] == Decimal("0")
+    assert by_name["Spouse 1"]["income"] == Decimal("0")
+
+
+def test_totals_by_owner_tracks_savings_investment_separately_from_expense(seeded_db):
+    db, user = seeded_db["db"], seeded_db["user"]
+    savings_category, product = _add_savings_category_and_product(db)
+    transaction_service.create_transaction(
+        db,
+        user.id,
+        savings_category.id,
+        "expense",
+        Decimal("300000"),
+        date(2026, 7, 1),
+        savings_product_id=product.id,
+        owner_user_id=user.id,
+    )
+
+    by_owner = transaction_report_service.totals_by_owner(db, date(2026, 7, 1), date(2026, 7, 31))
+
+    by_name = {row["display_name"]: row for row in by_owner}
+    assert by_name["Spouse 1"]["savings_investment"] == Decimal("300000")
+    # savings-linked transactions must not leak into expense/savings (period_totals convention)
+    assert by_name["Spouse 1"]["expense"] == Decimal("0")
+
+
+def test_category_breakdown_by_owner_splits_per_spouse_and_shared(seeded_db):
+    db, user, food, rent = seeded_db["db"], seeded_db["user"], seeded_db["food"], seeded_db["rent"]
+    spouse2 = User(email="spouse2@example.com", display_name="Spouse 2")
+    db.add(spouse2)
+    db.commit()
+    db.refresh(spouse2)
+
+    transaction_service.create_transaction(
+        db, user.id, food.id, "expense", Decimal("30000"), date(2026, 7, 6), owner_user_id=spouse2.id
+    )
+    transaction_service.create_transaction(
+        db, user.id, rent.id, "expense", Decimal("800000"), date(2026, 7, 1), owner_user_id=user.id
+    )
+    transaction_service.create_transaction(db, user.id, food.id, "expense", Decimal("100000"), date(2026, 7, 10))
+
+    spouse2_breakdown = transaction_report_service.category_breakdown_by_owner(
+        db, date(2026, 7, 1), date(2026, 7, 31), "expense", spouse2.id
+    )
+    shared_breakdown = transaction_report_service.category_breakdown_by_owner(
+        db, date(2026, 7, 1), date(2026, 7, 31), "expense", "shared"
+    )
+    all_breakdown = transaction_report_service.category_breakdown_by_owner(
+        db, date(2026, 7, 1), date(2026, 7, 31), "expense", None
+    )
+
+    assert [row["amount"] for row in spouse2_breakdown] == [Decimal("30000")]
+    assert [row["amount"] for row in shared_breakdown] == [Decimal("100000")]
+    assert sum((row["amount"] for row in all_breakdown), Decimal("0")) == Decimal("930000")
+
+
+def test_top_overspend_categories_only_returns_categories_above_average():
+    current = [
+        {"category_id": 1, "name": "식비", "amount": Decimal("150000")},
+        {"category_id": 2, "name": "교통비", "amount": Decimal("40000")},
+    ]
+    avg = {1: Decimal("100000"), 2: Decimal("50000")}
+
+    highlights = transaction_report_service.top_overspend_categories(current, avg, top_n=2)
+
+    assert len(highlights) == 1
+    assert highlights[0]["category_name"] == "식비"
+    assert highlights[0]["delta"] == Decimal("50000")
+
+
 def test_frequent_unique_transactions_dedupes_same_combo_keeping_latest(seeded_db):
     db, user, food = seeded_db["db"], seeded_db["user"], seeded_db["food"]
     transaction_service.create_transaction(

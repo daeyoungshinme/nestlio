@@ -6,6 +6,7 @@ import CollapsibleGroup from "@/components/common/CollapsibleGroup";
 import ConfirmModal from "@/components/common/ConfirmModal";
 import FormInput from "@/components/common/FormInput";
 import SkeletonCard from "@/components/common/SkeletonCard";
+import ErrorState from "@/components/common/ErrorState";
 import StatusBadge from "@/components/common/StatusBadge";
 import { SettingsLinkRow, SettingsSectionCard } from "@/components/settings/shared";
 import { useLogout } from "@/hooks/useLogout";
@@ -81,7 +82,13 @@ export default function SettingsPage() {
   const logout = useLogout();
   const { isDark, toggle: toggleTheme } = useThemeStore();
 
-  const { data, isLoading } = useQuery({ queryKey: QUERY_KEYS.settings, queryFn: fetchSettings });
+  const {
+    data,
+    isLoading,
+    isError,
+    error,
+    refetch,
+  } = useQuery({ queryKey: QUERY_KEYS.settings, queryFn: fetchSettings });
   const meQuery = useQuery({ queryKey: QUERY_KEYS.me, queryFn: fetchMe });
   const usersQuery = useQuery({ queryKey: QUERY_KEYS.users, queryFn: fetchUsers });
   const invitesQuery = useQuery({ queryKey: QUERY_KEYS.invites, queryFn: fetchInvites });
@@ -220,6 +227,15 @@ export default function SettingsPage() {
   };
 
   const householdFull = (usersQuery.data?.length ?? 0) >= 2;
+
+  if (isError) {
+    return (
+      <ErrorState
+        message={extractErrorMessage(error, "설정 정보를 불러오지 못했습니다.")}
+        onRetry={() => void refetch()}
+      />
+    );
+  }
 
   if (isLoading || !data) {
     return (

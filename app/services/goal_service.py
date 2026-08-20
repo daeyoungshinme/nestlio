@@ -35,6 +35,9 @@ def get_goal(db: Session, goal_id: int) -> FinancialGoal | None:
 
 
 def funding_source_breakdown(db: Session, goal: FinancialGoal) -> list[dict]:
+    account_ids = [fs.account_id for fs in goal.funding_sources if fs.account_id is not None]
+    account_balances = account_service.balances_for(db, account_ids)
+
     items: list[dict] = []
     for fs in goal.funding_sources:
         if fs.savings_product_id is not None:
@@ -52,7 +55,7 @@ def funding_source_breakdown(db: Session, goal: FinancialGoal) -> list[dict]:
                     "type": "account",
                     "id": fs.account_id,
                     "name": fs.account.name,
-                    "amount": account_service.current_balance(db, fs.account),
+                    "amount": account_balances[fs.account_id],
                 }
             )
         elif fs.loan_id is not None:

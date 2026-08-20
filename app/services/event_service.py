@@ -278,13 +278,16 @@ def send_due_reminders(db: Session, now: datetime, window_minutes: int = 15) -> 
 
     sent = 0
     candidates = db.query(Event).filter(Event.reminder_minutes_before.isnot(None)).all()
-    for event in candidates:
-        for occurrence in _due_occurrences(event, now, window_minutes):
-            if _already_notified(db, event.id, occurrence):
-                continue
-            _send_reminder_email(db, event, occurrence)
-            _log_notified(db, event.id, occurrence)
-            sent += 1
+    due_pairs = [
+        (event, occurrence) for event in candidates for occurrence in _due_occurrences(event, now, window_minutes)
+    ]
+    already_notified = _already_notified_pairs(db, {event.id for event, _ in due_pairs})
+    for event, occurrence in due_pairs:
+        if (event.id, occurrence.isoformat()) in already_notified:
+            continue
+        _send_reminder_email(db, event, occurrence)
+        _log_notified(db, event.id, occurrence)
+        sent += 1
     return sent
 
 
@@ -300,17 +303,20 @@ def _due_occurrences(event: Event, now: datetime, window_minutes: int) -> list[d
     return due
 
 
-def _already_notified(db: Session, event_id: int, occurrence: datetime) -> bool:
-    return (
-        db.query(NotificationLog)
+def _already_notified_pairs(db: Session, event_ids: set[int]) -> set[tuple[int, str]]:
+    """(event_id, occurrence.isoformat()) 쌍을 한 번의 쿼리로 모아온다 — occurrence마다
+    개별 SELECT를 던지던 이전 방식(N+1)을 피하기 위함."""
+    if not event_ids:
+        return set()
+    rows = (
+        db.query(NotificationLog.related_id, NotificationLog.year_month)
         .filter(
             NotificationLog.notif_type == "event_reminder",
-            NotificationLog.related_id == event_id,
-            NotificationLog.year_month == occurrence.isoformat(),
+            NotificationLog.related_id.in_(event_ids),
         )
-        .first()
-        is not None
+        .all()
     )
+    return {(related_id, year_month) for related_id, year_month in rows}
 
 
 def _log_notified(db: Session, event_id: int, occurrence: datetime) -> None:

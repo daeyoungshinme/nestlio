@@ -117,6 +117,17 @@ export interface UserTotalsOut {
   savings: string;
 }
 
+/** owner_user_id(거래가 실제로 속한 사람, null이면 "공통") 기준 집계 - user_id(기록자) 기준인
+ * UserTotalsOut과는 다른 축이다. */
+export interface OwnerTotalsOut {
+  owner_user_id: string | null;
+  display_name: string;
+  income: string;
+  expense: string;
+  savings: string;
+  savings_investment: string;
+}
+
 export interface CategoryAmountOut {
   category_id: number;
   name: string;
@@ -142,13 +153,30 @@ export interface InsightOut {
 
 export type DashboardPeriod = "today" | "week" | "month";
 
+export interface OwnerCategoryBreakdownOut {
+  owner_user_id: string | null;
+  display_name: string;
+  categories: CategoryAmountOut[];
+}
+
+export interface OwnerOverspendHighlightOut {
+  owner_user_id: string | null;
+  display_name: string;
+  category_name: string;
+  amount: string;
+  avg_amount: string;
+  delta: string;
+}
+
 export interface DashboardOut {
   period: DashboardPeriod;
   start: string;
   end: string;
   totals: TotalsOut;
-  by_user: UserTotalsOut[];
+  owner_totals: OwnerTotalsOut[];
   expense_breakdown: CategoryAmountOut[];
+  owner_category_breakdown: OwnerCategoryBreakdownOut[];
+  owner_overspend_highlights: OwnerOverspendHighlightOut[];
   trend: TrendRowOut[];
   insights: InsightOut[];
   current_ym: string;
@@ -167,7 +195,7 @@ export interface MonthlyRetrospectiveOut {
   start: string;
   end: string;
   totals: TotalsOut;
-  by_user: UserTotalsOut[];
+  owner_totals: OwnerTotalsOut[];
   top_categories: CategoryAmountOut[];
   insights: InsightOut[];
 }
