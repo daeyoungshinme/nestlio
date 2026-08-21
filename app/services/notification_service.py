@@ -1,6 +1,7 @@
 import logging
 import uuid
 from datetime import date, datetime
+from decimal import Decimal
 
 from sqlalchemy.orm import Session
 
@@ -93,6 +94,30 @@ def _format_summary(title: str, start: date, end: date, totals: dict, breakdown:
     return "\n".join(lines)
 
 
+def _savings_streak(db: Session, end: date) -> int:
+    """대시보드(GET /dashboard)와 같은 계산(coaching_engine.savings_streak_months)을 재사용해
+    주간/월간 요약 알림에도 "연속 몇 개월째 목표 페이스를 지키고 있는지"를 함께 보여준다."""
+    goals = goal_service.list_goals(db)
+    target_monthly = sum((g.monthly_saving_amount for g in goals), Decimal("0"))
+    trend = transaction_report_service.monthly_trend(db, months=6, anchor=end)
+    return coaching_engine.savings_streak_months(trend, target_monthly)
+
+
+def _contribution_summary_text(owner_totals: list[dict]) -> str | None:
+    """부부 각자의 저축 기여도(totals_by_owner, owner_user_id 기준 실제 지출/저축 주체)를 한 줄로
+    요약한다 — 대시보드 CoupleContributionCard와 같은 축. "공통" 항목과 1인 가구는 비교 대상이
+    아니므로 생략."""
+    contributors = [o for o in owner_totals if o["owner_user_id"] is not None]
+    if len(contributors) < 2:
+        return None
+    ranked = sorted(contributors, key=lambda o: o["savings"], reverse=True)
+    parts = [f"{o['display_name']} {o['savings']:,.0f}원" for o in ranked]
+    line = "부부 저축 기여도: " + " · ".join(parts)
+    if ranked[0]["savings"] > ranked[1]["savings"]:
+        line += f" — {ranked[0]['display_name']}님이 이번엔 더 모았어요"
+    return line
+
+
 def send_weekly_summary(db: Session, today: date | None = None, force: bool = False) -> bool:
     today = today or date.today()
     start, end = week_bounds(today)
@@ -103,9 +128,23 @@ def send_weekly_summary(db: Session, today: date | None = None, force: bool = Fa
         return False
     totals = transaction_report_service.period_totals(db, start, end)
     breakdown = transaction_report_service.category_breakdown(db, start, end, "expense")
+    owner_totals = transaction_report_service.totals_by_owner(db, start, end)
+    streak = _savings_streak(db, end)
     body = _format_summary("주간 가계부 요약", start, end, totals, breakdown)
+
+    extra_lines = []
+    if streak > 0:
+        extra_lines.append(f"연속 {streak}개월째 목표 페이스를 지키고 있어요 \U0001F525")
+    contribution_text = _contribution_summary_text(owner_totals)
+    if contribution_text:
+        extra_lines.append(contribution_text)
+    if extra_lines:
+        body += "\n\n" + "\n".join(extra_lines)
+
     if is_connected():
-        html = email_templates.build_weekly_summary_html(start, end, totals, breakdown)
+        html = email_templates.build_weekly_summary_html(
+            start, end, totals, breakdown, owner_totals=owner_totals, streak=streak
+        )
         gmail_service.send_email(
             f"[Nestlio] 주간 요약 ({start} ~ {end})", body, to=notification_settings_service.get_recipients(db), html_body=html
         )
@@ -124,7 +163,18 @@ def send_monthly_summary(db: Session, today: date | None = None, force: bool = F
         return False
     totals = transaction_report_service.period_totals(db, start, end)
     breakdown = transaction_report_service.category_breakdown(db, start, end, "expense")
+    owner_totals = transaction_report_service.totals_by_owner(db, start, end)
+    streak = _savings_streak(db, end)
     body = _format_summary("월간 가계부 요약", start, end, totals, breakdown)
+
+    extra_lines = []
+    if streak > 0:
+        extra_lines.append(f"연속 {streak}개월째 목표 페이스를 지키고 있어요 \U0001F525")
+    contribution_text = _contribution_summary_text(owner_totals)
+    if contribution_text:
+        extra_lines.append(contribution_text)
+    if extra_lines:
+        body += "\n\n" + "\n".join(extra_lines)
 
     insights = coaching_engine.compute_insights(db, period_key, totals=totals, breakdown=breakdown)
     if insights:
@@ -132,7 +182,9 @@ def send_monthly_summary(db: Session, today: date | None = None, force: bool = F
         body += "\n".join(f"  - [{i.severity}] {i.message}" for i in insights)
 
     if is_connected():
-        html = email_templates.build_monthly_summary_html(start, end, totals, breakdown, insights)
+        html = email_templates.build_monthly_summary_html(
+            start, end, totals, breakdown, insights, owner_totals=owner_totals, streak=streak
+        )
         gmail_service.send_email(
             f"[Nestlio] {period_key} 월간 요약", body, to=notification_settings_service.get_recipients(db), html_body=html
         )

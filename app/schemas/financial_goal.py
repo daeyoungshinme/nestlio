@@ -8,7 +8,7 @@ from pydantic import BaseModel, ConfigDict
 from app.schemas.common import KrwAmount
 
 FundingSourceType = Literal["savings_product", "account", "loan"]
-GoalKind = Literal["goal", "challenge", "irregular"]
+GoalKind = Literal["goal", "challenge"]
 
 
 class FundingSourceIn(BaseModel):
@@ -77,7 +77,7 @@ class FinancialGoalOut(BaseModel):
     effective_status: Literal["active", "succeeded", "expired"] | None = None
     created_by_id: uuid.UUID | None = None
     completed_at: datetime | None = None
-    # kind="irregular"(기간제 비정기 지출 목표)일 때만 채워진다. start_date는 위 챌린지 필드와 공용.
+    # kind="goal"이면서 미연동(funding_sources 없음)일 때 월별 계획을 쓰면 채워진다.
     monthly_targets: list[GoalMonthlyTargetOut] = []
 
 

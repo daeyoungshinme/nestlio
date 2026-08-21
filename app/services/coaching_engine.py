@@ -348,13 +348,14 @@ def compute_insights(
     goals: list[FinancialGoal] | None = None,
     actual_saved: Decimal | None = None,
     fund_context: tuple[Decimal | None, Decimal | None] | None = None,
+    thresholds: dict[str, float] | None = None,
 ) -> list[Insight]:
-    """호출부가 이미 같은 기간의 totals/breakdown/goals를 조회해둔 경우, 넘겨받아 재조회를 피한다."""
+    """호출부가 이미 같은 기간의 totals/breakdown/goals/thresholds를 조회해둔 경우, 넘겨받아 재조회를 피한다."""
     year_month = year_month or year_month_str(date.today())
     month_start = parse_year_month(year_month)
     start, end = month_bounds(month_start)
 
-    thresholds = coaching_settings_service.get_thresholds(db)
+    thresholds = thresholds if thresholds is not None else coaching_settings_service.get_thresholds(db)
     totals = totals if totals is not None else transaction_report_service.period_totals(db, start, end)
     breakdown = (
         breakdown if breakdown is not None else transaction_report_service.category_breakdown(db, start, end, "expense")

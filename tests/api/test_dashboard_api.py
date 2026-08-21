@@ -38,6 +38,25 @@ def test_dashboard_today_returns_totals_and_insights(client, seeded_db):
         },
     ]
     assert set(body["surplus_allocation"].keys()) == {"emergency_fund_portion", "investable_portion"}
+    assert body["category_benchmarks"] == []
+    assert "owner_category_breakdown" not in body
+
+
+def test_dashboard_category_benchmarks_flags_categories_over_guideline(client, seeded_db):
+    db, user, food = seeded_db["db"], seeded_db["user"], seeded_db["food"]
+    food.benchmark_group = "food"
+    db.commit()
+    today = date.today()
+    transaction_service.create_transaction(db, user.id, food.id, "income", Decimal("1000000"), today)
+    transaction_service.create_transaction(db, user.id, food.id, "expense", Decimal("200000"), today)
+
+    resp = client.get("/api/v1/dashboard")
+
+    assert resp.status_code == 200
+    benchmarks = resp.json()["category_benchmarks"]
+    assert benchmarks == [
+        {"group": "food", "label": "식비", "amount": "200000.00", "pct": 20.0, "benchmark_pct": 15.0, "status": "warn"}
+    ]
 
 
 def test_dashboard_defaults_to_month_period(client):

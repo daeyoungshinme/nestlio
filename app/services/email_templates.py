@@ -161,6 +161,40 @@ def _category_bars(breakdown: list[dict]) -> str:
     return f'<table role="presentation" width="100%" cellpadding="0" cellspacing="0">{"".join(rows_html)}</table>'
 
 
+def _streak_banner(streak: int) -> str:
+    if streak <= 0:
+        return ""
+    return f"""<div style="margin:4px 0 14px; padding:10px 14px; background-color:#FFFBEB; border-radius:8px; font-size:13px; color:{_WARNING}; font-weight:600;">
+\U0001F525 연속 {streak}개월째 목표 페이스를 지키고 있어요
+</div>"""
+
+
+def _contribution_section(owner_totals: list[dict] | None) -> str:
+    """부부 각자의 저축 기여도 비교 — 이메일이 "혼자 보는 경고"가 아니라 "함께 보는 성과
+    요약"이 되도록, 대시보드 CoupleContributionCard와 같은 축(owner_user_id 기준 저축액)으로
+    누가 이번 기간 더 모았는지 보여준다. "공통" 항목과 1인 가구는 비교 대상이 아니므로 생략."""
+    if not owner_totals:
+        return ""
+    contributors = [o for o in owner_totals if o["owner_user_id"] is not None]
+    if len(contributors) < 2:
+        return ""
+    ranked = sorted(contributors, key=lambda o: o["savings"], reverse=True)
+    leader_id = ranked[0]["owner_user_id"] if ranked[0]["savings"] > ranked[1]["savings"] else None
+    rows = []
+    for o in ranked:
+        is_leader = o["owner_user_id"] == leader_id
+        crown = " \U0001F451" if is_leader else ""
+        color = _SUCCESS if is_leader else _TEXT
+        rows.append(f"""<tr>
+<td style="padding:6px 0; font-size:13px; color:{_TEXT};">{o['display_name']}{crown}</td>
+<td align="right" style="padding:6px 0; font-size:13px; font-weight:700; color:{color};">{_won(o['savings'])}</td>
+</tr>""")
+    return (
+        _section_title("부부 저축 기여도")
+        + f'<table role="presentation" width="100%" cellpadding="0" cellspacing="0">{"".join(rows)}</table>'
+    )
+
+
 def _insight_cards(insights: list[Insight]) -> str:
     if not insights:
         return ""
@@ -181,9 +215,18 @@ def _insight_cards(insights: list[Insight]) -> str:
     return "".join(cards)
 
 
-def build_weekly_summary_html(start: date, end: date, totals: dict, breakdown: list[dict]) -> str:
+def build_weekly_summary_html(
+    start: date,
+    end: date,
+    totals: dict,
+    breakdown: list[dict],
+    owner_totals: list[dict] | None = None,
+    streak: int = 0,
+) -> str:
     body = (
-        _stat_row(totals["income"], totals["expense"], totals["savings"])
+        _streak_banner(streak)
+        + _stat_row(totals["income"], totals["expense"], totals["savings"])
+        + _contribution_section(owner_totals)
         + _section_title("지출 구성")
         + _type_breakdown_bar(totals["fixed"], totals["variable"], totals["irregular"])
         + _section_title("카테고리별 지출")
@@ -194,10 +237,18 @@ def build_weekly_summary_html(start: date, end: date, totals: dict, breakdown: l
 
 
 def build_monthly_summary_html(
-    start: date, end: date, totals: dict, breakdown: list[dict], insights: list[Insight]
+    start: date,
+    end: date,
+    totals: dict,
+    breakdown: list[dict],
+    insights: list[Insight],
+    owner_totals: list[dict] | None = None,
+    streak: int = 0,
 ) -> str:
     body = (
-        _stat_row(totals["income"], totals["expense"], totals["savings"])
+        _streak_banner(streak)
+        + _stat_row(totals["income"], totals["expense"], totals["savings"])
+        + _contribution_section(owner_totals)
         + _section_title("지출 구성")
         + _type_breakdown_bar(totals["fixed"], totals["variable"], totals["irregular"])
         + _section_title("카테고리별 지출")

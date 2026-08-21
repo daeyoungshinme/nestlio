@@ -11,16 +11,6 @@ function computeChallengeStatus(goal: FinancialGoalOut): ProgressStatus {
   return "on_track";
 }
 
-/** kind="irregular"(기간제 비정기 지출 목표)도 챌린지처럼 "월 저축 페이스"라는 개념이 없다
- * (monthly_saving_amount가 항상 "0"으로 고정돼 있어 computeGoalStatus의 페이스 판정을 쓰면 안 됨) —
- * 대신 월별 계획(monthly_targets) 달성 여부가 이미 progress_pct에 반영되므로 진행률/기간 종료
- * 여부만으로 판정한다. */
-function computeIrregularStatus(goal: FinancialGoalOut): ProgressStatus {
-  if (Number(goal.progress_pct) >= 100) return "achieved";
-  if (goal.target_date !== null && daysUntil(goal.target_date) < 0) return "behind";
-  return "on_track";
-}
-
 /** 오늘부터 목표일까지 남은 일수 (음수면 이미 지난 목표일). */
 export function daysUntil(targetDate: string): number {
   const today = new Date();
@@ -41,18 +31,15 @@ export function computeGoalStatus(goal: FinancialGoalOut): ProgressStatus {
   return Number(goal.monthly_saving_amount) >= requiredPace ? "on_track" : "behind";
 }
 
-/** 목표/챌린지/비정기목표를 함께 다루는 목록·카드에서 kind에 맞는 상태 판정으로 분기한다. */
+/** 목표/챌린지를 함께 다루는 목록·카드에서 kind에 맞는 상태 판정으로 분기한다. */
 export function computeCardStatus(goal: FinancialGoalOut): ProgressStatus {
   if (goal.kind === "challenge") return computeChallengeStatus(goal);
-  if (goal.kind === "irregular") return computeIrregularStatus(goal);
   return computeGoalStatus(goal);
 }
 
 /** 활성 목록에서 걸러 "달성한 목표" 접이식으로 옮길지 판정. 챌린지는 status가 succeeded인지로
- * 판정한다(기간 종료만으로는 옮기지 않음 — 만료된 챌린지도 활성 목록에 남아 눈에 띄게 유지).
- * 비정기목표는 별도 완료 상태 필드가 없어 진행률 100%로 판정한다. */
+ * 판정한다(기간 종료만으로는 옮기지 않음 — 만료된 챌린지도 활성 목록에 남아 눈에 띄게 유지). */
 export function isGoalAchieved(goal: FinancialGoalOut): boolean {
   if (goal.kind === "challenge") return goal.effective_status === "succeeded";
-  if (goal.kind === "irregular") return Number(goal.progress_pct) >= 100;
   return computeGoalStatus(goal) === "achieved";
 }

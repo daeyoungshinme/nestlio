@@ -6,13 +6,7 @@ from typing import Literal
 from pydantic import BaseModel
 
 from app.schemas.coaching import InsightOut, SurplusAllocationOut
-from app.schemas.common import CategoryAmountOut, OwnerTotalsOut, TotalsOut, TrendRowOut
-
-
-class OwnerCategoryBreakdownOut(BaseModel):
-    owner_user_id: uuid.UUID | None
-    display_name: str
-    categories: list[CategoryAmountOut]
+from app.schemas.common import CategoryAmountOut, CategoryBenchmarkRowOut, OwnerTotalsOut, TotalsOut, TrendRowOut
 
 
 class OwnerOverspendHighlightOut(BaseModel):
@@ -31,8 +25,8 @@ class DashboardOut(BaseModel):
     totals: TotalsOut
     owner_totals: list[OwnerTotalsOut]
     expense_breakdown: list[CategoryAmountOut]
-    owner_category_breakdown: list[OwnerCategoryBreakdownOut]
     owner_overspend_highlights: list[OwnerOverspendHighlightOut]
+    category_benchmarks: list[CategoryBenchmarkRowOut]
     trend: list[TrendRowOut]
     insights: list[InsightOut]
     current_ym: str

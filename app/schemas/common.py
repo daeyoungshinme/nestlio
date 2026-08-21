@@ -55,6 +55,15 @@ class CategoryAmountOut(BaseModel):
     amount: Decimal
 
 
+class CategoryBenchmarkRowOut(BaseModel):
+    group: str
+    label: str
+    amount: Decimal
+    pct: float
+    benchmark_pct: float
+    status: Literal["ok", "warn"]
+
+
 class TrendRowOut(BaseModel):
     year_month: str
     income: Decimal

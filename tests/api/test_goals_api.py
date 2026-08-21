@@ -76,34 +76,9 @@ def test_update_challenge_progress_reaching_target_succeeds(client, seeded_db):
     assert body["progress_pct"] == "100"
 
 
-def test_create_irregular_goal_derives_required_amount_from_monthly_targets(client, seeded_db):
-    resp = client.post(
-        "/api/v1/financial-goals",
-        json={
-            "kind": "irregular",
-            "name": "명절비용",
-            "required_amount": "0",
-            "monthly_saving_amount": "0",
-            "start_date": "2026-09-01",
-            "target_date": "2026-11-30",
-            "monthly_targets": [
-                {"year_month": "2026-09", "target_amount": "100000"},
-                {"year_month": "2026-10", "target_amount": "150000"},
-                {"year_month": "2026-11", "target_amount": "50000"},
-            ],
-        },
-    )
-    assert resp.status_code == 201
-    body = resp.json()
-    assert body["kind"] == "irregular"
-    assert body["required_amount"] == "300000.00"
-    assert [mt["year_month"] for mt in body["monthly_targets"]] == ["2026-09", "2026-10", "2026-11"]
-    assert all(mt["is_achieved"] is False for mt in body["monthly_targets"])
-
-
 def test_create_goal_with_monthly_targets_keeps_required_amount_as_sent(client, seeded_db):
-    """irregular와 달리 kind="goal"은 monthly_targets 합계로 required_amount를 덮어쓰지 않는다 —
-    월별 계획은 필요금액을 나눈 페이스 참고치일 뿐, 필요금액은 사용자가 직접 정한 값 그대로다."""
+    """kind="goal"은 monthly_targets 합계로 required_amount를 덮어쓰지 않는다 — 월별 계획은
+    필요금액을 나눈 페이스 참고치일 뿐, 필요금액은 사용자가 직접 정한 값 그대로다."""
     resp = client.post(
         "/api/v1/financial-goals",
         json={
@@ -129,11 +104,10 @@ def test_update_monthly_target_achieved(client, seeded_db):
     created = client.post(
         "/api/v1/financial-goals",
         json={
-            "kind": "irregular",
+            "kind": "goal",
             "name": "명절비용",
-            "required_amount": "0",
+            "required_amount": "100000",
             "monthly_saving_amount": "0",
-            "start_date": "2026-09-01",
             "target_date": "2026-09-30",
             "monthly_targets": [{"year_month": "2026-09", "target_amount": "100000"}],
         },
@@ -155,11 +129,10 @@ def test_update_monthly_target_achieved_month_not_found(client, seeded_db):
     created = client.post(
         "/api/v1/financial-goals",
         json={
-            "kind": "irregular",
+            "kind": "goal",
             "name": "명절비용",
-            "required_amount": "0",
+            "required_amount": "100000",
             "monthly_saving_amount": "0",
-            "start_date": "2026-09-01",
             "target_date": "2026-09-30",
             "monthly_targets": [{"year_month": "2026-09", "target_amount": "100000"}],
         },

@@ -1,9 +1,8 @@
 from decimal import Decimal
-from typing import Literal
 
 from pydantic import BaseModel
 
-from app.schemas.common import CategoryAmountOut, TotalsOut
+from app.schemas.common import CategoryAmountOut, CategoryBenchmarkRowOut, TotalsOut
 
 
 class YearlyMonthRowOut(BaseModel):
@@ -14,15 +13,6 @@ class YearlyMonthRowOut(BaseModel):
     variable: Decimal
     irregular: Decimal
     savings: Decimal
-
-
-class CategoryBenchmarkRowOut(BaseModel):
-    group: str
-    label: str
-    amount: Decimal
-    pct: float
-    benchmark_pct: float
-    status: Literal["ok", "warn"]
 
 
 class YearlyReportOut(BaseModel):

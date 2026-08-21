@@ -153,12 +153,6 @@ export interface InsightOut {
 
 export type DashboardPeriod = "today" | "week" | "month";
 
-export interface OwnerCategoryBreakdownOut {
-  owner_user_id: string | null;
-  display_name: string;
-  categories: CategoryAmountOut[];
-}
-
 export interface OwnerOverspendHighlightOut {
   owner_user_id: string | null;
   display_name: string;
@@ -175,8 +169,8 @@ export interface DashboardOut {
   totals: TotalsOut;
   owner_totals: OwnerTotalsOut[];
   expense_breakdown: CategoryAmountOut[];
-  owner_category_breakdown: OwnerCategoryBreakdownOut[];
   owner_overspend_highlights: OwnerOverspendHighlightOut[];
+  category_benchmarks: CategoryBenchmarkRowOut[];
   trend: TrendRowOut[];
   insights: InsightOut[];
   current_ym: string;
@@ -599,7 +593,7 @@ export interface FundingSourceIn {
   id: number;
 }
 
-export type GoalKind = "goal" | "challenge" | "irregular";
+export type GoalKind = "goal" | "challenge";
 
 export interface GoalMonthlyTargetOut {
   year_month: string;
@@ -638,7 +632,7 @@ export interface FinancialGoalOut {
   effective_status: "active" | "succeeded" | "expired" | null;
   created_by_id: string | null;
   completed_at: string | null;
-  // kind==="irregular"(기간제 비정기 지출 목표)일 때만 채워진다. start_date는 위 챌린지 필드와 공용.
+  // kind==="goal"이면서 미연동(funding_sources 없음)일 때 월별 계획을 쓰면 채워진다.
   monthly_targets: GoalMonthlyTargetOut[];
 }
 

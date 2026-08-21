@@ -60,8 +60,6 @@ class SavingsProduct(Base):
         if self.goal_funding_source is None:
             return False
         goal = self.goal_funding_source.goal
-        if goal.kind == "irregular":
-            return False
         linked_product_count = sum(1 for fs in goal.funding_sources if fs.savings_product_id is not None)
         return linked_product_count == 1
 

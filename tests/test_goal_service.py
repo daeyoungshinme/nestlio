@@ -616,65 +616,31 @@ def test_sync_challenge_statuses_ignores_challenge_below_target(seeded_db):
     assert goal_service.sync_challenge_statuses(db, now=NOW) == []
 
 
-# --- kind="irregular": 기간제 비정기 지출 목표 (월별 개별 목표금액/달성) ---------------------------
+# --- kind="goal"의 월별 계획: 미연동은 월별 achieved 합, 연동은 거래내역 기반 자동계산 -----------------
 
 
-def _create_irregular_goal(db, monthly_targets):
+def _create_unlinked_goal_with_monthly_targets(db, monthly_targets):
     return goal_service.create_goal(
         db,
         1,
-        "명절비용",
+        "여행자금",
         None,
-        Decimal("0"),  # required_amount는 monthly_targets 합으로 덮어써진다
+        Decimal("300000"),
         Decimal("0"),
-        kind="irregular",
-        start_date=date(2026, 9, 1),
         target_date=date(2026, 11, 30),
         monthly_targets=monthly_targets,
     )
 
 
-def test_create_irregular_goal_derives_required_amount_from_monthly_targets(seeded_db):
-    db = seeded_db["db"]
-    goal = _create_irregular_goal(
-        db,
-        [
-            {"year_month": "2026-09", "target_amount": Decimal("100000")},
-            {"year_month": "2026-10", "target_amount": Decimal("150000")},
-            {"year_month": "2026-11", "target_amount": Decimal("50000")},
-        ],
-    )
-    assert goal.required_amount == Decimal("300000")
-    assert [(mt.year_month, mt.target_amount, mt.achieved_amount) for mt in goal.monthly_targets] == [
-        ("2026-09", Decimal("100000"), Decimal("0")),
-        ("2026-10", Decimal("150000"), Decimal("0")),
-        ("2026-11", Decimal("50000"), Decimal("0")),
-    ]
-
-
-def test_irregular_goal_current_amount_sums_achieved_amounts(seeded_db):
-    db = seeded_db["db"]
-    goal = _create_irregular_goal(
-        db,
-        [
-            {"year_month": "2026-09", "target_amount": Decimal("100000")},
-            {"year_month": "2026-10", "target_amount": Decimal("150000")},
-        ],
-    )
-    goal_service.update_monthly_target_achieved(db, goal.id, "2026-09", Decimal("100000"))
-    goal_service.update_monthly_target_achieved(db, goal.id, "2026-10", Decimal("50000"))
-    db.refresh(goal)
-    assert goal_service.compute_current_amount(db, goal) == Decimal("150000")
-
-
 def test_update_monthly_target_achieved_marks_month_as_achieved_in_to_out(seeded_db):
     db = seeded_db["db"]
-    goal = _create_irregular_goal(db, [{"year_month": "2026-09", "target_amount": Decimal("100000")}])
+    goal = _create_unlinked_goal_with_monthly_targets(
+        db, [{"year_month": "2026-09", "target_amount": Decimal("100000")}]
+    )
     goal_service.update_monthly_target_achieved(db, goal.id, "2026-09", Decimal("100000"))
     db.refresh(goal)
     out = goal_service.to_out(db, goal, today=date(2026, 9, 1))
     assert out["current_amount"] == Decimal("100000")
-    assert out["progress_pct"] == Decimal("100")
     assert out["monthly_targets"] == [
         {
             "year_month": "2026-09",
@@ -688,7 +654,9 @@ def test_update_monthly_target_achieved_marks_month_as_achieved_in_to_out(seeded
 
 def test_update_monthly_target_achieved_raises_when_month_not_planned(seeded_db):
     db = seeded_db["db"]
-    goal = _create_irregular_goal(db, [{"year_month": "2026-09", "target_amount": Decimal("100000")}])
+    goal = _create_unlinked_goal_with_monthly_targets(
+        db, [{"year_month": "2026-09", "target_amount": Decimal("100000")}]
+    )
     with pytest.raises(goal_service.MonthlyTargetNotFoundError):
         goal_service.update_monthly_target_achieved(db, goal.id, "2026-12", Decimal("1000"))
 
@@ -698,9 +666,9 @@ def test_update_monthly_target_achieved_returns_none_when_goal_not_found(seeded_
     assert goal_service.update_monthly_target_achieved(db, 999999, "2026-09", Decimal("1000")) is None
 
 
-def test_update_irregular_goal_preserves_achieved_amount_for_kept_month_and_drops_removed_month(seeded_db):
+def test_update_goal_preserves_achieved_amount_for_kept_month_and_drops_removed_month(seeded_db):
     db = seeded_db["db"]
-    goal = _create_irregular_goal(
+    goal = _create_unlinked_goal_with_monthly_targets(
         db,
         [
             {"year_month": "2026-09", "target_amount": Decimal("100000")},
@@ -716,20 +684,15 @@ def test_update_irregular_goal_preserves_achieved_amount_for_kept_month_and_drop
         1,
         goal.name,
         None,
-        Decimal("0"),
+        goal.required_amount,
         Decimal("0"),
         target_date=goal.target_date,
-        start_date=goal.start_date,
         monthly_targets=[{"year_month": "2026-09", "target_amount": Decimal("120000")}],
     )
 
-    assert updated.required_amount == Decimal("120000")
     assert [(mt.year_month, mt.target_amount, mt.achieved_amount) for mt in updated.monthly_targets] == [
         ("2026-09", Decimal("120000"), Decimal("80000")),
     ]
-
-
-# --- kind="goal"의 월별 계획: 미연동은 월별 achieved 합, 연동은 거래내역 기반 자동계산 -----------------
 
 
 def test_unlinked_goal_current_amount_uses_monthly_targets_when_plan_exists(seeded_db):
@@ -747,7 +710,7 @@ def test_unlinked_goal_current_amount_uses_monthly_targets_when_plan_exists(seed
             {"year_month": "2026-10", "target_amount": Decimal("150000")},
         ],
     )
-    # required_amount는 irregular와 달리 요청값 그대로 유지된다 (합계로 덮어쓰지 않음).
+    # required_amount는 월별 계획 합계로 덮어쓰지 않고 요청값 그대로 유지된다.
     assert goal.required_amount == Decimal("300000")
     assert goal_service.compute_current_amount(db, goal) == Decimal("0")
 

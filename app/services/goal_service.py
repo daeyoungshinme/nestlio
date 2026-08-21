@@ -80,13 +80,10 @@ def _sum_breakdown_amounts(goal: FinancialGoal, breakdown: list[dict]) -> Decima
 
 def compute_current_amount(db: Session, goal: FinancialGoal) -> Decimal:
     """연동된 저축상품·계좌 잔액 합에서 연동된 대출 잔액을 뺀 값. 연동이 하나도 없으면 수동 입력값.
-    kind="irregular"는 연동/수동 입력값을 쓰지 않고 monthly_targets의 achieved_amount 합이다.
-    kind="goal"도 미연동이면서 monthly_targets이 있으면(월별 계획을 쓰는 신규 장기목표) 동일하게
-    월별 achieved_amount 합을 쓴다 — 연동된 목표는 잔액이 이미 진실의 원천이라(월별 합산과 어긋날
+    kind="goal"이 미연동이면서 monthly_targets이 있으면(월별 계획을 쓰는 신규 장기목표) 월별
+    achieved_amount 합을 쓴다 — 연동된 목표는 잔액이 이미 진실의 원천이라(월별 합산과 어긋날
     수 있음, 이자 등 거래 외 변동 포함) 그대로 두고, monthly_targets이 아예 없는 기존 목표(이
     기능 도입 전에 만든 목표)는 하위호환을 위해 manual_current_amount를 그대로 쓴다."""
-    if goal.kind == "irregular":
-        return sum((mt.achieved_amount for mt in goal.monthly_targets), Decimal("0"))
     if goal.kind == "goal" and not goal.funding_sources and goal.monthly_targets:
         return sum((mt.achieved_amount for mt in goal.monthly_targets), Decimal("0"))
     return _sum_breakdown_amounts(goal, funding_source_breakdown(db, goal))
@@ -142,10 +139,6 @@ def compute_linked_monthly_achieved(db: Session, goal: FinancialGoal, year_month
         else:
             result[ym] += amount if tx_type == "income" else -amount
     return result
-
-
-def sum_monthly_targets(monthly_targets: list[dict] | None) -> Decimal:
-    return sum((item["target_amount"] for item in monthly_targets or []), Decimal("0"))
 
 
 def compute_progress_pct(current_amount: Decimal, required_amount: Decimal) -> Decimal:
@@ -226,7 +219,7 @@ def compute_projected_months_with_growth(
 
 
 def to_out(db: Session, goal: FinancialGoal, today: date) -> dict:
-    breakdown = [] if goal.kind == "irregular" else funding_source_breakdown(db, goal)
+    breakdown = funding_source_breakdown(db, goal)
     current_amount = compute_current_amount(db, goal)
     months_remaining = compute_months_remaining(today, goal.target_date)
     is_linked_goal = goal.kind == "goal" and bool(goal.funding_sources)
@@ -333,10 +326,7 @@ def _sync_funding_product_monthly_amount(goal: FinancialGoal) -> None:
     """연동된 저축상품이 정확히 1개일 때만 그 상품의 월 계획액을 이 목표의 월 저축액으로 맞춘다 —
     상품이 여러 개면(부부가 각자 다른 상품으로 모으는 경우) 목표의 월 저축액을 어느 상품에
     나눠줄지 모호해 자동 동기화하지 않고 각 상품은 계속 수동 입력을 받는다(SavingsProduct.
-    monthly_saving_amount_synced와 판정 기준이 같다 — app/models/savings_product.py 참고).
-    kind="irregular"는 funding_sources를 쓰지 않으므로 대상이 아니다."""
-    if goal.kind == "irregular":
-        return
+    monthly_saving_amount_synced와 판정 기준이 같다 — app/models/savings_product.py 참고)."""
     linked_products = [fs.savings_product for fs in goal.funding_sources if fs.savings_product_id is not None]
     if len(linked_products) == 1:
         linked_products[0].monthly_saving_amount = goal.monthly_saving_amount
@@ -372,8 +362,6 @@ def create_goal(
     monthly_targets: list[dict] | None = None,
     now: datetime | None = None,
 ) -> FinancialGoal:
-    if kind == "irregular":
-        required_amount = sum_monthly_targets(monthly_targets)
     goal = FinancialGoal(
         priority=priority,
         name=name,
@@ -420,8 +408,6 @@ def update_goal(
     goal = db.get(FinancialGoal, goal_id)
     if goal is None:
         return None
-    if goal.kind == "irregular":
-        required_amount = sum_monthly_targets(monthly_targets)
     goal.priority = priority
     goal.name = name
     goal.target_age = target_age
@@ -451,7 +437,7 @@ def delete_goal(db: Session, goal_id: int) -> None:
 def update_monthly_target_achieved(
     db: Session, goal_id: int, year_month: str, achieved_amount: Decimal
 ) -> FinancialGoal | None:
-    """kind="irregular" 목표 카드에서 특정 달의 달성 금액만 가볍게 갱신한다 (챌린지의
+    """kind="goal"의 미연동 월별계획 카드에서 특정 달의 달성 금액만 가볍게 갱신한다 (챌린지의
     "진행 금액 갱신"과 동등한 부분 업데이트 — 전체 목표/월별 계획을 다시 보내지 않아도 됨)."""
     goal = db.get(FinancialGoal, goal_id)
     if goal is None:

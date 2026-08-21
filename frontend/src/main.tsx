@@ -32,7 +32,7 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
       client={queryClient}
       persistOptions={{
         persister,
-        buster: "v1",
+        buster: "v2",
         maxAge: 24 * 60 * 60 * 1000,
         dehydrateOptions: {
           shouldDehydrateQuery: (query) => PERSIST_QUERY_KEYS.has(query.queryKey[0] as string),

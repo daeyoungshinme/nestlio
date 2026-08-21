@@ -8,6 +8,7 @@ import DayPicker, { currentDateIso } from "@/components/common/DayPicker";
 import WeekPicker, { currentWeekAnchor } from "@/components/common/WeekPicker";
 import MonthlyRetrospectiveCard from "@/components/dashboard/MonthlyRetrospectiveCard";
 import CoupleContributionCard from "@/components/dashboard/CoupleContributionCard";
+import SpendingFocusCard from "@/components/dashboard/SpendingFocusCard";
 import InvestSurplusCard from "@/components/dashboard/InvestSurplusCard";
 import GoalProgressCard from "@/components/financialPlan/GoalProgressCard";
 import type { GoalProgressCardBadge } from "@/components/financialPlan/GoalProgressCard";
@@ -36,8 +37,10 @@ import { insightSeverityStyle, progressStatusBadgeClass, progressStatusLabel, wo
 import { computeCardStatus, daysUntil } from "@/utils/goalStatus";
 import { formatDate, formatKrw, formatKrwCompact, formatWeekRange, formatYearMonth, pctOf } from "@/utils/format";
 import { splitSavingsAndRealEstate } from "@/utils/netWorth";
+import { estimateGoalAcceleration } from "@/utils/monthRange";
 import { extractErrorMessage } from "@/utils/error";
 import { toast } from "@/utils/toast";
+import { findGrowlioInvestmentLink } from "@/constants/growlio";
 import type { DashboardPeriod } from "@/types";
 import { ChevronDown, ChevronRight, Flame, Target } from "lucide-react";
 
@@ -185,16 +188,31 @@ export default function DashboardPage() {
     }
     const goalStatus = computeCardStatus(topGoal);
     topGoalBadges.push({ label: progressStatusLabel(goalStatus), toneClassName: progressStatusBadgeClass(goalStatus) });
+    // 연속 목표 페이스 유지 개월 수 — 카드 아래 보조문구가 아니라 배지로 승격해 목표 탭에
+    // 들어가지 않아도 눈에 바로 띄도록 한다.
+    if (data.savings_streak_months > 0) {
+      topGoalBadges.push({
+        label: `${data.savings_streak_months}개월 연속`,
+        toneClassName: "bg-amber-50 dark:bg-amber-950 text-amber-700 dark:text-amber-300",
+        icon: <Flame size={11} aria-hidden="true" />,
+      });
+    }
   }
-  const streakSubtitle =
-    topGoal && data.savings_streak_months > 0 ? (
-      <p className="flex items-center gap-1 text-xs text-amber-600 dark:text-amber-400 mt-0.5">
-        <Flame size={12} aria-hidden="true" />
-        함께 {data.savings_streak_months}개월째 목표 페이스를 지키고 있어요
-      </p>
-    ) : null;
   const goalPaceInsight = monthDashboard?.insights.find((i) => i.rule_code === "goal_pace");
-  const totalOwnerSavings = data.owner_totals.reduce((sum, o) => sum + Math.max(0, Number(o.savings)), 0);
+  // growlio 연동 목표에 이번 달 여유자금을 보태면 얼마나 앞당겨지는지 — GoalsTab의 여유자금
+  // 힌트와 같은 계산(estimateGoalAcceleration), 백엔드 변경 없이 프론트에서 추정한다.
+  const topGoalGrowlioLink = topGoal ? findGrowlioInvestmentLink(topGoal, savingsProducts ?? []) : null;
+  const topGoalAcceleration =
+    topGoal && topGoalGrowlioLink
+      ? estimateGoalAcceleration(
+          topGoal.required_amount,
+          topGoal.current_amount,
+          topGoal.months_remaining,
+          topGoal.suggested_monthly_amount,
+          data.investable_surplus,
+        )
+      : null;
+  const totalOwnerSavings = Number(data.totals.savings);
   const sparklineData = data.trend.map((row) => ({
     year_month: row.year_month,
     savings: Number(row.income) - Number(row.expense),
@@ -301,10 +319,19 @@ export default function DashboardPage() {
               metaLine="우리 부부 목표"
               title={topGoal.name}
               badges={topGoalBadges}
-              subtitle={streakSubtitle}
               pct={Number(topGoal.progress_pct)}
               primaryDetail={`${formatKrw(topGoal.current_amount)} / ${formatKrw(topGoal.required_amount)}`}
-              extraDetails={goalPaceInsight ? [{ key: "pace", content: goalPaceInsight.message }] : []}
+              extraDetails={[
+                ...(goalPaceInsight ? [{ key: "pace", content: goalPaceInsight.message }] : []),
+                ...(topGoalAcceleration
+                  ? [
+                      {
+                        key: "acceleration",
+                        content: `이번 달 여유자금을 이 목표에 보태면 달성까지 ${topGoal.months_remaining}개월 → ${topGoalAcceleration.newMonthsRemaining}개월로 ${topGoalAcceleration.monthsSaved}개월 앞당길 수 있어요`,
+                      },
+                    ]
+                  : []),
+              ]}
               footer={
                 <>
                   {sparklineData.some((row) => row.savings !== 0) && (
@@ -398,9 +425,12 @@ export default function DashboardPage() {
                 : `${formatDate(data.start)} 함께 모은 돈`
         }
         ownerTotals={data.owner_totals}
-        ownerCategoryBreakdown={data.owner_category_breakdown}
-        ownerOverspendHighlights={data.owner_overspend_highlights}
         totalOwnerSavings={totalOwnerSavings}
+      />
+
+      <SpendingFocusCard
+        ownerOverspendHighlights={data.owner_overspend_highlights}
+        categoryBenchmarks={data.category_benchmarks}
       />
 
       <button
@@ -421,6 +451,8 @@ export default function DashboardPage() {
           <InvestSurplusCard
             surplusAllocation={data.surplus_allocation}
             investmentProducts={savingsProducts ?? []}
+            topGoalGrowlioAccountId={topGoalGrowlioLink}
+            topGoalAcceleration={topGoalAcceleration}
           />
 
           <MonthlyRetrospectiveCard />

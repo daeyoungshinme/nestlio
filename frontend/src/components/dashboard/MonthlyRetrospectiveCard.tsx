@@ -5,7 +5,6 @@ import SkeletonCard from "@/components/common/SkeletonCard";
 import { fetchMonthlyRetrospective } from "@/api/dashboard";
 import { QUERY_KEYS } from "@/constants/queryKeys";
 import { STALE_TIME } from "@/constants/queryConfig";
-import { insightSeverityStyle } from "@/utils/colors";
 import { formatKrw, formatYearMonth } from "@/utils/format";
 
 export default function MonthlyRetrospectiveCard() {
@@ -64,19 +63,6 @@ export default function MonthlyRetrospectiveCard() {
                   </div>
                 ))}
               </div>
-            </div>
-          )}
-
-          {data.insights.length > 0 && (
-            <div className="space-y-2">
-              {data.insights.map((insight, i) => (
-                <div
-                  key={i}
-                  className={`border rounded-lg px-3 py-2 text-xs ${insightSeverityStyle(insight.severity)}`}
-                >
-                  {insight.message}
-                </div>
-              ))}
             </div>
           )}
         </div>

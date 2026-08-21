@@ -232,6 +232,11 @@ export function linkedGoalBadgeStyle(): string {
   return "bg-emerald-50 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300";
 }
 
+/** 대시보드 "함께 모은 돈" 카드에서 이번 기간 저축을 더 많이 한 배우자에게 붙이는 리더 배지. */
+export function contributionLeaderBadgeStyle(): string {
+  return "bg-amber-50 dark:bg-amber-950 text-amber-700 dark:text-amber-300";
+}
+
 const RECURRING_LINK_BADGE_STYLE: Record<"active" | "inactive", string> = {
   active: "bg-indigo-50 dark:bg-indigo-950 text-indigo-600 dark:text-indigo-400",
   inactive: "bg-gray-100 dark:bg-gray-800 text-gray-400 dark:text-gray-500",

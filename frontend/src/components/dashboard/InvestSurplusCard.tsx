@@ -1,17 +1,28 @@
 import { ExternalLink, ShieldCheck, TrendingUp } from "lucide-react";
 import { GROWLIO_APP_URL, growlioPortfolioUrl, isGrowlioLinkedInvestment } from "@/constants/growlio";
 import { formatKrw } from "@/utils/format";
+import type { GoalAcceleration } from "@/utils/monthRange";
 import type { SavingsProductOut, SurplusAllocationOut } from "@/types";
 
 interface Props {
   surplusAllocation: SurplusAllocationOut;
   investmentProducts: SavingsProductOut[];
+  /** 대시보드 대표 목표(우선순위 1위)의 growlio 연동 계좌 id와, 이번 여유자금을 넣었을 때의
+   * 예상 단축 개월 수 — 일치하는 상품 버튼 아래에 "목표를 N개월 앞당길 수 있어요" 문구를
+   * 덧붙인다. 목표가 growlio에 연동돼 있지 않거나 앞당길 수 없으면 null. */
+  topGoalGrowlioAccountId?: string | null;
+  topGoalAcceleration?: GoalAcceleration | null;
 }
 
 /** 이번달 여유자금(coaching_engine.recommend_surplus_allocation)을 비상금 보충분과 투자
  * 가능분으로 나눠 보여준다 — 비상금이 부족한 상태에서도 여유자금 전부를 growlio 투자로
  * 유도하던 이전 동작을 개선한 것. */
-export default function InvestSurplusCard({ surplusAllocation, investmentProducts }: Props) {
+export default function InvestSurplusCard({
+  surplusAllocation,
+  investmentProducts,
+  topGoalGrowlioAccountId,
+  topGoalAcceleration,
+}: Props) {
   if (!GROWLIO_APP_URL) return null;
   const emergencyFundPortion = Number(surplusAllocation.emergency_fund_portion);
   const investablePortion = Number(surplusAllocation.investable_portion);
@@ -60,6 +71,11 @@ export default function InvestSurplusCard({ surplusAllocation, investmentProduct
               </a>
             ))}
           </div>
+          {topGoalAcceleration && targets.some((p) => p.growlio_account_id === topGoalGrowlioAccountId) && (
+            <p className="text-xs text-emerald-600 dark:text-emerald-400">
+              지금 넣으면 우리 부부 목표 달성을 {topGoalAcceleration.monthsSaved}개월 앞당길 수 있어요
+            </p>
+          )}
         </>
       )}
     </div>
