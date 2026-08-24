@@ -19,9 +19,9 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
-    """kind='irregular'(기간제 비정기 지출 목표) 전용 월별 목표/달성 금액 테이블을 추가한다 —
-    financial_goals.kind에 새 값 'irregular'가 쓰일 수 있지만 별도 컬럼 변경은 필요 없다
-    (kind는 이미 String(10), CHECK 제약 없음)."""
+    """장기목표(kind='goal')의 월별 목표/달성 금액 테이블을 추가한다. 추가 당시에는 기간제
+    비정기 지출 목표(kind='irregular') 전용이었으나 이후 'goal'로 통합되며 'irregular' kind
+    자체가 폐지됐다 — 이 테이블 자체는 그대로 재사용된다."""
     op.create_table(
         'goal_monthly_targets',
         sa.Column('id', sa.Integer(), nullable=False),

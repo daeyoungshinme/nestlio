@@ -2,8 +2,9 @@ import { useState } from "react";
 import type { FormEvent } from "react";
 import Button from "@/components/common/Button";
 import FormInput from "@/components/common/FormInput";
+import OwnerSelect from "@/components/accounts/OwnerSelect";
 import { INPUT_SM, LABEL_SM } from "@/constants/inputStyles";
-import type { EventCreateIn, EventFrequency, EventOut } from "@/types";
+import type { EventCreateIn, EventFrequency, EventOut, UserOut } from "@/types";
 
 const REMINDER_OPTIONS: { value: string; label: string }[] = [
   { value: "", label: "없음" },
@@ -26,6 +27,7 @@ export interface EventFormValues {
   frequency: EventFrequency;
   recurrence_end_date: string;
   reminder_minutes_before: string;
+  assignee_id: string;
 }
 
 function splitOccurrence(iso: string): { date: string; time: string } {
@@ -46,6 +48,7 @@ export function emptyEventFormValues(dateHint: string): EventFormValues {
     frequency: "once",
     recurrence_end_date: "",
     reminder_minutes_before: "",
+    assignee_id: "",
   };
 }
 
@@ -64,6 +67,7 @@ export function eventToFormValues(event: EventOut): EventFormValues {
     frequency: event.frequency,
     recurrence_end_date: event.recurrence_end_date ?? "",
     reminder_minutes_before: event.reminder_minutes_before != null ? String(event.reminder_minutes_before) : "",
+    assignee_id: event.assignee?.id ?? "",
   };
 }
 
@@ -71,10 +75,11 @@ interface Props {
   initialValues: EventFormValues;
   submitLabel: string;
   submitting?: boolean;
+  users?: UserOut[];
   onSubmit: (payload: EventCreateIn) => void;
 }
 
-export default function EventForm({ initialValues, submitLabel, submitting, onSubmit }: Props) {
+export default function EventForm({ initialValues, submitLabel, submitting, users, onSubmit }: Props) {
   const [form, setForm] = useState<EventFormValues>(initialValues);
 
   const handleSubmit = (e: FormEvent) => {
@@ -90,6 +95,7 @@ export default function EventForm({ initialValues, submitLabel, submitting, onSu
       frequency: form.frequency,
       recurrence_end_date: form.frequency !== "once" && form.recurrence_end_date ? form.recurrence_end_date : null,
       reminder_minutes_before: form.reminder_minutes_before ? Number(form.reminder_minutes_before) : null,
+      assignee_id: form.assignee_id || null,
     });
   };
 
@@ -154,6 +160,12 @@ export default function EventForm({ initialValues, submitLabel, submitting, onSu
         label="장소 (선택)"
         value={form.location}
         onChange={(e) => setForm((f) => ({ ...f, location: e.target.value }))}
+      />
+      <OwnerSelect
+        label="담당자"
+        value={form.assignee_id}
+        onChange={(value) => setForm((f) => ({ ...f, assignee_id: value }))}
+        users={users}
       />
       <div>
         <label className={`block mb-1 font-medium ${LABEL_SM}`}>설명 (선택)</label>

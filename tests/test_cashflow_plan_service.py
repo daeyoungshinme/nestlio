@@ -213,8 +213,22 @@ def test_split_item_into_months_distributes_remainder_and_dates(seeded_db):
     assert all(i.installment_total == 12 for i in created)
     assert all(i.installment_total_amount == Decimal("1000000") for i in created)
     # 1,000,000 / 12 = 83,333.33.., remainder distributed 1원씩 to the first months
-    assert created[0].amount == Decimal("83333.34")
-    assert created[-1].amount == Decimal("83333.33")
+    assert created[0].amount == Decimal("83334")
+    assert created[-1].amount == Decimal("83333")
+
+
+def test_split_item_into_months_remainder_matches_frontend(seeded_db):
+    """frontend/src/utils/__tests__/monthRange.test.ts의 "distributes the remainder 1 won at a
+    time" 테스트와 정확히 같은 입력(100,000원 / 3개월)을 쓴다 — 두 구현 모두 1원 단위로 나머지를
+    앞쪽 달부터 배분하므로 결과가 같아야 한다. 반올림 단위가 둘 중 한쪽만 바뀌면 이 테스트와
+    monthRange.test.ts를 나란히 비교해 알아챌 수 있어야 한다."""
+    db, user = seeded_db["db"], seeded_db["user"]
+
+    created = cashflow_plan_service.split_item_into_months(
+        db, "irregular", None, "테스트", Decimal("100000"), "2026-09", 3, 0, user.id
+    )
+
+    assert [i.amount for i in created] == [Decimal("33334"), Decimal("33333"), Decimal("33333")]
 
 
 def test_split_item_then_editing_one_month_does_not_affect_others(seeded_db):

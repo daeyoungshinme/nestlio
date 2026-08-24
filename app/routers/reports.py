@@ -5,7 +5,6 @@ from typing import Literal
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
-from app.constants.benchmark_groups import BENCHMARK_GROUPS
 from app.database import get_db
 from app.dependencies import get_current_user
 from app.models.user import User
@@ -45,7 +44,7 @@ def yearly(
     owner_filter = _parse_owner_filter(owner)
     breakdown = transaction_report_service.category_breakdown_by_owner(db, start, end, "expense", owner_filter)
     thresholds = coaching_settings_service.get_thresholds(db)
-    benchmark_pcts = {group: thresholds[f"benchmark_{group}_warn_pct"] for group in BENCHMARK_GROUPS if group != "other"}
+    benchmark_pcts = coaching_engine.benchmark_pcts_from_thresholds(thresholds)
     benchmark = coaching_engine.category_benchmark_rows(totals, breakdown, benchmark_pcts)
     return {
         "year": year,

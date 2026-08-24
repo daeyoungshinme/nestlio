@@ -1,3 +1,4 @@
+import uuid
 from datetime import date, datetime
 from typing import Literal
 
@@ -24,6 +25,9 @@ class EventOut(BaseModel):
     recurrence_end_date: date | None = None
     reminder_minutes_before: int | None = None
     creator: UserOut
+    # 담당자 - None이면 공동(두 사람 모두 담당)
+    assignee: UserOut | None = None
+    completed_at: datetime | None = None
     source: EventSource
     # 반복 일정에서 이번 조회 범위에 해당하는 실제 발생 시각(단일 일정은 start_at과 동일)
     occurrence_start: datetime
@@ -52,7 +56,12 @@ class EventCreateIn(BaseModel):
     frequency: EventFrequency = "once"
     recurrence_end_date: date | None = None
     reminder_minutes_before: int | None = None
+    assignee_id: uuid.UUID | None = None
 
 
 class EventUpdateIn(EventCreateIn):
     pass
+
+
+class EventCompleteIn(BaseModel):
+    completed: bool

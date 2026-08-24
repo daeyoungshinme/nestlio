@@ -147,12 +147,11 @@ def compute_progress_pct(current_amount: Decimal, required_amount: Decimal) -> D
     return min(current_amount / required_amount * 100, Decimal("100"))
 
 
-def effective_status(goal: FinancialGoal, today: date | None = None) -> str | None:
+def effective_status(goal: FinancialGoal, today: date) -> str | None:
     """kind="challenge"에서만 의미 있는 표시용 상태 — 저장된 status에 'expired'(기간 종료 +
     미달성)를 얹어 매번 계산한다(스케줄러 job 없이도 항상 정확). 일반 목표(kind="goal")는 None."""
     if goal.kind != "challenge":
         return None
-    today = today or date.today()
     if goal.status == "active" and goal.target_date is not None and today > goal.target_date:
         return "expired"
     return goal.status
@@ -451,12 +450,11 @@ def update_monthly_target_achieved(
     return goal
 
 
-def sync_challenge_statuses(db: Session, now: datetime | None = None) -> list[FinancialGoal]:
+def sync_challenge_statuses(db: Session, now: datetime) -> list[FinancialGoal]:
     """매일 안전망(app/scheduler/jobs.py::daily_threshold_safety_net) 전용 — 목표를 수정하지
     않아도 연동 잔액(저축상품 이자, 계좌 입금 등)이 자연히 늘어 목표액을 넘긴 challenge를
     succeeded로 전환한다. 저장 이벤트가 없으면 _apply_challenge_completion이 호출될 기회 자체가
     없다는 문제의 보완책. active 상태인 challenge만 재검사한다."""
-    now = now or datetime.now()
     transitioned: list[FinancialGoal] = []
     challenges = (
         db.query(FinancialGoal)

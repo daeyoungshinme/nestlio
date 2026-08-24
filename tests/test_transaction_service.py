@@ -1,3 +1,4 @@
+import uuid
 from datetime import date
 from decimal import Decimal
 from unittest.mock import patch
@@ -417,6 +418,80 @@ def test_category_breakdown_by_owner_splits_per_spouse_and_shared(seeded_db):
     assert [row["amount"] for row in spouse2_breakdown] == [Decimal("30000")]
     assert [row["amount"] for row in shared_breakdown] == [Decimal("100000")]
     assert sum((row["amount"] for row in all_breakdown), Decimal("0")) == Decimal("930000")
+
+
+@pytest.mark.parametrize(
+    "owner_totals",
+    [
+        [],
+        [{"owner_user_id": None, "display_name": "공통", "savings": Decimal("100000")}],
+        [{"owner_user_id": uuid.uuid4(), "display_name": "혼자", "savings": Decimal("100000")}],
+    ],
+)
+def test_rank_owner_contributions_none_when_fewer_than_two_contributors(owner_totals):
+    assert transaction_report_service.rank_owner_contributions(owner_totals) is None
+
+
+def test_rank_owner_contributions_marks_sole_leader():
+    id1, id2 = uuid.uuid4(), uuid.uuid4()
+    owner_totals = [
+        {"owner_user_id": id1, "display_name": "민준", "savings": Decimal("300000")},
+        {"owner_user_id": id2, "display_name": "서연", "savings": Decimal("500000")},
+    ]
+
+    ranked = transaction_report_service.rank_owner_contributions(owner_totals)
+
+    assert [o["display_name"] for o in ranked] == ["서연", "민준"]  # savings 내림차순
+    assert ranked[0]["is_leader"] is True
+    assert ranked[1]["is_leader"] is False
+
+
+def test_rank_owner_contributions_no_leader_on_tie():
+    id1, id2 = uuid.uuid4(), uuid.uuid4()
+    owner_totals = [
+        {"owner_user_id": id1, "display_name": "민준", "savings": Decimal("400000")},
+        {"owner_user_id": id2, "display_name": "서연", "savings": Decimal("400000")},
+    ]
+
+    ranked = transaction_report_service.rank_owner_contributions(owner_totals)
+
+    assert all(o["is_leader"] is False for o in ranked)
+
+
+def test_owner_spending_detail_batches_across_owners(seeded_db):
+    """owner_spending_detail()이 owner마다 반복 쿼리하지 않고 배치 조회한 결과가, 여전히
+    owner별 최근 3개월 평균 대비 초과 지출만 하이라이트하는지 확인한다."""
+    db, user, food = seeded_db["db"], seeded_db["user"], seeded_db["food"]
+    spouse2 = User(email="spouse2@example.com", display_name="Spouse 2")
+    db.add(spouse2)
+    db.commit()
+    db.refresh(spouse2)
+
+    # spouse2: 최근 3개월(4~6월) 식비 평균 10,000원, 이번 달(7월)은 40,000원 -> 초과 하이라이트
+    for month in (4, 5, 6):
+        transaction_service.create_transaction(
+            db, user.id, food.id, "expense", Decimal("10000"), date(2026, month, 5), owner_user_id=spouse2.id
+        )
+    transaction_service.create_transaction(
+        db, user.id, food.id, "expense", Decimal("40000"), date(2026, 7, 10), owner_user_id=spouse2.id
+    )
+    # spouse1(user): 매달 동일 금액 -> 평균과 같아 하이라이트 없음
+    for month in (4, 5, 6, 7):
+        transaction_service.create_transaction(
+            db, user.id, food.id, "expense", Decimal("20000"), date(2026, month, 15), owner_user_id=user.id
+        )
+
+    owner_totals = transaction_report_service.totals_by_owner(db, date(2026, 7, 1), date(2026, 7, 31))
+    highlights = transaction_report_service.owner_spending_detail(
+        db, date(2026, 7, 1), date(2026, 7, 31), owner_totals, date(2026, 7, 1)
+    )
+
+    by_owner = {h["owner_user_id"]: h for h in highlights}
+    assert user.id not in by_owner
+    assert spouse2.id in by_owner
+    assert by_owner[spouse2.id]["category_name"] == "식비"
+    assert by_owner[spouse2.id]["amount"] == Decimal("40000")
+    assert by_owner[spouse2.id]["avg_amount"] == Decimal("10000")
 
 
 def test_top_overspend_categories_only_returns_categories_above_average():

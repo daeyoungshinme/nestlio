@@ -1,3 +1,24 @@
+def test_get_growlio_goal_settings_returns_501_when_not_configured(client, seeded_db):
+    """GROWLIO_API_BASE_URL 미설정(GrowlioNotConfiguredError)이면 app.main의 전역 핸들러가
+    501로 매핑한다 — growlio_client.fetch_investment_goal을 직접 patch해서, 이 개발 환경의
+    실제 .env GROWLIO_API_BASE_URL 값과 무관하게 그 상황을 재현한다."""
+    from unittest.mock import patch
+
+    from app.dependencies import get_bearer_token
+    from app.main import app as fastapi_app
+    from app.services.growlio_client import GrowlioNotConfiguredError
+
+    fastapi_app.dependency_overrides[get_bearer_token] = lambda: "fake-jwt"
+
+    with patch(
+        "app.services.goal_service.growlio_client.fetch_investment_goal",
+        side_effect=GrowlioNotConfiguredError("growlio 연동이 설정되지 않았습니다."),
+    ):
+        resp = client.get("/api/v1/financial-goals/growlio-goal")
+
+    assert resp.status_code == 501
+
+
 def test_create_and_list_goal(client, seeded_db):
     resp = client.post(
         "/api/v1/financial-goals",

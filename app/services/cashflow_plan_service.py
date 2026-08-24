@@ -84,9 +84,11 @@ def split_item_into_months(
     category_id: int | None = None,
 ) -> list[CashflowPlanItem]:
     """총액을 `months`개월로 나눠 `start_year_month`부터 매월 계획 항목을 생성한다 (할부처럼 분할).
-    나눗셈 나머지는 앞쪽 달부터 1원 단위로 얹어 합계가 총액과 정확히 일치하도록 한다.
+    나눗셈 나머지는 앞쪽 달부터 1원 단위로 얹어 합계가 총액과 정확히 일치하도록 한다 — KRW는
+    소수점 단위가 없으므로 원 단위로 quantize한다. frontend/src/utils/monthRange.ts의
+    distributeAmountEvenly()와 같은 나머지 보정 규칙이다.
     생성된 각 행은 이후 서로 독립적으로 수정/삭제된다 (그룹 전체에 영향 없음)."""
-    unit = Decimal("0.01")
+    unit = Decimal("1")
     base = (total_amount / months).quantize(unit, rounding=ROUND_DOWN)
     remainder_units = int((total_amount - base * months) / unit)
 

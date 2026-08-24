@@ -106,15 +106,15 @@ def _savings_streak(db: Session, end: date) -> int:
 def _contribution_summary_text(owner_totals: list[dict]) -> str | None:
     """부부 각자의 저축 기여도(totals_by_owner, owner_user_id 기준 실제 지출/저축 주체)를 한 줄로
     요약한다 — 대시보드 CoupleContributionCard와 같은 축. "공통" 항목과 1인 가구는 비교 대상이
-    아니므로 생략."""
-    contributors = [o for o in owner_totals if o["owner_user_id"] is not None]
-    if len(contributors) < 2:
+    아니므로 생략(정렬·리더 판정은 transaction_report_service.rank_owner_contributions 공유)."""
+    ranked = transaction_report_service.rank_owner_contributions(owner_totals)
+    if ranked is None:
         return None
-    ranked = sorted(contributors, key=lambda o: o["savings"], reverse=True)
     parts = [f"{o['display_name']} {o['savings']:,.0f}원" for o in ranked]
     line = "부부 저축 기여도: " + " · ".join(parts)
-    if ranked[0]["savings"] > ranked[1]["savings"]:
-        line += f" — {ranked[0]['display_name']}님이 이번엔 더 모았어요"
+    leader = next((o for o in ranked if o["is_leader"]), None)
+    if leader:
+        line += f" — {leader['display_name']}님이 이번엔 더 모았어요"
     return line
 
 

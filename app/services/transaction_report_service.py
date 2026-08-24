@@ -125,6 +125,18 @@ def totals_by_owner(db: Session, date_from: date, date_to: date) -> list[dict]:
     return sorted(result, key=lambda r: (r["owner_user_id"] is None, r["display_name"]))
 
 
+def rank_owner_contributions(owner_totals: list[dict]) -> list[dict] | None:
+    """totals_by_owner() 결과에서 "공통" 항목을 제외한 실제 배우자 기여자가 2명 이상일 때만,
+    savings 내림차순으로 정렬하고 단독 1위(동점이 아닐 때)에게 is_leader=True를 매긴 리스트를
+    반환한다. 주간/월간 이메일 요약의 텍스트/HTML 버전이 이 정렬·리더 판정을 공유한다."""
+    contributors = [o for o in owner_totals if o["owner_user_id"] is not None]
+    if len(contributors) < 2:
+        return None
+    ranked = sorted(contributors, key=lambda o: o["savings"], reverse=True)
+    sole_leader = ranked[0]["savings"] > ranked[1]["savings"]
+    return [{**o, "is_leader": sole_leader and i == 0} for i, o in enumerate(ranked)]
+
+
 def _category_breakdown_base_query(db: Session, date_from: date, date_to: date, type_: str):
     return (
         db.query(
@@ -194,23 +206,81 @@ def category_breakdown_by_owner(
     return _rows_to_category_amounts(rows)
 
 
-def trailing_average_by_category_by_owner(
-    db: Session,
-    anchor: date,
-    owner: uuid.UUID | Literal["shared"] | None,
-    months: int = 3,
-    type_: str = "expense",
-) -> dict[int, Decimal]:
-    """trailing_average_by_category()의 owner-scoped 버전 — anchor 이전 `months`개월의
-    category_breakdown_by_owner()를 반복 호출해 평균을 낸다. owner별 하이라이트는 top-N만
-    필요해 호출 빈도가 낮으므로, 가구 전체용처럼 배치 쿼리로 최적화하지 않는다."""
+def _category_breakdown_by_owner_batch(
+    db: Session, date_from: date, date_to: date, type_: str
+) -> dict[uuid.UUID | Literal["shared"], list[dict]]:
+    """category_breakdown_by_owner()를 모든 owner에 대해 쿼리 1개로 배치 조회한 버전."""
+    rows = (
+        db.query(
+            Transaction.owner_user_id,
+            Category.id,
+            Category.name,
+            Category.color,
+            Category.type,
+            Category.is_discretionary,
+            Category.is_debt,
+            Category.benchmark_group,
+            func.sum(Transaction.amount),
+        )
+        .join(Category, Transaction.category_id == Category.id)
+        .filter(
+            Transaction.type == type_,
+            Transaction.transaction_date >= date_from,
+            Transaction.transaction_date <= date_to,
+            Transaction.savings_product_id.is_(None),
+        )
+        .group_by(Transaction.owner_user_id, Category.id)
+        .order_by(func.sum(Transaction.amount).desc())
+        .all()
+    )
+    by_owner: dict[uuid.UUID | Literal["shared"], list[dict]] = {}
+    for owner_id, cat_id, name, color, cat_type, is_discretionary, is_debt, benchmark_group, amount in rows:
+        owner_key: uuid.UUID | Literal["shared"] = "shared" if owner_id is None else owner_id
+        by_owner.setdefault(owner_key, []).append(
+            {
+                "category_id": cat_id,
+                "name": name,
+                "color": color,
+                "type": cat_type,
+                "is_discretionary": is_discretionary,
+                "is_debt": is_debt,
+                "benchmark_group": benchmark_group,
+                "amount": amount or Decimal("0"),
+            }
+        )
+    return by_owner
+
+
+def _trailing_average_by_owner_batch(
+    db: Session, anchor: date, months: int = 3, type_: str = "expense"
+) -> dict[uuid.UUID | Literal["shared"], dict[int, Decimal]]:
+    """trailing_average_by_category_by_owner()를 모든 owner·달에 대해 쿼리 1개로 배치 조회한
+    버전 — owner별로 반복 호출하지 않는다(대시보드는 매 요청마다 이 계산을 필요로 한다)."""
     month_starts = [shift_month(anchor, -offset) for offset in range(1, months + 1)]
-    totals: dict[int, Decimal] = {}
-    for month_start in month_starts:
-        _, month_end = month_bounds(month_start)
-        for row in category_breakdown_by_owner(db, month_start, month_end, type_, owner):
-            totals[row["category_id"]] = totals.get(row["category_id"], Decimal("0")) + row["amount"]
-    return {cat_id: total / months for cat_id, total in totals.items()}
+    if not month_starts:
+        return {}
+    range_start = min(month_starts)
+    range_end = month_bounds(max(month_starts))[1]
+    rows = (
+        db.query(Transaction.owner_user_id, Transaction.category_id, Transaction.amount)
+        .join(Category, Transaction.category_id == Category.id)
+        .filter(
+            Transaction.type == type_,
+            Transaction.transaction_date >= range_start,
+            Transaction.transaction_date <= range_end,
+            Transaction.savings_product_id.is_(None),
+        )
+        .all()
+    )
+    totals: dict[uuid.UUID | Literal["shared"], dict[int, Decimal]] = {}
+    for owner_id, cat_id, amount in rows:
+        owner_key: uuid.UUID | Literal["shared"] = "shared" if owner_id is None else owner_id
+        bucket = totals.setdefault(owner_key, {})
+        bucket[cat_id] = bucket.get(cat_id, Decimal("0")) + (amount or Decimal("0"))
+    return {
+        owner_key: {cat_id: total / months for cat_id, total in cat_totals.items()}
+        for owner_key, cat_totals in totals.items()
+    }
 
 
 def top_overspend_categories(
@@ -241,29 +311,23 @@ def owner_spending_detail(
     date_to: date,
     owner_totals: list[dict],
     anchor_month_start: date,
-    top_n_categories: int = 5,
-) -> tuple[list[dict], list[dict]]:
-    """totals_by_owner()가 반환한 owner_totals(배우자 각각 + 공통) 각각에 대해 카테고리별
-    지출 top N과, 최근 3개월 평균보다 많이 늘어난 카테고리 하이라이트를 함께 만든다
-    (대시보드 "부부별 지출 상세" 카드용)."""
-    breakdown_out: list[dict] = []
+) -> list[dict]:
+    """totals_by_owner()가 반환한 owner_totals(배우자 각각 + 공통) 각각에 대해, 최근 3개월
+    평균보다 지출이 늘어난 카테고리 하이라이트를 만든다 (대시보드 "부부별 지출 상세" 카드용).
+    owner마다 반복 쿼리하지 않고 쿼리 2개(현재 기간 카테고리 breakdown, 최근 3개월 평균)로
+    전체 owner를 배치 조회한다."""
+    breakdown_by_owner = _category_breakdown_by_owner_batch(db, date_from, date_to, "expense")
+    avg_by_owner = _trailing_average_by_owner_batch(db, anchor_month_start)
     highlight_out: list[dict] = []
     for owner in owner_totals:
         owner_key: uuid.UUID | Literal["shared"] = "shared" if owner["owner_user_id"] is None else owner["owner_user_id"]
-        categories = category_breakdown_by_owner(db, date_from, date_to, "expense", owner_key)
-        breakdown_out.append(
-            {
-                "owner_user_id": owner["owner_user_id"],
-                "display_name": owner["display_name"],
-                "categories": categories[:top_n_categories],
-            }
-        )
-        avg_by_category = trailing_average_by_category_by_owner(db, anchor_month_start, owner_key)
+        categories = breakdown_by_owner.get(owner_key, [])
+        avg_by_category = avg_by_owner.get(owner_key, {})
         for highlight in top_overspend_categories(categories, avg_by_category, top_n=1):
             highlight_out.append(
                 {"owner_user_id": owner["owner_user_id"], "display_name": owner["display_name"], **highlight}
             )
-    return breakdown_out, highlight_out
+    return highlight_out
 
 
 def _monthly_totals_map(db: Session, month_starts: list[date]) -> dict[str, dict]:

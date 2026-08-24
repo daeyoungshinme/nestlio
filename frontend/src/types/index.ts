@@ -370,6 +370,9 @@ export interface EventOut {
   recurrence_end_date: string | null;
   reminder_minutes_before: number | null;
   creator: UserOut;
+  /** 담당자 - null이면 공동(두 사람 모두 담당) */
+  assignee: UserOut | null;
+  completed_at: string | null;
   source: EventSource;
   occurrence_start: string;
 }
@@ -395,6 +398,7 @@ export interface EventCreateIn {
   frequency?: EventFrequency;
   recurrence_end_date?: string | null;
   reminder_minutes_before?: number | null;
+  assignee_id?: string | null;
 }
 
 export type EventUpdateIn = EventCreateIn;

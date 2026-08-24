@@ -5,7 +5,6 @@ from typing import Literal
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
-from app.constants.benchmark_groups import BENCHMARK_GROUPS
 from app.database import get_db
 from app.dependencies import get_current_user
 from app.models.user import User
@@ -48,12 +47,14 @@ def dashboard(
     goals = goal_service.list_goals(db)
     actual_saved = net_worth_service.savings_delta(db, current_ym)
     month_start = month_bounds(anchor)[0]
-    _owner_category_breakdown, owner_overspend_highlights = transaction_report_service.owner_spending_detail(
+    owner_overspend_highlights = transaction_report_service.owner_spending_detail(
         db, start, end, owner_totals, month_start
     )
     trend = transaction_report_service.monthly_trend(db, months=6, anchor=end)
     fund_context = coaching_engine.emergency_fund_context(db, month_start)
     thresholds = coaching_settings_service.get_thresholds(db)
+    benchmark_pcts = coaching_engine.benchmark_pcts_from_thresholds(thresholds)
+    category_benchmarks = coaching_engine.category_benchmark_rows(totals, expense_breakdown, benchmark_pcts)
     insights = coaching_engine.compute_insights(
         db,
         current_ym,
@@ -63,9 +64,8 @@ def dashboard(
         actual_saved=actual_saved,
         fund_context=fund_context,
         thresholds=thresholds,
+        benchmark_rows=category_benchmarks,
     )
-    benchmark_pcts = {group: thresholds[f"benchmark_{group}_warn_pct"] for group in BENCHMARK_GROUPS if group != "other"}
-    category_benchmarks = coaching_engine.category_benchmark_rows(totals, expense_breakdown, benchmark_pcts)
     investable_surplus = coaching_engine.investable_surplus(totals, actual_saved)
     surplus_allocation = coaching_engine.compute_surplus_allocation(
         db, month_start=month_start, surplus=investable_surplus, fund_context=fund_context

@@ -7,7 +7,7 @@ from decimal import Decimal
 from sqlalchemy.orm import Session
 
 from app.config import settings
-from app.constants.benchmark_groups import BENCHMARK_GROUPS
+from app.constants.benchmark_groups import BENCHMARK_GROUPS, COMPARABLE_BENCHMARK_GROUPS
 from app.models.financial_goal import FinancialGoal
 from app.services import (
     budget_service,
@@ -149,6 +149,12 @@ def debt_ratio_insight(
 
 
 CATEGORY_BENCHMARK_TOP_N = 2
+
+
+def benchmark_pcts_from_thresholds(thresholds: dict[str, float]) -> dict[str, float]:
+    """category_benchmark_rows()에 넘길 group→경고 임계값 매핑을 settings/coaching_settings_service의
+    thresholds에서 뽑아낸다. "other"처럼 가이드라인이 없는 그룹은 COMPARABLE_BENCHMARK_GROUPS 기준으로 제외."""
+    return {group: thresholds[f"benchmark_{group}_warn_pct"] for group in COMPARABLE_BENCHMARK_GROUPS}
 
 
 def category_benchmark_rows(
@@ -349,8 +355,10 @@ def compute_insights(
     actual_saved: Decimal | None = None,
     fund_context: tuple[Decimal | None, Decimal | None] | None = None,
     thresholds: dict[str, float] | None = None,
+    benchmark_rows: list[dict] | None = None,
 ) -> list[Insight]:
-    """호출부가 이미 같은 기간의 totals/breakdown/goals/thresholds를 조회해둔 경우, 넘겨받아 재조회를 피한다."""
+    """호출부가 이미 같은 기간의 totals/breakdown/goals/thresholds/benchmark_rows를 조회·계산해둔
+    경우, 넘겨받아 재조회·재계산을 피한다."""
     year_month = year_month or year_month_str(date.today())
     month_start = parse_year_month(year_month)
     start, end = month_bounds(month_start)
@@ -384,8 +392,11 @@ def compute_insights(
     insights.extend(budget_overrun_insights(budget_rows))
     insights.extend(variable_spend_trend_insights(breakdown, trailing_avg))
 
-    benchmark_pcts = {group: thresholds[f"benchmark_{group}_warn_pct"] for group in BENCHMARK_GROUPS if group != "other"}
-    benchmark_rows = category_benchmark_rows(totals, breakdown, benchmark_pcts)
+    benchmark_rows = (
+        benchmark_rows
+        if benchmark_rows is not None
+        else category_benchmark_rows(totals, breakdown, benchmark_pcts_from_thresholds(thresholds))
+    )
     insights.extend(category_benchmark_insights(benchmark_rows)[:CATEGORY_BENCHMARK_TOP_N])
 
     current_balance, avg_fixed = fund_context if fund_context is not None else emergency_fund_context(db, month_start)

@@ -20,7 +20,7 @@
 - 모든 라우터는 `Depends(get_current_user)`(`app/dependencies.py`)로 인증하고 Pydantic `response_model`(`app/schemas/`)로 JSON을 직렬화한다. HTML/템플릿 렌더링은 없다.
 - 서비스 계층의 상세 컨벤션(함수 시그니처, Google 연동 가드, 결정론적 시간 처리 등)은 [app/services/CLAUDE.md](app/services/CLAUDE.md) 참고.
 - DB 세션은 `app/database.py`의 `get_db()` 의존성으로 요청 스코프에서 얻는다 (`Depends(get_db)`).
-- 설정값은 `app/config.py`의 모듈 전역 `settings` 인스턴스 하나를 어디서든 import해서 쓴다. 코칭엔진 임계값(저축률, 고정비 비율, 예산 경고/위험 %, 재량지출/부채 비율 등)도 여기 있다.
+- 설정값은 `app/config.py`의 모듈 전역 `settings` 인스턴스 하나를 어디서든 import해서 쓴다. 코칭엔진 임계값(저축률, 고정비 비율, 예산 경고/위험 %, 재량지출/부채 비율, 표준 카테고리별 지출 벤치마크 등)도 여기 있다.
 - 부부 전용 앱이라 로컬 `users`는 최대 2명(`app/services/user_service.py`의 `MAX_HOUSEHOLD_USERS`)으로 제한된다. 공개 회원가입 폼은 없지만, 인증된(Supabase JWT가 유효한) 요청이면 인원 상한에 도달하기 전까지는 첫 요청에서 바로 Supabase 사용자가 로컬 `User` 행으로 자동 미러링된다(`app/dependencies.py`의 `get_current_user`) — growlio처럼 같은 Supabase 프로젝트를 공유하는 계정도 이 두 자리 안에서는 초대 없이 로그인만으로 등록된다. 상한에 도달한 뒤에는 더 이상 새 계정이 생기지 않고 403이 반환된다. `app/services/invite_service.py`의 배우자 초대는 여전히 쓸 수 있지만 필수 경로는 아니다 — 표시 이름을 미리 지정해 초대장을 보내는 보조 수단으로, 초대 수락 시(`accept_invite`) 요청자의 검증된 JWT(`sub`/`email`)와 초대 이메일이 일치해야 표시 이름과 함께 `User` 행이 생성된다(클라이언트가 body로 보낸 `user_id`는 신뢰하지 않는다).
 
 ## 디렉토리별 컨벤션 (routers / schemas / models / utils)
@@ -48,7 +48,7 @@
 - CORS: `CORS_ORIGINS` (프론트엔드 오리진 목록)
 - 프론트엔드 오리진(배우자 초대 이메일의 가입 링크 조립용): `APP_BASE_URL`
 - 알림: `NOTIFY_EMAIL_TO`
-- 코칭엔진 임계값(0-100 %): `SAVINGS_RATE_*`, `FIXED_COST_RATIO_*`, `BUDGET_*_PCT`, `DISCRETIONARY_RATIO_WARN`, `DEBT_RATIO_WARN`
+- 코칭엔진 임계값(0-100 %): `SAVINGS_RATE_*`, `FIXED_COST_RATIO_*`, `BUDGET_*_PCT`, `DISCRETIONARY_RATIO_WARN`, `DEBT_RATIO_WARN`, `BENCHMARK_*_WARN_PCT`(표준 카테고리별 지출 벤치마크, 설정 화면에서 부부가 직접 조정 가능)
 - growlio 연동(계좌·부동산 잔액 조회/동기화, 저축·투자 거래 입출금 반영, 재무목표 프리필): `GROWLIO_API_BASE_URL` — 비어 있으면 연동 기능 전체가 꺼진다
 - 부부 사진 저장용 Supabase Storage: `SUPABASE_SERVICE_ROLE_KEY`, `SUPABASE_STORAGE_BUCKET`, `MAX_UPLOAD_SIZE_MB` — 백엔드가 `/media/couple-photo`에서 프록시로 서빙한다(`app/services/couple_photo_service.py`, `app/main.py`). 둘 중 하나라도 비어 있으면 "사진 없음"으로 동작한다.
 - 예약 작업 인증: `INTERNAL_JOB_SECRET` — GitHub Actions가 `/internal/jobs/{job_name}` 호출 시 `X-Internal-Job-Secret` 헤더로 보낸다.

@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.dependencies import get_current_user
 from app.models.user import User
-from app.schemas.event import EventCreateIn, EventImportResultOut, EventListOut, EventOut, EventUpdateIn
+from app.schemas.event import EventCompleteIn, EventCreateIn, EventImportResultOut, EventListOut, EventOut, EventUpdateIn
 from app.services import event_service, recurring_service
 from app.services.event_service import ImportedEventReadOnlyError
 from app.services.google_auth import GoogleNotConnectedError
@@ -65,6 +65,7 @@ def create_event(
         frequency=payload.frequency,
         recurrence_end_date=payload.recurrence_end_date,
         reminder_minutes_before=payload.reminder_minutes_before,
+        assignee_id=payload.assignee_id,
     )
     return event_service.to_out_dict(event)
 
@@ -90,9 +91,23 @@ def update_event(
             frequency=payload.frequency,
             recurrence_end_date=payload.recurrence_end_date,
             reminder_minutes_before=payload.reminder_minutes_before,
+            assignee_id=payload.assignee_id,
         )
     except ImportedEventReadOnlyError as exc:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(exc)) from exc
+    if event is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="일정을 찾을 수 없습니다.")
+    return event_service.to_out_dict(event)
+
+
+@router.patch("/{event_id}/complete", response_model=EventOut)
+def complete_event(
+    event_id: int,
+    payload: EventCompleteIn,
+    db: Session = Depends(get_db),
+    _: User = Depends(get_current_user),
+):
+    event = event_service.set_completed(db, event_id, completed=payload.completed)
     if event is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="일정을 찾을 수 없습니다.")
     return event_service.to_out_dict(event)

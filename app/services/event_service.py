@@ -57,6 +57,8 @@ def to_out_dict(event: Event, occurrence_start: datetime | None = None) -> dict:
         "recurrence_end_date": event.recurrence_end_date,
         "reminder_minutes_before": event.reminder_minutes_before,
         "creator": event.creator,
+        "assignee": event.assignee,
+        "completed_at": event.completed_at,
         "source": event.source,
         "occurrence_start": occurrence_start if occurrence_start is not None else event.start_at,
     }
@@ -98,6 +100,7 @@ def create_event(
     frequency: str = "once",
     recurrence_end_date: date | None = None,
     reminder_minutes_before: int | None = None,
+    assignee_id: uuid.UUID | None = None,
 ) -> Event:
     event = Event(
         title=title,
@@ -109,6 +112,7 @@ def create_event(
         frequency=frequency,
         recurrence_end_date=recurrence_end_date,
         reminder_minutes_before=reminder_minutes_before,
+        assignee_id=assignee_id,
         created_by=created_by,
     )
     db.add(event)
@@ -151,6 +155,22 @@ def delete_event(db: Session, event_id: int, actor_id: uuid.UUID, now: datetime 
     db.delete(event)
     db.commit()
     return True
+
+
+def set_completed(db: Session, event_id: int, completed: bool, now: datetime | None = None) -> Event | None:
+    """완료 체크 토글 - google_import 일정도 허용한다(원본 내용 수정이 아니라 nestlio 로컬
+    메타데이터일 뿐이므로 update_event의 ImportedEventReadOnlyError 가드를 적용하지 않는다).
+    구글 캘린더에는 완료 개념이 없어 _sync_to_google을 호출하지 않고, 체크박스 토글마다 배우자에게
+    메일이 가면 과도하므로 _notify_other_spouse도 호출하지 않는다(담당자 배정 자체는 create_event/
+    update_event가 이미 알린다)."""
+    now = now or datetime.now()
+    event = db.get(Event, event_id)
+    if event is None:
+        return None
+    event.completed_at = now if completed else None
+    db.commit()
+    db.refresh(event)
+    return event
 
 
 def _parse_google_event(item: dict) -> dict | None:

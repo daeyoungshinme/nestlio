@@ -1,3 +1,4 @@
+import uuid
 from datetime import date, datetime
 from decimal import Decimal
 from unittest.mock import patch
@@ -271,6 +272,64 @@ def test_challenge_success_celebration_skips_while_active(mock_send, seeded_db):
 
     assert sent is False
     mock_send.assert_not_called()
+
+
+@pytest.mark.parametrize(
+    "owner_totals",
+    [
+        [],
+        [{"owner_user_id": None, "display_name": "공통", "savings": Decimal("100000")}],
+        [{"owner_user_id": uuid.uuid4(), "display_name": "혼자", "savings": Decimal("100000")}],
+    ],
+)
+def test_contribution_summary_text_skips_when_fewer_than_two_contributors(owner_totals):
+    assert notification_service._contribution_summary_text(owner_totals) is None
+
+
+def test_contribution_summary_text_declares_leader_when_savings_differ():
+    id1, id2 = uuid.uuid4(), uuid.uuid4()
+    owner_totals = [
+        {"owner_user_id": id1, "display_name": "민준", "savings": Decimal("300000")},
+        {"owner_user_id": id2, "display_name": "서연", "savings": Decimal("500000")},
+    ]
+
+    text = notification_service._contribution_summary_text(owner_totals)
+
+    assert text is not None
+    assert "이번엔 더 모았어요" in text
+    assert text.index("서연") < text.index("민준")  # savings 내림차순 = 1위가 먼저 나열
+
+
+def test_contribution_summary_text_omits_leader_line_on_tie():
+    id1, id2 = uuid.uuid4(), uuid.uuid4()
+    owner_totals = [
+        {"owner_user_id": id1, "display_name": "민준", "savings": Decimal("400000")},
+        {"owner_user_id": id2, "display_name": "서연", "savings": Decimal("400000")},
+    ]
+
+    text = notification_service._contribution_summary_text(owner_totals)
+
+    assert text is not None
+    assert "더 모았어요" not in text
+
+
+def test_savings_streak_counts_consecutive_months_meeting_goal_pace(seeded_db):
+    db, user, food = seeded_db["db"], seeded_db["user"], seeded_db["food"]
+    from app.services import transaction_service
+
+    goal_service.create_goal(db, 1, "비상금", None, Decimal("1000000"), Decimal("100000"))
+    # 최근 2개월(6/7월)은 저축액(400,000)이 목표(100,000)를 넘지만, 그 이전 달(5월)은 못 미친다.
+    for month, income, expense in [(5, 200000, 190000), (6, 500000, 100000), (7, 500000, 100000)]:
+        transaction_service.create_transaction(
+            db, user.id, food.id, "income", Decimal(income), date(2026, month, 1)
+        )
+        transaction_service.create_transaction(
+            db, user.id, food.id, "expense", Decimal(expense), date(2026, month, 15)
+        )
+
+    streak = notification_service._savings_streak(db, date(2026, 7, 31))
+
+    assert streak == 2
 
 
 def _second_user(db) -> User:

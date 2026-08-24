@@ -146,6 +146,58 @@ def test_delete_imported_event_returns_204_and_hides_from_list(client, seeded_db
     assert imported.id not in [item["id"] for item in list_resp.json()["items"]]
 
 
+def test_create_event_with_assignee_and_complete_toggle(client, seeded_db):
+    user = seeded_db["user"]
+    create_resp = client.post(
+        "/api/v1/events",
+        json={
+            "title": "장보기",
+            "start_at": "2026-07-15T10:00:00",
+            "frequency": "once",
+            "assignee_id": str(user.id),
+        },
+    )
+    assert create_resp.status_code == 201
+    body = create_resp.json()
+    assert body["assignee"]["id"] == str(user.id)
+    assert body["completed_at"] is None
+    event_id = body["id"]
+
+    complete_resp = client.patch(f"/api/v1/events/{event_id}/complete", json={"completed": True})
+    assert complete_resp.status_code == 200
+    assert complete_resp.json()["completed_at"] is not None
+
+    uncomplete_resp = client.patch(f"/api/v1/events/{event_id}/complete", json={"completed": False})
+    assert uncomplete_resp.status_code == 200
+    assert uncomplete_resp.json()["completed_at"] is None
+
+
+def test_complete_missing_event_returns_404(client):
+    resp = client.patch("/api/v1/events/999999/complete", json={"completed": True})
+    assert resp.status_code == 404
+
+
+def test_complete_imported_event_is_allowed(client, seeded_db):
+    db, user = seeded_db["db"], seeded_db["user"]
+    imported = Event(
+        title="치과 예약",
+        start_at=datetime(2026, 7, 10, 9, 0),
+        all_day=False,
+        frequency="once",
+        source="google_import",
+        google_calendar_event_id="gcal-1",
+        created_by=user.id,
+    )
+    db.add(imported)
+    db.commit()
+    db.refresh(imported)
+
+    resp = client.patch(f"/api/v1/events/{imported.id}/complete", json={"completed": True})
+
+    assert resp.status_code == 200
+    assert resp.json()["completed_at"] is not None
+
+
 def test_weekly_event_expands_into_multiple_occurrences(client):
     client.post(
         "/api/v1/events",

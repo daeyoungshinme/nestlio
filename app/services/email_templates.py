@@ -3,6 +3,7 @@
 from datetime import date
 from decimal import Decimal
 
+from app.services import transaction_report_service
 from app.services.coaching_engine import Insight
 
 _FONT = "-apple-system, BlinkMacSystemFont, 'Segoe UI', 'Malgun Gothic', 'Apple SD Gothic Neo', sans-serif"
@@ -172,17 +173,16 @@ def _streak_banner(streak: int) -> str:
 def _contribution_section(owner_totals: list[dict] | None) -> str:
     """부부 각자의 저축 기여도 비교 — 이메일이 "혼자 보는 경고"가 아니라 "함께 보는 성과
     요약"이 되도록, 대시보드 CoupleContributionCard와 같은 축(owner_user_id 기준 저축액)으로
-    누가 이번 기간 더 모았는지 보여준다. "공통" 항목과 1인 가구는 비교 대상이 아니므로 생략."""
+    누가 이번 기간 더 모았는지 보여준다. "공통" 항목과 1인 가구는 비교 대상이 아니므로 생략
+    (정렬·리더 판정은 transaction_report_service.rank_owner_contributions 공유)."""
     if not owner_totals:
         return ""
-    contributors = [o for o in owner_totals if o["owner_user_id"] is not None]
-    if len(contributors) < 2:
+    ranked = transaction_report_service.rank_owner_contributions(owner_totals)
+    if ranked is None:
         return ""
-    ranked = sorted(contributors, key=lambda o: o["savings"], reverse=True)
-    leader_id = ranked[0]["owner_user_id"] if ranked[0]["savings"] > ranked[1]["savings"] else None
     rows = []
     for o in ranked:
-        is_leader = o["owner_user_id"] == leader_id
+        is_leader = o["is_leader"]
         crown = " \U0001F451" if is_leader else ""
         color = _SUCCESS if is_leader else _TEXT
         rows.append(f"""<tr>

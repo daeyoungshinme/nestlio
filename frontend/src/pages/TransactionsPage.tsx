@@ -29,7 +29,7 @@ import TransactionForm from "@/components/transactions/TransactionForm";
 import DailyTransactionGroups from "@/components/transactions/DailyTransactionGroups";
 import ExpenseCategoryGroups from "@/components/transactions/ExpenseCategoryGroups";
 import SavingsLinkedTransactionsSection from "@/components/transactions/SavingsLinkedTransactionsSection";
-import EventForm, { emptyEventFormValues, eventToFormValues } from "@/components/transactions/EventForm";
+import EventForm, { emptyEventFormValues } from "@/components/transactions/EventForm";
 import RecurringManageSheet from "@/components/transactions/RecurringManageSheet";
 import TransactionFilterSheet, {
   filterSummaryLabel,
@@ -49,7 +49,7 @@ import {
   fetchTransactionsCsv,
   updateTransaction,
 } from "@/api/transactions";
-import { createEvent, deleteEvent, fetchEvents, importGoogleEvents, updateEvent } from "@/api/events";
+import { completeEvent, createEvent, fetchEvents, importGoogleEvents } from "@/api/events";
 import { useSwipeMonth } from "@/hooks/useSwipeMonth";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { useInvalidateTransactionRelated } from "@/hooks/useInvalidateTransactionRelated";
@@ -112,9 +112,8 @@ export default function TransactionsPage() {
   const [formTarget, setFormTarget] = useState<"new" | TransactionOut | null>(null);
   const [createDate, setCreateDate] = useState(todayIso());
   const [deleteTarget, setDeleteTarget] = useState<TransactionOut | null>(null);
-  const [eventFormTarget, setEventFormTarget] = useState<"new" | EventOut | null>(null);
+  const [eventFormOpen, setEventFormOpen] = useState(false);
   const [eventCreateDate, setEventCreateDate] = useState(todayIso());
-  const [eventDeleteTarget, setEventDeleteTarget] = useState<EventOut | null>(null);
   const [showMoreMenu, setShowMoreMenu] = useState(false);
   const [showRecurringSheet, setShowRecurringSheet] = useState(false);
   const [showFilterSheet, setShowFilterSheet] = useState(false);
@@ -340,35 +339,15 @@ export default function TransactionsPage() {
     mutationFn: createEvent,
     onSuccess: () => {
       invalidateEvents();
-      setEventFormTarget(null);
+      setEventFormOpen(false);
       toast("일정을 등록했습니다.", "success");
     },
     onError: (err) => toast(extractErrorMessage(err), "error"),
   });
 
-  const updateEventMutation = useMutation({
-    mutationFn: ({ id, payload }: { id: number; payload: Parameters<typeof updateEvent>[1] }) =>
-      updateEvent(id, payload),
-    onSuccess: () => {
-      invalidateEvents();
-      setEventFormTarget(null);
-      toast("일정을 수정했습니다.", "success");
-    },
-    onError: (err) => toast(extractErrorMessage(err), "error"),
-  });
-
-  const deleteEventMutation = useMutation({
-    mutationFn: ({ id }: { id: number; source: EventOut["source"] }) => deleteEvent(id),
-    onSuccess: (_data, variables) => {
-      invalidateEvents();
-      setEventDeleteTarget(null);
-      toast(
-        variables.source === "google_import"
-          ? "Google 캘린더 일정을 목록에서 숨겼습니다."
-          : "일정을 삭제했습니다.",
-        "success",
-      );
-    },
+  const completeEventMutation = useMutation({
+    mutationFn: ({ id, completed }: { id: number; completed: boolean }) => completeEvent(id, completed),
+    onSuccess: invalidateEvents,
     onError: (err) => toast(extractErrorMessage(err), "error"),
   });
 
@@ -398,15 +377,9 @@ export default function TransactionsPage() {
     setFormTarget(tx);
   };
 
-  const openCreateEvent = (dateHint?: string) => {
-    setSelectedDate(null);
-    setEventCreateDate(dateHint ?? defaultDateHint(yearMonth));
-    setEventFormTarget("new");
-  };
-
-  const openEditEvent = (event: EventOut) => {
-    setSelectedDate(null);
-    setEventFormTarget(event);
+  const openCreateEvent = () => {
+    setEventCreateDate(defaultDateHint(yearMonth));
+    setEventFormOpen(true);
   };
 
   if (categoriesError || accountsError || savingsProductsError) {
@@ -430,7 +403,7 @@ export default function TransactionsPage() {
   }
 
   const isSaving = createMutation.isPending || updateMutation.isPending;
-  const isSavingEvent = createEventMutation.isPending || updateEventMutation.isPending;
+  const isSavingEvent = createEventMutation.isPending;
 
   return (
     <div className="space-y-6">
@@ -595,12 +568,9 @@ export default function TransactionsPage() {
             setSelectedDate(null);
             setDeleteTarget(tx);
           }}
-          onAddEvent={() => openCreateEvent(selectedDate)}
-          onEditEvent={openEditEvent}
-          onDeleteEvent={(event) => {
-            setSelectedDate(null);
-            setEventDeleteTarget(event);
-          }}
+          onToggleComplete={(event) =>
+            completeEventMutation.mutate({ id: event.id, completed: !event.completed_at })
+          }
         />
       )}
 
@@ -642,20 +612,15 @@ export default function TransactionsPage() {
         </Modal>
       )}
 
-      {eventFormTarget && (
-        <Modal onClose={() => setEventFormTarget(null)} title={eventFormTarget === "new" ? "새 일정" : "일정 수정"}>
+      {eventFormOpen && (
+        <Modal onClose={() => setEventFormOpen(false)} title="새 일정">
           <div className="p-6 overflow-y-auto">
             <EventForm
-              initialValues={
-                eventFormTarget === "new" ? emptyEventFormValues(eventCreateDate) : eventToFormValues(eventFormTarget)
-              }
-              submitLabel={eventFormTarget === "new" ? "추가" : "저장"}
+              initialValues={emptyEventFormValues(eventCreateDate)}
+              submitLabel="추가"
               submitting={isSavingEvent}
-              onSubmit={(payload) =>
-                eventFormTarget === "new"
-                  ? createEventMutation.mutate(payload)
-                  : updateEventMutation.mutate({ id: eventFormTarget.id, payload })
-              }
+              users={users}
+              onSubmit={(payload) => createEventMutation.mutate(payload)}
             />
           </div>
         </Modal>
@@ -666,20 +631,6 @@ export default function TransactionsPage() {
           message="이 내역을 삭제할까요? 되돌릴 수 없습니다."
           onConfirm={() => deleteMutation.mutate(deleteTarget.id)}
           onCancel={() => setDeleteTarget(null)}
-        />
-      )}
-
-      {eventDeleteTarget && (
-        <ConfirmModal
-          message={
-            eventDeleteTarget.source === "google_import"
-              ? `"${eventDeleteTarget.title}" 일정을 목록에서 숨길까요? Google 캘린더의 원본 일정은 삭제되지 않습니다.`
-              : `"${eventDeleteTarget.title}" 일정을 삭제할까요?`
-          }
-          onConfirm={() =>
-            deleteEventMutation.mutate({ id: eventDeleteTarget.id, source: eventDeleteTarget.source })
-          }
-          onCancel={() => setEventDeleteTarget(null)}
         />
       )}
 

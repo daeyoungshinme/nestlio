@@ -7,6 +7,7 @@ import MonthPicker, { currentYearMonth } from "@/components/common/MonthPicker";
 import DayPicker, { currentDateIso } from "@/components/common/DayPicker";
 import WeekPicker, { currentWeekAnchor } from "@/components/common/WeekPicker";
 import MonthlyRetrospectiveCard from "@/components/dashboard/MonthlyRetrospectiveCard";
+import TodayScheduleCard from "@/components/dashboard/TodayScheduleCard";
 import CoupleContributionCard from "@/components/dashboard/CoupleContributionCard";
 import SpendingFocusCard from "@/components/dashboard/SpendingFocusCard";
 import InvestSurplusCard from "@/components/dashboard/InvestSurplusCard";
@@ -145,7 +146,6 @@ export default function DashboardPage() {
     queryKey: QUERY_KEYS.users,
     queryFn: fetchUsers,
     staleTime: STALE_TIME.LONG,
-    enabled: showQuickAdd,
   });
   const currentUserId = useAuthStore((s) => s.userId);
 
@@ -200,18 +200,27 @@ export default function DashboardPage() {
   }
   const goalPaceInsight = monthDashboard?.insights.find((i) => i.rule_code === "goal_pace");
   // growlio 연동 목표에 이번 달 여유자금을 보태면 얼마나 앞당겨지는지 — GoalsTab의 여유자금
-  // 힌트와 같은 계산(estimateGoalAcceleration), 백엔드 변경 없이 프론트에서 추정한다.
-  const topGoalGrowlioLink = topGoal ? findGrowlioInvestmentLink(topGoal, savingsProducts ?? []) : null;
-  const topGoalAcceleration =
-    topGoal && topGoalGrowlioLink
-      ? estimateGoalAcceleration(
-          topGoal.required_amount,
-          topGoal.current_amount,
-          topGoal.months_remaining,
-          topGoal.suggested_monthly_amount,
-          data.investable_surplus,
-        )
-      : null;
+  // 힌트와 같은 계산(estimateGoalAcceleration), 백엔드 변경 없이 프론트에서 추정한다. 힌트를 붙일
+  // 목표는 카드 제목(topGoal, 순수 1순위)과 달리 GoalsTab의 firstGrowlioLinkedGoalId와 동일하게
+  // "growlio 연동된 목표 중 1순위"를 찾는다 — 1순위 목표가 미연동이면 두 화면이 서로 다른 목표에
+  // 힌트를 붙이던 불일치를 없애기 위함(연동 안 된 목표는 애초에 투자로 앞당길 방법이 없어 힌트를
+  // 못 붙이므로).
+  const accelerationGoal = goals?.length
+    ? goals
+        .slice()
+        .sort((a, b) => a.priority - b.priority)
+        .find((g) => findGrowlioInvestmentLink(g, savingsProducts ?? []))
+    : undefined;
+  const topGoalGrowlioLink = accelerationGoal ? findGrowlioInvestmentLink(accelerationGoal, savingsProducts ?? []) : null;
+  const topGoalAcceleration = accelerationGoal
+    ? estimateGoalAcceleration(
+        accelerationGoal.required_amount,
+        accelerationGoal.current_amount,
+        accelerationGoal.months_remaining,
+        accelerationGoal.suggested_monthly_amount,
+        data.investable_surplus,
+      )
+    : null;
   const totalOwnerSavings = Number(data.totals.savings);
   const sparklineData = data.trend.map((row) => ({
     year_month: row.year_month,
@@ -299,6 +308,8 @@ export default function DashboardPage() {
 
       <SummaryCards totals={data.totals} collapsible planSummary={planSummary} />
 
+      <TodayScheduleCard day={currentDateIso()} users={users} />
+
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {!topGoal ? (
           <Link to="/financial-plan?tab=목표" className="relative card block hover:border-emerald-300 dark:hover:border-emerald-700 transition-colors">
@@ -323,11 +334,14 @@ export default function DashboardPage() {
               primaryDetail={`${formatKrw(topGoal.current_amount)} / ${formatKrw(topGoal.required_amount)}`}
               extraDetails={[
                 ...(goalPaceInsight ? [{ key: "pace", content: goalPaceInsight.message }] : []),
-                ...(topGoalAcceleration
+                ...(topGoalAcceleration && accelerationGoal
                   ? [
                       {
                         key: "acceleration",
-                        content: `이번 달 여유자금을 이 목표에 보태면 달성까지 ${topGoal.months_remaining}개월 → ${topGoalAcceleration.newMonthsRemaining}개월로 ${topGoalAcceleration.monthsSaved}개월 앞당길 수 있어요`,
+                        content:
+                          accelerationGoal.id === topGoal.id
+                            ? `이번 달 여유자금을 이 목표에 보태면 달성까지 ${accelerationGoal.months_remaining}개월 → ${topGoalAcceleration.newMonthsRemaining}개월로 ${topGoalAcceleration.monthsSaved}개월 앞당길 수 있어요`
+                            : `이번 달 여유자금을 growlio 연동된 "${accelerationGoal.name}" 목표에 보태면 달성까지 ${accelerationGoal.months_remaining}개월 → ${topGoalAcceleration.newMonthsRemaining}개월로 ${topGoalAcceleration.monthsSaved}개월 앞당길 수 있어요`,
                       },
                     ]
                   : []),

@@ -496,7 +496,7 @@ def test_create_challenge_defaults_to_active(seeded_db):
 def test_regular_goal_has_no_effective_status(seeded_db):
     db = seeded_db["db"]
     goal = goal_service.create_goal(db, 1, "내집마련", 40, Decimal("100000000"), Decimal("500000"))
-    assert goal_service.effective_status(goal) is None
+    assert goal_service.effective_status(goal, today=date(2026, 8, 15)) is None
 
 
 def test_update_challenge_progress_below_target_stays_active(seeded_db):

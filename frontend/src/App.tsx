@@ -19,6 +19,7 @@ const TransactionImportPage = lazy(() => import("./pages/TransactionImportPage")
 const AccountsPage = lazy(() => import("./pages/AccountsPage"));
 const CategoriesPage = lazy(() => import("./pages/CategoriesPage"));
 const ReportsYearlyPage = lazy(() => import("./pages/ReportsYearlyPage"));
+const SchedulePage = lazy(() => import("./pages/SchedulePage"));
 const FinancialPlanPage = lazy(() => import("./pages/FinancialPlanPage"));
 const SettingsPage = lazy(() => import("./pages/SettingsPage"));
 
@@ -64,6 +65,7 @@ function AppRoutes() {
         <Route path="recurring" element={<Navigate to="/transactions" replace />} />
         <Route path="accounts" element={<LazyRoute Component={AccountsPage} />} />
         <Route path="categories" element={<LazyRoute Component={CategoriesPage} />} />
+        <Route path="schedule" element={<LazyRoute Component={SchedulePage} />} />
         <Route path="reports/yearly" element={<LazyRoute Component={ReportsYearlyPage} />} />
         <Route path="financial-plan" element={<LazyRoute Component={FinancialPlanPage} />} />
         <Route path="settings" element={<LazyRoute Component={SettingsPage} />} />
