@@ -361,7 +361,7 @@ function SavingsProductRow({
           </p>
           {(product.product_type === "savings" || product.product_type === "investment") && (
             <Link
-              to="/financial-plan?tab=현금흐름 계획&view=이번 달 계획"
+              to="/financial-plan?view=이번 달"
               className="inline-flex items-center gap-1 text-xs text-gray-500 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 mt-1"
             >
               월별 계획 보기 <ArrowRight size={12} />

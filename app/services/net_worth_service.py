@@ -1,16 +1,27 @@
 import logging
-from datetime import date
+from datetime import date, datetime, timedelta
 from decimal import Decimal
 
+from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
 from app.models.account import Account
+from app.models.loan import Loan
 from app.models.net_worth_snapshot import NetWorthSnapshot
 from app.models.savings_product import SavingsProduct
-from app.services import account_service, growlio_client, loan_service, savings_product_service
+from app.services import (
+    account_service,
+    growlio_client,
+    loan_service,
+    real_estate_service,
+    savings_product_service,
+)
 from app.utils.dates import parse_year_month, shift_month, year_month_str
 
 logger = logging.getLogger(__name__)
+
+# auto_sync_enabled 연동 잔액이 이보다 오래되면 화면 로드 시 기회주의적으로 새로고침한다.
+STALE_GROWLIO_LINK_AFTER = timedelta(hours=12)
 
 
 def compute_current(db: Session) -> dict:
@@ -112,6 +123,67 @@ def compute_growlio_unlinked(db: Session, bearer_token: str) -> dict:
         "net_total": net_total,
         "item_count": item_count,
     }
+
+
+def _has_stale_growlio_links(db: Session, now: datetime) -> bool:
+    cutoff = now - STALE_GROWLIO_LINK_AFTER
+    product_stale = or_(SavingsProduct.last_synced_at.is_(None), SavingsProduct.last_synced_at < cutoff)
+    if (
+        db.query(SavingsProduct.id)
+        .filter(
+            SavingsProduct.is_active.is_(True),
+            SavingsProduct.auto_sync_enabled.is_(True),
+            SavingsProduct.growlio_account_id.isnot(None),
+            product_stale,
+        )
+        .first()
+        is not None
+    ):
+        return True
+    loan_stale = or_(Loan.last_synced_at.is_(None), Loan.last_synced_at < cutoff)
+    return (
+        db.query(Loan.id)
+        .filter(
+            Loan.is_active.is_(True),
+            Loan.auto_sync_enabled.is_(True),
+            Loan.growlio_account_id.isnot(None),
+            loan_stale,
+        )
+        .first()
+        is not None
+    )
+
+
+def refresh_stale_growlio_links(bearer_token: str, *, now: datetime | None = None) -> None:
+    """auto_sync_enabled 연동 잔액이 STALE_GROWLIO_LINK_AFTER보다 오래됐으면 growlio에서 조용히
+    새로고침한다. 화면 로드 시 FastAPI BackgroundTasks로 호출된다 — 응답을 막지 않고, growlio
+    미설정/접속 실패는 무시한다. 스케줄러에는 사용자 JWT가 없어(app/scheduler/CLAUDE.md) 예약
+    작업 대신 이 "화면 로드 시 기회주의적 갱신" 방식을 쓴다.
+
+    요청 스코프 세션(get_db)은 응답 후 닫히므로 자체 세션을 연다 — 스케줄러 job과 같은 패턴."""
+    from app.database import SessionLocal
+
+    now = now or datetime.now()
+    db = SessionLocal()
+    try:
+        if not _has_stale_growlio_links(db, now):
+            return
+        for section, fn in (
+            ("accounts", account_service.sync_all_accounts),
+            ("savings", savings_product_service.sync_all_from_growlio),
+            ("real_estate", real_estate_service.sync_all_from_growlio),
+        ):
+            try:
+                fn(db, bearer_token, now=now)
+            except (growlio_client.GrowlioNotConfiguredError, growlio_client.GrowlioRequestError):
+                logger.info("opportunistic_growlio_sync_unavailable", exc_info=True)
+                return
+            except Exception:  # noqa: BLE001
+                logger.exception("opportunistic_growlio_sync_failed section=%s", section)
+    except Exception:  # noqa: BLE001 - fire-and-forget 백그라운드 작업, 절대 상위로 던지지 않는다
+        logger.exception("opportunistic_growlio_sync_failed")
+    finally:
+        db.close()
 
 
 def list_history(db: Session, months: int = 12) -> list[NetWorthSnapshot]:

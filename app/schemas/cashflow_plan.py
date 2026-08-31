@@ -81,12 +81,28 @@ class CashflowPlanSummaryOut(BaseModel):
     available: Decimal
 
 
+class CategoryBudgetRowOut(BaseModel):
+    """카테고리별 이번 달 예산(카테고리 태깅한 계획 항목 합계) 대비 실적. 구 `/budgets` 응답을
+    `/cashflow-plan` 응답에 흡수한 것 — 별도 라우터/쿼리 없이 계획 화면 한 번에 내려준다."""
+
+    category_id: int
+    name: str
+    type: Literal["fixed", "variable", "irregular"]
+    color: str
+    budget: Decimal
+    actual: Decimal
+    pct: float
+    status: Literal["ok", "warn", "critical"]
+    suggested_amount: Decimal | None = None
+
+
 class CashflowPlanListOut(BaseModel):
     year_month: str
     prev_month: str
     next_month: str
     items: list[CashflowPlanItemOut]
     summary: CashflowPlanSummaryOut
+    category_budgets: list[CategoryBudgetRowOut]
 
 
 class CashflowPlanCopyIn(BaseModel):

@@ -36,7 +36,7 @@ interface Props {
 
 /** 재무목표/챌린지가 공유하는 진행카드 — 배지+진행바+금액 표시 패턴을 한 곳에 모았다.
  * extraDetails가 0개면 아무것도 안 보이고, 1개면 바로 인라인으로, 2개 이상이면
- * AnnualSavingsGoalCard에 이미 있는 것과 같은 더보기 접이식으로 묶는다 — 카드마다 조건부
+ * 더보기 접이식으로 묶는다 — 카드마다 조건부
  * 문구가 들쭉날쭉 쌓이던 문제를 하나의 disclosure 패턴으로 수렴시킨다. */
 export default function GoalProgressCard({
   title,

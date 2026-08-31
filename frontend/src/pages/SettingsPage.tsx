@@ -477,6 +477,11 @@ export default function SettingsPage() {
             hint="저축·투자 탭에서 비상금 항목으로 기록해요"
           />
           <SettingsLinkRow to="/categories" label="카테고리 관리" hint="고정·변동·비정기지출 카테고리 추가/수정" />
+          <SettingsLinkRow
+            to="/transactions/import"
+            label="거래 데이터"
+            hint="CSV·구글 시트 가져오기 / CSV 내보내기"
+          />
         </div>
       </SettingsSectionCard>
 
@@ -610,14 +615,14 @@ export default function SettingsPage() {
 
       <SettingsSectionCard title="고급 설정">
         <CollapsibleGroup
-          header={<span className="text-sm font-semibold text-gray-700 dark:text-gray-300">고급: 코칭 기준값</span>}
+          header={<span className="text-sm font-semibold text-gray-700 dark:text-gray-300">코칭 민감도</span>}
           defaultOpen={false}
         >
           <p className="text-xs text-gray-500 dark:text-gray-400">
-            대시보드 코칭 인사이트가 발동하는 기준(%)이에요. 두 분의 소비 성향에 맞게 조정할 수 있어요.
+            대시보드 코칭 인사이트가 발동하는 기준(%)이에요. 두 분의 소비 성향에 맞게 프리셋 하나를 고르거나,
+            아래에서 항목별로 직접 조정하세요.
           </p>
           <div className="flex flex-wrap items-center gap-2">
-            <span className="text-xs text-gray-500 dark:text-gray-400">프리셋으로 채우기:</span>
             {COACHING_THRESHOLD_PRESETS.map((preset) => (
               <Button
                 key={preset.key}
@@ -630,29 +635,32 @@ export default function SettingsPage() {
               </Button>
             ))}
           </div>
-          <div className="grid grid-cols-2 gap-3">
-            {THRESHOLD_FIELDS.map(({ key, label }) => (
-              <FormInput
-                key={key}
-                label={label}
-                type="number"
-                min={0}
-                max={999}
-                step={1}
-                value={thresholdEdits[key] ?? data.coaching_thresholds[key]}
-                onChange={(e) =>
-                  setThresholdEdits((prev) => ({ ...prev, [key]: Number(e.target.value) }))
-                }
-              />
-            ))}
-          </div>
+
+          <CollapsibleGroup
+            header={<span className="text-xs font-medium text-gray-500 dark:text-gray-400">직접 조정 (16개 항목)</span>}
+            defaultOpen={false}
+          >
+            <div className="grid grid-cols-2 gap-3">
+              {THRESHOLD_FIELDS.map(({ key, label }) => (
+                <FormInput
+                  key={key}
+                  label={label}
+                  type="number"
+                  min={0}
+                  max={999}
+                  step={1}
+                  value={thresholdEdits[key] ?? data.coaching_thresholds[key]}
+                  onChange={(e) => setThresholdEdits((prev) => ({ ...prev, [key]: Number(e.target.value) }))}
+                />
+              ))}
+            </div>
+          </CollapsibleGroup>
+
           <Button
             size="sm"
             disabled={Object.keys(thresholdEdits).length === 0}
             loading={thresholdsMutation.isPending}
-            onClick={() =>
-              thresholdsMutation.mutate({ ...data.coaching_thresholds, ...thresholdEdits })
-            }
+            onClick={() => thresholdsMutation.mutate({ ...data.coaching_thresholds, ...thresholdEdits })}
           >
             저장
           </Button>

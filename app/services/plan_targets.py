@@ -1,7 +1,7 @@
-"""연간계획류(AnnualPlanItem/AnnualSavingsGoal/SavingsProductAnnualPlan/FinancialGoal) 4개 도메인이
-공유하는 "부모 + 월별 target 테이블" 패턴의 공용 헬퍼. 각 서비스는 부모 엔티티와 target 컬럼 구성이
-달라 upsert/CRUD 골격 자체는 도메인마다 따로 두지만, 아래 조각들은 4곳 모두 동일해 여기 하나로
-모은다 (app/services/CLAUDE.md 참고 — growlio_client.py처럼 "공용 조각만 헬퍼로 공유하고 전체 흐름은
+"""연간계획류(AnnualPlanItem/SavingsProductAnnualPlan/FinancialGoal) 도메인이 공유하는 "부모 +
+월별 target 테이블" 패턴의 공용 헬퍼. 각 서비스는 부모 엔티티와 target 컬럼 구성이 달라
+upsert/CRUD 골격 자체는 도메인마다 따로 두지만, 아래 조각들은 모두 동일해 여기 하나로 모은다
+(app/services/CLAUDE.md 참고 — growlio_client.py처럼 "공용 조각만 헬퍼로 공유하고 전체 흐름은
 억지로 통합하지 않는다" 원칙을 따른다)."""
 from datetime import date
 

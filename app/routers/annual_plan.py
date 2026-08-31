@@ -18,6 +18,7 @@ def _plan_list(db: Session, year: int, today: date) -> dict:
         "year": year,
         "items": [annual_plan_service.item_to_out(item) for item in items],
         "summary": annual_plan_service.summary_for_year(db, year, today),
+        "category_budgets": annual_plan_service.category_budget_vs_actual(db, year),
     }
 
 
@@ -52,8 +53,3 @@ def upsert_plan_item(
 @router.delete("/items/{item_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_plan_item(item_id: int, db: Session = Depends(get_db), _: User = Depends(get_current_user)):
     annual_plan_service.delete_item(db, item_id)
-
-
-@router.get("/category-budgets", response_model=list[AnnualCategoryBudgetRowOut])
-def get_category_budgets(year: int, db: Session = Depends(get_db), _: User = Depends(get_current_user)):
-    return annual_plan_service.category_budget_vs_actual(db, year)

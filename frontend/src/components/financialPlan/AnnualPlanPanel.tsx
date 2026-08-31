@@ -4,7 +4,6 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import AnnualPlanItemForm from "@/components/financialPlan/AnnualPlanItemForm";
 import AnnualPlanSectionPanel from "@/components/financialPlan/AnnualPlanSectionPanel";
 import GoalPurposeSummary from "@/components/financialPlan/GoalPurposeSummary";
-import PlanBreadcrumb from "@/components/financialPlan/PlanBreadcrumb";
 import type { Purpose } from "@/components/financialPlan/GoalPurposeSummary";
 import SavingsInvestmentPlanPanel from "@/components/financialPlan/SavingsInvestmentPlanPanel";
 import Button from "@/components/common/Button";
@@ -12,12 +11,11 @@ import ConfirmModal from "@/components/common/ConfirmModal";
 import Modal from "@/components/common/Modal";
 import SkeletonCard from "@/components/common/SkeletonCard";
 import SummaryCard from "@/components/common/SummaryCard";
-import Tabs from "@/components/common/Tabs";
-import { deleteAnnualPlanItem, fetchAnnualCategoryBudgets, fetchAnnualPlan, upsertAnnualPlanItem } from "@/api/annualPlan";
+import { deleteAnnualPlanItem, fetchAnnualPlan, upsertAnnualPlanItem } from "@/api/annualPlan";
 import { fetchCategories } from "@/api/categories";
 import { fetchSavingsProductsAnnualPlan } from "@/api/savingsProducts";
 import { fetchUsers } from "@/api/users";
-import { SECTIONS, SAVINGS_INVESTMENT_LABEL, SECTION_LABELS, type SectionLabel } from "@/constants/planSections";
+import { SECTIONS, SAVINGS_INVESTMENT_LABEL, type SectionLabel } from "@/constants/planSections";
 import { QUERY_KEYS } from "@/constants/queryKeys";
 import { STALE_TIME } from "@/constants/queryConfig";
 import { formatKrw, pctOf } from "@/utils/format";
@@ -53,10 +51,6 @@ export default function AnnualPlanPanel() {
     queryKey: QUERY_KEYS.annualPlan(year),
     queryFn: () => fetchAnnualPlan(year),
   });
-  const { data: categoryBudgets } = useQuery({
-    queryKey: QUERY_KEYS.annualCategoryBudgets(year),
-    queryFn: () => fetchAnnualCategoryBudgets(year),
-  });
   const { data: savingsAnnualData } = useQuery({
     queryKey: QUERY_KEYS.savingsProductsAnnualPlan(year),
     queryFn: () => fetchSavingsProductsAnnualPlan(year),
@@ -70,7 +64,6 @@ export default function AnnualPlanPanel() {
 
   const invalidate = () => {
     void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.annualPlan(year) });
-    void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.annualCategoryBudgets(year) });
     void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.dashboardAll });
     // "이번 달 계획"은 서브뷰 전환만으로는 언마운트되지 않아 자동으로 다시 fetch되지 않으므로,
     // 연간계획 저장 직후 폴백 항목이 즉시 반영되도록 월과 무관하게 전부 무효화한다.
@@ -147,8 +140,6 @@ export default function AnnualPlanPanel() {
 
   return (
     <div className="space-y-6">
-      <PlanBreadcrumb segments={["목표", "현금흐름 계획", "연간계획", activeLabel]} />
-
       <div className="flex items-center justify-between gap-2">
         <span className="text-sm font-semibold text-gray-700 dark:text-gray-300">{year}년 연간계획</span>
         <div className="flex items-center gap-2">
@@ -167,7 +158,7 @@ export default function AnnualPlanPanel() {
         자동으로 반영돼요.
       </p>
       <Link
-        to="/financial-plan?tab=목표"
+        to="/financial-plan?view=목표"
         className="block text-xs text-gray-500 dark:text-gray-400 hover:text-emerald-600 dark:hover:text-emerald-400"
       >
         개별 재무목표의 월별 계획·달성 현황은 목표 탭에서 확인해요 →
@@ -192,13 +183,11 @@ export default function AnnualPlanPanel() {
       </div>
 
       <GoalPurposeSummary
-        heading="올해 목표 현황"
+        heading="올해 목표 현황 (칩을 눌러 항목별 계획을 편집하세요)"
         purposes={purposes}
         activeLabel={activeLabel}
         onSelect={(label) => setActiveLabel(label as SectionLabel)}
       />
-
-      <Tabs tabs={SECTION_LABELS} activeTab={activeLabel} onChange={setActiveLabel} />
 
       {activeLabel === SAVINGS_INVESTMENT_LABEL ? (
         <SavingsInvestmentPlanPanel yearMonth={`${year}-01`} initialViewMode="올해 누적" showViewToggle={false} />
@@ -206,7 +195,7 @@ export default function AnnualPlanPanel() {
         (() => {
           const { key, label } = SECTIONS.find((s) => s.label === activeLabel)!;
           const items = data.items.filter((i) => i.section === key);
-          const categoryBudgetRows = (Array.isArray(categoryBudgets) ? categoryBudgets : []).filter(
+          const categoryBudgetRows = data.category_budgets.filter(
             (row) => row.type === key && Number(row.budget) > 0,
           );
           return (

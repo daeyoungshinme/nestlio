@@ -325,118 +325,46 @@ def test_to_out_derived_fields_are_none_without_target_date(seeded_db):
     assert out["suggested_monthly_amount"] is None
 
 
-# --- weighted_return_rate_pct: balance-weighted average of linked investment products' return -----
+# --- compute_eta_year_month / compute_ahead_behind_months: 선형 ETA (옛 복리 프로젝션 대체) -----
 
-def test_weighted_return_rate_pct_none_without_linked_products(seeded_db):
-    db = seeded_db["db"]
-    goal = goal_service.create_goal(db, 1, "여행자금", None, Decimal("5000000"), Decimal("200000"))
-    assert goal_service.compute_weighted_return_rate_pct(goal) is None
-
-
-def test_weighted_return_rate_pct_ignores_savings_type_and_no_principal(seeded_db):
-    db = seeded_db["db"]
-    savings = savings_product_service.create_product(db, "적금", Decimal("1000000"), Decimal("100000"), "savings")
-    no_principal = savings_product_service.create_product(
-        db, "주식(원금 미입력)", Decimal("1000000"), Decimal("0"), "investment"
+def test_eta_this_month_when_already_met():
+    assert (
+        goal_service.compute_eta_year_month(date(2026, 3, 15), Decimal("1200000"), Decimal("1000000"), Decimal("100000"))
+        == "2026-03"
     )
+
+
+def test_eta_none_when_no_monthly_saving_and_unmet():
+    assert (
+        goal_service.compute_eta_year_month(date(2026, 3, 1), Decimal("0"), Decimal("1000000"), Decimal("0")) is None
+    )
+
+
+def test_eta_ceils_remaining_months():
+    # 남은 250,000 / 월 100,000 -> 2.5 -> 3개월 -> 2026-01 + 3 = 2026-04
+    assert (
+        goal_service.compute_eta_year_month(date(2026, 1, 1), Decimal("750000"), Decimal("1000000"), Decimal("100000"))
+        == "2026-04"
+    )
+
+
+def test_ahead_behind_positive_when_eta_before_target():
+    # ETA 2026-04, 목표일 2026-07 -> 3개월 빠름
+    assert goal_service.compute_ahead_behind_months("2026-04", date(2026, 7, 20)) == 3
+    assert goal_service.compute_ahead_behind_months("2026-10", date(2026, 7, 20)) == -3
+    assert goal_service.compute_ahead_behind_months(None, date(2026, 7, 20)) is None
+    assert goal_service.compute_ahead_behind_months("2026-04", None) is None
+
+
+def test_to_out_includes_eta_fields(seeded_db):
+    db = seeded_db["db"]
     goal = goal_service.create_goal(
-        db,
-        1,
-        "여행자금",
-        None,
-        Decimal("5000000"),
-        Decimal("200000"),
-        funding_sources=[
-            {"type": "savings_product", "id": savings.id},
-            {"type": "savings_product", "id": no_principal.id},
-        ],
-    )
-    assert goal_service.compute_weighted_return_rate_pct(goal) is None
-
-
-def test_weighted_return_rate_pct_averages_by_balance(seeded_db):
-    db = seeded_db["db"]
-    # 25% return, balance 1,000,000
-    product_a = savings_product_service.create_product(
-        db, "주식A", Decimal("1000000"), Decimal("0"), "investment", principal_amount=Decimal("800000")
-    )
-    # 100% return, balance 1,000,000 -> equal weight average with product_a = 62.5%
-    product_b = savings_product_service.create_product(
-        db, "주식B", Decimal("1000000"), Decimal("0"), "investment", principal_amount=Decimal("500000")
-    )
-    goal = goal_service.create_goal(
-        db,
-        1,
-        "여행자금",
-        None,
-        Decimal("5000000"),
-        Decimal("200000"),
-        funding_sources=[
-            {"type": "savings_product", "id": product_a.id},
-            {"type": "savings_product", "id": product_b.id},
-        ],
-    )
-    assert goal_service.compute_weighted_return_rate_pct(goal) == Decimal("62.5")
-
-
-# --- compute_projected_months_with_growth: months to reach target with assumed compounding --------
-
-def test_projected_months_with_growth_zero_when_already_met():
-    result = goal_service.compute_projected_months_with_growth(
-        Decimal("2000000"), Decimal("100000"), Decimal("1000000"), Decimal("10")
-    )
-    assert result == 0
-
-
-def test_projected_months_with_growth_none_when_no_balance_and_no_contribution():
-    result = goal_service.compute_projected_months_with_growth(
-        Decimal("0"), Decimal("0"), Decimal("1000000"), Decimal("10")
-    )
-    assert result is None
-
-
-def test_projected_months_with_growth_none_when_growth_alone_never_reaches_target():
-    # no monthly contribution and 0% assumed return -> balance never moves
-    result = goal_service.compute_projected_months_with_growth(
-        Decimal("1000000"), Decimal("0"), Decimal("1340000"), Decimal("0")
-    )
-    assert result is None
-
-
-def test_projected_months_with_growth_compounds_monthly():
-    # 1,000,000 lump sum, 120%/yr (=10%/mo) assumed return, no contributions:
-    # 1.1^3 * 1,000,000 = 1,331,000 (not yet) -> 1.1^4 * 1,000,000 = 1,464,100 (reached)
-    result = goal_service.compute_projected_months_with_growth(
-        Decimal("1000000"), Decimal("0"), Decimal("1340000"), Decimal("120")
-    )
-    assert result == 4
-
-
-def test_to_out_includes_investment_projection_for_linked_investment_goal(seeded_db):
-    db = seeded_db["db"]
-    product = savings_product_service.create_product(
-        db, "주식A", Decimal("1000000"), Decimal("0"), "investment", principal_amount=Decimal("800000")
-    )
-    goal = goal_service.create_goal(
-        db,
-        1,
-        "여행자금",
-        None,
-        Decimal("5000000"),
-        Decimal("200000"),
-        funding_sources=[{"type": "savings_product", "id": product.id}],
+        db, 1, "여행자금", None, Decimal("1000000"), Decimal("100000"),
+        current_amount=Decimal("750000"), target_date=date(2026, 7, 1),
     )
     out = goal_service.to_out(db, goal, today=date(2026, 1, 1))
-    assert out["weighted_return_rate_pct"] == Decimal("25")
-    assert out["projected_months_with_growth"] is not None
-
-
-def test_to_out_investment_projection_is_none_without_investment_link(seeded_db):
-    db = seeded_db["db"]
-    goal = goal_service.create_goal(db, 1, "여행자금", None, Decimal("5000000"), Decimal("200000"))
-    out = goal_service.to_out(db, goal, today=date(2026, 1, 1))
-    assert out["weighted_return_rate_pct"] is None
-    assert out["projected_months_with_growth"] is None
+    assert out["eta_year_month"] == "2026-04"
+    assert out["ahead_behind_months"] == 3
 
 
 # --- fetch_growlio_goal_settings: proxy for growlio 투자목표 프리필 -----------------------------

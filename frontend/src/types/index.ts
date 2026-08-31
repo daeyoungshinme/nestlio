@@ -523,22 +523,8 @@ export interface CashflowPlanSummaryOut {
   available: string;
 }
 
-export interface CashflowPlanListOut {
-  year_month: string;
-  prev_month: string;
-  next_month: string;
-  items: CashflowPlanItemOut[];
-  summary: CashflowPlanSummaryOut;
-}
-
-export interface CashflowPlanCopyResultOut {
-  copied: number;
-}
-
-export interface CashflowPlanLinkRecurringIn {
-  recurring_expense_id: number;
-}
-
+/** 카테고리별 이번 달/올해 예산(카테고리 태깅 계획 항목 합계) 대비 실적. 구 `/budgets` 응답이
+ * `/cashflow-plan`·`/annual-plan` 응답의 `category_budgets`로 흡수됐다. */
 export interface BudgetRowOut {
   category_id: number;
   name: string;
@@ -551,11 +537,21 @@ export interface BudgetRowOut {
   suggested_amount: string | null;
 }
 
-export interface BudgetListOut {
+export interface CashflowPlanListOut {
   year_month: string;
   prev_month: string;
   next_month: string;
-  rows: BudgetRowOut[];
+  items: CashflowPlanItemOut[];
+  summary: CashflowPlanSummaryOut;
+  category_budgets: BudgetRowOut[];
+}
+
+export interface CashflowPlanCopyResultOut {
+  copied: number;
+}
+
+export interface CashflowPlanLinkRecurringIn {
+  recurring_expense_id: number;
 }
 
 export interface NotificationReactionOut {
@@ -628,8 +624,8 @@ export interface FinancialGoalOut {
   funding_sources: FundingSourceOut[];
   months_remaining: number | null;
   suggested_monthly_amount: string | null;
-  weighted_return_rate_pct: string | null;
-  projected_months_with_growth: number | null;
+  eta_year_month: string | null;
+  ahead_behind_months: number | null;
   // 아래 4개는 kind==="challenge"(단기 부부 챌린지)일 때만 의미가 있다.
   start_date: string | null;
   status: "active" | "succeeded";
@@ -665,39 +661,6 @@ export interface GrowlioGoalSettingsOut {
   goal_initial_amount: number | null;
   annual_deposit_goal: number | null;
   annual_dividend_goal: number | null;
-}
-
-export interface AnnualSavingsGoalMonthlyTargetOut {
-  year_month: string;
-  target_amount: string;
-}
-
-export interface AnnualSavingsGoalMonthlyTargetIn {
-  year_month: string;
-  target_amount: string;
-}
-
-export interface AnnualSavingsGoalOut {
-  year: number;
-  target_amount_krw: string;
-  monthly_target_krw: string | null;
-  monthly_targets: AnnualSavingsGoalMonthlyTargetOut[];
-  updated_at: string;
-  net_savings_ytd: string;
-  annual_achievement_pct: string;
-  current_month_savings: string;
-  monthly_achievement_pct: string | null;
-}
-
-export interface AnnualSavingsGoalUpsertIn {
-  monthly_targets: AnnualSavingsGoalMonthlyTargetIn[];
-}
-
-export interface AnnualSavingsGoalSuggestionOut {
-  suggested_monthly_target_krw: string;
-  suggested_annual_target_krw: string;
-  goal_based_monthly_target_krw: string;
-  goal_based_annual_target_krw: string;
 }
 
 export interface AnnualPlanItemMonthlyTargetOut {
@@ -773,6 +736,7 @@ export interface AnnualPlanListOut {
   year: number;
   items: AnnualPlanItemOut[];
   summary: AnnualPlanSummaryOut;
+  category_budgets: AnnualCategoryBudgetRowOut[];
 }
 
 export interface AnnualCategoryBudgetRowOut {

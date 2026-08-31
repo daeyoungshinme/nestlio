@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Link, useSearchParams } from "react-router-dom";
+import { Link } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Copy } from "lucide-react";
 import CashflowPlanItemForm from "@/components/financialPlan/CashflowPlanItemForm";
@@ -9,7 +9,6 @@ import CashflowPlanSectionPanel from "@/components/financialPlan/CashflowPlanSec
 import CashflowPlanSplitForm from "@/components/financialPlan/CashflowPlanSplitForm";
 import AnnualPlanPanel from "@/components/financialPlan/AnnualPlanPanel";
 import GoalPurposeSummary from "@/components/financialPlan/GoalPurposeSummary";
-import PlanBreadcrumb from "@/components/financialPlan/PlanBreadcrumb";
 import type { Purpose } from "@/components/financialPlan/GoalPurposeSummary";
 import SavingsInvestmentPlanPanel from "@/components/financialPlan/SavingsInvestmentPlanPanel";
 import Button from "@/components/common/Button";
@@ -18,7 +17,6 @@ import Modal from "@/components/common/Modal";
 import MonthPicker, { currentYearMonth, shiftYearMonth } from "@/components/common/MonthPicker";
 import SkeletonCard from "@/components/common/SkeletonCard";
 import SummaryCard from "@/components/common/SummaryCard";
-import Tabs from "@/components/common/Tabs";
 import {
   copyPreviousMonthCashflowPlan,
   deleteCashflowPlanItem,
@@ -26,11 +24,10 @@ import {
   splitCashflowPlanItem,
   upsertCashflowPlanItem,
 } from "@/api/cashflowPlan";
-import { fetchBudgets } from "@/api/budgets";
 import { fetchCategories } from "@/api/categories";
 import { fetchSavingsProductsPlan } from "@/api/savingsProducts";
 import { fetchUsers } from "@/api/users";
-import { SECTIONS, SAVINGS_INVESTMENT_LABEL, SECTION_LABELS, type SectionLabel } from "@/constants/planSections";
+import { SECTIONS, SAVINGS_INVESTMENT_LABEL, type SectionLabel } from "@/constants/planSections";
 import { QUERY_KEYS } from "@/constants/queryKeys";
 import { STALE_TIME } from "@/constants/queryConfig";
 import { formatKrw, formatYearMonth, pctOf } from "@/utils/format";
@@ -41,32 +38,12 @@ import type { BudgetRowOut, CashflowPlanItemOut, CashflowSection } from "@/types
 import type { CashflowPlanItemFormValues } from "@/components/financialPlan/CashflowPlanItemForm";
 import type { CashflowPlanSplitFormValues } from "@/components/financialPlan/CashflowPlanSplitForm";
 
-const VIEW_TABS = ["이번 달 계획", "연간계획"] as const;
-type ViewTab = (typeof VIEW_TABS)[number];
-
-function isViewTab(value: string | null): value is ViewTab {
-  return (VIEW_TABS as readonly string[]).includes(value ?? "");
-}
-
 interface ModalState {
   section: CashflowSection;
   item: CashflowPlanItemOut | null;
 }
 
-export default function CashflowPlanTab() {
-  const [searchParams, setSearchParams] = useSearchParams();
-  const viewParam = searchParams.get("view");
-  const view: ViewTab = isViewTab(viewParam) ? viewParam : "이번 달 계획";
-  const setView = (next: ViewTab) => {
-    setSearchParams(
-      (prev) => {
-        const nextParams = new URLSearchParams(prev);
-        nextParams.set("view", next);
-        return nextParams;
-      },
-      { replace: true },
-    );
-  };
+export default function CashflowPlanTab({ view }: { view: "monthly" | "annual" }) {
   const [yearMonth, setYearMonth] = useState(currentYearMonth());
   const [activeLabel, setActiveLabel] = useState<SectionLabel>("수입");
   const [modal, setModal] = useState<ModalState | null>(null);
@@ -95,10 +72,6 @@ export default function CashflowPlanTab() {
     queryFn: () => fetchCategories(),
     staleTime: STALE_TIME.LONG,
   });
-  const { data: budgetData } = useQuery({
-    queryKey: QUERY_KEYS.budgets(yearMonth),
-    queryFn: () => fetchBudgets(yearMonth),
-  });
   const { data: savingsPlanData } = useQuery({
     queryKey: QUERY_KEYS.savingsProductsPlan(yearMonth),
     queryFn: () => fetchSavingsProductsPlan(yearMonth),
@@ -106,7 +79,6 @@ export default function CashflowPlanTab() {
 
   const invalidate = () => {
     void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.cashflowPlan(yearMonth) });
-    void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.budgets(yearMonth) });
     void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.dashboardAll });
   };
 
@@ -169,7 +141,6 @@ export default function CashflowPlanTab() {
     onMutate: (row) => setApplyingCategoryId(row.category_id),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.cashflowPlan(nextYearMonth) });
-      void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.budgets(nextYearMonth) });
       toast(`${nextYearMonthLabel} 예산에 반영했습니다.`, "success");
     },
     onError: (err) => toast(extractErrorMessage(err), "error"),
@@ -198,22 +169,12 @@ export default function CashflowPlanTab() {
     onError: (err) => toast(extractErrorMessage(err), "error"),
   });
 
-  if (view === "연간계획") {
-    return (
-      <div className="space-y-6">
-        <Tabs tabs={VIEW_TABS} activeTab={view} onChange={setView} />
-        <AnnualPlanPanel />
-      </div>
-    );
+  if (view === "annual") {
+    return <AnnualPlanPanel />;
   }
 
   if (isLoading || !data) {
-    return (
-      <div className="space-y-6">
-        <Tabs tabs={VIEW_TABS} activeTab={view} onChange={setView} />
-        <SkeletonCard rows={6} />
-      </div>
-    );
+    return <SkeletonCard rows={6} />;
   }
 
   const summary = data.summary;
@@ -236,7 +197,7 @@ export default function CashflowPlanTab() {
       status: savingsPlanData ? worseStatus(savingsPlanData.savings.status, savingsPlanData.investment.status) : null,
     },
   ];
-  const budgetRows = budgetData?.rows ?? [];
+  const budgetRows = data.category_budgets;
   const budgetRowByCategory = new Map(budgetRows.map((row) => [row.category_id, row]));
 
   const categoryPlannedTotals: Record<number, string> = Object.fromEntries(
@@ -283,9 +244,6 @@ export default function CashflowPlanTab() {
 
   return (
     <div className="space-y-6">
-      <Tabs tabs={VIEW_TABS} activeTab={view} onChange={setView} />
-      <PlanBreadcrumb segments={["목표", "현금흐름 계획", "이번 달 계획", activeLabel]} />
-
       <div className="flex items-center justify-between flex-wrap gap-3">
         <MonthPicker yearMonth={yearMonth} onChange={setYearMonth} />
         <Button
@@ -325,13 +283,11 @@ export default function CashflowPlanTab() {
       </div>
 
       <GoalPurposeSummary
-        heading="이번 달 목표 현황"
+        heading="이번 달 목표 현황 (칩을 눌러 항목별 계획을 편집하세요)"
         purposes={purposes}
         activeLabel={activeLabel}
         onSelect={(label) => setActiveLabel(label as SectionLabel)}
       />
-
-      <Tabs tabs={SECTION_LABELS} activeTab={activeLabel} onChange={setActiveLabel} />
 
       {activeLabel === SAVINGS_INVESTMENT_LABEL ? (
         <SavingsInvestmentPlanPanel yearMonth={yearMonth} showViewToggle={false} />

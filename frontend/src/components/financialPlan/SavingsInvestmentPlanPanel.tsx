@@ -339,8 +339,8 @@ export default function SavingsInvestmentPlanPanel({
   const investmentItems = items.filter((i) => i.product_type === "investment");
 
   const otherViewLink = isMonthMode
-    ? { to: "/financial-plan?tab=현금흐름 계획&view=연간계획", label: "연간 누적 보기" }
-    : { to: "/financial-plan?tab=현금흐름 계획&view=이번 달 계획", label: "이번 달 상세 보기" };
+    ? { to: "/financial-plan?view=연간", label: "연간 누적 보기" }
+    : { to: "/financial-plan?view=이번 달", label: "이번 달 상세 보기" };
 
   return (
     <div className="space-y-4">

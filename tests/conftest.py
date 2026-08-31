@@ -12,7 +12,7 @@ from sqlalchemy.pool import StaticPool
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from app.database import Base, get_db
-from app.dependencies import get_current_user, get_token_payload
+from app.dependencies import get_bearer_token, get_current_user, get_token_payload
 import app.models  # noqa: F401 ensures all models are registered on Base.metadata
 from app.main import app as fastapi_app
 from app.models.category import Category
@@ -85,6 +85,7 @@ def client(seeded_db):
     fastapi_app.dependency_overrides[get_db] = _override_get_db
     fastapi_app.dependency_overrides[get_current_user] = _override_get_current_user
     fastapi_app.dependency_overrides[get_token_payload] = _override_get_token_payload
+    fastapi_app.dependency_overrides[get_bearer_token] = lambda: "test-bearer-token"
     try:
         yield TestClient(fastapi_app)
     finally:

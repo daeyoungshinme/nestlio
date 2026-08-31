@@ -10,7 +10,7 @@
 - **설정**: pydantic-settings (`app/config.py`)
 - **인증**: growlio와 동일 — 프론트엔드가 `@supabase/supabase-js`로 직접 로그인해 Supabase JWT를 발급받고, 백엔드는 `app/dependencies.py`에서 JWKS(`PyJWKClient`)로 서명만 검증한다. 백엔드에는 로그인 엔드포인트가 없다 (세션 쿠키 없음, `Authorization: Bearer <token>` 헤더만 사용)
 - **스케줄링**: 예약 작업은 in-process 스케줄러가 아니라 GitHub Actions 예약 워크플로(`.github/workflows/scheduled-jobs.yml`)가 `POST /internal/jobs/{job_name}`을 호출해 실행한다 (Render 무료 웹서비스가 15분 미사용 시 슬립하기 때문). 상세는 [app/scheduler/CLAUDE.md](app/scheduler/CLAUDE.md)
-- **외부 연동**: Google Calendar / Gmail API, growlio 자산 API(`app/services/growlio_client.py` — 사용자의 Supabase JWT를 그대로 전달해 호출, 별도 서비스 API 키 없음). 계좌·부동산(+담보대출) 잔액 자동 동기화(`account_service`/`savings_product_service`/`real_estate_service`)와 재무목표 프리필(`goal_service`)은 읽기전용이지만, 저축/투자 내역 입력 시 growlio 계좌 입출금에도 반영하는 쓰기 호출(`push_transaction`, `transaction_service`)이 있다 — "읽기전용"으로 단정하지 않는다.
+- **외부 연동**: Google Calendar / Gmail API, growlio 자산 API(`app/services/growlio_client.py` — 사용자의 Supabase JWT를 그대로 전달해 호출, 별도 서비스 API 키 없음). 계좌·부동산(+담보대출) 잔액 동기화(`account_service`/`savings_product_service`/`real_estate_service`)와 재무목표 프리필(`goal_service`)은 읽기전용이지만, 저축/투자 내역 입력 시 growlio 계좌 입출금에도 반영하는 쓰기 호출(`push_transaction`, `transaction_service`)이 있다 — "읽기전용"으로 단정하지 않는다. 잔액 동기화는 자산현황 화면의 "전체 동기화" 버튼 + `auto_sync_enabled` 연동이 오래됐을 때 `GET /net-worth` 응답 후 백그라운드로 도는 기회주의적 갱신(`net_worth_service.refresh_stale_growlio_links`, 스케줄러엔 사용자 JWT가 없어서)으로 이뤄진다.
 
 ## 아키텍처
 

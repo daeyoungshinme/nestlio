@@ -6,14 +6,29 @@ import Button from "@/components/common/Button";
 import ConfirmModal from "@/components/common/ConfirmModal";
 import FormInput from "@/components/common/FormInput";
 import Tabs from "@/components/common/Tabs";
-import { bulkDeleteTransactions, importTransactionsCsv, importTransactionsFromSheet } from "@/api/transactions";
+import {
+  bulkDeleteTransactions,
+  fetchTransactionsCsv,
+  importTransactionsCsv,
+  importTransactionsFromSheet,
+} from "@/api/transactions";
 import { fetchSettings } from "@/api/settings";
 import { QUERY_KEYS } from "@/constants/queryKeys";
 import { useInvalidateTransactionRelated } from "@/hooks/useInvalidateTransactionRelated";
 import { extractErrorMessage } from "@/utils/error";
 import { toast } from "@/utils/toast";
+import { triggerBlobDownload } from "@/utils/download";
 import { TOUCH_TARGET_ROW } from "@/constants/uiSizes";
 import type { ImportResultOut, SheetImportIn } from "@/types";
+
+function currentYear(): number {
+  return new Date().getFullYear();
+}
+
+function currentYearMonth(): string {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+}
 
 const SOURCE_TABS = ["CSV 파일", "구글 시트"] as const;
 type SourceTab = (typeof SOURCE_TABS)[number];
@@ -93,6 +108,25 @@ export default function TransactionImportPage() {
     onError: onImportError,
   });
 
+  const exportMutation = useMutation({
+    mutationFn: ({ date_from, date_to }: { date_from: string; date_to: string }) =>
+      fetchTransactionsCsv({ date_from, date_to }),
+    onSuccess: (blob, { date_from, date_to }) =>
+      triggerBlobDownload(blob, `transactions_${date_from}_${date_to}.csv`),
+    onError: (err) => toast(extractErrorMessage(err), "error"),
+  });
+
+  const exportRange = (kind: "month" | "year") => {
+    if (kind === "month") {
+      const ym = currentYearMonth();
+      const lastDay = new Date(Number(ym.slice(0, 4)), Number(ym.slice(5, 7)), 0).getDate();
+      exportMutation.mutate({ date_from: `${ym}-01`, date_to: `${ym}-${String(lastDay).padStart(2, "0")}` });
+    } else {
+      const y = currentYear();
+      exportMutation.mutate({ date_from: `${y}-01-01`, date_to: `${y}-12-31` });
+    }
+  };
+
   const sheetMutation = useMutation({
     mutationFn: (payload: SheetImportIn) => importTransactionsFromSheet(payload),
     onSuccess: onImportSuccess,
@@ -116,7 +150,34 @@ export default function TransactionImportPage() {
         <ArrowLeft size={18} />
         가계부
       </Link>
-      <h1 className="text-xl font-bold text-gray-900 dark:text-gray-50">거래 가져오기</h1>
+      <h1 className="text-xl font-bold text-gray-900 dark:text-gray-50">거래 데이터</h1>
+
+      <div className="card space-y-3">
+        <p className="text-sm font-medium text-gray-900 dark:text-gray-50">CSV 내보내기</p>
+        <p className="text-xs text-gray-500 dark:text-gray-400">
+          날짜, 구분, 카테고리, 금액, 메모 순서로 내려받아요 (가져오기와 동일한 형식).
+        </p>
+        <div className="flex flex-wrap gap-2">
+          <Button
+            variant="secondary"
+            size="sm"
+            disabled={exportMutation.isPending}
+            onClick={() => exportRange("month")}
+          >
+            이번 달 내보내기
+          </Button>
+          <Button
+            variant="secondary"
+            size="sm"
+            disabled={exportMutation.isPending}
+            onClick={() => exportRange("year")}
+          >
+            올해 전체 내보내기
+          </Button>
+        </div>
+      </div>
+
+      <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300 pt-2">거래 가져오기</h2>
 
       <Tabs
         tabs={SOURCE_TABS}

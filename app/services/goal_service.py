@@ -1,3 +1,4 @@
+import math
 import uuid
 from datetime import date, datetime
 from decimal import Decimal
@@ -10,7 +11,7 @@ from app.models.goal_funding_source import GoalFundingSource
 from app.models.goal_monthly_target import GoalMonthlyTarget
 from app.models.transaction import Transaction
 from app.services import account_service, growlio_client, plan_targets
-from app.utils.dates import month_bounds, months_between, parse_year_month
+from app.utils.dates import month_bounds, months_between, parse_year_month, shift_month, year_month_str
 
 
 class MonthlyTargetNotFoundError(Exception):
@@ -171,50 +172,27 @@ def compute_suggested_monthly_amount(
     return max(Decimal("0"), (required_amount - current_amount) / months_remaining)
 
 
-# compute_projected_months_with_growth의 개월수 탐색 상한(50년) — 이보다 오래 걸리면 도달 불가로 본다.
-MAX_PROJECTION_MONTHS = 600
-
-
-def compute_weighted_return_rate_pct(goal: FinancialGoal) -> Decimal | None:
-    """목표에 연동된 투자형 저축상품들의 잔액 가중평균 수익률(원금 대비 손익률,
-    SavingsProduct.return_rate_pct). 연동된 투자 상품이 없거나 전부 원금 미입력이라 수익률을
-    계산할 수 없으면 None."""
-    total_balance = Decimal("0")
-    weighted_sum = Decimal("0")
-    for fs in goal.funding_sources:
-        if fs.savings_product_id is None:
-            continue
-        product = fs.savings_product
-        if product.product_type != "investment" or product.return_rate_pct is None:
-            continue
-        total_balance += product.current_balance
-        weighted_sum += product.current_balance * product.return_rate_pct
-    if total_balance <= 0:
-        return None
-    return weighted_sum / total_balance
-
-
-def compute_projected_months_with_growth(
-    current_amount: Decimal,
-    monthly_saving_amount: Decimal,
-    required_amount: Decimal,
-    assumed_annual_return_pct: Decimal,
-) -> int | None:
-    """월 저축금액과 가정 연 수익률(월 복리 재투자 가정)로 목표금액에 도달하는 데 걸리는
-    예상 개월수를 계산한다. 이미 달성했으면 0, 저축도 없고 자산도 없어 영원히 도달 못 하면
-    None. assumed_annual_return_pct는 원금 대비 현재 손익률을 그대로 연 수익률처럼 가정한
-    값이라 보유기간에 따라 실제 연환산 수익률과 다를 수 있다 — 어디까지나 추정치다."""
+def compute_eta_year_month(
+    today: date, current_amount: Decimal, required_amount: Decimal, monthly_saving_amount: Decimal
+) -> str | None:
+    """현재 저축 속도(월 저축금액)로 목표금액에 도달하는 예상 달("YYYY-MM"). 이미 달성했으면
+    이번 달, 월 저축금액이 없어 영원히 못 미치면 None. 복리·수익률을 가정하지 않는 단순 선형
+    계산이다 — 옛 50년 복리 프로젝션(제거됨)을 대체한다."""
     if required_amount <= current_amount:
-        return 0
-    if current_amount <= 0 and monthly_saving_amount <= 0:
+        return year_month_str(today)
+    if monthly_saving_amount <= 0:
         return None
-    monthly_rate = assumed_annual_return_pct / Decimal("100") / Decimal("12")
-    balance = current_amount
-    for month in range(1, MAX_PROJECTION_MONTHS + 1):
-        balance = balance * (1 + monthly_rate) + monthly_saving_amount
-        if balance >= required_amount:
-            return month
-    return None
+    remaining = required_amount - current_amount
+    months = math.ceil(remaining / monthly_saving_amount)
+    return year_month_str(shift_month(today, months))
+
+
+def compute_ahead_behind_months(eta_year_month: str | None, target_date: date | None) -> int | None:
+    """예상 도달 달이 목표일보다 얼마나 이른지/늦은지(개월). 양수 = 그만큼 빠름, 음수 = 늦음.
+    목표일이나 ETA가 없으면 None."""
+    if eta_year_month is None or target_date is None:
+        return None
+    return months_between(parse_year_month(eta_year_month), month_bounds(target_date)[0])
 
 
 def to_out(db: Session, goal: FinancialGoal, today: date) -> dict:
@@ -227,13 +205,8 @@ def to_out(db: Session, goal: FinancialGoal, today: date) -> dict:
         if is_linked_goal
         else {}
     )
-    weighted_return_rate_pct = compute_weighted_return_rate_pct(goal)
-    projected_months_with_growth = (
-        compute_projected_months_with_growth(
-            current_amount, goal.monthly_saving_amount, goal.required_amount, weighted_return_rate_pct
-        )
-        if weighted_return_rate_pct is not None
-        else None
+    eta_year_month = compute_eta_year_month(
+        today, current_amount, goal.required_amount, goal.monthly_saving_amount
     )
     return {
         "id": goal.id,
@@ -253,8 +226,8 @@ def to_out(db: Session, goal: FinancialGoal, today: date) -> dict:
         "suggested_monthly_amount": compute_suggested_monthly_amount(
             current_amount, goal.required_amount, months_remaining
         ),
-        "weighted_return_rate_pct": weighted_return_rate_pct,
-        "projected_months_with_growth": projected_months_with_growth,
+        "eta_year_month": eta_year_month,
+        "ahead_behind_months": compute_ahead_behind_months(eta_year_month, goal.target_date),
         "start_date": goal.start_date,
         "status": goal.status,
         "effective_status": effective_status(goal, today),

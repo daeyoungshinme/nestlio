@@ -10,13 +10,10 @@ from app.config import settings as app_settings
 from app.routers import (
     accounts,
     annual_plan,
-    annual_savings_goals,
-    budgets,
     cashflow_plan,
     categories,
     dashboard,
     events,
-    external,
     goals,
     internal_jobs,
     invites,
@@ -70,7 +67,6 @@ app.include_router(users.router, prefix=API_PREFIX)
 app.include_router(categories.router, prefix=API_PREFIX)
 app.include_router(dashboard.router, prefix=API_PREFIX)
 app.include_router(transactions.router, prefix=API_PREFIX)
-app.include_router(budgets.router, prefix=API_PREFIX)
 app.include_router(recurring.router, prefix=API_PREFIX)
 app.include_router(events.router, prefix=API_PREFIX)
 app.include_router(accounts.router, prefix=API_PREFIX)
@@ -84,9 +80,7 @@ app.include_router(loans.router, prefix=API_PREFIX)
 app.include_router(real_estate.router, prefix=API_PREFIX)
 app.include_router(net_worth.router, prefix=API_PREFIX)
 app.include_router(notifications.router, prefix=API_PREFIX)
-app.include_router(annual_savings_goals.router, prefix=API_PREFIX)
 app.include_router(annual_plan.router, prefix=API_PREFIX)
-app.include_router(external.router, prefix=API_PREFIX)
 app.include_router(internal_jobs.router)
 
 growlio_client.register_exception_handlers(app)

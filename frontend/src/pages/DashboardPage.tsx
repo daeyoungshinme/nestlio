@@ -22,7 +22,7 @@ import QuickAddFab from "@/components/common/QuickAddFab";
 import TransactionForm from "@/components/transactions/TransactionForm";
 import { fetchDashboard } from "@/api/dashboard";
 import { fetchCashflowPlan } from "@/api/cashflowPlan";
-import { fetchGrowlioUnlinkedNetWorth, fetchNetWorth } from "@/api/netWorth";
+import { fetchNetWorth } from "@/api/netWorth";
 import { fetchSettings } from "@/api/settings";
 import { fetchGoals } from "@/api/goals";
 import { fetchCategories } from "@/api/categories";
@@ -42,7 +42,7 @@ import { estimateGoalAcceleration } from "@/utils/monthRange";
 import { extractErrorMessage } from "@/utils/error";
 import { toast } from "@/utils/toast";
 import { findGrowlioInvestmentLink } from "@/constants/growlio";
-import type { DashboardPeriod } from "@/types";
+import type { DashboardPeriod, SavingsProductOut } from "@/types";
 import { ChevronDown, ChevronRight, Flame, Target } from "lucide-react";
 
 const PERIOD_TABS: DashboardPeriod[] = ["today", "week", "month"];
@@ -55,7 +55,7 @@ const INSIGHT_LINKS: Partial<Record<string, { to: string; label: string }>> = {
   discretionary_ratio: { to: "/transactions", label: "가계부 보기" },
   debt_ratio: { to: "/transactions", label: "가계부 보기" },
   category_benchmark: { to: "/reports/yearly", label: "연간 리포트 보기" },
-  budget_overrun: { to: "/financial-plan?tab=현금흐름 계획", label: "현금흐름 계획 보기" },
+  budget_overrun: { to: "/financial-plan?view=이번 달", label: "이번 달 계획 보기" },
   emergency_fund: { to: "/accounts?tab=저축·투자", label: "저축·투자 보기" },
   savings_execution: { to: "/accounts?tab=저축·투자", label: "저축·투자 보기" },
 };
@@ -66,6 +66,7 @@ export default function DashboardPage() {
   const [day, setDay] = useState(currentDateIso());
   const [week, setWeek] = useState(currentWeekAnchor());
   const [showQuickAdd, setShowQuickAdd] = useState(false);
+  const [quickAddPrefill, setQuickAddPrefill] = useState<Record<string, string> | null>(null);
   const [showMore, setShowMore] = useState(false);
   const invalidateAll = useInvalidateTransactionRelated();
 
@@ -110,12 +111,6 @@ export default function DashboardPage() {
     queryFn: () => fetchNetWorth(),
     staleTime: STALE_TIME.MEDIUM,
   });
-  const { data: growlioUnlinked } = useQuery({
-    queryKey: QUERY_KEYS.netWorthGrowlioUnlinked,
-    queryFn: fetchGrowlioUnlinkedNetWorth,
-    staleTime: STALE_TIME.MEDIUM,
-    retry: false,
-  });
   const { data: goals } = useQuery({
     queryKey: QUERY_KEYS.financialGoals,
     queryFn: fetchGoals,
@@ -154,10 +149,28 @@ export default function DashboardPage() {
     onSuccess: () => {
       invalidateAll();
       setShowQuickAdd(false);
+      setQuickAddPrefill(null);
       toast("내역을 추가했습니다.", "success");
     },
     onError: (err) => toast(extractErrorMessage(err), "error"),
   });
+
+  const closeQuickAdd = () => {
+    setShowQuickAdd(false);
+    setQuickAddPrefill(null);
+  };
+
+  // 여유자금 카드에서 "저축 기록" — 빠른 추가 모달을 그 상품·금액으로 미리 채워 연다. 저축 카테고리
+  // 선택만 사용자가 확인하면 되고, growlio 연동 상품이면 저장 시 growlio 입금에도 반영된다.
+  const recordInvestment = (product: SavingsProductOut, amount: string) => {
+    setQuickAddPrefill({
+      transaction_date: currentDateIso(),
+      type: "expense",
+      amount,
+      savings_product_id: String(product.id),
+    });
+    setShowQuickAdd(true);
+  };
 
   if (isError) {
     return (
@@ -306,13 +319,9 @@ export default function DashboardPage() {
         </div>
       )}
 
-      <SummaryCards totals={data.totals} collapsible planSummary={planSummary} />
-
-      <TodayScheduleCard day={currentDateIso()} users={users} />
-
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {!topGoal ? (
-          <Link to="/financial-plan?tab=목표" className="relative card block hover:border-emerald-300 dark:hover:border-emerald-700 transition-colors">
+          <Link to="/financial-plan?view=목표" className="relative card block hover:border-emerald-300 dark:hover:border-emerald-700 transition-colors">
             <ChevronRight size={16} className="absolute top-5 right-5 text-gray-300 dark:text-gray-600" aria-hidden="true" />
             <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">우리 부부 목표</h3>
             <EmptyState
@@ -323,7 +332,7 @@ export default function DashboardPage() {
             />
           </Link>
         ) : (
-          <Link to="/financial-plan?tab=목표" className="relative block">
+          <Link to="/financial-plan?view=목표" className="relative block">
             <ChevronRight size={16} className="absolute top-5 right-5 text-gray-300 dark:text-gray-600 z-10" aria-hidden="true" />
             <GoalProgressCard
               className="hover:border-emerald-300 dark:hover:border-emerald-700 transition-colors"
@@ -418,15 +427,14 @@ export default function DashboardPage() {
                   </span>
                 </div>
               </div>
-              {growlioUnlinked && growlioUnlinked.item_count > 0 && (
-                <p className="mt-3 pt-3 border-t border-gray-100 dark:border-gray-800 text-xs text-emerald-600 dark:text-emerald-400">
-                  growlio 미연동 자산 +{formatKrw(growlioUnlinked.net_total)} ({growlioUnlinked.item_count}건)
-                </p>
-              )}
             </>
           )}
         </Link>
       </div>
+
+      <SummaryCards totals={data.totals} collapsible planSummary={planSummary} />
+
+      <TodayScheduleCard day={currentDateIso()} users={users} />
 
       <CoupleContributionCard
         title={
@@ -465,6 +473,7 @@ export default function DashboardPage() {
           <InvestSurplusCard
             surplusAllocation={data.surplus_allocation}
             investmentProducts={savingsProducts ?? []}
+            onRecordInvestment={recordInvestment}
             topGoalGrowlioAccountId={topGoalGrowlioLink}
             topGoalAcceleration={topGoalAcceleration}
           />
@@ -476,7 +485,7 @@ export default function DashboardPage() {
       <QuickAddFab onClick={() => setShowQuickAdd(true)} />
 
       {showQuickAdd && (
-        <Modal onClose={() => setShowQuickAdd(false)} title="내역 추가">
+        <Modal onClose={closeQuickAdd} title={quickAddPrefill ? "여유자금 저축 기록" : "내역 추가"}>
           <div className="p-6 overflow-y-auto">
             {!categories || !accounts || !savingsProducts || !users ? (
               <SkeletonCard rows={4} />
@@ -491,7 +500,7 @@ export default function DashboardPage() {
                 isNew
                 submitLabel="추가"
                 submitting={createMutation.isPending}
-                initialValues={{ transaction_date: currentDateIso() }}
+                initialValues={quickAddPrefill ?? { transaction_date: currentDateIso() }}
                 onSubmit={(payload) => createMutation.mutate(payload)}
               />
             )}

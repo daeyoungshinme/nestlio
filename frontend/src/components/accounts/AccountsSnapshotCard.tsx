@@ -7,7 +7,7 @@ import SkeletonCard from "@/components/common/SkeletonCard";
 import CollapsibleGroup from "@/components/common/CollapsibleGroup";
 import AssetCompositionDonut from "@/components/accounts/AssetCompositionDonut";
 import NetWorthTrendChart from "@/components/accounts/NetWorthTrendChart";
-import { fetchNetWorth } from "@/api/netWorth";
+import { fetchGrowlioUnlinkedNetWorth, fetchNetWorth } from "@/api/netWorth";
 import { fetchSavingsProducts, syncAllSavingsProducts } from "@/api/savingsProducts";
 import { fetchLoans } from "@/api/loans";
 import { syncAllAccounts } from "@/api/accounts";
@@ -32,6 +32,19 @@ export default function AccountsSnapshotCard() {
   // 추가 네트워크 요청 없음) — growlio_account_id로 부동산 자산과 짝지어진 대출만 골라낸다
   // (app/services/real_estate_service.py의 담보대출 연동과 동일한 매칭 방식).
   const { data: loans } = useQuery({ queryKey: QUERY_KEYS.loans, queryFn: fetchLoans });
+
+  // growlio에 있지만 아직 안 가져온 자산 — growlio HTTP를 2회 더 부르므로 화면 로드마다 자동
+  // 실행하지 않고(대시보드에서 이 카드로 옮기면서 그 비용도 함께 뺐다) 버튼으로만 조회한다.
+  const {
+    data: growlioUnlinked,
+    isFetching: unlinkedFetching,
+    refetch: refetchUnlinked,
+  } = useQuery({
+    queryKey: QUERY_KEYS.netWorthGrowlioUnlinked,
+    queryFn: fetchGrowlioUnlinkedNetWorth,
+    enabled: false,
+    retry: false,
+  });
 
   // 계좌/저축·투자/부동산 탭에 흩어진 growlio 연동 항목을 한 번에 새로고침 — 각 리소스의 개별
   // "동기화" 버튼(건당 1개 항목)과 별개로, 이 카드가 모든 탭에 공통으로 뜨는 상단 요약이라 여기 둔다.
@@ -124,6 +137,21 @@ export default function AccountsSnapshotCard() {
       >
         <NetWorthTrendChart history={history} />
       </CollapsibleGroup>
+
+      <div className="px-1">
+        {growlioUnlinked && growlioUnlinked.item_count > 0 ? (
+          <p className="text-xs text-emerald-600 dark:text-emerald-400">
+            growlio 미연동 자산 +{formatKrw(growlioUnlinked.net_total)} ({growlioUnlinked.item_count}건) — 각 섹션의
+            "growlio에서 가져오기"로 추가하세요.
+          </p>
+        ) : growlioUnlinked ? (
+          <p className="text-xs text-gray-400 dark:text-gray-500">growlio에 아직 안 가져온 자산이 없어요.</p>
+        ) : (
+          <Button variant="ghost" size="sm" loading={unlinkedFetching} onClick={() => void refetchUnlinked()}>
+            growlio 미연동 자산 확인
+          </Button>
+        )}
+      </div>
 
       {syncFailures != null && (
         <Modal title="건너뛴 항목" onClose={() => setSyncFailures(null)} size="sm" closeOnBackdrop>

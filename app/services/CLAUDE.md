@@ -59,9 +59,11 @@
 
 **전체 동기화(`sync_all_*`) 패턴**: `account_service.sync_all_accounts`/`savings_product_service.sync_all_from_growlio`/`real_estate_service.sync_all_from_growlio`가 공유하는 규칙 — growlio 목록은 (건별 `sync_account`/`sync_from_growlio`처럼 매번 재호출하지 않고) **1회만 조회**해 연동된 항목 전체에 매칭한다. 배우자 소유 등으로 매칭에 실패한 항목은 예외를 던져 전체를 중단시키지 않고 `{id, name, reason}` 형태로 `failed` 리스트에 담아 나머지 항목 동기화를 계속 진행하며, 반환 타입은 `tuple[동기화된_개수: int, failed: list[dict]]`로 통일한다. 새로운 growlio 연동 리소스 타입에 "전체 동기화"를 추가할 때도 이 시그니처와 부분 실패 처리 방식을 따른다.
 
+**기회주의적 갱신(`net_worth_service.refresh_stale_growlio_links`)**: `auto_sync_enabled`인데 `last_synced_at`이 `STALE_GROWLIO_LINK_AFTER`(12h)보다 오래된 SavingsProduct/Loan 연동이 있으면, `GET /net-worth`(대시보드·자산 화면이 공유) 응답 후 FastAPI `BackgroundTasks`로 위 `sync_all_*` 3종을 조용히 실행한다. 스케줄러에는 사용자 Supabase JWT가 없어(app/scheduler/CLAUDE.md) 예약 작업으로는 growlio 잔액 동기화를 못 하기 때문에 택한 방식이다. fire-and-forget이라 절대 raise하지 않고(요청 스코프 세션이 응답 후 닫히므로 자체 `SessionLocal()`을 연다), growlio 미설정/접속 실패면 조용히 중단한다.
+
 ## 연간계획류 공용 헬퍼 (plan_targets.py)
 
-`AnnualPlanItem`/`AnnualSavingsGoal`/`SavingsProductAnnualPlan`/`FinancialGoal` 4개 도메인 모두 "부모 엔티티 + 월별 target 테이블" 구조를 갖고 있어, `annual_plan_service`/`annual_savings_goal_service`/`savings_product_service`/`goal_service`/`cashflow_plan_service`가 `app/services/plan_targets.py`의 아래 헬퍼를 공유한다 — growlio 연동 공용 헬퍼(`growlio_client.py`)와 같은 원칙으로, 도메인별 upsert/CRUD 골격 자체는 억지로 통합하지 않고 정말 동일한 조각만 뽑았다.
+`AnnualPlanItem`/`SavingsProductAnnualPlan`/`FinancialGoal` 도메인 모두 "부모 엔티티 + 월별 target 테이블" 구조를 갖고 있어, `annual_plan_service`/`savings_product_service`/`goal_service`/`cashflow_plan_service`가 `app/services/plan_targets.py`의 아래 헬퍼를 공유한다 — growlio 연동 공용 헬퍼(`growlio_client.py`)와 같은 원칙으로, 도메인별 upsert/CRUD 골격 자체는 억지로 통합하지 않고 정말 동일한 조각만 뽑았다. (편집 가능한 가구 공동 "연간 순저축 목표" `AnnualSavingsGoal`은 제거됐다 — "얼마 저축할지" 모델 중복을 줄이면서 연간계획 `AnnualPlanItem`의 "저축 가능액(계획 수입 − 계획 지출)"과 `SavingsProductAnnualPlan`로 일원화. growlio가 읽던 `/external/annual-savings-goals`도 소비자가 없어 라우터째 삭제.)
 
 - `apply_monthly_targets(parent, monthly_targets, target_cls)`: year_month로 기존 월별 target 행을 매칭해 갱신/생성하고 빠진 월은 delete-orphan으로 삭제한다. `GoalMonthlyTarget.achieved_amount`처럼 target_amount 외의 컬럼이 있어도 기존 행은 그대로 재사용하므로 건드리지 않는다.
 - `elapsed_months(year, today)`: 그 해의 몇 월까지 실적을 집계할 수 있는지.

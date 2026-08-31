@@ -14,9 +14,10 @@ from app.services import (
     coaching_settings_service,
     goal_service,
     net_worth_service,
+    retrospective_service,
     transaction_report_service,
 )
-from app.utils.dates import month_bounds, parse_year_month, shift_month, week_bounds, year_month_str
+from app.utils.dates import month_bounds, parse_year_month, week_bounds, year_month_str
 
 router = APIRouter(prefix="/dashboard", tags=["dashboard"])
 
@@ -98,22 +99,14 @@ def monthly_retrospective(
     _: User = Depends(get_current_user),
 ):
     """지난달(가장 최근 완결된 달) 요약 — 부부가 함께 돌아보는 월간 회고 카드용.
-    이메일 전용이던 notification_service.send_monthly_summary와 같은 기간·데이터 소스를 재사용한다."""
-    prev_month_anchor = shift_month(date.today(), -1)
-    start, end = month_bounds(prev_month_anchor)
-    year_month = year_month_str(start)
-
-    totals = transaction_report_service.period_totals(db, start, end)
-    owner_totals = transaction_report_service.totals_by_owner(db, start, end)
-    breakdown = transaction_report_service.category_breakdown(db, start, end, "expense")
-    insights = coaching_engine.compute_insights(db, year_month, totals=totals, breakdown=breakdown)
-
+    월간 요약 이메일(notification_service.send_monthly_summary)과 retrospective_service를 공유한다."""
+    r = retrospective_service.build(db, date.today())
     return {
-        "year_month": year_month,
-        "start": start,
-        "end": end,
-        "totals": totals,
-        "owner_totals": owner_totals,
-        "top_categories": breakdown[:3],
-        "insights": insights,
+        "year_month": r["year_month"],
+        "start": r["start"],
+        "end": r["end"],
+        "totals": r["totals"],
+        "owner_totals": r["owner_totals"],
+        "top_categories": r["top_categories"],
+        "insights": r["insights"],
     }

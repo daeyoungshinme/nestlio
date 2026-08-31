@@ -14,26 +14,32 @@ export interface NavGroup {
 
 const DASHBOARD: NavItem = { to: "/", icon: Home, label: "대시보드" };
 const TRANSACTIONS: NavItem = { to: "/transactions", icon: Wallet, label: "가계부" };
-const ACCOUNTS: NavItem = { to: "/accounts", icon: Landmark, label: "자산현황" };
+const ACCOUNTS: NavItem = { to: "/accounts", icon: Landmark, label: "자산" };
 const SCHEDULE: NavItem = { to: "/schedule", icon: CalendarDays, label: "일정" };
 const REPORTS_YEARLY: NavItem = { to: "/reports/yearly", icon: BarChart3, label: "연간리포트" };
-const FINANCIAL_PLAN: NavItem = { to: "/financial-plan", icon: Target, label: "목표" };
+const FINANCIAL_PLAN: NavItem = { to: "/financial-plan", icon: Target, label: "계획·목표" };
 const SETTINGS: NavItem = { to: "/settings", icon: Settings, label: "설정" };
 
-/** 사이드바(데스크톱, lg 이상)는 아래 그룹을 순서대로 전부 보여준다. 대시보드/설정은
- * 그룹 헤더 없이 상단/하단에 단독으로 둔다. 예산·고정지출은 관리 화면 자체가 없어지고
- * 가계부 페이지의 필터·거래 목록으로 흡수됐다(구 라우트 `/budgets`, `/recurring`은
- * `/transactions`로 리다이렉트). 일정(/schedule)은 가계부 캘린더의 "일정" 탭(완료 체크만 되는
- * 읽기 전용에 가까운 리마인더 미리보기, `/schedule`로 링크만 연결)과 달리 담당자 배분·필터·전체
- * CRUD가 있는 부부 공동 플래너라 별도 화면은 유지하되, 사용 빈도상 하단탭에서 "더보기"에 접히는
- * 것과 마찬가지로 독립 그룹이 아니라 가장 가까운 "지출관리" 그룹에 묶는다. 재무목표가 한때
- * 현금흐름 계획 탭에 흡수됐다가 스코프가 근본적으로 달라 다시 독립 탭으로 분리된 것과는 반대로,
- * 일정은 화면은 독립적이되 nav 위계는 낮게 두는 쪽을 택한 것([financial-plan 라우트 설명] 참고). */
+/** 사이드바(데스크톱, lg 이상)는 아래 그룹을 순서대로 전부 보여준다. 대시보드/연간리포트/설정은
+ * 그룹 헤더 없이 단독으로 둔다. 앱의 유일한 목적("부부가 세운 자산증식 목표 달성")을 중심으로
+ * 위계를 납작하게 정리했다:
+ *   - "기록"    = 매일 들어가는 실측 입력 (가계부 + 일정). 일정은 화면 자체는 `/schedule`로
+ *                 독립돼 있지만(담당자 배분·완료 체크·전체 CRUD가 있는 부부 공동 플래너) 사용
+ *                 빈도상 가계부와 한 그룹으로 묶고, 모바일 하단탭에서는 "더보기"에 접힌다.
+ *   - "계획·목표"= `/financial-plan` 한 화면. 화면 내부에서 `[목표] [이번 달] [연간]` 세그먼트로
+ *                 나뉜다(구 페이지 탭 2 × 뷰 서브탭 2 × 섹션 탭 5의 3중 중첩을 평탄화). 재무목표와
+ *                 현금흐름 계획은 스코프(목표일 기준 vs 달력월 기준)가 다르지만 커플이 이 탭을
+ *                 여는 이유는 늘 "목표가 뭐고 이번 달 얼마"라서 nav 슬롯은 하나로 합쳤다.
+ *   - "자산"    = `/accounts`. 순자산 스냅샷 + 계좌/저축·투자/부동산/대출을 단일 스크롤로.
+ *                 growlio 잔액 동기화·가져오기의 유일 진입점.
+ * 예산·고정지출은 관리 화면 없이 가계부/계획 화면의 필터·섹션으로 흡수됐다(구 라우트
+ * `/budgets`, `/recurring`은 `/transactions`로 리다이렉트). 거래 수정도 별도 페이지 없이
+ * 가계부의 인라인 모달로 처리한다(구 `/transactions/:id/edit` 삭제). */
 export const SIDEBAR_NAV_GROUPS: NavGroup[] = [
   { header: null, items: [DASHBOARD] },
-  { header: "지출관리", items: [TRANSACTIONS, SCHEDULE] },
-  { header: "자산·목표", items: [ACCOUNTS, FINANCIAL_PLAN] },
-  { header: "리포트", items: [REPORTS_YEARLY] },
+  { header: "기록", items: [TRANSACTIONS, SCHEDULE] },
+  { header: "계획·목표", items: [FINANCIAL_PLAN, ACCOUNTS] },
+  { header: null, items: [REPORTS_YEARLY] },
   { header: null, items: [SETTINGS] },
 ];
 
@@ -49,10 +55,8 @@ function byPaths(paths: string[]): NavItem[] {
 }
 
 /** 하단 탭(모바일)은 엄지 도달 범위/터치 타겟 크기를 지키기 위해 사용 빈도가 높은
- * 4개만 상시 노출하고, 나머지(일정/연간리포트/설정)는 "더보기" 시트로 접는다. 예산·고정지출은
- * 관리 화면 자체가 없어지면서 별도 슬롯이 필요 없어져, 다음으로 자주 쓰는 자산현황을 그 자리에
- * 승격했다. 예산·고정지출은 별도 탭이 아니라 가계부(/transactions) 페이지(월간 캘린더 +
- * 수입/지출·카테고리별 필터가 붙은 거래 목록)로 흡수됐다. */
-export const BOTTOM_NAV_PRIMARY_ITEMS: NavItem[] = byPaths(["/", "/transactions", "/accounts", "/financial-plan"]);
+ * 4개(대시보드/가계부/계획·목표/자산)만 상시 노출하고, 나머지(일정/연간리포트/설정)는
+ * "더보기" 시트로 접는다. 목표 달성 루프의 중심축(계획·목표)을 자산보다 앞에 둔다. */
+export const BOTTOM_NAV_PRIMARY_ITEMS: NavItem[] = byPaths(["/", "/transactions", "/financial-plan", "/accounts"]);
 
 export const BOTTOM_NAV_MORE_ITEMS: NavItem[] = byPaths(["/schedule", "/reports/yearly", "/settings"]);

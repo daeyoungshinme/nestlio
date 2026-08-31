@@ -3,7 +3,8 @@ import { QUERY_KEYS } from "@/constants/queryKeys";
 
 /** Invalidates every cache a transaction create/update/delete/import can affect
  * (transactions list, dashboard, category breakdown, savings products, net worth).
- * Shared by TransactionsPage and TransactionEditPage so the two don't drift. */
+ * Shared by every transaction create/update/delete entry point (list, day modal,
+ * import) so they don't drift. */
 export function useInvalidateTransactionRelated() {
   const queryClient = useQueryClient();
   return () => {

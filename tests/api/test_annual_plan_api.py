@@ -156,8 +156,8 @@ def test_category_budgets_endpoint(client, seeded_db):
         monthly_targets=[{"year_month": "2026-01", "target_amount": Decimal("300000")}],
     )
 
-    resp = client.get("/api/v1/annual-plan/category-budgets", params={"year": 2026})
+    resp = client.get("/api/v1/annual-plan", params={"year": 2026})
     assert resp.status_code == 200
-    rows = resp.json()
+    rows = resp.json()["category_budgets"]
     food_row = next(r for r in rows if r["category_id"] == food.id)
     assert food_row["budget"] == "300000.00"

@@ -14,7 +14,6 @@ const InviteAcceptPage = lazy(() => import("./pages/InviteAcceptPage"));
 const AuthCallbackPage = lazy(() => import("./pages/AuthCallbackPage"));
 const DashboardPage = lazy(() => import("./pages/DashboardPage"));
 const TransactionsPage = lazy(() => import("./pages/TransactionsPage"));
-const TransactionEditPage = lazy(() => import("./pages/TransactionEditPage"));
 const TransactionImportPage = lazy(() => import("./pages/TransactionImportPage"));
 const AccountsPage = lazy(() => import("./pages/AccountsPage"));
 const CategoriesPage = lazy(() => import("./pages/CategoriesPage"));
@@ -59,7 +58,7 @@ function AppRoutes() {
         <Route index element={<LazyRoute Component={DashboardPage} />} />
         <Route path="transactions" element={<LazyRoute Component={TransactionsPage} />} />
         <Route path="transactions/import" element={<LazyRoute Component={TransactionImportPage} />} />
-        <Route path="transactions/:id/edit" element={<LazyRoute Component={TransactionEditPage} />} />
+        <Route path="transactions/:id/edit" element={<Navigate to="/transactions" replace />} />
         <Route path="calendar" element={<Navigate to="/transactions" replace />} />
         <Route path="budgets" element={<Navigate to="/transactions" replace />} />
         <Route path="recurring" element={<Navigate to="/transactions" replace />} />

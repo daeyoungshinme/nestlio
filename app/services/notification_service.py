@@ -17,10 +17,11 @@ from app.services import (
     goal_service,
     milestone_service,
     notification_settings_service,
+    retrospective_service,
     transaction_report_service,
 )
 from app.services.google_auth import is_connected
-from app.utils.dates import month_bounds, shift_month, week_bounds, year_month_str
+from app.utils.dates import week_bounds, year_month_str
 
 logger = logging.getLogger(__name__)
 
@@ -154,16 +155,13 @@ def send_weekly_summary(db: Session, today: date | None = None, force: bool = Fa
 
 def send_monthly_summary(db: Session, today: date | None = None, force: bool = False) -> bool:
     today = today or date.today()
-    prev_month_anchor = shift_month(today, -1)
-    start, end = month_bounds(prev_month_anchor)
-    period_key = year_month_str(start)
+    r = retrospective_service.build(db, today)
+    start, end, period_key = r["start"], r["end"], r["year_month"]
     if not force and not notification_settings_service.is_enabled(db, "email_monthly"):
         return False
     if not force and _already_sent(db, "email_monthly", period_key):
         return False
-    totals = transaction_report_service.period_totals(db, start, end)
-    breakdown = transaction_report_service.category_breakdown(db, start, end, "expense")
-    owner_totals = transaction_report_service.totals_by_owner(db, start, end)
+    totals, breakdown, owner_totals, insights = r["totals"], r["breakdown"], r["owner_totals"], r["insights"]
     streak = _savings_streak(db, end)
     body = _format_summary("월간 가계부 요약", start, end, totals, breakdown)
 
@@ -176,7 +174,6 @@ def send_monthly_summary(db: Session, today: date | None = None, force: bool = F
     if extra_lines:
         body += "\n\n" + "\n".join(extra_lines)
 
-    insights = coaching_engine.compute_insights(db, period_key, totals=totals, breakdown=breakdown)
     if insights:
         body += "\n\n자산증식 코칭:\n"
         body += "\n".join(f"  - [{i.severity}] {i.message}" for i in insights)

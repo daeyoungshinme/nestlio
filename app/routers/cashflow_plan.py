@@ -15,7 +15,7 @@ from app.schemas.cashflow_plan import (
     CashflowPlanListOut,
     CashflowPlanSplitResultOut,
 )
-from app.services import cashflow_plan_service
+from app.services import budget_service, cashflow_plan_service, coaching_settings_service
 from app.utils.dates import months_remaining_in_year, parse_year_month, shift_month, year_month_str
 
 router = APIRouter(prefix="/cashflow-plan", tags=["cashflow-plan"])
@@ -27,12 +27,16 @@ def _plan_list(db: Session, year_month: str | None) -> dict:
     items = cashflow_plan_service.list_items_with_annual_fallback(db, ym)
     actuals = cashflow_plan_service.actuals_for_month(db, ym)
     suggested = cashflow_plan_service.suggested_totals(db, ym)
+    thresholds = coaching_settings_service.get_thresholds(db)
     return {
         "year_month": ym,
         "prev_month": year_month_str(shift_month(month_start, -1)),
         "next_month": year_month_str(shift_month(month_start, 1)),
         "items": items,
         "summary": cashflow_plan_service.compute_summary(items, actuals, suggested),
+        "category_budgets": budget_service.budget_vs_actual(
+            db, ym, thresholds["budget_warn_pct"], thresholds["budget_critical_pct"]
+        ),
     }
 
 

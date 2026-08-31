@@ -93,7 +93,7 @@ export default function SummaryCards({ totals, collapsible = false, planSummary 
             />
           </div>
           <Link
-            to="/financial-plan?tab=현금흐름 계획"
+            to="/financial-plan?view=이번 달"
             className="block text-center text-xs font-semibold text-gray-500 dark:text-gray-400 underline hover:no-underline"
           >
             {planSummary ? "계획 상세보기" : "계획 대비 보기"}

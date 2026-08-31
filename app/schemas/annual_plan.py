@@ -80,12 +80,6 @@ class AnnualPlanSummaryOut(BaseModel):
     available: Decimal
 
 
-class AnnualPlanListOut(BaseModel):
-    year: int
-    items: list[AnnualPlanItemOut]
-    summary: AnnualPlanSummaryOut
-
-
 class AnnualCategoryBudgetRowOut(BaseModel):
     category_id: int
     name: str
@@ -95,3 +89,10 @@ class AnnualCategoryBudgetRowOut(BaseModel):
     actual: Decimal
     pct: float
     status: Literal["ok", "warn", "critical"]
+
+
+class AnnualPlanListOut(BaseModel):
+    year: int
+    items: list[AnnualPlanItemOut]
+    summary: AnnualPlanSummaryOut
+    category_budgets: list[AnnualCategoryBudgetRowOut]

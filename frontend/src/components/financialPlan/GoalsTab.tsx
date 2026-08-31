@@ -3,7 +3,6 @@ import type { FormEvent } from "react";
 import { Link } from "react-router-dom";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { Download, ExternalLink, Plus, Target, Trophy } from "lucide-react";
-import AnnualSavingsGoalCard from "@/components/financialPlan/AnnualSavingsGoalCard";
 import Button from "@/components/common/Button";
 import CollapsibleGroup from "@/components/common/CollapsibleGroup";
 import ConfirmModal from "@/components/common/ConfirmModal";
@@ -40,7 +39,7 @@ import { computeCardStatus, daysUntil, isGoalAchieved } from "@/utils/goalStatus
 import { GOAL_SORT_LABELS, sortGoals, type GoalSortLabel } from "@/utils/goalSort";
 import { estimateGoalAcceleration, syncTargetsToPeriod } from "@/utils/monthRange";
 import { extractErrorMessage } from "@/utils/error";
-import { formatDate, formatKrw, formatKrwPreview, formatPercent, toAmountInputValue } from "@/utils/format";
+import { formatDate, formatKrw, formatKrwPreview, formatYearMonth, toAmountInputValue } from "@/utils/format";
 import { toast } from "@/utils/toast";
 import {
   findGrowlioInvestmentLink,
@@ -420,6 +419,15 @@ export default function GoalsTab() {
         ),
       });
     }
+    if (!isChallenge && goal.eta_year_month) {
+      const ab = goal.ahead_behind_months;
+      extraDetails.push({
+        key: "eta",
+        content: `현재 저축 속도면 ${formatYearMonth(goal.eta_year_month)} 도달 예상${
+          ab !== null ? ` · 목표일 대비 ${Math.abs(ab)}개월 ${ab >= 0 ? "빠름" : "늦음"}` : ""
+        }`,
+      });
+    }
     if (showSurplusHint) {
       const acceleration = estimateGoalAcceleration(
         goal.required_amount,
@@ -435,13 +443,6 @@ export default function GoalsTab() {
           : `이번 달 여유자금 ${formatKrw(investableSurplus)}, 이 목표의 투자금에 보태보세요. (가계 전체 여유자금이라 growlio 연동된 목표 중 1순위에만 표시돼요)`,
       });
     }
-    if (goal.weighted_return_rate_pct !== null && goal.projected_months_with_growth !== null) {
-      extraDetails.push({
-        key: "projection",
-        content: `연동 투자상품 수익률 ${formatPercent(Number(goal.weighted_return_rate_pct))}(가정) 반영 시 약 ${goal.projected_months_with_growth}개월 후 달성 예상`,
-      });
-    }
-
     return (
       <GoalProgressCard
         key={goal.id}
@@ -544,13 +545,11 @@ export default function GoalsTab() {
 
   return (
     <div className="space-y-6">
-      <AnnualSavingsGoalCard />
-
       <Link
-        to="/financial-plan?tab=현금흐름 계획&view=연간계획"
+        to="/financial-plan?view=연간"
         className="block text-xs text-gray-500 dark:text-gray-400 hover:text-emerald-600 dark:hover:text-emerald-400"
       >
-        이번 달 수입·지출 상세 계획은 현금흐름 계획 탭에서 조정해요 → 연간계획 보기
+        올해 저축 계획·실적(계획 수입 − 계획 지출 대비 실제 순저축)은 연간 탭에서 확인해요 →
       </Link>
 
       <GoalSectionHeader
@@ -658,7 +657,6 @@ function GoalFormModal({
 }) {
   const [draft, setDraft] = useState<Draft>(initial);
   const [currentAge, setCurrentAge] = useState("");
-  const [confirmingResync, setConfirmingResync] = useState(false);
   const isChallenge = draft.kind === "challenge";
   // 유형 선택은 생성 시에만 가능하다(백엔드 FinancialGoalUpdateIn에 kind 필드 자체가 없어 생성 후
   // 유형 변경이 불가능) — 수정 모드에서는 토글을 숨기고 기존 kind별 폼만 보여준다. 이름은 유형을
@@ -835,41 +833,17 @@ function GoalFormModal({
       <form onSubmit={handleSubmit} className="p-6 overflow-y-auto flex flex-col gap-3">
         {kindToggle}
         <p className={FORM_SECTION_LABEL}>기본 정보</p>
-        {existingGoal === null ? (
-          <Button
-            type="button"
-            variant="secondary"
-            size="sm"
-            icon={<Download size={14} />}
-            loading={growlioGoalMutation.isPending}
-            onClick={() => growlioGoalMutation.mutate()}
-          >
-            growlio 투자목표 불러오기
-          </Button>
-        ) : (
-          <Button
-            type="button"
-            variant="secondary"
-            size="sm"
-            icon={<Download size={14} />}
-            loading={growlioGoalMutation.isPending}
-            onClick={() => setConfirmingResync(true)}
-          >
-            growlio 값으로 새로고침
-          </Button>
-        )}
-        {confirmingResync && (
-          <ConfirmModal
-            message="growlio에 설정된 최신 투자목표 값(목표금액·월납입액·연동 상품)으로 이 화면의 값을 덮어써요. 지금 입력한 값은 사라져요. 계속할까요?"
-            confirmLabel="새로고침"
-            danger={false}
-            onConfirm={() => {
-              setConfirmingResync(false);
-              growlioGoalMutation.mutate();
-            }}
-            onCancel={() => setConfirmingResync(false)}
-          />
-        )}
+        {/* 저장 전에는 아무것도 반영되지 않으므로(모달을 닫으면 원복) 별도 확인 모달 없이 바로 불러온다. */}
+        <Button
+          type="button"
+          variant="secondary"
+          size="sm"
+          icon={<Download size={14} />}
+          loading={growlioGoalMutation.isPending}
+          onClick={() => growlioGoalMutation.mutate()}
+        >
+          {existingGoal === null ? "growlio 투자목표 불러오기" : "growlio 값으로 채우기"}
+        </Button>
         <FormInput
           label="재무목표"
           value={draft.name}
@@ -1025,23 +999,6 @@ function GoalFormModal({
             (필요금액 - 현재 저축액) ÷ 남은 개월 수로 월 저축금액을 제안해요. 저장되지 않고 계산에만 쓰여요.
           </p>
         </div>
-        {existingGoal &&
-          existingGoal.weighted_return_rate_pct !== null &&
-          existingGoal.projected_months_with_growth !== null && (
-            <div className="rounded-lg border border-emerald-200 dark:border-emerald-800 bg-emerald-50/40 dark:bg-emerald-950/20 p-3 space-y-1">
-              <p className="text-xs font-medium text-emerald-700 dark:text-emerald-400">
-                투자수익률 반영 예상 소요기간 (가정치)
-              </p>
-              <p className="text-sm text-gray-900 dark:text-gray-50">
-                연동 투자상품 수익률 {formatPercent(Number(existingGoal.weighted_return_rate_pct))} 가정 시 약{" "}
-                {existingGoal.projected_months_with_growth}개월 후 목표 달성 예상
-              </p>
-              <p className="text-xs text-gray-400 dark:text-gray-500">
-                원금 대비 현재 손익률을 연 수익률처럼 가정한 값이라 보유기간에 따라 실제와 다를 수 있어요 —
-                참고용 추정치예요.
-              </p>
-            </div>
-          )}
         <FormInput
           label="월 저축금액"
           type="number"

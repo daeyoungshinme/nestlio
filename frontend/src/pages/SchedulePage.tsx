@@ -1,5 +1,8 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { CalendarSync, Plus } from "lucide-react";
+import Button from "@/components/common/Button";
 import ConfirmModal from "@/components/common/ConfirmModal";
 import ErrorState from "@/components/common/ErrorState";
 import Modal from "@/components/common/Modal";
@@ -11,7 +14,8 @@ import EventForm, { emptyEventFormValues, eventToFormValues } from "@/components
 import ScheduleDayCell from "@/components/schedule/ScheduleDayCell";
 import ScheduleEventList from "@/components/schedule/ScheduleEventList";
 import ScheduleMonthList from "@/components/schedule/ScheduleMonthList";
-import { completeEvent, createEvent, deleteEvent, fetchEvents, updateEvent } from "@/api/events";
+import { completeEvent, createEvent, deleteEvent, fetchEvents, importGoogleEvents, updateEvent } from "@/api/events";
+import { fetchSettings } from "@/api/settings";
 import { fetchUsers } from "@/api/users";
 import { QUERY_KEYS } from "@/constants/queryKeys";
 import { STALE_TIME } from "@/constants/queryConfig";
@@ -19,6 +23,8 @@ import { extractErrorMessage } from "@/utils/error";
 import { formatDate } from "@/utils/format";
 import { toast } from "@/utils/toast";
 import type { EventOut } from "@/types";
+
+const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
 const ALL_ASSIGNEES_TAB = "전체";
 const SHARED_ASSIGNEE_TAB = "공동";
@@ -39,7 +45,11 @@ function occurrenceDate(iso: string): string {
 }
 
 export default function SchedulePage() {
-  const [yearMonth, setYearMonth] = useState(currentYearMonth());
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [yearMonth, setYearMonth] = useState(() => {
+    const d = searchParams.get("date");
+    return d && ISO_DATE_RE.test(d) ? d.slice(0, 7) : currentYearMonth();
+  });
   const [assigneeTab, setAssigneeTab] = useState(ALL_ASSIGNEES_TAB);
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [createDateHint, setCreateDateHint] = useState(todayIso());
@@ -47,9 +57,30 @@ export default function SchedulePage() {
   const [deleteTarget, setDeleteTarget] = useState<EventOut | null>(null);
   const queryClient = useQueryClient();
 
+  // 가계부 날짜 모달의 "이 날 일정 보기 →" 링크(?date=YYYY-MM-DD)로 들어오면 그 날의 일정 모달을 연다.
+  useEffect(() => {
+    const d = searchParams.get("date");
+    if (!d || !ISO_DATE_RE.test(d)) return;
+    setSelectedDate(d);
+    setSearchParams(
+      (prev) => {
+        const next = new URLSearchParams(prev);
+        next.delete("date");
+        return next;
+      },
+      { replace: true },
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
+
   const { date_from, date_to } = monthBounds(yearMonth);
 
   const { data: users } = useQuery({ queryKey: QUERY_KEYS.users, queryFn: fetchUsers, staleTime: STALE_TIME.LONG });
+  const { data: settings } = useQuery({
+    queryKey: QUERY_KEYS.settings,
+    queryFn: fetchSettings,
+    staleTime: STALE_TIME.MEDIUM,
+  });
   const {
     data,
     isLoading,
@@ -101,6 +132,15 @@ export default function SchedulePage() {
   const completeMutation = useMutation({
     mutationFn: ({ id, completed }: { id: number; completed: boolean }) => completeEvent(id, completed),
     onSuccess: invalidateEvents,
+    onError: (err) => toast(extractErrorMessage(err), "error"),
+  });
+
+  const importGoogleMutation = useMutation({
+    mutationFn: () => importGoogleEvents(date_from, date_to),
+    onSuccess: (result) => {
+      invalidateEvents();
+      toast(`구글 캘린더에서 ${result.created + result.updated}건을 가져왔어요.`, "success");
+    },
     onError: (err) => toast(extractErrorMessage(err), "error"),
   });
 
@@ -160,7 +200,23 @@ export default function SchedulePage() {
     <div className="space-y-6">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <h1 className="text-lg font-bold text-gray-900 dark:text-gray-50">일정</h1>
-        <MonthPicker yearMonth={yearMonth} onChange={setYearMonth} />
+        <div className="flex items-center gap-2 flex-wrap">
+          <MonthPicker yearMonth={yearMonth} onChange={setYearMonth} />
+          {settings?.google_connected && (
+            <Button
+              variant="secondary"
+              size="sm"
+              icon={<CalendarSync size={14} />}
+              loading={importGoogleMutation.isPending}
+              onClick={() => importGoogleMutation.mutate()}
+            >
+              구글 캘린더
+            </Button>
+          )}
+          <Button size="sm" icon={<Plus size={14} />} onClick={openCreate}>
+            새 일정
+          </Button>
+        </div>
       </div>
 
       <Tabs tabs={assigneeTabs} activeTab={assigneeTab} onChange={setAssigneeTab} variant="pill" />

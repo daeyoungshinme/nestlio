@@ -12,7 +12,7 @@ import { QUERY_KEYS } from "@/constants/queryKeys";
 import { STALE_TIME } from "@/constants/queryConfig";
 import { INLINE_BUTTON_OFFSET, INPUT_SM, LABEL_SM } from "@/constants/inputStyles";
 import { TOUCH_TARGET_COMPACT_MOBILE_ONLY } from "@/constants/uiSizes";
-import { EXPENSE_TYPE_FILTER_OPTIONS } from "@/components/transactions/TransactionFilterSheet";
+import { EXPENSE_TYPE_FILTER_OPTIONS } from "@/components/transactions/TransactionFilterBar";
 import { categoryTypeBadgeStyle } from "@/utils/colors";
 import { formatKrw, formatKrwPreview, toAmountInputValue } from "@/utils/format";
 import type {

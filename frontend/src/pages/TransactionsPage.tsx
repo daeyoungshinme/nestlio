@@ -1,19 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Link, useSearchParams } from "react-router-dom";
-import { useMutation, useQuery, useQueryClient, keepPreviousData } from "@tanstack/react-query";
-import {
-  CalendarDays,
-  CalendarSync,
-  Download,
-  MoreHorizontal,
-  Plus,
-  Repeat,
-  Search,
-  SlidersHorizontal,
-  Tag,
-  Upload,
-  X,
-} from "lucide-react";
+import { useSearchParams } from "react-router-dom";
+import { useMutation, useQuery, keepPreviousData } from "@tanstack/react-query";
+import { Plus, Repeat, Search, X } from "lucide-react";
 import ConfirmModal from "@/components/common/ConfirmModal";
 import EmptyState from "@/components/common/EmptyState";
 import ErrorState from "@/components/common/ErrorState";
@@ -29,14 +17,12 @@ import TransactionForm from "@/components/transactions/TransactionForm";
 import DailyTransactionGroups from "@/components/transactions/DailyTransactionGroups";
 import ExpenseCategoryGroups from "@/components/transactions/ExpenseCategoryGroups";
 import SavingsLinkedTransactionsSection from "@/components/transactions/SavingsLinkedTransactionsSection";
-import EventForm, { emptyEventFormValues } from "@/components/transactions/EventForm";
 import RecurringManageSheet from "@/components/transactions/RecurringManageSheet";
-import TransactionFilterSheet, {
-  filterSummaryLabel,
+import TransactionFilterBar, {
   type ExpenseTypeFilter,
   type TopFilter,
   type UserFilter,
-} from "@/components/transactions/TransactionFilterSheet";
+} from "@/components/transactions/TransactionFilterBar";
 import { fetchCategories } from "@/api/categories";
 import { fetchAccounts } from "@/api/accounts";
 import { fetchSavingsProducts } from "@/api/savingsProducts";
@@ -46,21 +32,18 @@ import {
   deleteTransaction,
   fetchCategoryBreakdown,
   fetchTransactions,
-  fetchTransactionsCsv,
   updateTransaction,
 } from "@/api/transactions";
-import { completeEvent, createEvent, fetchEvents, importGoogleEvents } from "@/api/events";
+import { fetchEvents } from "@/api/events";
 import { useSwipeMonth } from "@/hooks/useSwipeMonth";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { useInvalidateTransactionRelated } from "@/hooks/useInvalidateTransactionRelated";
 import { QUERY_KEYS } from "@/constants/queryKeys";
 import { STALE_TIME } from "@/constants/queryConfig";
 import { INPUT_SM } from "@/constants/inputStyles";
-import { TOUCH_TARGET_COMPACT_MOBILE_ONLY } from "@/constants/uiSizes";
 import { formatKrw } from "@/utils/format";
 import { extractErrorMessage } from "@/utils/error";
 import { toast } from "@/utils/toast";
-import { triggerBlobDownload } from "@/utils/download";
 import type { CategoryOut, EventOut, RecurringOut, TransactionOut } from "@/types";
 
 const EMPTY_TRANSACTIONS: TransactionOut[] = [];
@@ -112,14 +95,9 @@ export default function TransactionsPage() {
   const [formTarget, setFormTarget] = useState<"new" | TransactionOut | null>(null);
   const [createDate, setCreateDate] = useState(todayIso());
   const [deleteTarget, setDeleteTarget] = useState<TransactionOut | null>(null);
-  const [eventFormOpen, setEventFormOpen] = useState(false);
-  const [eventCreateDate, setEventCreateDate] = useState(todayIso());
-  const [showMoreMenu, setShowMoreMenu] = useState(false);
   const [showRecurringSheet, setShowRecurringSheet] = useState(false);
-  const [showFilterSheet, setShowFilterSheet] = useState(false);
   const [searchInput, setSearchInput] = useState("");
   const debouncedQuery = useDebouncedValue(searchInput.trim(), 300);
-  const queryClient = useQueryClient();
   const calendarRef = useRef<HTMLDivElement>(null);
   const [searchParams, setSearchParams] = useSearchParams();
 
@@ -299,8 +277,6 @@ export default function TransactionsPage() {
 
   const invalidateAll = useInvalidateTransactionRelated();
 
-  const invalidateEvents = () => void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.eventsAll });
-
   const createMutation = useMutation({
     mutationFn: createTransaction,
     onSuccess: (created) => {
@@ -335,37 +311,6 @@ export default function TransactionsPage() {
     onError: (err) => toast(extractErrorMessage(err), "error"),
   });
 
-  const createEventMutation = useMutation({
-    mutationFn: createEvent,
-    onSuccess: () => {
-      invalidateEvents();
-      setEventFormOpen(false);
-      toast("일정을 등록했습니다.", "success");
-    },
-    onError: (err) => toast(extractErrorMessage(err), "error"),
-  });
-
-  const completeEventMutation = useMutation({
-    mutationFn: ({ id, completed }: { id: number; completed: boolean }) => completeEvent(id, completed),
-    onSuccess: invalidateEvents,
-    onError: (err) => toast(extractErrorMessage(err), "error"),
-  });
-
-  const exportCsvMutation = useMutation({
-    mutationFn: () => fetchTransactionsCsv({ date_from, date_to, q: debouncedQuery || undefined }),
-    onSuccess: (blob) => triggerBlobDownload(blob, `transactions_${date_from}_${date_to}.csv`),
-    onError: (err) => toast(extractErrorMessage(err), "error"),
-  });
-
-  const importGoogleEventsMutation = useMutation({
-    mutationFn: () => importGoogleEvents(date_from, date_to),
-    onSuccess: (result) => {
-      invalidateEvents();
-      toast(`구글 캘린더에서 ${result.created + result.updated}건을 가져왔어요.`, "success");
-    },
-    onError: (err) => toast(extractErrorMessage(err), "error"),
-  });
-
   const openCreate = (dateHint?: string) => {
     setSelectedDate(null);
     setCreateDate(dateHint ?? defaultDateHint(yearMonth));
@@ -375,11 +320,6 @@ export default function TransactionsPage() {
   const openEdit = (tx: TransactionOut) => {
     setSelectedDate(null);
     setFormTarget(tx);
-  };
-
-  const openCreateEvent = () => {
-    setEventCreateDate(defaultDateHint(yearMonth));
-    setEventFormOpen(true);
   };
 
   if (categoriesError || accountsError || savingsProductsError) {
@@ -403,7 +343,6 @@ export default function TransactionsPage() {
   }
 
   const isSaving = createMutation.isPending || updateMutation.isPending;
-  const isSavingEvent = createEventMutation.isPending;
 
   return (
     <div className="space-y-6">
@@ -411,11 +350,12 @@ export default function TransactionsPage() {
         <MonthPicker yearMonth={yearMonth} onChange={setYearMonth} />
         <div className="flex gap-2">
           <button
-            onClick={() => setShowMoreMenu(true)}
-            className="p-2 text-gray-500 dark:text-gray-400 border border-gray-200 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
-            aria-label="더보기"
+            onClick={() => setShowRecurringSheet(true)}
+            className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-gray-600 dark:text-gray-300 border border-gray-200 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+            aria-label="반복 거래 관리"
           >
-            <MoreHorizontal size={18} />
+            <Repeat size={16} aria-hidden="true" />
+            <span className="hidden sm:inline">반복 거래</span>
           </button>
           <Button size="sm" icon={<Plus size={14} />} onClick={() => openCreate()}>
             내역 추가
@@ -462,51 +402,55 @@ export default function TransactionsPage() {
         )}
       </div>
 
-      <div className="relative">
-        <Search
-          size={14}
-          className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 dark:text-gray-500"
-          aria-hidden="true"
-        />
-        <input
-          type="search"
-          value={searchInput}
-          onChange={(e) => setSearchInput(e.target.value)}
-          placeholder="메모나 카테고리로 검색"
-          aria-label="거래 내역 검색"
-          className={`${INPUT_SM} w-full pl-9 ${searchInput ? "pr-9" : ""}`}
-        />
-        {searchInput && (
-          <button
-            type="button"
-            onClick={() => setSearchInput("")}
-            aria-label="검색어 지우기"
-            className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
-          >
-            <X size={14} aria-hidden="true" />
-          </button>
-        )}
-      </div>
+      <div className="sticky top-0 z-10 -mx-3 px-3 py-2 space-y-2 bg-gray-50 dark:bg-gray-950">
+        <div className="relative">
+          <Search
+            size={14}
+            className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 dark:text-gray-500"
+            aria-hidden="true"
+          />
+          <input
+            type="search"
+            value={searchInput}
+            onChange={(e) => setSearchInput(e.target.value)}
+            placeholder="메모나 카테고리로 검색"
+            aria-label="거래 내역 검색"
+            className={`${INPUT_SM} w-full pl-9 ${searchInput ? "pr-9" : ""}`}
+          />
+          {searchInput && (
+            <button
+              type="button"
+              onClick={() => setSearchInput("")}
+              aria-label="검색어 지우기"
+              className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+            >
+              <X size={14} aria-hidden="true" />
+            </button>
+          )}
+        </div>
 
-      <div className="flex items-center gap-2">
-        <button
-          type="button"
-          onClick={() => setShowFilterSheet(true)}
-          className="flex-1 flex items-center gap-2 min-w-0 px-3 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-800 rounded-lg"
-        >
-          <SlidersHorizontal size={14} className="shrink-0" aria-hidden="true" />
-          <span className="truncate">
-            {filterSummaryLabel(topFilter, expenseTypeFilter, categoryFilter, categoryOptions, userFilter, userOptions)}
-          </span>
-        </button>
-        <Link
-          to="/categories"
-          className={`shrink-0 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 border border-gray-200 dark:border-gray-700 rounded-lg ${TOUCH_TARGET_COMPACT_MOBILE_ONLY}`}
-          aria-label="카테고리 관리"
-          title="카테고리 관리"
-        >
-          <Tag size={16} aria-hidden="true" />
-        </Link>
+        <TransactionFilterBar
+          topFilter={topFilter}
+          expenseTypeFilter={expenseTypeFilter}
+          categoryFilter={categoryFilter}
+          categoryOptions={categoryOptions}
+          userFilter={userFilter}
+          userOptions={userOptions}
+          onChangeTopFilter={(value) => {
+            setTopFilter(value);
+            setCategoryFilter("all");
+            setExpenseTypeFilter("all");
+          }}
+          onChangeExpenseTypeFilter={(value) => {
+            setExpenseTypeFilter(value);
+            setCategoryFilter("all");
+          }}
+          onChangeCategoryFilter={setCategoryFilter}
+          onChangeUserFilter={(value) => {
+            setUserFilter(value);
+            setCategoryFilter("all");
+          }}
+        />
       </div>
 
       {topFilter === "savings" ? (
@@ -568,9 +512,6 @@ export default function TransactionsPage() {
             setSelectedDate(null);
             setDeleteTarget(tx);
           }}
-          onToggleComplete={(event) =>
-            completeEventMutation.mutate({ id: event.id, completed: !event.completed_at })
-          }
         />
       )}
 
@@ -612,20 +553,6 @@ export default function TransactionsPage() {
         </Modal>
       )}
 
-      {eventFormOpen && (
-        <Modal onClose={() => setEventFormOpen(false)} title="새 일정">
-          <div className="p-6 overflow-y-auto">
-            <EventForm
-              initialValues={emptyEventFormValues(eventCreateDate)}
-              submitLabel="추가"
-              submitting={isSavingEvent}
-              users={users}
-              onSubmit={(payload) => createEventMutation.mutate(payload)}
-            />
-          </div>
-        </Modal>
-      )}
-
       {deleteTarget && (
         <ConfirmModal
           message="이 내역을 삭제할까요? 되돌릴 수 없습니다."
@@ -634,95 +561,12 @@ export default function TransactionsPage() {
         />
       )}
 
-      {showMoreMenu && (
-        <Modal onClose={() => setShowMoreMenu(false)} title="더보기" size="sm" closeOnBackdrop>
-          <div className="p-2 pb-[calc(0.5rem+env(safe-area-inset-bottom))]">
-            <Link
-              to="/categories"
-              onClick={() => setShowMoreMenu(false)}
-              className="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
-            >
-              <Tag size={18} aria-hidden="true" /> 카테고리 관리
-            </Link>
-            <button
-              onClick={() => {
-                setShowMoreMenu(false);
-                setShowRecurringSheet(true);
-              }}
-              className="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
-            >
-              <Repeat size={18} aria-hidden="true" /> 반복 내역 관리
-            </button>
-            <button
-              onClick={() => {
-                setShowMoreMenu(false);
-                openCreateEvent();
-              }}
-              className="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
-            >
-              <CalendarDays size={18} aria-hidden="true" /> 새 일정
-            </button>
-            <button
-              onClick={() => {
-                setShowMoreMenu(false);
-                exportCsvMutation.mutate();
-              }}
-              className="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
-            >
-              <Download size={18} aria-hidden="true" /> CSV 내보내기
-            </button>
-            <button
-              onClick={() => {
-                setShowMoreMenu(false);
-                importGoogleEventsMutation.mutate();
-              }}
-              className="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
-            >
-              <CalendarSync size={18} aria-hidden="true" /> 구글 캘린더에서 가져오기
-            </button>
-            <Link
-              to="/transactions/import"
-              onClick={() => setShowMoreMenu(false)}
-              className="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
-            >
-              <Upload size={18} aria-hidden="true" /> CSV 가져오기
-            </Link>
-          </div>
-        </Modal>
-      )}
-
       {showRecurringSheet && (
         <RecurringManageSheet
           categories={categories}
           dateFrom={date_from}
           dateTo={date_to}
           onClose={() => setShowRecurringSheet(false)}
-        />
-      )}
-
-      {showFilterSheet && (
-        <TransactionFilterSheet
-          topFilter={topFilter}
-          expenseTypeFilter={expenseTypeFilter}
-          categoryFilter={categoryFilter}
-          categoryOptions={categoryOptions}
-          userFilter={userFilter}
-          userOptions={userOptions}
-          onChangeTopFilter={(value) => {
-            setTopFilter(value);
-            setCategoryFilter("all");
-            setExpenseTypeFilter("all");
-          }}
-          onChangeExpenseTypeFilter={(value) => {
-            setExpenseTypeFilter(value);
-            setCategoryFilter("all");
-          }}
-          onChangeCategoryFilter={setCategoryFilter}
-          onChangeUserFilter={(value) => {
-            setUserFilter(value);
-            setCategoryFilter("all");
-          }}
-          onClose={() => setShowFilterSheet(false)}
         />
       )}
     </div>
