@@ -32,6 +32,11 @@ INVESTMENT_ASSET_TYPES = {"STOCK_KIS", "STOCK_KIWOOM", "STOCK_OTHER", "CASH_STOC
 
 REAL_ESTATE_ASSET_TYPE = "REAL_ESTATE"
 
+# 전체 동기화(sync_all_*)에서 배우자 소유·삭제 등으로 growlio 목록에 매칭되는 항목이 없을 때
+# failed[].reason에 담는 문구 — account_service/savings_product_service가 공유한다.
+# (real_estate_service는 "부동산 계좌"로 명사만 다른 자체 문구를 쓴다.)
+SYNC_MATCH_FAILED_REASON = "growlio에서 연동된 계좌를 찾을 수 없습니다 (배우자 계정이거나 삭제되었을 수 있습니다)."
+
 
 class GrowlioNotConfiguredError(Exception):
     """settings.growlio_api_base_url이 비어 있어 연동 기능 자체가 꺼져 있을 때."""

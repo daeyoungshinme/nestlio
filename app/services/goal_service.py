@@ -79,15 +79,21 @@ def _sum_breakdown_amounts(goal: FinancialGoal, breakdown: list[dict]) -> Decima
     return sum((item["amount"] for item in breakdown), Decimal("0"))
 
 
+def current_amount_from_breakdown(goal: FinancialGoal, breakdown: list[dict]) -> Decimal:
+    """compute_current_amount의 본체 — 이미 계산한 breakdown을 재사용한다(to_out이 breakdown을
+    두 번 계산하지 않도록)."""
+    if goal.kind == "goal" and not goal.funding_sources and goal.monthly_targets:
+        return sum((mt.achieved_amount for mt in goal.monthly_targets), Decimal("0"))
+    return _sum_breakdown_amounts(goal, breakdown)
+
+
 def compute_current_amount(db: Session, goal: FinancialGoal) -> Decimal:
     """연동된 저축상품·계좌 잔액 합에서 연동된 대출 잔액을 뺀 값. 연동이 하나도 없으면 수동 입력값.
     kind="goal"이 미연동이면서 monthly_targets이 있으면(월별 계획을 쓰는 신규 장기목표) 월별
     achieved_amount 합을 쓴다 — 연동된 목표는 잔액이 이미 진실의 원천이라(월별 합산과 어긋날
     수 있음, 이자 등 거래 외 변동 포함) 그대로 두고, monthly_targets이 아예 없는 기존 목표(이
     기능 도입 전에 만든 목표)는 하위호환을 위해 manual_current_amount를 그대로 쓴다."""
-    if goal.kind == "goal" and not goal.funding_sources and goal.monthly_targets:
-        return sum((mt.achieved_amount for mt in goal.monthly_targets), Decimal("0"))
-    return _sum_breakdown_amounts(goal, funding_source_breakdown(db, goal))
+    return current_amount_from_breakdown(goal, funding_source_breakdown(db, goal))
 
 
 def compute_linked_monthly_achieved(db: Session, goal: FinancialGoal, year_months: list[str]) -> dict[str, Decimal]:
@@ -197,7 +203,7 @@ def compute_ahead_behind_months(eta_year_month: str | None, target_date: date | 
 
 def to_out(db: Session, goal: FinancialGoal, today: date) -> dict:
     breakdown = funding_source_breakdown(db, goal)
-    current_amount = compute_current_amount(db, goal)
+    current_amount = current_amount_from_breakdown(goal, breakdown)
     months_remaining = compute_months_remaining(today, goal.target_date)
     is_linked_goal = goal.kind == "goal" and bool(goal.funding_sources)
     linked_monthly_achieved = (

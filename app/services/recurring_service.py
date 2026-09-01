@@ -1,6 +1,5 @@
 import logging
 import uuid
-from calendar import monthrange
 from datetime import date, timedelta
 from decimal import Decimal
 
@@ -9,7 +8,7 @@ from sqlalchemy.orm import Session
 from app.models.recurring_expense import RecurringExpense
 from app.models.transaction import Transaction
 from app.services.transaction_service import create_transaction
-from app.utils.dates import add_months_with_day, advance_recurring_date
+from app.utils.dates import advance_recurring_date, first_monthly_date_on_or_after
 
 logger = logging.getLogger(__name__)
 
@@ -64,17 +63,7 @@ def create_recurring(
     days_of_month: list[int] | None = None,
 ) -> RecurringExpense:
     day_of_month = min(days_of_month) if days_of_month else start_date.day
-    next_due_date = start_date
-    if days_of_month:
-        # first configured occurrence on/after start_date - same month if a day >= start_date.day
-        # exists there (clamped to the month's length), otherwise the earliest day next month.
-        month_length = monthrange(start_date.year, start_date.month)[1]
-        effective_days = sorted({min(d, month_length) for d in days_of_month})
-        candidates_this_month = [d for d in effective_days if d >= start_date.day]
-        if candidates_this_month:
-            next_due_date = start_date.replace(day=candidates_this_month[0])
-        else:
-            next_due_date = add_months_with_day(start_date, 1, min(days_of_month))
+    next_due_date = first_monthly_date_on_or_after(start_date, days_of_month) if days_of_month else start_date
     recurring = RecurringExpense(
         name=name,
         category_id=category_id,
@@ -100,6 +89,12 @@ def update_recurring(db: Session, recurring_id: int, **fields) -> RecurringExpen
     recurring = db.get(RecurringExpense, recurring_id)
     if recurring is None:
         return None
+    # day_of_month(단일 앵커 일자)는 days_of_month/start_date에서 파생된다 — create_recurring과
+    # 같은 규칙을 여기서도 적용해 라우터가 계산하지 않게 한다.
+    if fields.get("days_of_month"):
+        fields["day_of_month"] = min(fields["days_of_month"])
+    elif "start_date" in fields:
+        fields["day_of_month"] = fields["start_date"].day
     for key, value in fields.items():
         setattr(recurring, key, value)
     db.commit()

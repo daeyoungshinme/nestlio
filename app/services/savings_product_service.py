@@ -11,7 +11,7 @@ from app.models.savings_product_annual_plan_monthly_target import SavingsProduct
 from app.models.transaction import Transaction
 from app.services import growlio_client, plan_targets
 from app.services.growlio_client import GrowlioSyncError
-from app.utils.dates import month_bounds, parse_year_month, shift_month, year_bounds, year_month_str
+from app.utils.dates import month_bounds, parse_year_month, shift_month, year_bounds
 from app.utils.plan_status import pct_of
 
 PLAN_PRODUCT_TYPES = ("savings", "investment")
@@ -60,13 +60,21 @@ def actuals_for_month(db: Session, year_month: str) -> dict[int, Decimal]:
 
 def trailing_average_actuals(db: Session, year_month: str, months: int = 3) -> dict[int, Decimal]:
     """`year_month` 직전 `months`개월 동안 상품별 실제 납입액 평균 — 부진한 상품의 다음 달 계획
-    제안값으로 쓰인다."""
+    제안값으로 쓰인다. 직전 N개월치를 달마다 조회하지 않고 한 번의 범위 쿼리로 집계한다."""
     month_start = parse_year_month(year_month)
-    totals: dict[int, Decimal] = {}
-    for offset in range(1, months + 1):
-        for product_id, amount in actuals_for_month(db, year_month_str(shift_month(month_start, -offset))).items():
-            totals[product_id] = totals.get(product_id, Decimal("0")) + amount
-    return {product_id: total / months for product_id, total in totals.items()}
+    window_start, _ = month_bounds(shift_month(month_start, -months))
+    _, window_end = month_bounds(shift_month(month_start, -1))
+    rows = (
+        db.query(Transaction.savings_product_id, func.sum(Transaction.amount))
+        .filter(
+            Transaction.savings_product_id.isnot(None),
+            Transaction.transaction_date >= window_start,
+            Transaction.transaction_date <= window_end,
+        )
+        .group_by(Transaction.savings_product_id)
+        .all()
+    )
+    return {product_id: total / months for product_id, total in rows}
 
 
 def get_annual_plan(db: Session, product_id: int, year: int) -> dict | None:
@@ -431,11 +439,7 @@ def sync_all_from_growlio(db: Session, bearer_token: str, *, now: datetime) -> t
         match = growlio_client.find_by_growlio_id(growlio_accounts, product.growlio_account_id)
         if match is None:
             failed.append(
-                {
-                    "id": product.id,
-                    "name": product.name,
-                    "reason": "growlio에서 연동된 계좌를 찾을 수 없습니다 (배우자 계정이거나 삭제되었을 수 있습니다).",
-                }
+                {"id": product.id, "name": product.name, "reason": growlio_client.SYNC_MATCH_FAILED_REASON}
             )
             continue
         product.current_balance = growlio_client.to_decimal_krw(match["current_value_krw"])

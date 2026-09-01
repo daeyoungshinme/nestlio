@@ -13,7 +13,7 @@ def daily_due_date_check() -> None:
     and sync upcoming reminder events to Google Calendar (if connected)."""
     db = SessionLocal()
     try:
-        recurring_service.generate_due_transactions(db)
+        recurring_service.generate_due_transactions(db, today=date.today())
         _sync_upcoming_calendar_events(db)
     except Exception:
         logger.exception("고정지출 거래 생성/캘린더 동기화 실패")

@@ -71,6 +71,19 @@ def advance_due_date(current: date, frequency: str, day_of_month: int | None) ->
     raise ValueError(f"unknown frequency: {frequency}")
 
 
+def first_monthly_date_on_or_after(anchor: date, days_of_month: list[int]) -> date:
+    """`days_of_month`(월 중 여러 날, 예: 5·25일)로 반복되는 일정의 "anchor 당일 포함, 그 이후
+    첫 발생일". anchor가 속한 달에 anchor.day 이상인 날(그 달 길이로 clamp)이 있으면 그 날,
+    없으면 다음 달의 가장 이른 날. recurring_service.create_recurring의 최초 next_due_date 계산용
+    (advance_recurring_date는 'current 이후 다음' — 당일 미포함이라 별개다)."""
+    month_length = monthrange(anchor.year, anchor.month)[1]
+    effective_days = sorted({min(d, month_length) for d in days_of_month})
+    candidates = [d for d in effective_days if d >= anchor.day]
+    if candidates:
+        return anchor.replace(day=candidates[0])
+    return add_months_with_day(anchor, 1, min(days_of_month))
+
+
 def advance_recurring_date(
     current: date, frequency: str, day_of_month: int | None, days_of_month: list[int] | None
 ) -> date:
