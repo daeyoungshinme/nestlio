@@ -17,7 +17,6 @@ import Modal from "@/components/common/Modal";
 import SkeletonCard from "@/components/common/SkeletonCard";
 import Tabs from "@/components/common/Tabs";
 import { currentDateIso, currentYearMonth } from "@/utils/date";
-import { fetchAccounts } from "@/api/accounts";
 import { fetchDashboard } from "@/api/dashboard";
 import {
   createGoal,
@@ -28,12 +27,12 @@ import {
   updateGoalMonthlyTarget,
 } from "@/api/goals";
 import { fetchLoans } from "@/api/loans";
-import { fetchSavingsProducts } from "@/api/savingsProducts";
 import { FORM_LABEL, FORM_SECTION_LABEL, INLINE_BUTTON_OFFSET, TEXTAREA_SM } from "@/constants/inputStyles";
 import { QUERY_KEYS } from "@/constants/queryKeys";
 import { STALE_TIME } from "@/constants/queryConfig";
 import { TOUCH_TARGET_MIN_HEIGHT } from "@/constants/uiSizes";
 import { useCrudMutations } from "@/hooks/useCrudMutations";
+import { useAccounts, useSavingsProducts } from "@/hooks/useReferenceData";
 import { progressStatusBadgeClass, progressStatusLabel } from "@/utils/colors";
 import { computeCardStatus, daysUntil, isGoalAchieved } from "@/utils/goalStatus";
 import { GOAL_SORT_LABELS, sortGoals, type GoalSortLabel } from "@/utils/goalSort";
@@ -192,16 +191,8 @@ export default function GoalsTab() {
   const [monthlyTargetDraft, setMonthlyTargetDraft] = useState<Record<string, string>>({});
 
   const { data, isLoading } = useQuery({ queryKey: QUERY_KEYS.financialGoals, queryFn: fetchGoals });
-  const { data: savingsProducts } = useQuery({
-    queryKey: QUERY_KEYS.savingsProducts,
-    queryFn: fetchSavingsProducts,
-    staleTime: STALE_TIME.MEDIUM,
-  });
-  const { data: accounts } = useQuery({
-    queryKey: QUERY_KEYS.accounts,
-    queryFn: fetchAccounts,
-    staleTime: STALE_TIME.MEDIUM,
-  });
+  const { data: savingsProducts } = useSavingsProducts();
+  const { data: accounts } = useAccounts();
   const { data: loans } = useQuery({
     queryKey: QUERY_KEYS.loans,
     queryFn: fetchLoans,

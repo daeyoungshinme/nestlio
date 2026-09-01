@@ -22,8 +22,9 @@ import {
   uploadCouplePhoto,
 } from "@/api/settings";
 import { cancelInvite, createInvite, fetchInvites } from "@/api/invites";
-import { fetchMe, fetchUsers, removeUser, updateMe, updateUser } from "@/api/users";
+import { removeUser, updateMe, updateUser } from "@/api/users";
 import type { CoachingThresholdsOut, InviteOut, NotificationPrefsOut } from "@/types";
+import { useMe, useUsers } from "@/hooks/useReferenceData";
 import { QUERY_KEYS } from "@/constants/queryKeys";
 import { COACHING_THRESHOLD_PRESETS } from "@/constants/coachingPresets";
 import { MAX_NOTIFY_RECIPIENTS } from "@/constants/settings";
@@ -89,8 +90,8 @@ export default function SettingsPage() {
     error,
     refetch,
   } = useQuery({ queryKey: QUERY_KEYS.settings, queryFn: fetchSettings });
-  const meQuery = useQuery({ queryKey: QUERY_KEYS.me, queryFn: fetchMe });
-  const usersQuery = useQuery({ queryKey: QUERY_KEYS.users, queryFn: fetchUsers });
+  const meQuery = useMe();
+  const usersQuery = useUsers();
   const invitesQuery = useQuery({ queryKey: QUERY_KEYS.invites, queryFn: fetchInvites });
   const spouse = meQuery.data && usersQuery.data?.find((u) => u.id !== meQuery.data!.id);
 

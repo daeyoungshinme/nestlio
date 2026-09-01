@@ -8,11 +8,12 @@ import CollapsibleGroup from "@/components/common/CollapsibleGroup";
 import AssetCompositionDonut from "@/components/accounts/AssetCompositionDonut";
 import NetWorthTrendChart from "@/components/accounts/NetWorthTrendChart";
 import { fetchGrowlioUnlinkedNetWorth, fetchNetWorth } from "@/api/netWorth";
-import { fetchSavingsProducts, syncAllSavingsProducts } from "@/api/savingsProducts";
+import { syncAllSavingsProducts } from "@/api/savingsProducts";
 import { fetchLoans } from "@/api/loans";
 import { syncAllAccounts } from "@/api/accounts";
 import { syncAllRealEstate } from "@/api/realEstate";
 import { QUERY_KEYS } from "@/constants/queryKeys";
+import { useSavingsProducts } from "@/hooks/useReferenceData";
 import { formatKrw, formatKrwCompact } from "@/utils/format";
 import { computeRealEstateNet, splitSavingsAndRealEstate } from "@/utils/netWorth";
 import { netWorthTextColor } from "@/utils/colors";
@@ -27,7 +28,7 @@ export default function AccountsSnapshotCard() {
   // "저축·투자"/"부동산" 카드 분리용 — 같은 상품 목록(다른 탭들과 쿼리 키 공유, 추가 네트워크 요청
   // 없음)에서 부동산 몫만 빼는 계산은 splitSavingsAndRealEstate(utils/netWorth.ts)로 통일한다
   // (DashboardPage의 순자산 카드도 동일 함수를 써서 두 화면 숫자가 항상 일치하도록 보장).
-  const { data: products } = useQuery({ queryKey: QUERY_KEYS.savingsProducts, queryFn: fetchSavingsProducts });
+  const { data: products } = useSavingsProducts();
   // 도넛의 부동산 조각을 담보대출 순액으로 보여주기 위한 대출 목록(다른 탭들과 쿼리 키 공유,
   // 추가 네트워크 요청 없음) — growlio_account_id로 부동산 자산과 짝지어진 대출만 골라낸다
   // (app/services/real_estate_service.py의 담보대출 연동과 동일한 매칭 방식).

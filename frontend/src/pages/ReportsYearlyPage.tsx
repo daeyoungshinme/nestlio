@@ -24,7 +24,7 @@ import ErrorState from "@/components/common/ErrorState";
 import SummaryCards from "@/components/common/SummaryCards";
 import EmptyState from "@/components/common/EmptyState";
 import { fetchCategoryTrend, fetchYearlyReport } from "@/api/reports";
-import { fetchUsers } from "@/api/users";
+import { useUsers } from "@/hooks/useReferenceData";
 import { QUERY_KEYS } from "@/constants/queryKeys";
 import { STALE_TIME } from "@/constants/queryConfig";
 import { TOUCH_TARGET_MIN_MOBILE_ONLY } from "@/constants/uiSizes";
@@ -57,7 +57,7 @@ export default function ReportsYearlyPage() {
       return next;
     });
   };
-  const { data: users } = useQuery({ queryKey: QUERY_KEYS.users, queryFn: fetchUsers, staleTime: STALE_TIME.LONG });
+  const { data: users } = useUsers();
   // 배우자별/공통 지출을 비교하는 탭 — 카테고리별 지출·가구 평균 대비 비교 두 카드에만 적용된다
   // (월별 수입/지출, 소득 등 SummaryCards 총계는 항상 가구 전체 기준으로 유지).
   const ownerTabs = [ALL_OWNERS_TAB, ...(users?.map((u) => u.display_name) ?? []), SHARED_OWNER_TAB];

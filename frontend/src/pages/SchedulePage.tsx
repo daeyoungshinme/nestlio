@@ -16,7 +16,7 @@ import ScheduleEventList from "@/components/schedule/ScheduleEventList";
 import ScheduleMonthList from "@/components/schedule/ScheduleMonthList";
 import { completeEvent, createEvent, deleteEvent, fetchEvents, importGoogleEvents, updateEvent } from "@/api/events";
 import { fetchSettings } from "@/api/settings";
-import { fetchUsers } from "@/api/users";
+import { useUsers } from "@/hooks/useReferenceData";
 import { QUERY_KEYS } from "@/constants/queryKeys";
 import { STALE_TIME } from "@/constants/queryConfig";
 import { currentDateIso, currentYearMonth, monthBounds, occurrenceDate } from "@/utils/date";
@@ -61,7 +61,7 @@ export default function SchedulePage() {
 
   const { date_from, date_to } = monthBounds(yearMonth);
 
-  const { data: users } = useQuery({ queryKey: QUERY_KEYS.users, queryFn: fetchUsers, staleTime: STALE_TIME.LONG });
+  const { data: users } = useUsers();
   const { data: settings } = useQuery({
     queryKey: QUERY_KEYS.settings,
     queryFn: fetchSettings,

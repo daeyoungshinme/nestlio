@@ -26,13 +26,10 @@ import { fetchCashflowPlan } from "@/api/cashflowPlan";
 import { fetchNetWorth } from "@/api/netWorth";
 import { fetchSettings } from "@/api/settings";
 import { fetchGoals } from "@/api/goals";
-import { fetchCategories } from "@/api/categories";
-import { fetchAccounts } from "@/api/accounts";
-import { fetchSavingsProducts } from "@/api/savingsProducts";
-import { fetchUsers } from "@/api/users";
 import { createTransaction } from "@/api/transactions";
 import { useAuthStore } from "@/stores/authStore";
 import { useInvalidateTransactionRelated } from "@/hooks/useInvalidateTransactionRelated";
+import { useAccounts, useCategories, useSavingsProducts, useUsers } from "@/hooks/useReferenceData";
 import { QUERY_KEYS } from "@/constants/queryKeys";
 import { STALE_TIME } from "@/constants/queryConfig";
 import { insightSeverityStyle, progressStatusBadgeClass, progressStatusLabel, worseStatus } from "@/utils/colors";
@@ -117,32 +114,14 @@ export default function DashboardPage() {
     queryFn: fetchGoals,
     staleTime: STALE_TIME.MEDIUM,
   });
-  const { data: categories } = useQuery({
-    queryKey: QUERY_KEYS.categories(),
-    queryFn: () => fetchCategories(),
-    staleTime: STALE_TIME.LONG,
-    enabled: showQuickAdd,
-  });
-  const { data: accounts } = useQuery({
-    queryKey: QUERY_KEYS.accounts,
-    queryFn: fetchAccounts,
-    staleTime: STALE_TIME.LONG,
-    enabled: showQuickAdd,
-  });
-  const { data: savingsProducts } = useQuery({
-    queryKey: QUERY_KEYS.savingsProducts,
-    queryFn: fetchSavingsProducts,
-    staleTime: STALE_TIME.MEDIUM,
-  });
+  const { data: categories } = useCategories(undefined, { enabled: showQuickAdd });
+  const { data: accounts } = useAccounts({ enabled: showQuickAdd });
+  const { data: savingsProducts } = useSavingsProducts();
   // 자산현황(/accounts) 순자산 카드와 동일한 구성으로 보이도록 부동산을 저축·투자에서 분리한다.
   const { savingsInvestmentTotal, realEstateTotal } = netWorth
     ? splitSavingsAndRealEstate(Number(netWorth.current.savings_total), savingsProducts)
     : { savingsInvestmentTotal: 0, realEstateTotal: 0 };
-  const { data: users } = useQuery({
-    queryKey: QUERY_KEYS.users,
-    queryFn: fetchUsers,
-    staleTime: STALE_TIME.LONG,
-  });
+  const { data: users } = useUsers();
   const currentUserId = useAuthStore((s) => s.userId);
 
   const createMutation = useMutation({

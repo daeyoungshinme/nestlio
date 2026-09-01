@@ -10,10 +10,9 @@ import {
   markNotificationRead,
   reactToNotification,
 } from "@/api/notifications";
-import { fetchMe } from "@/api/users";
+import { useMe } from "@/hooks/useReferenceData";
 import { QUERY_KEYS } from "@/constants/queryKeys";
 import { SIDEBAR_NAV_ITEMS } from "@/constants/nav";
-import { STALE_TIME } from "@/constants/queryConfig";
 import { TOUCH_TARGET_COMPACT_MOBILE_ONLY, TOUCH_TARGET_MIN } from "@/constants/uiSizes";
 import { formatDate } from "@/utils/format";
 import { extractErrorMessage } from "@/utils/error";
@@ -57,7 +56,7 @@ export default function Header() {
     queryFn: fetchNotifications,
     refetchInterval: 60_000,
   });
-  const { data: me } = useQuery({ queryKey: QUERY_KEYS.me, queryFn: fetchMe, staleTime: STALE_TIME.LONG });
+  const { data: me } = useMe();
 
   const invalidate = () => queryClient.invalidateQueries({ queryKey: QUERY_KEYS.notifications });
 

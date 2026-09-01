@@ -91,9 +91,12 @@ cd frontend && npm run test:watch  # 워치 모드
 ```
 api/client.ts (axios + Supabase JWT 인터셉터 + 401 자동 refresh)
   └── api/{dashboard,transactions,events,accounts,reports,settings,categories,users}.ts
-        └── React Query 훅(각 페이지 컴포넌트 내부, useQuery/useMutation 직접 사용 — growlio처럼
-            전용 hooks/useXxx.ts로 감싸는 계층은 페이지 수가 적어 아직 두지 않았다.
-            페이지가 늘거나 쿼리가 여러 곳에서 재사용되면 이 계층을 추가한다.)
+        └── React Query 훅(각 페이지 컴포넌트 내부, useQuery/useMutation 직접 사용). 단,
+            여러 화면이 공유하는 것은 전용 hooks/useXxx.ts로 감싼다:
+            - 느리게 변하는 참조 데이터(계좌·카테고리·저축상품·유저)는 hooks/useReferenceData.ts의
+              useAccounts/useCategories/useSavingsProducts/useUsers/useMe로만 조회한다. 각 페이지에서
+              raw useQuery + 제각각 staleTime으로 재선언하지 않는다(쿼리 키·기본 staleTime을 한 곳에서 관리).
+            - 반복 mutation은 useCrudMutations/useRecurringMutations, 무효화는 useInvalidateTransactionRelated.
 stores/{authStore,themeStore}.ts — Zustand, React Query 캐시와 무관한 클라이언트 상태
 ```
 

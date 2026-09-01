@@ -12,14 +12,12 @@ import SavingsProductAnnualPlanForm from "@/components/financialPlan/SavingsProd
 import SectionAchievementBar from "@/components/financialPlan/SectionAchievementBar";
 import {
   fetchSavingsProductAnnualPlanDetail,
-  fetchSavingsProducts,
   fetchSavingsProductsAnnualPlan,
   fetchSavingsProductsPlan,
   upsertSavingsProductAnnualPlan,
 } from "@/api/savingsProducts";
-import { fetchUsers } from "@/api/users";
+import { useSavingsProducts, useUsers } from "@/hooks/useReferenceData";
 import { QUERY_KEYS } from "@/constants/queryKeys";
-import { STALE_TIME } from "@/constants/queryConfig";
 import { TOUCH_TARGET_MIN_MOBILE_ONLY } from "@/constants/uiSizes";
 import { formatKrw, formatPercent } from "@/utils/format";
 import {
@@ -315,11 +313,8 @@ export default function SavingsInvestmentPlanPanel({
     queryFn: () => fetchSavingsProductsAnnualPlan(year),
     enabled: viewMode === "올해 누적",
   });
-  const { data: products } = useQuery({
-    queryKey: QUERY_KEYS.savingsProducts,
-    queryFn: fetchSavingsProducts,
-  });
-  const { data: users } = useQuery({ queryKey: QUERY_KEYS.users, queryFn: fetchUsers, staleTime: STALE_TIME.LONG });
+  const { data: products } = useSavingsProducts();
+  const { data: users } = useUsers();
 
   const isMonthMode = viewMode === "이번 달";
   const isLoading = isMonthMode ? isMonthLoading || !monthData : isAnnualLoading || !annualData;

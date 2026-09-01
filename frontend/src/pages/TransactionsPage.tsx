@@ -23,10 +23,6 @@ import TransactionFilterBar, {
   type TopFilter,
   type UserFilter,
 } from "@/components/transactions/TransactionFilterBar";
-import { fetchCategories } from "@/api/categories";
-import { fetchAccounts } from "@/api/accounts";
-import { fetchSavingsProducts } from "@/api/savingsProducts";
-import { fetchMe, fetchUsers } from "@/api/users";
 import {
   createTransaction,
   deleteTransaction,
@@ -38,8 +34,8 @@ import { fetchEvents } from "@/api/events";
 import { useSwipeMonth } from "@/hooks/useSwipeMonth";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { useInvalidateTransactionRelated } from "@/hooks/useInvalidateTransactionRelated";
+import { useAccounts, useCategories, useMe, useSavingsProducts, useUsers } from "@/hooks/useReferenceData";
 import { QUERY_KEYS } from "@/constants/queryKeys";
-import { STALE_TIME } from "@/constants/queryConfig";
 import { INPUT_SM } from "@/constants/inputStyles";
 import { currentDateIso, currentYearMonth, monthBounds, occurrenceDate, shiftYearMonth } from "@/utils/date";
 import { formatKrw } from "@/utils/format";
@@ -111,33 +107,21 @@ export default function TransactionsPage() {
     isError: categoriesError,
     error: categoriesErrorObj,
     refetch: refetchCategories,
-  } = useQuery({
-    queryKey: QUERY_KEYS.categories(),
-    queryFn: () => fetchCategories(),
-    staleTime: STALE_TIME.LONG,
-  });
+  } = useCategories();
   const {
     data: accounts,
     isError: accountsError,
     error: accountsErrorObj,
     refetch: refetchAccounts,
-  } = useQuery({
-    queryKey: QUERY_KEYS.accounts,
-    queryFn: fetchAccounts,
-    staleTime: STALE_TIME.LONG,
-  });
+  } = useAccounts();
   const {
     data: savingsProducts,
     isError: savingsProductsError,
     error: savingsProductsErrorObj,
     refetch: refetchSavingsProducts,
-  } = useQuery({
-    queryKey: QUERY_KEYS.savingsProducts,
-    queryFn: fetchSavingsProducts,
-    staleTime: STALE_TIME.MEDIUM,
-  });
-  const { data: me } = useQuery({ queryKey: QUERY_KEYS.me, queryFn: fetchMe, staleTime: STALE_TIME.LONG });
-  const { data: users } = useQuery({ queryKey: QUERY_KEYS.users, queryFn: fetchUsers, staleTime: STALE_TIME.LONG });
+  } = useSavingsProducts();
+  const { data: me } = useMe();
+  const { data: users } = useUsers();
   const userOptions = useMemo(() => {
     if (!me || !users) return [];
     return [
