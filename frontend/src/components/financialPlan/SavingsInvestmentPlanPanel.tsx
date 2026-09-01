@@ -39,7 +39,7 @@ import type {
   UserOut,
 } from "@/types";
 
-const ACCOUNTS_SAVINGS_TAB_LINK = "/accounts?tab=저축·투자";
+const ACCOUNTS_SAVINGS_TAB_LINK = "/accounts?section=저축·투자";
 const VIEW_MODE_TABS = ["이번 달", "올해 누적"] as const;
 type ViewMode = (typeof VIEW_MODE_TABS)[number];
 
@@ -81,12 +81,12 @@ function normalizeAnnualItem(item: SavingsProductAnnualPlanItemOut): NormalizedI
   };
 }
 
-function groupHeaderText(viewMode: ViewMode, summary: SavingsProductPlanGroupOut | SavingsProductAnnualPlanGroupOut) {
-  if (viewMode === "이번 달") {
-    return `계획 ${formatKrw((summary as SavingsProductPlanGroupOut).planned)}`;
+function groupHeaderText(summary: SavingsProductPlanGroupOut | SavingsProductAnnualPlanGroupOut): string {
+  // "annual_target"는 연간 뷰 그룹에만 있는 필드 — `in`으로 타입을 좁혀 캐스트 없이 분기한다.
+  if ("annual_target" in summary) {
+    return `연간목표 ${formatKrw(summary.annual_target)} · 지금까지 목표 ${formatKrw(summary.target_to_date)}`;
   }
-  const annual = summary as SavingsProductAnnualPlanGroupOut;
-  return `연간목표 ${formatKrw(annual.annual_target)} · 지금까지 목표 ${formatKrw(annual.target_to_date)}`;
+  return `계획 ${formatKrw(summary.planned)}`;
 }
 
 function ProductRow({
@@ -378,7 +378,7 @@ export default function SavingsInvestmentPlanPanel({
           <TypeGroup
             label="저축"
             summary={savingsSummary}
-            headerValueText={groupHeaderText(viewMode, savingsSummary)}
+            headerValueText={groupHeaderText(savingsSummary)}
             items={savingsItems}
             productById={productById}
             users={users}
@@ -388,7 +388,7 @@ export default function SavingsInvestmentPlanPanel({
           <TypeGroup
             label="투자"
             summary={investmentSummary}
-            headerValueText={groupHeaderText(viewMode, investmentSummary)}
+            headerValueText={groupHeaderText(investmentSummary)}
             items={investmentItems}
             productById={productById}
             users={users}
