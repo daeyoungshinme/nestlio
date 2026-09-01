@@ -63,6 +63,9 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
+    # 손실 있는 downgrade: financial_goals의 challenge 행 중 start_date/target_date/created_by_id가
+    # 모두 채워진 것만 challenges로 되돌린다(아래 WHERE). 그 조건을 못 채우는 challenge 행과
+    # 이모지 반응/재사용된 id 등은 복원되지 않는다. 운영에서 이 지점 아래로 내리지 말 것.
     op.create_table(
         'challenges',
         sa.Column('id', sa.Integer(), nullable=False),
