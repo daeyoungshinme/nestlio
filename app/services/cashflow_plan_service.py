@@ -281,7 +281,12 @@ def suggested_totals(db: Session, year_month: str) -> dict[str, Decimal]:
 
 
 def _section_summary(
-    section: str, planned: Decimal, actual: Decimal | None, suggested_amount: Decimal | None = None
+    section: str,
+    planned: Decimal,
+    actual: Decimal | None,
+    suggested_amount: Decimal | None = None,
+    warn_pct: float | None = None,
+    critical_pct: float | None = None,
 ) -> dict:
     if actual is None:
         return {"planned": planned, "actual": None, "pct": None, "status": None, "suggested_amount": None}
@@ -290,7 +295,7 @@ def _section_summary(
         "planned": planned,
         "actual": actual,
         "pct": pct,
-        "status": plan_targets.budget_status(section, pct),
+        "status": plan_targets.budget_status(section, pct, warn_pct, critical_pct),
         "suggested_amount": suggested_amount,
     }
 
@@ -299,6 +304,8 @@ def compute_summary(
     items: list[CashflowPlanItem],
     actuals: dict[str, Decimal] | None = None,
     suggested: dict[str, Decimal] | None = None,
+    warn_pct: float | None = None,
+    critical_pct: float | None = None,
 ) -> dict:
     income_total = sum((item.amount for item in items if item.section == "income"), Decimal("0"))
     fixed_total = sum((item.amount for item in items if item.section == "fixed"), Decimal("0"))
@@ -309,11 +316,17 @@ def compute_summary(
     suggested = suggested or {}
 
     return {
-        "income": _section_summary("income", income_total, actuals.get("income"), suggested.get("income")),
-        "fixed": _section_summary("fixed", fixed_total, actuals.get("fixed"), suggested.get("fixed")),
-        "variable": _section_summary("variable", variable_total, actuals.get("variable"), suggested.get("variable")),
+        "income": _section_summary(
+            "income", income_total, actuals.get("income"), suggested.get("income"), warn_pct, critical_pct
+        ),
+        "fixed": _section_summary(
+            "fixed", fixed_total, actuals.get("fixed"), suggested.get("fixed"), warn_pct, critical_pct
+        ),
+        "variable": _section_summary(
+            "variable", variable_total, actuals.get("variable"), suggested.get("variable"), warn_pct, critical_pct
+        ),
         "irregular": _section_summary(
-            "irregular", irregular_total, actuals.get("irregular"), suggested.get("irregular")
+            "irregular", irregular_total, actuals.get("irregular"), suggested.get("irregular"), warn_pct, critical_pct
         ),
         "expense_total": expense_total,
         "available": income_total - expense_total,

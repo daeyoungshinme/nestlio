@@ -36,14 +36,24 @@ def elapsed_months(year: int, today: date) -> int:
     return today.month
 
 
-def budget_status(section: str, pct: float) -> PlanStatus:
+def budget_status(
+    section: str, pct: float, warn_pct: float | None = None, critical_pct: float | None = None
+) -> PlanStatus:
     """지출 3섹션(fixed/variable/irregular)은 실적이 계획을 초과할수록 위험, income은 반대(실적이
     계획에 못 미칠수록 위험)이므로 section에 따라 invert를 나눈다. annual_plan_service/
-    cashflow_plan_service가 공유한다."""
-    return status_from_pct(pct, settings.budget_warn_pct, settings.budget_critical_pct, invert=(section == "income"))
+    cashflow_plan_service가 공유한다.
+
+    warn_pct/critical_pct를 넘기지 않으면 env 기본값(settings)으로 폴백하지만, 호출부(라우터)는
+    가구가 조정한 임계값(coaching_settings_service.get_thresholds)을 넘겨야 월간/연간 화면과
+    budget_service.budget_vs_actual이 같은 기준으로 status를 매긴다."""
+    warn_pct = settings.budget_warn_pct if warn_pct is None else warn_pct
+    critical_pct = settings.budget_critical_pct if critical_pct is None else critical_pct
+    return status_from_pct(pct, warn_pct, critical_pct, invert=(section == "income"))
 
 
-def savings_status(pct: float) -> PlanStatus:
+def savings_status(pct: float, warn_pct: float | None = None, critical_pct: float | None = None) -> PlanStatus:
     """저축/투자 계획 달성률은 미달(실적이 계획에 못 미침)이 위험이므로 income과 같은 방향으로
-    판단한다 — 새 임계값을 추가하지 않고 기존 예산 경고/위험 기준을 재사용한다."""
-    return status_from_pct(pct, settings.budget_warn_pct, settings.budget_critical_pct, invert=True)
+    판단한다 — 새 임계값을 추가하지 않고 기존 예산 경고/위험 기준(가구 조정값 우선)을 재사용한다."""
+    warn_pct = settings.budget_warn_pct if warn_pct is None else warn_pct
+    critical_pct = settings.budget_critical_pct if critical_pct is None else critical_pct
+    return status_from_pct(pct, warn_pct, critical_pct, invert=True)

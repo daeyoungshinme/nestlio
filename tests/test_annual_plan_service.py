@@ -2,7 +2,14 @@ from datetime import date
 from decimal import Decimal
 
 from app.models.annual_plan_item_monthly_target import AnnualPlanItemMonthlyTarget
-from app.services import annual_plan_service, transaction_report_service, transaction_service
+from app.services import (
+    annual_plan_service,
+    budget_service,
+    cashflow_plan_service,
+    coaching_settings_service,
+    transaction_report_service,
+    transaction_service,
+)
 
 
 def _breakdown(db, year: int) -> list[dict]:
@@ -455,3 +462,30 @@ def test_category_budget_vs_actual_over_budget_is_critical(seeded_db):
 
     food_row = next(r for r in rows if r["category_id"] == food.id)
     assert food_row["status"] == "critical"
+
+
+def test_category_budget_status_matches_monthly_under_household_threshold_override(seeded_db):
+    """월간(budget_service.budget_vs_actual)과 연간(category_budget_vs_actual)이 같은 초과율에서
+    같은 status를 매겨야 한다 — 특히 가구가 임계값을 조정했을 때. 예전에는 연간이 env 기본값만
+    써서 월간과 갈렸다."""
+    db, user, food = seeded_db["db"], seeded_db["user"], seeded_db["food"]
+    # 연간계획: 식비 1월 목표 100000, 이번 달(cashflow) 계획도 같은 카테고리 100000
+    annual_plan_service.upsert_item(
+        db, None, 2026, "variable", None, "식비", food.id, 0, user.id, "2026-01", "2026-12", monthly_targets=_monthly(jan="100000")
+    )
+    cashflow_plan_service.upsert_item(
+        db, None, "variable", None, "식비", Decimal("100000"), 0, "2026-01", user.id, category_id=food.id
+    )
+    # 실적 80000 → pct 80%. env 기본값(warn 90)이면 ok, 가구가 warn=70으로 낮추면 warn.
+    transaction_service.create_transaction(db, user.id, food.id, "expense", Decimal("80000"), date(2026, 1, 10))
+    coaching_settings_service.set_thresholds(db, {"budget_warn_pct": 70.0, "budget_critical_pct": 100.0}, user.id)
+    thresholds = coaching_settings_service.get_thresholds(db)
+    warn, crit = thresholds["budget_warn_pct"], thresholds["budget_critical_pct"]
+
+    monthly = next(
+        r for r in budget_service.budget_vs_actual(db, "2026-01", warn, crit) if r["category_id"] == food.id
+    )
+    yearly = next(
+        r for r in annual_plan_service.category_budget_vs_actual(db, 2026, warn, crit) if r["category_id"] == food.id
+    )
+    assert monthly["status"] == yearly["status"] == "warn"

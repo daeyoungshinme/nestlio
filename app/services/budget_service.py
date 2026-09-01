@@ -46,6 +46,46 @@ def _status(pct: float, warn_pct: float | None = None, critical_pct: float | Non
     return status_from_pct(pct, warn_pct, critical_pct)
 
 
+def build_category_rows(
+    db: Session,
+    actuals: dict[int, Decimal],
+    budgets: dict[int, Decimal],
+    warn_pct: float | None = None,
+    critical_pct: float | None = None,
+    *,
+    suggested: dict[int, Decimal] | None = None,
+) -> list[dict]:
+    """활성 지출 카테고리별로 예산(미설정 시 0) 대비 실적 행을 만든다. 월간(budget_vs_actual)과
+    연간(annual_plan_service.category_budget_vs_actual)이 이 골격을 공유한다 — actuals/budgets 맵만
+    각자 만들어 넘긴다. suggested를 넘기면 각 행에 `suggested_amount`를 채운다(연 단위에선 생략).
+    status 임계값은 warn_pct/critical_pct(가구 조정값)로 통일한다 — 안 넘기면 env 기본값."""
+    categories = (
+        db.query(Category)
+        .filter(Category.is_active.is_(True), Category.kind == "expense")
+        .order_by(Category.type, Category.sort_order, Category.name)
+        .all()
+    )
+    rows = []
+    for cat in categories:
+        budget_amount = budgets.get(cat.id, Decimal("0"))
+        actual = actuals.get(cat.id, Decimal("0"))
+        pct = pct_of(actual, budget_amount)
+        row = {
+            "category_id": cat.id,
+            "name": cat.name,
+            "type": cat.type,
+            "color": cat.color,
+            "budget": budget_amount,
+            "actual": actual,
+            "pct": pct,
+            "status": _status(pct, warn_pct, critical_pct) if budget_amount else ("warn" if actual else "ok"),
+        }
+        if suggested is not None:
+            row["suggested_amount"] = suggested.get(cat.id)
+        rows.append(row)
+    return rows
+
+
 def budget_vs_actual(
     db: Session, year_month: str, warn_pct: float | None = None, critical_pct: float | None = None
 ) -> list[dict]:
@@ -57,28 +97,4 @@ def budget_vs_actual(
     actuals = {row["category_id"]: row["amount"] for row in category_breakdown(db, start, end, "expense")}
     budgets = get_budgets_for_month(db, year_month)
     suggested = trailing_average_by_category(db, month_start, months=3, type_="expense")
-    categories = (
-        db.query(Category)
-        .filter(Category.is_active.is_(True), Category.kind == "expense")
-        .order_by(Category.type, Category.sort_order, Category.name)
-        .all()
-    )
-    result = []
-    for cat in categories:
-        budget_amount = budgets.get(cat.id, Decimal("0"))
-        actual = actuals.get(cat.id, Decimal("0"))
-        pct = pct_of(actual, budget_amount)
-        result.append(
-            {
-                "category_id": cat.id,
-                "name": cat.name,
-                "type": cat.type,
-                "color": cat.color,
-                "budget": budget_amount,
-                "actual": actual,
-                "pct": pct,
-                "status": _status(pct, warn_pct, critical_pct) if budget_amount else ("warn" if actual else "ok"),
-                "suggested_amount": suggested.get(cat.id),
-            }
-        )
-    return result
+    return build_category_rows(db, actuals, budgets, warn_pct, critical_pct, suggested=suggested)

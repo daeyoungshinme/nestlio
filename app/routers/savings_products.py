@@ -19,7 +19,7 @@ from app.schemas.savings_product import (
     SavingsProductSyncAllOut,
     SavingsProductUpdateIn,
 )
-from app.services import savings_product_service
+from app.services import coaching_settings_service, savings_product_service
 from app.utils.dates import year_month_str
 
 router = APIRouter(prefix="/savings-products", tags=["savings-products"])
@@ -35,13 +35,20 @@ def get_plan_summary(
     year_month: str | None = None, db: Session = Depends(get_db), _: User = Depends(get_current_user)
 ):
     ym = year_month or year_month_str(date.today())
-    return savings_product_service.compute_plan_summary(db, ym)
+    thresholds = coaching_settings_service.get_thresholds(db)
+    return savings_product_service.compute_plan_summary(
+        db, ym, thresholds["budget_warn_pct"], thresholds["budget_critical_pct"]
+    )
 
 
 @router.get("/annual-plan", response_model=SavingsProductAnnualPlanListOut)
 def get_annual_plan_summary(year: int | None = None, db: Session = Depends(get_db), _: User = Depends(get_current_user)):
     today = date.today()
-    return savings_product_service.compute_annual_plan_summary(db, year or today.year, as_of=today)
+    thresholds = coaching_settings_service.get_thresholds(db)
+    return savings_product_service.compute_annual_plan_summary(
+        db, year or today.year, as_of=today,
+        warn_pct=thresholds["budget_warn_pct"], critical_pct=thresholds["budget_critical_pct"],
+    )
 
 
 @router.get("/{product_id}/annual-plan/{year}", response_model=SavingsProductAnnualPlanDetailOut)
