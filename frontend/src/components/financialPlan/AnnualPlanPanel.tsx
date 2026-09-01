@@ -12,12 +12,10 @@ import Modal from "@/components/common/Modal";
 import SkeletonCard from "@/components/common/SkeletonCard";
 import SummaryCard from "@/components/common/SummaryCard";
 import { deleteAnnualPlanItem, fetchAnnualPlan, upsertAnnualPlanItem } from "@/api/annualPlan";
-import { fetchCategories } from "@/api/categories";
 import { fetchSavingsProductsAnnualPlan } from "@/api/savingsProducts";
-import { fetchUsers } from "@/api/users";
+import { useCategories, useUsers } from "@/hooks/useReferenceData";
 import { SECTIONS, SAVINGS_INVESTMENT_LABEL, type SectionLabel } from "@/constants/planSections";
 import { QUERY_KEYS } from "@/constants/queryKeys";
-import { STALE_TIME } from "@/constants/queryConfig";
 import { formatKrw, pctOf } from "@/utils/format";
 import { extractErrorMessage } from "@/utils/error";
 import { worseStatus } from "@/utils/colors";
@@ -55,12 +53,8 @@ export default function AnnualPlanPanel() {
     queryKey: QUERY_KEYS.savingsProductsAnnualPlan(year),
     queryFn: () => fetchSavingsProductsAnnualPlan(year),
   });
-  const { data: users } = useQuery({ queryKey: QUERY_KEYS.users, queryFn: fetchUsers, staleTime: STALE_TIME.LONG });
-  const { data: categories } = useQuery({
-    queryKey: QUERY_KEYS.categories(),
-    queryFn: () => fetchCategories(),
-    staleTime: STALE_TIME.LONG,
-  });
+  const { data: users } = useUsers();
+  const { data: categories } = useCategories();
 
   const invalidate = () => {
     void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.annualPlan(year) });

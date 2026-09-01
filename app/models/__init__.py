@@ -6,6 +6,7 @@ from app.models.category import Category
 from app.models.event import Event
 from app.models.financial_goal import FinancialGoal
 from app.models.goal_funding_source import GoalFundingSource
+from app.models.goal_monthly_target import GoalMonthlyTarget
 from app.models.google_oauth_token import GoogleOAuthToken
 from app.models.invite import Invite
 from app.models.loan import Loan
@@ -30,6 +31,7 @@ __all__ = [
     "Event",
     "FinancialGoal",
     "GoalFundingSource",
+    "GoalMonthlyTarget",
     "GoogleOAuthToken",
     "Invite",
     "Loan",

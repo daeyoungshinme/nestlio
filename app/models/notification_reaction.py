@@ -17,8 +17,12 @@ class NotificationReaction(Base):
     __table_args__ = (UniqueConstraint("notification_log_id", "user_id", name="uq_notification_reaction_log_user"),)
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    notification_log_id: Mapped[int] = mapped_column(Integer, ForeignKey("notification_log.id"))
-    user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"))
+    notification_log_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("notification_log.id"), index=True
+    )
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id"), index=True
+    )
     emoji: Mapped[str] = mapped_column(String(8))
     message: Mapped[str | None] = mapped_column(String(200), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())

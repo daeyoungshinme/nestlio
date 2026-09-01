@@ -6,7 +6,7 @@ import Button from "@/components/common/Button";
 import ConfirmModal from "@/components/common/ConfirmModal";
 import ErrorState from "@/components/common/ErrorState";
 import Modal from "@/components/common/Modal";
-import MonthPicker, { currentYearMonth } from "@/components/common/MonthPicker";
+import MonthPicker from "@/components/common/MonthPicker";
 import SkeletonCard from "@/components/common/SkeletonCard";
 import Tabs from "@/components/common/Tabs";
 import MonthCalendarGrid from "@/components/transactions/MonthCalendarGrid";
@@ -16,9 +16,10 @@ import ScheduleEventList from "@/components/schedule/ScheduleEventList";
 import ScheduleMonthList from "@/components/schedule/ScheduleMonthList";
 import { completeEvent, createEvent, deleteEvent, fetchEvents, importGoogleEvents, updateEvent } from "@/api/events";
 import { fetchSettings } from "@/api/settings";
-import { fetchUsers } from "@/api/users";
+import { useUsers } from "@/hooks/useReferenceData";
 import { QUERY_KEYS } from "@/constants/queryKeys";
 import { STALE_TIME } from "@/constants/queryConfig";
+import { currentDateIso, currentYearMonth, monthBounds, occurrenceDate } from "@/utils/date";
 import { extractErrorMessage } from "@/utils/error";
 import { formatDate } from "@/utils/format";
 import { toast } from "@/utils/toast";
@@ -29,21 +30,6 @@ const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 const ALL_ASSIGNEES_TAB = "전체";
 const SHARED_ASSIGNEE_TAB = "공동";
 
-function monthBounds(yearMonth: string): { date_from: string; date_to: string } {
-  const [y, m] = yearMonth.split("-").map(Number);
-  const lastDay = new Date(y, m, 0).getDate();
-  return { date_from: `${yearMonth}-01`, date_to: `${yearMonth}-${String(lastDay).padStart(2, "0")}` };
-}
-
-function todayIso(): string {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-}
-
-function occurrenceDate(iso: string): string {
-  return iso.split("T")[0];
-}
-
 export default function SchedulePage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [yearMonth, setYearMonth] = useState(() => {
@@ -52,7 +38,7 @@ export default function SchedulePage() {
   });
   const [assigneeTab, setAssigneeTab] = useState(ALL_ASSIGNEES_TAB);
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
-  const [createDateHint, setCreateDateHint] = useState(todayIso());
+  const [createDateHint, setCreateDateHint] = useState(currentDateIso());
   const [formTarget, setFormTarget] = useState<"new" | EventOut | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<EventOut | null>(null);
   const queryClient = useQueryClient();
@@ -75,7 +61,7 @@ export default function SchedulePage() {
 
   const { date_from, date_to } = monthBounds(yearMonth);
 
-  const { data: users } = useQuery({ queryKey: QUERY_KEYS.users, queryFn: fetchUsers, staleTime: STALE_TIME.LONG });
+  const { data: users } = useUsers();
   const { data: settings } = useQuery({
     queryKey: QUERY_KEYS.settings,
     queryFn: fetchSettings,
@@ -181,7 +167,7 @@ export default function SchedulePage() {
   const dayEvents = selectedDate ? (eventsByDate.get(selectedDate) ?? []) : [];
 
   const openCreate = () => {
-    setCreateDateHint(selectedDate ?? todayIso());
+    setCreateDateHint(selectedDate ?? currentDateIso());
     setSelectedDate(null);
     setFormTarget("new");
   };

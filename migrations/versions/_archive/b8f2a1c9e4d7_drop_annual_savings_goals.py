@@ -34,6 +34,8 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
+    # 손실 있는 downgrade: 테이블 구조만 되살리고 데이터는 복원하지 않는다(drop 시점에 이미
+    # 소비자가 없어 데이터를 옮기지 않았음). 운영에서 이 지점 아래로 내릴 일은 없어야 한다.
     op.create_table(
         "annual_savings_goals",
         sa.Column("id", sa.Integer(), nullable=False),

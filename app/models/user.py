@@ -25,5 +25,8 @@ class User(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
     removed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True, default=None)
     removed_by_id: Mapped[uuid.UUID | None] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("users.id"), nullable=True, default=None
+        UUID(as_uuid=True),
+        ForeignKey("users.id", name="fk_users_removed_by_id_users"),
+        nullable=True,
+        default=None,
     )

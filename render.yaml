@@ -4,11 +4,17 @@ services:
     runtime: python
     plan: free
     buildCommand: "pip install -r requirements.txt && cd frontend && npm ci && npm run build"
+    # 2026-09-01 마이그레이션 스쿼시: 51개 체인 → 단일 베이스라인(bdba3c3b3277). 스쿼시 후
+    # 첫 배포 전에 운영 DB에 `alembic stamp bdba3c3b3277`를 1회 실행해야 한다(안 하면 이
+    # startCommand가 CREATE TABLE 충돌로 실패). 이후 배포는 그대로 둔다. 상세는
+    # migrations/versions/bdba3c3b3277_squashed_baseline.py 상단 주석.
     startCommand: "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port $PORT"
     healthCheckPath: /
     envVars:
       - key: PYTHON_VERSION
         value: 3.11.9
+      - key: NODE_VERSION
+        value: "22"
       - key: DATABASE_URL
         sync: false
       - key: SUPABASE_PROJECT_URL

@@ -33,7 +33,9 @@ def _plan_list(db: Session, year_month: str | None) -> dict:
         "prev_month": year_month_str(shift_month(month_start, -1)),
         "next_month": year_month_str(shift_month(month_start, 1)),
         "items": items,
-        "summary": cashflow_plan_service.compute_summary(items, actuals, suggested),
+        "summary": cashflow_plan_service.compute_summary(
+            items, actuals, suggested, thresholds["budget_warn_pct"], thresholds["budget_critical_pct"]
+        ),
         "category_budgets": budget_service.budget_vs_actual(
             db, ym, thresholds["budget_warn_pct"], thresholds["budget_critical_pct"]
         ),

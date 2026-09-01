@@ -10,7 +10,6 @@ export const PERSIST_CACHE_KEY = "nestlio:query-cache";
 export const PERSIST_QUERY_KEYS = new Set([
   "dashboard",
   "transactions",
-  "budgets",
   "accounts",
   "net-worth",
   "financial-goals",

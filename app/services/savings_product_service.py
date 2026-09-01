@@ -11,7 +11,7 @@ from app.models.savings_product_annual_plan_monthly_target import SavingsProduct
 from app.models.transaction import Transaction
 from app.services import growlio_client, plan_targets
 from app.services.growlio_client import GrowlioSyncError
-from app.utils.dates import month_bounds, parse_year_month, shift_month, year_bounds, year_month_str
+from app.utils.dates import month_bounds, parse_year_month, shift_month, year_bounds
 from app.utils.plan_status import pct_of
 
 PLAN_PRODUCT_TYPES = ("savings", "investment")
@@ -60,13 +60,21 @@ def actuals_for_month(db: Session, year_month: str) -> dict[int, Decimal]:
 
 def trailing_average_actuals(db: Session, year_month: str, months: int = 3) -> dict[int, Decimal]:
     """`year_month` 직전 `months`개월 동안 상품별 실제 납입액 평균 — 부진한 상품의 다음 달 계획
-    제안값으로 쓰인다."""
+    제안값으로 쓰인다. 직전 N개월치를 달마다 조회하지 않고 한 번의 범위 쿼리로 집계한다."""
     month_start = parse_year_month(year_month)
-    totals: dict[int, Decimal] = {}
-    for offset in range(1, months + 1):
-        for product_id, amount in actuals_for_month(db, year_month_str(shift_month(month_start, -offset))).items():
-            totals[product_id] = totals.get(product_id, Decimal("0")) + amount
-    return {product_id: total / months for product_id, total in totals.items()}
+    window_start, _ = month_bounds(shift_month(month_start, -months))
+    _, window_end = month_bounds(shift_month(month_start, -1))
+    rows = (
+        db.query(Transaction.savings_product_id, func.sum(Transaction.amount))
+        .filter(
+            Transaction.savings_product_id.isnot(None),
+            Transaction.transaction_date >= window_start,
+            Transaction.transaction_date <= window_end,
+        )
+        .group_by(Transaction.savings_product_id)
+        .all()
+    )
+    return {product_id: total / months for product_id, total in rows}
 
 
 def get_annual_plan(db: Session, product_id: int, year: int) -> dict | None:
@@ -151,17 +159,21 @@ def _monthly_targets_by_product_for_year(db: Session, product_ids: list[int], ye
     return result
 
 
-def _plan_group(planned: Decimal, actual: Decimal) -> dict:
+def _plan_group(
+    planned: Decimal, actual: Decimal, warn_pct: float | None = None, critical_pct: float | None = None
+) -> dict:
     pct = pct_of(actual, planned, zero_planned_default=None)
     return {
         "planned": planned,
         "actual": actual,
         "pct": pct,
-        "status": plan_targets.savings_status(pct) if pct is not None else None,
+        "status": plan_targets.savings_status(pct, warn_pct, critical_pct) if pct is not None else None,
     }
 
 
-def compute_plan_summary(db: Session, year_month: str) -> dict:
+def compute_plan_summary(
+    db: Session, year_month: str, warn_pct: float | None = None, critical_pct: float | None = None
+) -> dict:
     """저축/투자(부동산 제외) 상품별 이번 달 계획 대비 실적(actuals_for_month)을 계산한다. 계획액은
     그 달이 속한 연도에 SavingsProductAnnualPlan(월별 그리드)이 설정돼 있으면 그 값을, 없으면
     product.monthly_saving_amount로 폴백한다(_monthly_targets_by_product_for_year). 이 함수 자체는
@@ -177,7 +189,7 @@ def compute_plan_summary(db: Session, year_month: str) -> dict:
     for product in products:
         planned = targets_by_product.get(product.id, {}).get(year_month, product.monthly_saving_amount)
         actual = actuals.get(product.id, Decimal("0"))
-        group = _plan_group(planned, actual)
+        group = _plan_group(planned, actual, warn_pct, critical_pct)
         items.append(
             {
                 "id": product.id,
@@ -196,8 +208,10 @@ def compute_plan_summary(db: Session, year_month: str) -> dict:
     return {
         "year_month": year_month,
         "items": items,
-        "savings": _plan_group(planned_by_type["savings"], actual_by_type["savings"]),
-        "investment": _plan_group(planned_by_type["investment"], actual_by_type["investment"]),
+        "savings": _plan_group(planned_by_type["savings"], actual_by_type["savings"], warn_pct, critical_pct),
+        "investment": _plan_group(
+            planned_by_type["investment"], actual_by_type["investment"], warn_pct, critical_pct
+        ),
     }
 
 
@@ -238,7 +252,9 @@ def yearly_monthly_actuals(db: Session, year: int) -> list[Decimal]:
     return [totals[month] for month in range(1, 13)]
 
 
-def compute_annual_plan_summary(db: Session, year: int, as_of: date) -> dict:
+def compute_annual_plan_summary(
+    db: Session, year: int, as_of: date, warn_pct: float | None = None, critical_pct: float | None = None
+) -> dict:
     """상품별 연간 누적 계획 대비 그 해 누적 실적(actuals_for_year)을 비교한다. 계획액은 달마다
     SavingsProductAnnualPlan(월별 그리드)에 값이 있으면 그 값을, 없으면 product.monthly_saving_amount로
     폴백해 12개월치를 합산한다(_monthly_targets_by_product_for_year). 월별 compute_plan_summary와
@@ -260,7 +276,7 @@ def compute_annual_plan_summary(db: Session, year: int, as_of: date) -> dict:
         ]
         annual_target = sum(monthly_amounts, Decimal("0"))
         target_to_date = sum(monthly_amounts[:elapsed_months], Decimal("0"))
-        group = _plan_group(target_to_date, actual)
+        group = _plan_group(target_to_date, actual, warn_pct, critical_pct)
         items.append(
             {
                 "id": product.id,
@@ -278,7 +294,9 @@ def compute_annual_plan_summary(db: Session, year: int, as_of: date) -> dict:
         actual_by_type[product.product_type] += actual
 
     def _group_out(product_type: str) -> dict:
-        group = _plan_group(target_to_date_by_type[product_type], actual_by_type[product_type])
+        group = _plan_group(
+            target_to_date_by_type[product_type], actual_by_type[product_type], warn_pct, critical_pct
+        )
         annual_pct = pct_of(actual_by_type[product_type], annual_target_by_type[product_type], zero_planned_default=None)
         return {
             "annual_target": annual_target_by_type[product_type],
@@ -431,11 +449,7 @@ def sync_all_from_growlio(db: Session, bearer_token: str, *, now: datetime) -> t
         match = growlio_client.find_by_growlio_id(growlio_accounts, product.growlio_account_id)
         if match is None:
             failed.append(
-                {
-                    "id": product.id,
-                    "name": product.name,
-                    "reason": "growlio에서 연동된 계좌를 찾을 수 없습니다 (배우자 계정이거나 삭제되었을 수 있습니다).",
-                }
+                {"id": product.id, "name": product.name, "reason": growlio_client.SYNC_MATCH_FAILED_REASON}
             )
             continue
         product.current_balance = growlio_client.to_decimal_krw(match["current_value_krw"])

@@ -6,7 +6,7 @@ import ConfirmModal from "@/components/common/ConfirmModal";
 import EmptyState from "@/components/common/EmptyState";
 import ErrorState from "@/components/common/ErrorState";
 import Modal from "@/components/common/Modal";
-import MonthPicker, { currentYearMonth, shiftYearMonth } from "@/components/common/MonthPicker";
+import MonthPicker from "@/components/common/MonthPicker";
 import SkeletonCard from "@/components/common/SkeletonCard";
 import Button from "@/components/common/Button";
 import QuickAddFab from "@/components/common/QuickAddFab";
@@ -23,10 +23,6 @@ import TransactionFilterBar, {
   type TopFilter,
   type UserFilter,
 } from "@/components/transactions/TransactionFilterBar";
-import { fetchCategories } from "@/api/categories";
-import { fetchAccounts } from "@/api/accounts";
-import { fetchSavingsProducts } from "@/api/savingsProducts";
-import { fetchMe, fetchUsers } from "@/api/users";
 import {
   createTransaction,
   deleteTransaction,
@@ -38,9 +34,10 @@ import { fetchEvents } from "@/api/events";
 import { useSwipeMonth } from "@/hooks/useSwipeMonth";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { useInvalidateTransactionRelated } from "@/hooks/useInvalidateTransactionRelated";
+import { useAccounts, useCategories, useMe, useSavingsProducts, useUsers } from "@/hooks/useReferenceData";
 import { QUERY_KEYS } from "@/constants/queryKeys";
-import { STALE_TIME } from "@/constants/queryConfig";
 import { INPUT_SM } from "@/constants/inputStyles";
+import { currentDateIso, currentYearMonth, monthBounds, occurrenceDate, shiftYearMonth } from "@/utils/date";
 import { formatKrw } from "@/utils/format";
 import { extractErrorMessage } from "@/utils/error";
 import { toast } from "@/utils/toast";
@@ -50,23 +47,8 @@ const EMPTY_TRANSACTIONS: TransactionOut[] = [];
 const EMPTY_EVENTS: EventOut[] = [];
 const EMPTY_RECURRING: RecurringOut[] = [];
 
-function monthBounds(yearMonth: string): { date_from: string; date_to: string } {
-  const [y, m] = yearMonth.split("-").map(Number);
-  const lastDay = new Date(y, m, 0).getDate();
-  return { date_from: `${yearMonth}-01`, date_to: `${yearMonth}-${String(lastDay).padStart(2, "0")}` };
-}
-
-function todayIso(): string {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-}
-
 function defaultDateHint(yearMonth: string): string {
-  return yearMonth === currentYearMonth() ? todayIso() : `${yearMonth}-01`;
-}
-
-function occurrenceDate(iso: string): string {
-  return iso.split("T")[0];
+  return yearMonth === currentYearMonth() ? currentDateIso() : `${yearMonth}-01`;
 }
 
 function matchesFilter(
@@ -93,7 +75,7 @@ export default function TransactionsPage() {
   const [userFilter, setUserFilter] = useState<UserFilter>("all");
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [formTarget, setFormTarget] = useState<"new" | TransactionOut | null>(null);
-  const [createDate, setCreateDate] = useState(todayIso());
+  const [createDate, setCreateDate] = useState(currentDateIso());
   const [deleteTarget, setDeleteTarget] = useState<TransactionOut | null>(null);
   const [showRecurringSheet, setShowRecurringSheet] = useState(false);
   const [searchInput, setSearchInput] = useState("");
@@ -125,33 +107,21 @@ export default function TransactionsPage() {
     isError: categoriesError,
     error: categoriesErrorObj,
     refetch: refetchCategories,
-  } = useQuery({
-    queryKey: QUERY_KEYS.categories(),
-    queryFn: () => fetchCategories(),
-    staleTime: STALE_TIME.LONG,
-  });
+  } = useCategories();
   const {
     data: accounts,
     isError: accountsError,
     error: accountsErrorObj,
     refetch: refetchAccounts,
-  } = useQuery({
-    queryKey: QUERY_KEYS.accounts,
-    queryFn: fetchAccounts,
-    staleTime: STALE_TIME.LONG,
-  });
+  } = useAccounts();
   const {
     data: savingsProducts,
     isError: savingsProductsError,
     error: savingsProductsErrorObj,
     refetch: refetchSavingsProducts,
-  } = useQuery({
-    queryKey: QUERY_KEYS.savingsProducts,
-    queryFn: fetchSavingsProducts,
-    staleTime: STALE_TIME.MEDIUM,
-  });
-  const { data: me } = useQuery({ queryKey: QUERY_KEYS.me, queryFn: fetchMe, staleTime: STALE_TIME.LONG });
-  const { data: users } = useQuery({ queryKey: QUERY_KEYS.users, queryFn: fetchUsers, staleTime: STALE_TIME.LONG });
+  } = useSavingsProducts();
+  const { data: me } = useMe();
+  const { data: users } = useUsers();
   const userOptions = useMemo(() => {
     if (!me || !users) return [];
     return [

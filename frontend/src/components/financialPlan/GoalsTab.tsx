@@ -16,8 +16,7 @@ import GoalSectionHeader from "@/components/financialPlan/GoalSectionHeader";
 import Modal from "@/components/common/Modal";
 import SkeletonCard from "@/components/common/SkeletonCard";
 import Tabs from "@/components/common/Tabs";
-import { currentYearMonth } from "@/components/common/MonthPicker";
-import { fetchAccounts } from "@/api/accounts";
+import { currentDateIso, currentYearMonth } from "@/utils/date";
 import { fetchDashboard } from "@/api/dashboard";
 import {
   createGoal,
@@ -28,12 +27,12 @@ import {
   updateGoalMonthlyTarget,
 } from "@/api/goals";
 import { fetchLoans } from "@/api/loans";
-import { fetchSavingsProducts } from "@/api/savingsProducts";
 import { FORM_LABEL, FORM_SECTION_LABEL, INLINE_BUTTON_OFFSET, TEXTAREA_SM } from "@/constants/inputStyles";
 import { QUERY_KEYS } from "@/constants/queryKeys";
 import { STALE_TIME } from "@/constants/queryConfig";
 import { TOUCH_TARGET_MIN_HEIGHT } from "@/constants/uiSizes";
 import { useCrudMutations } from "@/hooks/useCrudMutations";
+import { useAccounts, useSavingsProducts } from "@/hooks/useReferenceData";
 import { progressStatusBadgeClass, progressStatusLabel } from "@/utils/colors";
 import { computeCardStatus, daysUntil, isGoalAchieved } from "@/utils/goalStatus";
 import { GOAL_SORT_LABELS, sortGoals, type GoalSortLabel } from "@/utils/goalSort";
@@ -57,10 +56,6 @@ import type {
   LoanOut,
   SavingsProductOut,
 } from "@/types";
-
-function todayIso(): string {
-  return new Date().toISOString().slice(0, 10);
-}
 
 interface Draft {
   kind: GoalKind;
@@ -99,8 +94,8 @@ const EMPTY_GOAL_DRAFT: Draft = {
 const EMPTY_CHALLENGE_DRAFT: Draft = {
   ...EMPTY_GOAL_DRAFT,
   kind: "challenge",
-  start_date: todayIso(),
-  target_date: todayIso(),
+  start_date: currentDateIso(),
+  target_date: currentDateIso(),
 };
 
 /** "YYYY-MM-DD" -> "YYYY-MM" (GoalMonthlyTargetEditor에 넘길 시작월/종료월 계산용). */
@@ -116,7 +111,7 @@ function draftFromGoal(goal: FinancialGoalOut): Draft {
     description: goal.description ?? "",
     target_age: goal.target_age !== null ? String(goal.target_age) : "",
     target_date: goal.target_date ?? "",
-    start_date: goal.start_date ?? todayIso(),
+    start_date: goal.start_date ?? currentDateIso(),
     required_amount: toAmountInputValue(goal.required_amount),
     monthly_saving_amount: toAmountInputValue(goal.monthly_saving_amount),
     current_amount: toAmountInputValue(goal.current_amount),
@@ -196,16 +191,8 @@ export default function GoalsTab() {
   const [monthlyTargetDraft, setMonthlyTargetDraft] = useState<Record<string, string>>({});
 
   const { data, isLoading } = useQuery({ queryKey: QUERY_KEYS.financialGoals, queryFn: fetchGoals });
-  const { data: savingsProducts } = useQuery({
-    queryKey: QUERY_KEYS.savingsProducts,
-    queryFn: fetchSavingsProducts,
-    staleTime: STALE_TIME.MEDIUM,
-  });
-  const { data: accounts } = useQuery({
-    queryKey: QUERY_KEYS.accounts,
-    queryFn: fetchAccounts,
-    staleTime: STALE_TIME.MEDIUM,
-  });
+  const { data: savingsProducts } = useSavingsProducts();
+  const { data: accounts } = useAccounts();
   const { data: loans } = useQuery({
     queryKey: QUERY_KEYS.loans,
     queryFn: fetchLoans,
@@ -868,7 +855,7 @@ function GoalFormModal({
                 ...d,
                 target_date: e.target.value,
                 monthly_targets:
-                  e.target.value === "" ? [] : syncMonthlyTargetsToPeriod(todayIso(), e.target.value, d.monthly_targets),
+                  e.target.value === "" ? [] : syncMonthlyTargetsToPeriod(currentDateIso(), e.target.value, d.monthly_targets),
               }))
             }
             className="w-full"
@@ -962,7 +949,7 @@ function GoalFormModal({
         )}
         {draft.target_date !== "" && (
           <GoalMonthlyTargetEditor
-            startMonth={toYearMonth(todayIso())}
+            startMonth={toYearMonth(currentDateIso())}
             endMonth={toYearMonth(draft.target_date)}
             targets={draft.monthly_targets}
             onChange={(monthly_targets) => setDraft((d) => ({ ...d, monthly_targets }))}

@@ -2,6 +2,7 @@ import { useMemo } from "react";
 import CollapsibleGroup from "@/components/common/CollapsibleGroup";
 import EmptyState from "@/components/common/EmptyState";
 import ScheduleEventRow from "@/components/schedule/ScheduleEventRow";
+import { currentDateIso, occurrenceDate } from "@/utils/date";
 import type { EventOut } from "@/types";
 
 interface Props {
@@ -15,15 +16,6 @@ interface Props {
 
 const WEEKDAY_LABELS = ["일", "월", "화", "수", "목", "금", "토"];
 
-function todayIso(): string {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-}
-
-function occurrenceDate(iso: string): string {
-  return iso.split("T")[0];
-}
-
 function formatDayHeader(date: string): string {
   const [y, m, d] = date.split("-").map(Number);
   const weekday = WEEKDAY_LABELS[new Date(y, m - 1, d).getDay()];
@@ -33,7 +25,7 @@ function formatDayHeader(date: string): string {
 /** 캘린더 아래에 이번 달 일정을 날짜별 접이식 목록으로 보여준다 - 가계부(/transactions)의
  * DailyTransactionGroups와 동일한 패턴이며, 오늘 날짜 그룹만 기본으로 펼쳐 스크롤을 짧게 유지한다. */
 export default function ScheduleMonthList({ events, onEdit, onDelete, onToggleComplete }: Props) {
-  const today = todayIso();
+  const today = currentDateIso();
 
   const groups = useMemo(() => {
     const byDate = new Map<string, EventOut[]>();

@@ -1,6 +1,6 @@
 import { useState } from "react";
 import type { FormEvent } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Download, Plus, RefreshCw } from "lucide-react";
 import Button from "@/components/common/Button";
 import AssetRow from "@/components/accounts/AssetRow";
@@ -19,7 +19,6 @@ import { INPUT_SM, LABEL_SM } from "@/constants/inputStyles";
 import {
   createAccount,
   deactivateAccount,
-  fetchAccounts,
   fetchGrowlioAccounts,
   importGrowlioAccounts,
   syncAccount,
@@ -27,6 +26,7 @@ import {
 } from "@/api/accounts";
 import { QUERY_KEYS } from "@/constants/queryKeys";
 import { useCrudMutations } from "@/hooks/useCrudMutations";
+import { useAccounts } from "@/hooks/useReferenceData";
 import { formatKrw, formatKrwPreview, formatSyncedAt, resolveOwnerLabel, toAmountInputValue } from "@/utils/format";
 import { extractErrorMessage } from "@/utils/error";
 import { toast } from "@/utils/toast";
@@ -69,13 +69,7 @@ export default function AccountsSection({ users }: Props) {
   const [importOpen, setImportOpen] = useState(false);
   const queryClient = useQueryClient();
 
-  const {
-    data,
-    isLoading,
-    isError,
-    error,
-    refetch,
-  } = useQuery({ queryKey: QUERY_KEYS.accounts, queryFn: fetchAccounts });
+  const { data, isLoading, isError, error, refetch } = useAccounts();
 
   const { createMutation, updateMutation, removeMutation: deactivateMutation } = useCrudMutations({
     invalidateKeys: [QUERY_KEYS.accounts],

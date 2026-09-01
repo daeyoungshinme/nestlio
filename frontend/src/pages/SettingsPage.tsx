@@ -22,8 +22,9 @@ import {
   uploadCouplePhoto,
 } from "@/api/settings";
 import { cancelInvite, createInvite, fetchInvites } from "@/api/invites";
-import { fetchMe, fetchUsers, removeUser, updateMe, updateUser } from "@/api/users";
+import { removeUser, updateMe, updateUser } from "@/api/users";
 import type { CoachingThresholdsOut, InviteOut, NotificationPrefsOut } from "@/types";
+import { useMe, useUsers } from "@/hooks/useReferenceData";
 import { QUERY_KEYS } from "@/constants/queryKeys";
 import { COACHING_THRESHOLD_PRESETS } from "@/constants/coachingPresets";
 import { MAX_NOTIFY_RECIPIENTS } from "@/constants/settings";
@@ -89,8 +90,8 @@ export default function SettingsPage() {
     error,
     refetch,
   } = useQuery({ queryKey: QUERY_KEYS.settings, queryFn: fetchSettings });
-  const meQuery = useQuery({ queryKey: QUERY_KEYS.me, queryFn: fetchMe });
-  const usersQuery = useQuery({ queryKey: QUERY_KEYS.users, queryFn: fetchUsers });
+  const meQuery = useMe();
+  const usersQuery = useUsers();
   const invitesQuery = useQuery({ queryKey: QUERY_KEYS.invites, queryFn: fetchInvites });
   const spouse = meQuery.data && usersQuery.data?.find((u) => u.id !== meQuery.data!.id);
 
@@ -472,7 +473,7 @@ export default function SettingsPage() {
       <SettingsSectionCard title="바로가기">
         <div className="space-y-1">
           <SettingsLinkRow
-            to="/accounts?tab=저축·투자"
+            to="/accounts?section=저축·투자"
             label="비상금 관리"
             hint="저축·투자 탭에서 비상금 항목으로 기록해요"
           />

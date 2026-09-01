@@ -54,10 +54,6 @@ def update_recurring(
     _: User = Depends(get_current_user),
 ):
     fields = payload.model_dump(exclude_unset=True)
-    if fields.get("days_of_month"):
-        fields["day_of_month"] = min(fields["days_of_month"])
-    elif "start_date" in fields:
-        fields["day_of_month"] = fields["start_date"].day
     recurring = recurring_service.update_recurring(db, recurring_id, **fields)
     if recurring is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "고정지출을 찾을 수 없습니다.")

@@ -14,7 +14,8 @@ import SavingsInvestmentPlanPanel from "@/components/financialPlan/SavingsInvest
 import Button from "@/components/common/Button";
 import ConfirmModal from "@/components/common/ConfirmModal";
 import Modal from "@/components/common/Modal";
-import MonthPicker, { currentYearMonth, shiftYearMonth } from "@/components/common/MonthPicker";
+import MonthPicker from "@/components/common/MonthPicker";
+import { currentYearMonth, shiftYearMonth } from "@/utils/date";
 import SkeletonCard from "@/components/common/SkeletonCard";
 import SummaryCard from "@/components/common/SummaryCard";
 import {
@@ -24,12 +25,10 @@ import {
   splitCashflowPlanItem,
   upsertCashflowPlanItem,
 } from "@/api/cashflowPlan";
-import { fetchCategories } from "@/api/categories";
 import { fetchSavingsProductsPlan } from "@/api/savingsProducts";
-import { fetchUsers } from "@/api/users";
+import { useCategories, useUsers } from "@/hooks/useReferenceData";
 import { SECTIONS, SAVINGS_INVESTMENT_LABEL, type SectionLabel } from "@/constants/planSections";
 import { QUERY_KEYS } from "@/constants/queryKeys";
-import { STALE_TIME } from "@/constants/queryConfig";
 import { formatKrw, formatYearMonth, pctOf } from "@/utils/format";
 import { extractErrorMessage } from "@/utils/error";
 import { worseStatus } from "@/utils/colors";
@@ -60,18 +59,10 @@ export default function CashflowPlanTab({ view }: { view: "monthly" | "annual" }
     queryKey: QUERY_KEYS.cashflowPlan(yearMonth),
     queryFn: () => fetchCashflowPlan(yearMonth),
   });
-  const { data: users } = useQuery({ queryKey: QUERY_KEYS.users, queryFn: fetchUsers, staleTime: STALE_TIME.LONG });
-  const { data: categories } = useQuery({
-    queryKey: QUERY_KEYS.categories("expense"),
-    queryFn: () => fetchCategories("expense"),
-    staleTime: STALE_TIME.LONG,
-  });
+  const { data: users } = useUsers();
+  const { data: categories } = useCategories("expense");
   // 반복거래 등록/가계부 즉시추가 모달은 수입 카테고리도 골라야 하므로 지출 전용인 위 categories와 별도로 전체를 받는다.
-  const { data: allCategories } = useQuery({
-    queryKey: QUERY_KEYS.categoriesAll,
-    queryFn: () => fetchCategories(),
-    staleTime: STALE_TIME.LONG,
-  });
+  const { data: allCategories } = useCategories();
   const { data: savingsPlanData } = useQuery({
     queryKey: QUERY_KEYS.savingsProductsPlan(yearMonth),
     queryFn: () => fetchSavingsProductsPlan(yearMonth),

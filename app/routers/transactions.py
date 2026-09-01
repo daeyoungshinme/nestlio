@@ -28,6 +28,10 @@ from app.utils.dates import month_bounds
 router = APIRouter(prefix="/transactions", tags=["transactions"])
 logger = logging.getLogger("transactions")
 
+# 검색(q)만 주고 기간을 안 주면 "전체 기간" 합계를 낸다 — 하한을 이 앱에 거래가 있을 리 없는
+# 먼 과거로 잡아 사실상 무한 하한처럼 쓴다.
+_ALL_TIME_START = date(2000, 1, 1)
+
 
 @router.get("", response_model=TransactionListOut)
 def list_transactions(
@@ -44,7 +48,7 @@ def list_transactions(
     df = date_from or (None if q else default_from)
     dt = date_to or (None if q else default_to)
     items = transaction_service.list_transactions(db, df, dt, category_id, type, user_id, q=q)
-    totals = transaction_report_service.period_totals(db, df or date(2000, 1, 1), dt or date.today())
+    totals = transaction_report_service.period_totals(db, df or _ALL_TIME_START, dt or date.today())
     return {"items": items, "totals": totals}
 
 

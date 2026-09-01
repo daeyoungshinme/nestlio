@@ -17,13 +17,13 @@ import InlineStatsBar from "@/components/common/InlineStatsBar";
 import {
   createSavingsProduct,
   deactivateSavingsProduct,
-  fetchSavingsProducts,
   updateSavingsProduct,
 } from "@/api/savingsProducts";
 import { fetchGrowlioRealEstate, importGrowlioRealEstate, syncRealEstate } from "@/api/realEstate";
 import { fetchGoals } from "@/api/goals";
 import { QUERY_KEYS } from "@/constants/queryKeys";
 import { useCrudMutations } from "@/hooks/useCrudMutations";
+import { useSavingsProducts } from "@/hooks/useReferenceData";
 import {
   formatKrw,
   formatKrwPreview,
@@ -81,13 +81,7 @@ export default function RealEstateSection({ users }: Props) {
   const [importOpen, setImportOpen] = useState(false);
   const queryClient = useQueryClient();
 
-  const {
-    data: allData,
-    isLoading,
-    isError,
-    error,
-    refetch,
-  } = useQuery({ queryKey: QUERY_KEYS.savingsProducts, queryFn: fetchSavingsProducts });
+  const { data: allData, isLoading, isError, error, refetch } = useSavingsProducts();
   const { data: goals } = useQuery({ queryKey: QUERY_KEYS.financialGoals, queryFn: fetchGoals });
 
   const invalidate = () => queryClient.invalidateQueries({ queryKey: QUERY_KEYS.savingsProducts });

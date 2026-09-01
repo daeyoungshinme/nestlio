@@ -23,36 +23,45 @@ def list_growlio_real_estate(bearer_token: str) -> list[dict]:
     return growlio_client.fetch_real_estate_items(bearer_token)
 
 
+def _update_linked_loan_balance(db: Session, growlio_account_id: str, mortgage_balance_krw, now: datetime) -> Loan | None:
+    """이미 연동된 담보대출이 있으면 잔액/동기화시각만 갱신한다(없으면 새로 만들지 않는다).
+    동기화 경로(sync_from_growlio / sync_all_from_growlio)는 "가져온 적 없는 대출을 새로 만들지
+    않는다"는 규칙이라 이 update-only 헬퍼를 공유한다. mortgage_balance_krw는 growlio 응답의
+    raw 값(growlio는 내부적으로 float)이라 여기서 Decimal로 감싸지 않고 넘겨받는다."""
+    loan = db.query(Loan).filter(Loan.growlio_account_id == growlio_account_id).one_or_none()
+    if loan is not None:
+        loan.balance = growlio_client.to_decimal_krw(mortgage_balance_krw)
+        loan.last_synced_at = now
+    return loan
+
+
 def _upsert_linked_loan(
     db: Session,
     *,
     growlio_account_id: str,
     name: str,
-    mortgage_balance_krw: float,
+    mortgage_balance_krw,
     owner_user_id: uuid.UUID,
     now: datetime,
 ) -> Loan | None:
-    """growlio_account_id로 짝이 되는 대출을 찾아 잔액을 갱신하거나, 없으면(첫 가져오기이고
-    담보대출이 있는 경우) 새로 만든다. 담보대출이 0원이면 새로 만들지 않는다.
-    이미 연동된 대출을 갱신하는 경우는 소유자를 건드리지 않는다(최초 가져오기 때 정한 값 유지)."""
-    loan = db.query(Loan).filter(Loan.growlio_account_id == growlio_account_id).one_or_none()
-    if loan is None:
-        if mortgage_balance_krw <= 0:
-            return None
-        loan = Loan(
-            name=f"{name} 담보대출",
-            balance=growlio_client.to_decimal_krw(mortgage_balance_krw),
-            monthly_payment=Decimal("0"),
-            growlio_account_id=growlio_account_id,
-            auto_sync_enabled=True,
-            last_synced_at=now,
-            sort_order=999,
-            owner_user_id=owner_user_id,
-        )
-        db.add(loan)
-    else:
-        loan.balance = growlio_client.to_decimal_krw(mortgage_balance_krw)
-        loan.last_synced_at = now
+    """가져오기(import) 전용 — 짝이 되는 대출을 갱신하거나, 없으면 새로 만든다. 담보대출이
+    0원이면 새로 만들지 않는다. 이미 연동된 대출을 갱신할 땐 소유자를 건드리지 않는다."""
+    loan = _update_linked_loan_balance(db, growlio_account_id, mortgage_balance_krw, now)
+    if loan is not None:
+        return loan
+    if mortgage_balance_krw <= 0:
+        return None
+    loan = Loan(
+        name=f"{name} 담보대출",
+        balance=growlio_client.to_decimal_krw(mortgage_balance_krw),
+        monthly_payment=Decimal("0"),
+        growlio_account_id=growlio_account_id,
+        auto_sync_enabled=True,
+        last_synced_at=now,
+        sort_order=999,
+        owner_user_id=owner_user_id,
+    )
+    db.add(loan)
     return loan
 
 
@@ -127,11 +136,7 @@ def sync_from_growlio(
         product.principal_amount = growlio_client.to_decimal_krw(match["purchase_price_krw"])
     product.last_synced_at = now
 
-    loan = db.query(Loan).filter(Loan.growlio_account_id == product.growlio_account_id).one_or_none()
-    mortgage_balance_krw = match.get("mortgage_balance_krw") or 0
-    if loan is not None:
-        loan.balance = growlio_client.to_decimal_krw(mortgage_balance_krw)
-        loan.last_synced_at = now
+    loan = _update_linked_loan_balance(db, product.growlio_account_id, match.get("mortgage_balance_krw") or 0, now)
 
     db.commit()
     db.refresh(product)
@@ -176,10 +181,7 @@ def sync_all_from_growlio(db: Session, bearer_token: str, *, now: datetime) -> t
             product.principal_amount = growlio_client.to_decimal_krw(match["purchase_price_krw"])
         product.last_synced_at = now
 
-        loan = db.query(Loan).filter(Loan.growlio_account_id == product.growlio_account_id).one_or_none()
-        if loan is not None:
-            loan.balance = growlio_client.to_decimal_krw(match.get("mortgage_balance_krw") or 0)
-            loan.last_synced_at = now
+        _update_linked_loan_balance(db, product.growlio_account_id, match.get("mortgage_balance_krw") or 0, now)
         synced_count += 1
     db.commit()
     return synced_count, failed

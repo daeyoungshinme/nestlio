@@ -1,15 +1,12 @@
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation } from "@tanstack/react-query";
 import Modal from "@/components/common/Modal";
 import SkeletonCard from "@/components/common/SkeletonCard";
 import TransactionForm from "@/components/transactions/TransactionForm";
-import { fetchAccounts } from "@/api/accounts";
-import { fetchSavingsProducts } from "@/api/savingsProducts";
-import { fetchUsers } from "@/api/users";
 import { createTransaction } from "@/api/transactions";
 import { useAuthStore } from "@/stores/authStore";
 import { useInvalidateTransactionRelated } from "@/hooks/useInvalidateTransactionRelated";
-import { QUERY_KEYS } from "@/constants/queryKeys";
-import { STALE_TIME } from "@/constants/queryConfig";
+import { useAccounts, useSavingsProducts, useUsers } from "@/hooks/useReferenceData";
+import { currentDateIso } from "@/utils/date";
 import { extractErrorMessage } from "@/utils/error";
 import { toast } from "@/utils/toast";
 import type { CashflowPlanItemOut, CategoryOut } from "@/types";
@@ -26,21 +23,9 @@ interface Props {
 
 export default function CashflowPlanQuickAddModal({ item, categories, onClose, onAdded }: Props) {
   const invalidateTxRelated = useInvalidateTransactionRelated();
-  const { data: accounts } = useQuery({
-    queryKey: QUERY_KEYS.accounts,
-    queryFn: fetchAccounts,
-    staleTime: STALE_TIME.LONG,
-  });
-  const { data: savingsProducts } = useQuery({
-    queryKey: QUERY_KEYS.savingsProducts,
-    queryFn: fetchSavingsProducts,
-    staleTime: STALE_TIME.MEDIUM,
-  });
-  const { data: users } = useQuery({
-    queryKey: QUERY_KEYS.users,
-    queryFn: fetchUsers,
-    staleTime: STALE_TIME.LONG,
-  });
+  const { data: accounts } = useAccounts();
+  const { data: savingsProducts } = useSavingsProducts();
+  const { data: users } = useUsers();
   const currentUserId = useAuthStore((s) => s.userId);
 
   const quickAddMutation = useMutation({
@@ -79,7 +64,7 @@ export default function CashflowPlanQuickAddModal({ item, categories, onClose, o
               amount: item.amount,
               type: item.section === "income" ? "income" : "expense",
               category_id: item.category_id !== null ? String(item.category_id) : "",
-              transaction_date: new Date().toISOString().slice(0, 10),
+              transaction_date: currentDateIso(),
               description: item.category_id === null ? item.name : "",
             }}
             onSubmit={(payload) => quickAddMutation.mutate(payload)}

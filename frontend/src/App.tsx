@@ -6,8 +6,9 @@ import AppLayout from "./components/layout/AppLayout";
 import ErrorBoundary from "./components/ErrorBoundary";
 import PageLoader from "./components/common/PageLoader";
 import Toaster from "./components/Toaster";
-import { AUTH_ME_CACHE_KEY, useAuthStore } from "./stores/authStore";
+import { useAuthStore } from "./stores/authStore";
 import { useThemeStore } from "./stores/themeStore";
+import { clearClientCaches } from "./utils/session";
 
 const LoginPage = lazy(() => import("./pages/LoginPage"));
 const InviteAcceptPage = lazy(() => import("./pages/InviteAcceptPage"));
@@ -91,8 +92,7 @@ export default function App() {
 
   useEffect(() => {
     const handleSessionExpired = () => {
-      queryClient.clear();
-      window.localStorage.removeItem(AUTH_ME_CACHE_KEY);
+      clearClientCaches(queryClient);
       void logout();
     };
     window.addEventListener("nestlio:session-expired", handleSessionExpired);

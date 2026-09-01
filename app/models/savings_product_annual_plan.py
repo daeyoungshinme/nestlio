@@ -10,7 +10,7 @@ class SavingsProductAnnualPlan(Base):
     """저축/투자 상품(SavingsProduct) 하나의 특정 연도 계획 — AnnualPlanItem(수입/지출)과 동일한
     패턴이지만 이름/카테고리/섹션 대신 product_id로 스코프한다. SavingsProduct는 연도 구분 없이
     영속하는 엔티티라 연도별로 이 행이 따로 생긴다(product_id, year) unique. 상품이 이 계획을 아직
-    설정하지 않은 달/연도는 savings_product_service._effective_monthly_target이
+    설정하지 않은 달/연도는 savings_product_service.compute_plan_summary/compute_annual_plan_summary가
     SavingsProduct.monthly_saving_amount로 폴백한다."""
 
     __tablename__ = "savings_product_annual_plans"

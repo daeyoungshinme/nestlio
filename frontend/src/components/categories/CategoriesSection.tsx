@@ -1,6 +1,5 @@
 import { useState } from "react";
 import type { FormEvent } from "react";
-import { useQuery } from "@tanstack/react-query";
 import Badge from "@/components/common/Badge";
 import Button from "@/components/common/Button";
 import ConfirmModal from "@/components/common/ConfirmModal";
@@ -10,11 +9,11 @@ import Modal from "@/components/common/Modal";
 import RowActionButtons from "@/components/common/RowActionButtons";
 import SkeletonCard from "@/components/common/SkeletonCard";
 import { COLOR_INPUT_SM, INLINE_BUTTON_OFFSET, INPUT_SM, LABEL_SM } from "@/constants/inputStyles";
-import { createCategory, deactivateCategory, fetchCategories, updateCategory } from "@/api/categories";
+import { createCategory, deactivateCategory, updateCategory } from "@/api/categories";
 import { QUERY_KEYS } from "@/constants/queryKeys";
-import { STALE_TIME } from "@/constants/queryConfig";
 import { BENCHMARK_GROUP_LABELS, BENCHMARK_GROUP_ORDER } from "@/constants/benchmarkGroups";
 import { useCrudMutations } from "@/hooks/useCrudMutations";
+import { useCategories } from "@/hooks/useReferenceData";
 import type { BenchmarkGroup, CategoryOut, CategoryType } from "@/types";
 
 const TYPE_LABEL: Record<CategoryType, string> = {
@@ -40,11 +39,7 @@ export default function CategoriesSection() {
   const [editing, setEditing] = useState<CategoryOut | null>(null);
   const [deactivateTarget, setDeactivateTarget] = useState<CategoryOut | null>(null);
 
-  const { data, isLoading } = useQuery({
-    queryKey: QUERY_KEYS.categories(),
-    queryFn: () => fetchCategories(),
-    staleTime: STALE_TIME.LONG,
-  });
+  const { data, isLoading } = useCategories();
 
   const { createMutation, updateMutation, removeMutation: deactivateMutation } = useCrudMutations({
     invalidateKeys: [QUERY_KEYS.categoriesAll, QUERY_KEYS.transactionsAll, QUERY_KEYS.categoryBreakdownAll],

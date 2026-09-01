@@ -4,6 +4,8 @@ from unittest.mock import patch
 
 import pytest
 
+from sqlalchemy.exc import SQLAlchemyError
+
 from app.services import account_service, transaction_import_service, transaction_report_service, transaction_service
 from app.services.google_auth import GoogleNotConnectedError
 from app.services.google_sheets_service import GoogleSheetsReadError
@@ -72,6 +74,33 @@ def test_import_csv_skips_malformed_amount_but_keeps_valid_rows(seeded_db):
     assert result["created"] == 1
     assert len(result["skipped"]) == 1
     assert result["skipped"][0]["line"] == 1
+
+
+def test_import_row_db_error_is_isolated_and_does_not_abort_whole_import(seeded_db):
+    """한 행의 db.flush()가 DB 오류(정밀도 초과 등)를 내도 SAVEPOINT 롤백으로 그 행만 skip하고
+    나머지 행과 최종 commit은 정상 진행된다 — 예전에는 세션이 오염돼 import 전체가 실패했다."""
+    db, user = seeded_db["db"], seeded_db["user"]
+    csv_text = (
+        "날짜,구분,카테고리,금액,메모\n"
+        "2026-07-05,지출,식비,10000,boom\n"
+        "2026-07-06,지출,식비,5000,ok\n"
+    )
+    real_flush = db.flush
+
+    def flaky_flush(*args, **kwargs):
+        # "boom" 행을 flush할 때만 DB 오류를 시뮬레이션한다 (정밀도 초과 등을 흉내).
+        if any(getattr(obj, "description", None) == "boom" for obj in db.new):
+            raise SQLAlchemyError("simulated data error")
+        return real_flush(*args, **kwargs)
+
+    with patch.object(db, "flush", side_effect=flaky_flush):
+        result = transaction_import_service.import_csv(db, csv_text, user.id)
+
+    assert result["created"] == 1
+    assert len(result["skipped"]) == 1
+    assert "simulated data error" in result["skipped"][0]["reason"]
+    reimported = transaction_service.list_transactions(db, date(2026, 7, 1), date(2026, 7, 31))
+    assert [tx.description for tx in reimported] == ["ok"]
 
 
 def test_import_from_sheet_url_reads_public_csv_and_delegates_to_import_rows(seeded_db):

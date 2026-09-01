@@ -42,9 +42,10 @@ cd frontend && npm run test:watch  # 워치 모드
 ```
 
 ### 환경 변수
-`frontend/.env` (`.env.example` 참고), `src/lib/supabase.ts`에서 import — 없으면 Supabase 클라이언트 초기화 자체가 실패한다:
-- `VITE_SUPABASE_URL` — Supabase Project URL (growlio와 같은 프로젝트 공유)
+`frontend/.env` (`frontend/.env.example` 참고). 배포 시 `render.yaml`이 `VITE_SUPABASE_URL`/`VITE_SUPABASE_ANON_KEY`를 서비스 env로 주입한다.
+- `VITE_SUPABASE_URL` — Supabase Project URL (growlio와 같은 프로젝트 공유). `src/lib/supabase.ts`에서 import — 없으면 Supabase 클라이언트 초기화 자체가 실패한다
 - `VITE_SUPABASE_ANON_KEY` — Supabase Anon Key
+- `VITE_GROWLIO_APP_URL` — growlio 프론트엔드 오리진. 비어 있으면 growlio 딥링크 CTA를 숨긴다 (`src/constants/growlio.ts`)
 
 ---
 
@@ -90,9 +91,12 @@ cd frontend && npm run test:watch  # 워치 모드
 ```
 api/client.ts (axios + Supabase JWT 인터셉터 + 401 자동 refresh)
   └── api/{dashboard,transactions,events,accounts,reports,settings,categories,users}.ts
-        └── React Query 훅(각 페이지 컴포넌트 내부, useQuery/useMutation 직접 사용 — growlio처럼
-            전용 hooks/useXxx.ts로 감싸는 계층은 페이지 수가 적어 아직 두지 않았다.
-            페이지가 늘거나 쿼리가 여러 곳에서 재사용되면 이 계층을 추가한다.)
+        └── React Query 훅(각 페이지 컴포넌트 내부, useQuery/useMutation 직접 사용). 단,
+            여러 화면이 공유하는 것은 전용 hooks/useXxx.ts로 감싼다:
+            - 느리게 변하는 참조 데이터(계좌·카테고리·저축상품·유저)는 hooks/useReferenceData.ts의
+              useAccounts/useCategories/useSavingsProducts/useUsers/useMe로만 조회한다. 각 페이지에서
+              raw useQuery + 제각각 staleTime으로 재선언하지 않는다(쿼리 키·기본 staleTime을 한 곳에서 관리).
+            - 반복 mutation은 useCrudMutations/useRecurringMutations, 무효화는 useInvalidateTransactionRelated.
 stores/{authStore,themeStore}.ts — Zustand, React Query 캐시와 무관한 클라이언트 상태
 ```
 

@@ -6,19 +6,21 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.dependencies import get_current_user
 from app.models.user import User
-from app.schemas.annual_plan import AnnualCategoryBudgetRowOut, AnnualPlanItemUpsertIn, AnnualPlanListOut
-from app.services import annual_plan_service
+from app.schemas.annual_plan import AnnualPlanItemUpsertIn, AnnualPlanListOut
+from app.services import annual_plan_service, coaching_settings_service
 
 router = APIRouter(prefix="/annual-plan", tags=["annual-plan"])
 
 
 def _plan_list(db: Session, year: int, today: date) -> dict:
     items = annual_plan_service.list_items(db, year)
+    thresholds = coaching_settings_service.get_thresholds(db)
+    warn_pct, critical_pct = thresholds["budget_warn_pct"], thresholds["budget_critical_pct"]
     return {
         "year": year,
         "items": [annual_plan_service.item_to_out(item) for item in items],
-        "summary": annual_plan_service.summary_for_year(db, year, today),
-        "category_budgets": annual_plan_service.category_budget_vs_actual(db, year),
+        "summary": annual_plan_service.summary_for_year(db, year, today, warn_pct, critical_pct),
+        "category_budgets": annual_plan_service.category_budget_vs_actual(db, year, warn_pct, critical_pct),
     }
 
 

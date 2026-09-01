@@ -26,10 +26,10 @@ FastAPI가 JSON API로 전환되면서 (Jinja2/HTMX 서버 렌더링 제거) 라
 
 ## Mocking 범위
 
-- `unittest.mock.patch`로 **Gmail 발송만** mock한다 (`app.services.notification_service.gmail_service.send_email`).
-- Google Calendar/OAuth(`google_calendar_service.py`, `google_auth.py`)는 테스트가 아직 없다 — 알려진 공백이며, 추가할 때는 기존처럼 `unittest.mock`만 사용하고 새 mocking 라이브러리(`pytest-mock`, `responses` 등)를 임의로 들여오지 않는다.
+- `unittest.mock.patch`로 Gmail 발송(`app.services.notification_service.gmail_service.send_email`), Google Calendar/OAuth, growlio HTTP, Supabase Storage 호출을 mock한다 — 새 mocking 라이브러리(`pytest-mock`, `responses` 등)를 임의로 들여오지 않고 `unittest.mock`만 쓴다.
+- Google Calendar/OAuth는 `tests/test_google_calendar_service.py` / `tests/test_google_auth.py`가 커버한다.
 
 ## 파일 조직
 
 - 원칙은 서비스 파일 1:1 대응(`test_budget_service.py`, `test_transaction_service.py` 등)이지만 예외가 있다 — `transaction_service.py`가 CRUD/집계/CSV 세 서비스(`transaction_service`/`transaction_report_service`/`transaction_import_service`)로 분리된 뒤에도 테스트 파일은 나누지 않았다: `test_transaction_service.py`가 CRUD와 집계(`transaction_report_service`) 테스트를 함께 다루고, `test_csv_and_accounts.py`는 `account_service`와 CSV/시트 가져오기(`transaction_import_service`), 연간 집계(`transaction_report_service`) 테스트를 함께 다룬다.
-- 아직 전용 테스트 파일이 없는 서비스: `category_service`, `couple_photo_service`, `user_setting_service`, `google_auth`, `google_calendar_service`, `milestone_service`, `retrospective_service`(월간 회고 데이터 소스 — `test_dashboard_api`/`test_notifications*`가 결과를 간접 검증). 새 테스트 파일을 만들 때 이 목록을 참고해 무분별하게 파일을 늘리지 않는다. (`loan_service`/`google_sheets_service`처럼 전용 파일은 없지만 다른 서비스 테스트 안에서 간접적으로 커버되는 경우는 이 목록에 넣지 않는다 — 진짜 공백만 추적한다.)
+- 아직 전용 테스트 파일이 없는 서비스: `retrospective_service`(월간 회고 데이터 소스 — `test_dashboard_api`/`test_notifications*`가 결과를 간접 검증), `plan_targets`/`plan_status`(연간계획 공용 임계값 헬퍼 — 연간/이번달 계획 서비스 테스트가 경계값을 간접 검증). 새 테스트 파일을 만들 때 이 목록을 참고해 무분별하게 파일을 늘리지 않는다. (`loan_service`/`google_sheets_service`처럼 전용 파일은 없지만 다른 서비스 테스트 안에서 간접적으로 커버되는 경우는 이 목록에 넣지 않는다 — 진짜 공백만 추적한다.)

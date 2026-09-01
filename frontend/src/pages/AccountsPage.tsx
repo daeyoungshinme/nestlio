@@ -1,15 +1,12 @@
 import { useEffect } from "react";
 import { useSearchParams } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
 import CollapsibleGroup from "@/components/common/CollapsibleGroup";
 import AccountsSection from "@/components/accounts/AccountsSection";
 import AccountsSnapshotCard from "@/components/accounts/AccountsSnapshotCard";
 import SavingsProductsSection from "@/components/accounts/SavingsProductsSection";
 import RealEstateSection from "@/components/accounts/RealEstateSection";
 import LoansSection from "@/components/accounts/LoansSection";
-import { fetchUsers } from "@/api/users";
-import { QUERY_KEYS } from "@/constants/queryKeys";
-import { STALE_TIME } from "@/constants/queryConfig";
+import { useUsers } from "@/hooks/useReferenceData";
 
 const SECTIONS = ["계좌", "저축·투자", "부동산", "대출"] as const;
 type Section = (typeof SECTIONS)[number];
@@ -28,7 +25,7 @@ export default function AccountsPage() {
     ? (requested as Section)
     : "계좌";
 
-  const { data: users } = useQuery({ queryKey: QUERY_KEYS.users, queryFn: fetchUsers, staleTime: STALE_TIME.LONG });
+  const { data: users } = useUsers();
 
   useEffect(() => {
     if (requested && (SECTIONS as readonly string[]).includes(requested)) {

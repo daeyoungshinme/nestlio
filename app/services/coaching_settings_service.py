@@ -1,5 +1,6 @@
 """Resolves coaching-engine thresholds as household-editable settings, falling back to
 the server env defaults (app.config.settings) when no override has been saved yet."""
+import logging
 import uuid
 
 from sqlalchemy.orm import Session
@@ -27,6 +28,9 @@ THRESHOLD_FIELDS = (
 )
 
 
+logger = logging.getLogger(__name__)
+
+
 def _setting_key(field: str) -> str:
     return f"coaching_{field}"
 
@@ -36,7 +40,17 @@ def get_thresholds(db: Session) -> dict[str, float]:
     result = {}
     for field in THRESHOLD_FIELDS:
         raw = saved.get(_setting_key(field))
-        result[field] = float(raw) if raw is not None else getattr(settings, field)
+        default = getattr(settings, field)
+        if raw is None:
+            result[field] = default
+            continue
+        try:
+            result[field] = float(raw)
+        except (TypeError, ValueError):
+            # 손상된 user_settings 행(수기 편집·오래된 데이터) 때문에 대시보드·설정 화면 전체가
+            # 500이 나지 않도록 env 기본값으로 폴백한다.
+            logger.warning("coaching threshold %s has non-numeric value %r; using default %s", field, raw, default)
+            result[field] = default
     return result
 
 

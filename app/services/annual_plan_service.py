@@ -7,8 +7,7 @@ from sqlalchemy.orm import Session, selectinload
 
 from app.models.annual_plan_item import AnnualPlanItem
 from app.models.annual_plan_item_monthly_target import AnnualPlanItemMonthlyTarget
-from app.models.category import Category
-from app.services import plan_targets, transaction_report_service
+from app.services import budget_service, plan_targets, transaction_report_service
 from app.utils.dates import year_bounds
 from app.utils.plan_status import pct_of
 
@@ -114,7 +113,15 @@ def _section_monthly_targets(db: Session, year: int, section: str) -> dict[str, 
     return {year_month: amount or Decimal("0") for year_month, amount in rows}
 
 
-def section_summary(db: Session, year: int, section: str, today: date, breakdown: list[dict]) -> dict:
+def section_summary(
+    db: Session,
+    year: int,
+    section: str,
+    today: date,
+    breakdown: list[dict],
+    warn_pct: float | None = None,
+    critical_pct: float | None = None,
+) -> dict:
     elapsed_months = plan_targets.elapsed_months(year, today)
     targets_by_month = _section_monthly_targets(db, year, section)
 
@@ -132,7 +139,9 @@ def section_summary(db: Session, year: int, section: str, today: date, breakdown
                 "target_amount": target,
                 "actual": actual,
                 "pct": pct,
-                "status": plan_targets.budget_status(section, pct) if pct is not None else None,
+                "status": plan_targets.budget_status(section, pct, warn_pct, critical_pct)
+                if pct is not None
+                else None,
             }
         )
         if actual is not None:
@@ -150,14 +159,19 @@ def section_summary(db: Session, year: int, section: str, today: date, breakdown
         "actual": actual_total,
         "pct": pct,
         "annual_pct": annual_pct,
-        "status": plan_targets.budget_status(section, pct) if pct is not None else None,
+        "status": plan_targets.budget_status(section, pct, warn_pct, critical_pct) if pct is not None else None,
         "monthly": monthly_out,
     }
 
 
-def summary_for_year(db: Session, year: int, today: date) -> dict:
+def summary_for_year(
+    db: Session, year: int, today: date, warn_pct: float | None = None, critical_pct: float | None = None
+) -> dict:
     breakdown = transaction_report_service.yearly_monthly_breakdown(db, year)
-    sections = {section: section_summary(db, year, section, today, breakdown) for section in SECTIONS}
+    sections = {
+        section: section_summary(db, year, section, today, breakdown, warn_pct, critical_pct)
+        for section in SECTIONS
+    }
     expense_total = sum(
         (sections[section]["annual_target"] for section in ("fixed", "variable", "irregular")), Decimal("0")
     )
@@ -178,36 +192,16 @@ def category_budgets_for_year(db: Session, year: int) -> dict[int, Decimal]:
     return {category_id: total for category_id, total in rows}
 
 
-def category_budget_vs_actual(db: Session, year: int) -> list[dict]:
+def category_budget_vs_actual(
+    db: Session, year: int, warn_pct: float | None = None, critical_pct: float | None = None
+) -> list[dict]:
     """budget_service.budget_vs_actual의 연간 버전 — 카테고리별 연간 목표금액 대비 그 해 전체
-    실제 지출을 비교한다. 추세 제안값(suggested_amount)은 연 단위에서 의미가 없어 생략한다."""
+    실제 지출을 비교한다. 추세 제안값(suggested_amount)은 연 단위에서 의미가 없어 생략한다.
+    행 골격·status 임계값은 budget_service.build_category_rows로 월간과 통일한다."""
     start, end = year_bounds(year)
     actuals = {
         row["category_id"]: row["amount"]
         for row in transaction_report_service.category_breakdown(db, start, end, "expense")
     }
     budgets = category_budgets_for_year(db, year)
-    categories = (
-        db.query(Category)
-        .filter(Category.is_active.is_(True), Category.kind == "expense")
-        .order_by(Category.type, Category.sort_order, Category.name)
-        .all()
-    )
-    result = []
-    for cat in categories:
-        budget_amount = budgets.get(cat.id, Decimal("0"))
-        actual = actuals.get(cat.id, Decimal("0"))
-        pct = pct_of(actual, budget_amount)
-        result.append(
-            {
-                "category_id": cat.id,
-                "name": cat.name,
-                "type": cat.type,
-                "color": cat.color,
-                "budget": budget_amount,
-                "actual": actual,
-                "pct": pct,
-                "status": plan_targets.budget_status(cat.type, pct) if budget_amount else ("warn" if actual else "ok"),
-            }
-        )
-    return result
+    return budget_service.build_category_rows(db, actuals, budgets, warn_pct, critical_pct)

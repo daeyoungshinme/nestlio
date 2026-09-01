@@ -34,6 +34,15 @@ def create_account(
     return account
 
 
+def _rebase_initial_balance(account: Account, target_current: Decimal, current: Decimal) -> None:
+    """화면상 '현재 잔액'(= initial_balance + 거래 순증감액)이 target_current와 정확히 일치하도록
+    initial_balance를 역산해 재설정한다. current는 호출부가 이미 아는 현재 잔액
+    (current_balance() 또는 balances_for()의 값)이라 여기서 다시 조회하지 않는다 —
+    update_account/sync_account/sync_all_accounts가 공유한다."""
+    net_transactions = current - account.initial_balance
+    account.initial_balance = target_current - net_transactions
+
+
 def update_account(
     db: Session,
     account_id: int,
@@ -45,12 +54,9 @@ def update_account(
     account = db.get(Account, account_id)
     if account is None:
         return None
-    # 잔액은 initial_balance + 거래 순증감액으로 파생되므로, 입력받은 "현재 잔액"이 그대로
-    # 화면에 표시되도록 이미 반영된 거래 순증감액만큼 initial_balance를 역산해 저장한다.
-    net_transactions = current_balance(db, account) - account.initial_balance
+    _rebase_initial_balance(account, current_balance_value, current_balance(db, account))
     account.name = name
     account.account_type = account_type
-    account.initial_balance = current_balance_value - net_transactions
     account.owner_user_id = owner_user_id
     db.commit()
     db.refresh(account)
@@ -130,8 +136,9 @@ def sync_account(db: Session, account_id: int, bearer_token: str, *, now: dateti
     match = growlio_client.find_by_growlio_id(accounts, account.growlio_account_id)
     if match is None:
         raise GrowlioSyncError("growlio에서 연동된 계좌를 찾을 수 없습니다. 계좌가 삭제되었을 수 있습니다.")
-    net_transactions = current_balance(db, account) - account.initial_balance
-    account.initial_balance = growlio_client.to_decimal_krw(match["current_value_krw"]) - net_transactions
+    _rebase_initial_balance(
+        account, growlio_client.to_decimal_krw(match["current_value_krw"]), current_balance(db, account)
+    )
     account.last_synced_at = now
     db.commit()
     db.refresh(account)
@@ -149,21 +156,19 @@ def sync_all_accounts(db: Session, bearer_token: str, *, now: datetime) -> tuple
     if not linked_accounts:
         return 0, []
     growlio_accounts = growlio_client.fetch_account_balances(bearer_token)
+    balances = balances_for(db, [a.id for a in linked_accounts])  # 계좌마다 current_balance()를 재조회하지 않도록 배치
     synced_count = 0
     failed: list[dict] = []
     for account in linked_accounts:
         match = growlio_client.find_by_growlio_id(growlio_accounts, account.growlio_account_id)
         if match is None:
             failed.append(
-                {
-                    "id": account.id,
-                    "name": account.name,
-                    "reason": "growlio에서 연동된 계좌를 찾을 수 없습니다 (배우자 계정이거나 삭제되었을 수 있습니다).",
-                }
+                {"id": account.id, "name": account.name, "reason": growlio_client.SYNC_MATCH_FAILED_REASON}
             )
             continue
-        net_transactions = current_balance(db, account) - account.initial_balance
-        account.initial_balance = growlio_client.to_decimal_krw(match["current_value_krw"]) - net_transactions
+        _rebase_initial_balance(
+            account, growlio_client.to_decimal_krw(match["current_value_krw"]), balances[account.id]
+        )
         account.last_synced_at = now
         synced_count += 1
     db.commit()
