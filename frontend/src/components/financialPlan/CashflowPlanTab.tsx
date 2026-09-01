@@ -14,7 +14,8 @@ import SavingsInvestmentPlanPanel from "@/components/financialPlan/SavingsInvest
 import Button from "@/components/common/Button";
 import ConfirmModal from "@/components/common/ConfirmModal";
 import Modal from "@/components/common/Modal";
-import MonthPicker, { currentYearMonth, shiftYearMonth } from "@/components/common/MonthPicker";
+import MonthPicker from "@/components/common/MonthPicker";
+import { currentYearMonth, shiftYearMonth } from "@/utils/date";
 import SkeletonCard from "@/components/common/SkeletonCard";
 import SummaryCard from "@/components/common/SummaryCard";
 import {

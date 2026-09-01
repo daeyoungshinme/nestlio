@@ -1,5 +1,6 @@
 import { Fragment, useMemo } from "react";
 import type { ReactNode } from "react";
+import { currentDateIso } from "@/utils/date";
 
 export interface MonthGridCell {
   date: string;
@@ -34,14 +35,9 @@ function buildGrid(yearMonth: string): Omit<MonthGridCell, "isToday">[] {
   return cells;
 }
 
-function todayIso(): string {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-}
-
 export default function MonthCalendarGrid({ yearMonth, renderCell }: Props) {
   const cells = useMemo(() => buildGrid(yearMonth), [yearMonth]);
-  const today = todayIso();
+  const today = currentDateIso();
 
   return (
     <div className="card-overflow p-1.5 sm:p-3">

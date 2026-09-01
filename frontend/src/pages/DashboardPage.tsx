@@ -3,8 +3,9 @@ import { Link } from "react-router-dom";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { LineChart, Line, ResponsiveContainer, Tooltip } from "recharts";
 import Tabs from "@/components/common/Tabs";
-import MonthPicker, { currentYearMonth } from "@/components/common/MonthPicker";
-import DayPicker, { currentDateIso } from "@/components/common/DayPicker";
+import MonthPicker from "@/components/common/MonthPicker";
+import DayPicker from "@/components/common/DayPicker";
+import { currentDateIso, currentYearMonth } from "@/utils/date";
 import WeekPicker, { currentWeekAnchor } from "@/components/common/WeekPicker";
 import MonthlyRetrospectiveCard from "@/components/dashboard/MonthlyRetrospectiveCard";
 import TodayScheduleCard from "@/components/dashboard/TodayScheduleCard";
@@ -56,8 +57,8 @@ const INSIGHT_LINKS: Partial<Record<string, { to: string; label: string }>> = {
   debt_ratio: { to: "/transactions", label: "가계부 보기" },
   category_benchmark: { to: "/reports/yearly", label: "연간 리포트 보기" },
   budget_overrun: { to: "/financial-plan?view=이번 달", label: "이번 달 계획 보기" },
-  emergency_fund: { to: "/accounts?tab=저축·투자", label: "저축·투자 보기" },
-  savings_execution: { to: "/accounts?tab=저축·투자", label: "저축·투자 보기" },
+  emergency_fund: { to: "/accounts?section=저축·투자", label: "저축·투자 보기" },
+  savings_execution: { to: "/accounts?section=저축·투자", label: "저축·투자 보기" },
 };
 
 export default function DashboardPage() {

@@ -10,6 +10,7 @@ import { useAuthStore } from "@/stores/authStore";
 import { useInvalidateTransactionRelated } from "@/hooks/useInvalidateTransactionRelated";
 import { QUERY_KEYS } from "@/constants/queryKeys";
 import { STALE_TIME } from "@/constants/queryConfig";
+import { currentDateIso } from "@/utils/date";
 import { extractErrorMessage } from "@/utils/error";
 import { toast } from "@/utils/toast";
 import type { CashflowPlanItemOut, CategoryOut } from "@/types";
@@ -79,7 +80,7 @@ export default function CashflowPlanQuickAddModal({ item, categories, onClose, o
               amount: item.amount,
               type: item.section === "income" ? "income" : "expense",
               category_id: item.category_id !== null ? String(item.category_id) : "",
-              transaction_date: new Date().toISOString().slice(0, 10),
+              transaction_date: currentDateIso(),
               description: item.category_id === null ? item.name : "",
             }}
             onSubmit={(payload) => quickAddMutation.mutate(payload)}

@@ -15,20 +15,12 @@ import {
 import { fetchSettings } from "@/api/settings";
 import { QUERY_KEYS } from "@/constants/queryKeys";
 import { useInvalidateTransactionRelated } from "@/hooks/useInvalidateTransactionRelated";
+import { currentYear, currentYearMonth, monthBounds } from "@/utils/date";
 import { extractErrorMessage } from "@/utils/error";
 import { toast } from "@/utils/toast";
 import { triggerBlobDownload } from "@/utils/download";
 import { TOUCH_TARGET_ROW } from "@/constants/uiSizes";
 import type { ImportResultOut, SheetImportIn } from "@/types";
-
-function currentYear(): number {
-  return new Date().getFullYear();
-}
-
-function currentYearMonth(): string {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
-}
 
 const SOURCE_TABS = ["CSV 파일", "구글 시트"] as const;
 type SourceTab = (typeof SOURCE_TABS)[number];
@@ -118,9 +110,7 @@ export default function TransactionImportPage() {
 
   const exportRange = (kind: "month" | "year") => {
     if (kind === "month") {
-      const ym = currentYearMonth();
-      const lastDay = new Date(Number(ym.slice(0, 4)), Number(ym.slice(5, 7)), 0).getDate();
-      exportMutation.mutate({ date_from: `${ym}-01`, date_to: `${ym}-${String(lastDay).padStart(2, "0")}` });
+      exportMutation.mutate(monthBounds(currentYearMonth()));
     } else {
       const y = currentYear();
       exportMutation.mutate({ date_from: `${y}-01-01`, date_to: `${y}-12-31` });

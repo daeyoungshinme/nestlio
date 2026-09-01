@@ -6,7 +6,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useAuthStore } from "@/stores/authStore";
 import { INPUT_SM } from "@/constants/inputStyles";
 import { extractErrorMessage } from "@/utils/error";
-import { currentYearMonth } from "@/components/common/MonthPicker";
+import { currentYearMonth } from "@/utils/date";
 import { fetchDashboard } from "@/api/dashboard";
 import { fetchAccounts } from "@/api/accounts";
 import { QUERY_KEYS } from "@/constants/queryKeys";

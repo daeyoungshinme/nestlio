@@ -6,7 +6,7 @@ import ConfirmModal from "@/components/common/ConfirmModal";
 import EmptyState from "@/components/common/EmptyState";
 import ErrorState from "@/components/common/ErrorState";
 import Modal from "@/components/common/Modal";
-import MonthPicker, { currentYearMonth, shiftYearMonth } from "@/components/common/MonthPicker";
+import MonthPicker from "@/components/common/MonthPicker";
 import SkeletonCard from "@/components/common/SkeletonCard";
 import Button from "@/components/common/Button";
 import QuickAddFab from "@/components/common/QuickAddFab";
@@ -41,6 +41,7 @@ import { useInvalidateTransactionRelated } from "@/hooks/useInvalidateTransactio
 import { QUERY_KEYS } from "@/constants/queryKeys";
 import { STALE_TIME } from "@/constants/queryConfig";
 import { INPUT_SM } from "@/constants/inputStyles";
+import { currentDateIso, currentYearMonth, monthBounds, occurrenceDate, shiftYearMonth } from "@/utils/date";
 import { formatKrw } from "@/utils/format";
 import { extractErrorMessage } from "@/utils/error";
 import { toast } from "@/utils/toast";
@@ -50,23 +51,8 @@ const EMPTY_TRANSACTIONS: TransactionOut[] = [];
 const EMPTY_EVENTS: EventOut[] = [];
 const EMPTY_RECURRING: RecurringOut[] = [];
 
-function monthBounds(yearMonth: string): { date_from: string; date_to: string } {
-  const [y, m] = yearMonth.split("-").map(Number);
-  const lastDay = new Date(y, m, 0).getDate();
-  return { date_from: `${yearMonth}-01`, date_to: `${yearMonth}-${String(lastDay).padStart(2, "0")}` };
-}
-
-function todayIso(): string {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-}
-
 function defaultDateHint(yearMonth: string): string {
-  return yearMonth === currentYearMonth() ? todayIso() : `${yearMonth}-01`;
-}
-
-function occurrenceDate(iso: string): string {
-  return iso.split("T")[0];
+  return yearMonth === currentYearMonth() ? currentDateIso() : `${yearMonth}-01`;
 }
 
 function matchesFilter(
@@ -93,7 +79,7 @@ export default function TransactionsPage() {
   const [userFilter, setUserFilter] = useState<UserFilter>("all");
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [formTarget, setFormTarget] = useState<"new" | TransactionOut | null>(null);
-  const [createDate, setCreateDate] = useState(todayIso());
+  const [createDate, setCreateDate] = useState(currentDateIso());
   const [deleteTarget, setDeleteTarget] = useState<TransactionOut | null>(null);
   const [showRecurringSheet, setShowRecurringSheet] = useState(false);
   const [searchInput, setSearchInput] = useState("");

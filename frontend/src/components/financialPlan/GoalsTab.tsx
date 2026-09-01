@@ -16,7 +16,7 @@ import GoalSectionHeader from "@/components/financialPlan/GoalSectionHeader";
 import Modal from "@/components/common/Modal";
 import SkeletonCard from "@/components/common/SkeletonCard";
 import Tabs from "@/components/common/Tabs";
-import { currentYearMonth } from "@/components/common/MonthPicker";
+import { currentDateIso, currentYearMonth } from "@/utils/date";
 import { fetchAccounts } from "@/api/accounts";
 import { fetchDashboard } from "@/api/dashboard";
 import {
@@ -58,10 +58,6 @@ import type {
   SavingsProductOut,
 } from "@/types";
 
-function todayIso(): string {
-  return new Date().toISOString().slice(0, 10);
-}
-
 interface Draft {
   kind: GoalKind;
   priority: string;
@@ -99,8 +95,8 @@ const EMPTY_GOAL_DRAFT: Draft = {
 const EMPTY_CHALLENGE_DRAFT: Draft = {
   ...EMPTY_GOAL_DRAFT,
   kind: "challenge",
-  start_date: todayIso(),
-  target_date: todayIso(),
+  start_date: currentDateIso(),
+  target_date: currentDateIso(),
 };
 
 /** "YYYY-MM-DD" -> "YYYY-MM" (GoalMonthlyTargetEditor에 넘길 시작월/종료월 계산용). */
@@ -116,7 +112,7 @@ function draftFromGoal(goal: FinancialGoalOut): Draft {
     description: goal.description ?? "",
     target_age: goal.target_age !== null ? String(goal.target_age) : "",
     target_date: goal.target_date ?? "",
-    start_date: goal.start_date ?? todayIso(),
+    start_date: goal.start_date ?? currentDateIso(),
     required_amount: toAmountInputValue(goal.required_amount),
     monthly_saving_amount: toAmountInputValue(goal.monthly_saving_amount),
     current_amount: toAmountInputValue(goal.current_amount),
@@ -868,7 +864,7 @@ function GoalFormModal({
                 ...d,
                 target_date: e.target.value,
                 monthly_targets:
-                  e.target.value === "" ? [] : syncMonthlyTargetsToPeriod(todayIso(), e.target.value, d.monthly_targets),
+                  e.target.value === "" ? [] : syncMonthlyTargetsToPeriod(currentDateIso(), e.target.value, d.monthly_targets),
               }))
             }
             className="w-full"
@@ -962,7 +958,7 @@ function GoalFormModal({
         )}
         {draft.target_date !== "" && (
           <GoalMonthlyTargetEditor
-            startMonth={toYearMonth(todayIso())}
+            startMonth={toYearMonth(currentDateIso())}
             endMonth={toYearMonth(draft.target_date)}
             targets={draft.monthly_targets}
             onChange={(monthly_targets) => setDraft((d) => ({ ...d, monthly_targets }))}

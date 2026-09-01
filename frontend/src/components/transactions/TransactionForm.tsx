@@ -14,6 +14,7 @@ import { INLINE_BUTTON_OFFSET, INPUT_SM, LABEL_SM } from "@/constants/inputStyle
 import { TOUCH_TARGET_COMPACT_MOBILE_ONLY } from "@/constants/uiSizes";
 import { EXPENSE_TYPE_FILTER_OPTIONS } from "@/components/transactions/TransactionFilterBar";
 import { categoryTypeBadgeStyle } from "@/utils/colors";
+import { currentDateIso } from "@/utils/date";
 import { formatKrw, formatKrwPreview, toAmountInputValue } from "@/utils/format";
 import type {
   CategoryOut,
@@ -88,7 +89,7 @@ interface Props {
   isNew: boolean;
 }
 
-const today = () => new Date().toISOString().slice(0, 10);
+const today = currentDateIso;
 
 type UiType = "income" | "expense" | "savings";
 

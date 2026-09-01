@@ -1,5 +1,6 @@
 import { useMemo } from "react";
 import GroupedTransactionList from "@/components/transactions/GroupedTransactionList";
+import { currentDateIso } from "@/utils/date";
 import { formatKrw } from "@/utils/format";
 import type { TransactionOut, UserOut } from "@/types";
 
@@ -14,11 +15,6 @@ interface Props {
 
 const WEEKDAY_LABELS = ["일", "월", "화", "수", "목", "금", "토"];
 
-function todayIso(): string {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-}
-
 function formatDayHeader(date: string): string {
   const [y, m, d] = date.split("-").map(Number);
   const weekday = WEEKDAY_LABELS[new Date(y, m - 1, d).getDay()];
@@ -30,7 +26,7 @@ function formatDayHeader(date: string): string {
  * Only today's group starts expanded, to keep the mobile scroll short while still showing
  * newly-added transactions right away. */
 export default function DailyTransactionGroups({ transactions, onEdit, onDelete, showUser, users }: Props) {
-  const today = todayIso();
+  const today = currentDateIso();
 
   const groups = useMemo(() => {
     const byDate = new Map<string, TransactionOut[]>();
