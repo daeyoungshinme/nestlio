@@ -16,7 +16,6 @@ export const QUERY_KEYS = {
     ["category-breakdown", filters] as const,
   /** Prefix for invalidating every category-breakdown filter variant at once. */
   categoryBreakdownAll: ["category-breakdown"] as const,
-  transaction: (id: number) => ["transaction", id] as const,
   events: (dateFrom: string, dateTo: string) => ["events", dateFrom, dateTo] as const,
   /** Prefix for invalidating every events date-range variant at once. */
   eventsAll: ["events"] as const,
@@ -39,7 +38,6 @@ export const QUERY_KEYS = {
   growlioInvestmentAccounts: ["growlio-accounts", "savings-products"] as const,
   growlioBankAccounts: ["growlio-accounts", "accounts"] as const,
   growlioRealEstateAccounts: ["growlio-accounts", "real-estate"] as const,
-  growlioInvestmentGoal: ["growlio-accounts", "investment-goal"] as const,
   loans: ["loans"] as const,
   netWorth: ["net-worth"] as const,
   netWorthGrowlioUnlinked: ["net-worth", "growlio-unlinked"] as const,

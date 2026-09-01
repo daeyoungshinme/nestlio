@@ -472,7 +472,7 @@ export default function SettingsPage() {
       <SettingsSectionCard title="바로가기">
         <div className="space-y-1">
           <SettingsLinkRow
-            to="/accounts?tab=저축·투자"
+            to="/accounts?section=저축·투자"
             label="비상금 관리"
             hint="저축·투자 탭에서 비상금 항목으로 기록해요"
           />

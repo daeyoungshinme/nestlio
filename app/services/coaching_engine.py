@@ -290,7 +290,7 @@ def emergency_fund_context(db: Session, month_start: date) -> tuple[Decimal | No
     if not balance:
         return None, None
     trend = transaction_report_service.monthly_trend(db, months=3, anchor=month_start)
-    avg_fixed = sum((Decimal(str(row["fixed"])) for row in trend), Decimal("0")) / len(trend)
+    avg_fixed = sum((row["fixed"] for row in trend), Decimal("0")) / len(trend)
     return balance, avg_fixed
 
 

@@ -42,9 +42,10 @@ cd frontend && npm run test:watch  # 워치 모드
 ```
 
 ### 환경 변수
-`frontend/.env` (`.env.example` 참고), `src/lib/supabase.ts`에서 import — 없으면 Supabase 클라이언트 초기화 자체가 실패한다:
-- `VITE_SUPABASE_URL` — Supabase Project URL (growlio와 같은 프로젝트 공유)
+`frontend/.env` (`frontend/.env.example` 참고). 배포 시 `render.yaml`이 `VITE_SUPABASE_URL`/`VITE_SUPABASE_ANON_KEY`를 서비스 env로 주입한다.
+- `VITE_SUPABASE_URL` — Supabase Project URL (growlio와 같은 프로젝트 공유). `src/lib/supabase.ts`에서 import — 없으면 Supabase 클라이언트 초기화 자체가 실패한다
 - `VITE_SUPABASE_ANON_KEY` — Supabase Anon Key
+- `VITE_GROWLIO_APP_URL` — growlio 프론트엔드 오리진. 비어 있으면 growlio 딥링크 CTA를 숨긴다 (`src/constants/growlio.ts`)
 
 ---
 

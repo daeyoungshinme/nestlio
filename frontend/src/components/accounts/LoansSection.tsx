@@ -211,7 +211,7 @@ function LoanRow({
       }
       actions={
         loan.growlio_account_id
-          ? [{ icon: <Link2 size={16} />, label: "부동산에서 동기화", onClick: () => navigate("/accounts?tab=부동산") }]
+          ? [{ icon: <Link2 size={16} />, label: "부동산에서 동기화", onClick: () => navigate("/accounts?section=부동산") }]
           : []
       }
       onEdit={onEdit}
