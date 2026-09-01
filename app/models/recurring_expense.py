@@ -17,7 +17,9 @@ class RecurringExpense(Base):
     name: Mapped[str] = mapped_column(String(150))
     category_id: Mapped[int] = mapped_column(ForeignKey("categories.id"))
     amount: Mapped[Decimal] = mapped_column(Numeric(12, 2))
-    type: Mapped[str] = mapped_column(String(10), default="expense")  # 'income' | 'expense'
+    type: Mapped[str] = mapped_column(
+        String(10), default="expense", server_default="expense"
+    )  # 'income' | 'expense'
     frequency: Mapped[str] = mapped_column(String(10))  # 'monthly' | 'weekly' | 'yearly'
     day_of_month: Mapped[int | None] = mapped_column(Integer, nullable=True)
     days_of_month: Mapped[list[int] | None] = mapped_column(JSON, nullable=True)

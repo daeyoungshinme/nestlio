@@ -17,21 +17,28 @@ class Transaction(Base):
     __tablename__ = "transactions"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"))
+    user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"), index=True)
     owner_user_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("users.id"), nullable=True
     )
     category_id: Mapped[int] = mapped_column(ForeignKey("categories.id"))
     type: Mapped[str] = mapped_column(String(10))  # 'income' | 'expense'
     amount: Mapped[Decimal] = mapped_column(Numeric(12, 2))
-    transaction_date: Mapped[date] = mapped_column(Date)
+    transaction_date: Mapped[date] = mapped_column(Date, index=True)
     description: Mapped[str | None] = mapped_column(String(255), nullable=True)
     payment_method: Mapped[str | None] = mapped_column(String(50), nullable=True)
     recurring_expense_id: Mapped[int | None] = mapped_column(
         ForeignKey("recurring_expenses.id"), nullable=True
     )
-    account_id: Mapped[int | None] = mapped_column(ForeignKey("accounts.id"), nullable=True)
-    savings_product_id: Mapped[int | None] = mapped_column(ForeignKey("savings_products.id"), nullable=True)
+    account_id: Mapped[int | None] = mapped_column(
+        ForeignKey("accounts.id"), nullable=True, index=True
+    )
+    savings_product_id: Mapped[int | None] = mapped_column(
+        ForeignKey(
+            "savings_products.id", name="fk_transactions_savings_product_id_savings_products"
+        ),
+        nullable=True,
+    )
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), onupdate=func.now())
 

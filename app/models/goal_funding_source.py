@@ -38,8 +38,12 @@ class GoalFundingSource(Base):
     savings_product_id: Mapped[int | None] = mapped_column(
         ForeignKey("savings_products.id", ondelete="CASCADE")
     )
-    account_id: Mapped[int | None] = mapped_column(ForeignKey("accounts.id", ondelete="CASCADE"))
-    loan_id: Mapped[int | None] = mapped_column(ForeignKey("loans.id", ondelete="CASCADE"))
+    account_id: Mapped[int | None] = mapped_column(
+        ForeignKey("accounts.id", ondelete="CASCADE", name="fk_goal_funding_sources_account_id")
+    )
+    loan_id: Mapped[int | None] = mapped_column(
+        ForeignKey("loans.id", ondelete="CASCADE", name="fk_goal_funding_sources_loan_id")
+    )
 
     savings_product: Mapped["SavingsProduct"] = relationship(lazy="joined")
     account: Mapped["Account"] = relationship(lazy="joined")

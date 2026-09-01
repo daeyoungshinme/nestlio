@@ -2,7 +2,7 @@ import uuid
 from datetime import datetime
 from decimal import Decimal
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, Numeric, String, func
+from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, Numeric, String, false, func
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -17,7 +17,7 @@ class SavingsProduct(Base):
     current_balance: Mapped[Decimal] = mapped_column(Numeric(14, 2), default=0)
     monthly_saving_amount: Mapped[Decimal] = mapped_column(Numeric(12, 2), default=0)
     product_type: Mapped[str] = mapped_column(
-        String(20), default="savings"
+        String(20), default="savings", server_default="savings"
     )  # 'savings' | 'investment' | 'real_estate' | 'emergency_fund'
     # 투자/부동산 전용: 지금까지 납입한 원금(투자) 또는 매입가(부동산). 저축(savings) 상품은
     # 원금=잔액이라 의미가 없어 nullable로 둔다.
@@ -33,7 +33,7 @@ class SavingsProduct(Base):
 
     # growlio(자산관리) 계좌 자동 동기화 연동 — growlio의 AssetAccount.id(UUID 문자열)
     growlio_account_id: Mapped[str | None] = mapped_column(String(36))
-    auto_sync_enabled: Mapped[bool] = mapped_column(Boolean, default=False)
+    auto_sync_enabled: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false())
     last_synced_at: Mapped[datetime | None] = mapped_column(DateTime)
 
     # 상품 1개는 최대 1개 목표의 funding source만 될 수 있다(goal_funding_sources.savings_product_id

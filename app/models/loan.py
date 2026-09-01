@@ -2,7 +2,7 @@ import uuid
 from datetime import datetime
 from decimal import Decimal
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, Numeric, String, func
+from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, Numeric, String, false, func
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -32,5 +32,5 @@ class Loan(Base):
     # growlio(자산관리) 부동산 담보대출 자동 동기화 연동 — growlio의 AssetAccount.id(UUID 문자열).
     # SavingsProduct와 동일한 값을 공유해 부동산 자산과 짝을 맞춘다(app/services/real_estate_service.py).
     growlio_account_id: Mapped[str | None] = mapped_column(String(36))
-    auto_sync_enabled: Mapped[bool] = mapped_column(Boolean, default=False)
+    auto_sync_enabled: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false())
     last_synced_at: Mapped[datetime | None] = mapped_column(DateTime)

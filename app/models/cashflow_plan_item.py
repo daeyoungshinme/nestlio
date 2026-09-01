@@ -32,7 +32,11 @@ class CashflowPlanItem(Base):
     # 다시 이 값이 쓰이므로, 연동 중에도 own_amount/own_category_id는 최근 연동 값으로 계속 백필된다
     # (link_recurring, migrations/versions에서 백필하는 드리프트 정리 마이그레이션 참고).
     own_amount: Mapped[Decimal] = mapped_column("amount", Numeric(12, 2), default=0)
-    own_category_id: Mapped[int | None] = mapped_column("category_id", ForeignKey("categories.id"), nullable=True)
+    own_category_id: Mapped[int | None] = mapped_column(
+        "category_id",
+        ForeignKey("categories.id", name="fk_cashflow_plan_items_category_id_categories"),
+        nullable=True,
+    )
     sort_order: Mapped[int] = mapped_column(Integer, default=0)
     # 12개월 분할(할부) 등록으로 생성된 항목만 채워진다. 각 행은 독립적으로 수정/삭제되며
     # 이 값들은 표시용(예: "3/12")일 뿐 생성 이후 그룹 단위 동작에는 쓰이지 않는다.
@@ -41,13 +45,23 @@ class CashflowPlanItem(Base):
     installment_total_amount: Mapped[Decimal | None] = mapped_column(Numeric(12, 2), nullable=True)
     # 수입/고정지출 항목을 반복거래로 등록해 자동으로 가계부에 반영시킬 때만 채워진다.
     recurring_expense_id: Mapped[int | None] = mapped_column(
-        ForeignKey("recurring_expenses.id", ondelete="SET NULL"), nullable=True
+        ForeignKey(
+            "recurring_expenses.id",
+            ondelete="SET NULL",
+            name="fk_cashflow_plan_items_recurring_expense_id",
+        ),
+        nullable=True,
     )
     # 연간계획 폴백 항목(cashflow_plan_service._AnnualPlanFallbackItem)을 수정/저장해 실제 행으로
     # 승격시켰을 때만 채워진다 — 이후 연간계획 쪽 이름/카테고리가 바뀌어도 list_items_with_annual_fallback이
     # (section, category_id/name) 문자열 매칭 대신 이 값으로 원본 AnnualPlanItem을 찾아 중복 폴백을 막는다.
     annual_plan_item_id: Mapped[int | None] = mapped_column(
-        ForeignKey("annual_plan_items.id", ondelete="SET NULL"), nullable=True
+        ForeignKey(
+            "annual_plan_items.id",
+            ondelete="SET NULL",
+            name="fk_cashflow_plan_items_annual_plan_item_id",
+        ),
+        nullable=True,
     )
     updated_by: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
     updated_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), onupdate=func.now())
