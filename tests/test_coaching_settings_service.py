@@ -30,3 +30,15 @@ def test_set_thresholds_ignores_unknown_fields(seeded_db):
 
     thresholds = coaching_settings_service.get_thresholds(db)
     assert "not_a_real_field" not in thresholds
+
+
+def test_get_thresholds_falls_back_on_corrupted_value(seeded_db):
+    """user_settings에 숫자로 못 바꾸는 값이 저장돼 있어도 500이 나지 않고 env 기본값으로 폴백한다."""
+    db, user = seeded_db["db"], seeded_db["user"]
+    from app.services import user_setting_service
+
+    user_setting_service.set_shared_setting(db, "coaching_budget_warn_pct", "not-a-number", user.id)
+
+    thresholds = coaching_settings_service.get_thresholds(db)
+
+    assert thresholds["budget_warn_pct"] == settings.budget_warn_pct

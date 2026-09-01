@@ -4,6 +4,7 @@ import uuid
 from datetime import date
 from decimal import Decimal, InvalidOperation
 
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from app.models.category import Category
@@ -49,25 +50,29 @@ def import_rows(db: Session, rows: list[list[str]], user_id: uuid.UUID) -> dict:
         if not row or not any(cell.strip() for cell in row):
             continue
         try:
-            raw_date, raw_type, raw_category, raw_amount, *rest = row
-            description = rest[0] if rest else ""
-            tx_type = CSV_TYPE_BY_LABEL.get(raw_type.strip())
-            category = categories_by_name.get(raw_category.strip())
-            if tx_type is None or category is None:
-                raise ValueError("unknown type or category")
-            tx = Transaction(
-                user_id=user_id,
-                category_id=category.id,
-                type=tx_type,
-                amount=Decimal(raw_amount.strip()),
-                transaction_date=date.fromisoformat(raw_date.strip()),
-                description=description.strip() or None,
-            )
-            db.add(tx)
-            db.flush()  # PK 확보 (되돌리기용 created_ids를 응답에 담기 위함, 최종 commit은 루프 종료 후 한 번)
+            # 각 행을 SAVEPOINT로 감싼다 — db.flush()가 IntegrityError/DataError(금액 정밀도 초과,
+            # 메모 길이 초과 등)를 내면 세션이 오염돼 이후 행과 최종 commit이 모두 실패하므로,
+            # 행 단위로 롤백해 나머지 가져오기를 계속 진행한다.
+            with db.begin_nested():
+                raw_date, raw_type, raw_category, raw_amount, *rest = row
+                description = rest[0] if rest else ""
+                tx_type = CSV_TYPE_BY_LABEL.get(raw_type.strip())
+                category = categories_by_name.get(raw_category.strip())
+                if tx_type is None or category is None:
+                    raise ValueError("unknown type or category")
+                tx = Transaction(
+                    user_id=user_id,
+                    category_id=category.id,
+                    type=tx_type,
+                    amount=Decimal(raw_amount.strip()),
+                    transaction_date=date.fromisoformat(raw_date.strip()),
+                    description=description.strip() or None,
+                )
+                db.add(tx)
+                db.flush()  # PK 확보 (되돌리기용 created_ids, 최종 commit은 루프 종료 후 한 번)
             created_transactions.append(tx)
             created += 1
-        except (ValueError, InvalidOperation, IndexError) as exc:
+        except (ValueError, InvalidOperation, IndexError, SQLAlchemyError) as exc:
             skipped.append({"line": line_no, "row": row, "reason": str(exc)})
     db.commit()
     return {"created": created, "skipped": skipped, "created_ids": [tx.id for tx in created_transactions]}

@@ -43,6 +43,11 @@ def test_update_goal_not_found(client, seeded_db):
 
 
 def test_create_and_list_challenge(client, seeded_db):
+    # effective_status는 엔드포인트가 실제 오늘과 target_date를 비교해 계산하므로(주입 불가),
+    # "아직 진행 중"을 검증하려면 target_date가 오늘 이후여야 한다 — 고정 날짜는 시간이 지나면 만료된다.
+    from datetime import date, timedelta
+
+    today = date.today()
     resp = client.post(
         "/api/v1/financial-goals",
         json={
@@ -50,8 +55,8 @@ def test_create_and_list_challenge(client, seeded_db):
             "name": "외식비 줄이기",
             "description": "이번 달 외식비 30만원 이하로",
             "required_amount": "300000",
-            "start_date": "2026-08-01",
-            "target_date": "2026-08-31",
+            "start_date": today.replace(day=1).isoformat(),
+            "target_date": (today + timedelta(days=30)).isoformat(),
         },
     )
     assert resp.status_code == 201
