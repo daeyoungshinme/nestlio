@@ -1,6 +1,6 @@
 import { useState } from "react";
 import type { FormEvent } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { ArrowRight, Download, ExternalLink, Plus, RefreshCw } from "lucide-react";
 import { Link } from "react-router-dom";
 import Button from "@/components/common/Button";
@@ -9,6 +9,7 @@ import type { AssetRowAction } from "@/components/accounts/AssetRow";
 import CollapsibleGroup from "@/components/common/CollapsibleGroup";
 import ConfirmModal from "@/components/common/ConfirmModal";
 import EmptyState from "@/components/common/EmptyState";
+import ErrorState from "@/components/common/ErrorState";
 import FormInput from "@/components/common/FormInput";
 import Modal from "@/components/common/Modal";
 import GrowlioImportModal from "@/components/common/GrowlioImportModal";
@@ -26,10 +27,10 @@ import {
   syncSavingsProduct,
   updateSavingsProduct,
 } from "@/api/savingsProducts";
-import { fetchGoals } from "@/api/goals";
 import { QUERY_KEYS } from "@/constants/queryKeys";
 import { useCrudMutations } from "@/hooks/useCrudMutations";
-import { useSavingsProducts } from "@/hooks/useReferenceData";
+import { useGoals, useSavingsProducts } from "@/hooks/useReferenceData";
+import { planViewLink } from "@/constants/routes";
 import {
   formatKrw,
   formatKrwPreview,
@@ -103,7 +104,7 @@ export default function SavingsProductsSection({ users }: Props) {
   const queryClient = useQueryClient();
 
   const { data: allData, isLoading, isError, error, refetch } = useSavingsProducts();
-  const { data: goals } = useQuery({ queryKey: QUERY_KEYS.financialGoals, queryFn: fetchGoals });
+  const { data: goals } = useGoals();
 
   const invalidate = () => queryClient.invalidateQueries({ queryKey: QUERY_KEYS.savingsProducts });
 
@@ -127,10 +128,10 @@ export default function SavingsProductsSection({ users }: Props) {
 
   if (isError) {
     return (
-      <EmptyState
+      <ErrorState
         title="저축/투자 상품을 불러오지 못했어요"
-        description={extractErrorMessage(error)}
-        action={{ label: "다시 시도", onClick: () => void refetch() }}
+        message={extractErrorMessage(error)}
+        onRetry={() => void refetch()}
       />
     );
   }
@@ -355,8 +356,8 @@ function SavingsProductRow({
           </p>
           {(product.product_type === "savings" || product.product_type === "investment") && (
             <Link
-              to="/financial-plan?view=이번 달"
-              className="inline-flex items-center gap-1 text-xs text-gray-500 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 mt-1"
+              to={planViewLink("이번 달")}
+              className="inline-flex items-center gap-1 text-xs text-gray-500 dark:text-gray-400 hover:text-primary dark:hover:text-primary-400 mt-1"
             >
               월별 계획 보기 <ArrowRight size={12} />
             </Link>

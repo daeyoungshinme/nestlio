@@ -8,8 +8,10 @@ import type { Purpose } from "@/components/financialPlan/GoalPurposeSummary";
 import SavingsInvestmentPlanPanel from "@/components/financialPlan/SavingsInvestmentPlanPanel";
 import Button from "@/components/common/Button";
 import ConfirmModal from "@/components/common/ConfirmModal";
+import ErrorState from "@/components/common/ErrorState";
 import Modal from "@/components/common/Modal";
 import SkeletonCard from "@/components/common/SkeletonCard";
+import { planViewLink } from "@/constants/routes";
 import SummaryCard from "@/components/common/SummaryCard";
 import { deleteAnnualPlanItem, fetchAnnualPlan, upsertAnnualPlanItem } from "@/api/annualPlan";
 import { fetchSavingsProductsAnnualPlan } from "@/api/savingsProducts";
@@ -45,7 +47,7 @@ export default function AnnualPlanPanel() {
   const [deleteTarget, setDeleteTarget] = useState<number | null>(null);
   const queryClient = useQueryClient();
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError, refetch } = useQuery({
     queryKey: QUERY_KEYS.annualPlan(year),
     queryFn: () => fetchAnnualPlan(year),
   });
@@ -84,6 +86,9 @@ export default function AnnualPlanPanel() {
     onError: (err) => toast(extractErrorMessage(err), "error"),
   });
 
+  if (isError) {
+    return <ErrorState onRetry={() => void refetch()} />;
+  }
   if (isLoading || !data) {
     return <SkeletonCard rows={6} />;
   }
@@ -152,8 +157,8 @@ export default function AnnualPlanPanel() {
         자동으로 반영돼요.
       </p>
       <Link
-        to="/financial-plan?view=목표"
-        className="block text-xs text-gray-500 dark:text-gray-400 hover:text-emerald-600 dark:hover:text-emerald-400"
+        to={planViewLink("목표")}
+        className="block text-xs text-gray-500 dark:text-gray-400 hover:text-primary dark:hover:text-primary-400"
       >
         개별 재무목표의 월별 계획·달성 현황은 목표 탭에서 확인해요 →
       </Link>

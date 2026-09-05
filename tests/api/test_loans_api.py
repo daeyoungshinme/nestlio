@@ -46,3 +46,7 @@ def test_deactivate_loan_excludes_it_from_default_list(client):
 
     list_resp = client.get("/api/v1/loans")
     assert all(loan["id"] != loan_id for loan in list_resp.json())
+
+
+def test_deactivate_loan_404_when_missing(client):
+    assert client.post("/api/v1/loans/99999/deactivate").status_code == 404

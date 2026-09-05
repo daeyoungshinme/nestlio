@@ -137,7 +137,7 @@ def compute_linked_monthly_achieved(db: Session, goal: FinancialGoal, year_month
         .all()
     )
     for tx_date, tx_type, amount, savings_product_id in rows:
-        ym = tx_date.strftime("%Y-%m")
+        ym = year_month_str(tx_date)
         if ym not in result:
             continue
         amount = amount or Decimal("0")
@@ -405,11 +405,14 @@ def update_goal(
     return goal
 
 
-def delete_goal(db: Session, goal_id: int) -> None:
+def delete_goal(db: Session, goal_id: int) -> bool:
+    """대상 목표가 있으면 삭제하고 True, 없으면 False (라우터가 404로 변환)."""
     goal = db.get(FinancialGoal, goal_id)
-    if goal is not None:
-        db.delete(goal)
-        db.commit()
+    if goal is None:
+        return False
+    db.delete(goal)
+    db.commit()
+    return True
 
 
 def update_monthly_target_achieved(

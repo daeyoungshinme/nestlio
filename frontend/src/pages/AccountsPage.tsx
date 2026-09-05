@@ -7,9 +7,10 @@ import SavingsProductsSection from "@/components/accounts/SavingsProductsSection
 import RealEstateSection from "@/components/accounts/RealEstateSection";
 import LoansSection from "@/components/accounts/LoansSection";
 import { useUsers } from "@/hooks/useReferenceData";
+import { ACCOUNTS_SECTIONS, type AccountsSection as AccountsSectionName } from "@/constants/routes";
 
-const SECTIONS = ["계좌", "저축·투자", "부동산", "대출"] as const;
-type Section = (typeof SECTIONS)[number];
+const SECTIONS = ACCOUNTS_SECTIONS;
+type Section = AccountsSectionName;
 
 function sectionId(name: Section): string {
   return `section-${name.replace(/·/g, "")}`;
@@ -31,7 +32,7 @@ export default function AccountsPage() {
     if (requested && (SECTIONS as readonly string[]).includes(requested)) {
       document.getElementById(sectionId(requested as Section))?.scrollIntoView({ block: "start" });
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react/exhaustive-deps
   }, []);
 
   return (

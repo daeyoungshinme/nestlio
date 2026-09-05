@@ -10,9 +10,6 @@ from app.services import annual_plan_service, plan_targets, transaction_report_s
 from app.utils.dates import month_bounds, parse_year_month, shift_month, year_month_str
 from app.utils.plan_status import pct_of
 
-EXPENSE_SECTIONS = ("fixed", "variable", "irregular")
-ACHIEVEMENT_SECTIONS = ("income", "fixed", "variable", "irregular")
-
 
 class RecurringExpenseNotFoundError(Exception):
     pass

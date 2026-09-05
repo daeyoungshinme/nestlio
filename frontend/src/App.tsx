@@ -9,6 +9,7 @@ import Toaster from "./components/Toaster";
 import { useAuthStore } from "./stores/authStore";
 import { useThemeStore } from "./stores/themeStore";
 import { clearClientCaches } from "./utils/session";
+import { APP_EVENTS } from "./constants/events";
 
 const LoginPage = lazy(() => import("./pages/LoginPage"));
 const InviteAcceptPage = lazy(() => import("./pages/InviteAcceptPage"));
@@ -95,8 +96,8 @@ export default function App() {
       clearClientCaches(queryClient);
       void logout();
     };
-    window.addEventListener("nestlio:session-expired", handleSessionExpired);
-    return () => window.removeEventListener("nestlio:session-expired", handleSessionExpired);
+    window.addEventListener(APP_EVENTS.sessionExpired, handleSessionExpired);
+    return () => window.removeEventListener(APP_EVENTS.sessionExpired, handleSessionExpired);
   }, [logout, queryClient]);
 
   return (

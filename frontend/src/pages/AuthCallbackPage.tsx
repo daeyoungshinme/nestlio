@@ -83,7 +83,7 @@ export default function AuthCallbackPage() {
       window.clearTimeout(timeout);
       subscription.subscription.unsubscribe();
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- 마운트 시 1회만 URL 파라미터를 확인
+    // eslint-disable-next-line react/exhaustive-deps -- 마운트 시 1회만 URL 파라미터를 확인
   }, []);
 
   useEffect(() => {

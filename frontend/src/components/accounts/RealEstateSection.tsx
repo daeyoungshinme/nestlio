@@ -1,11 +1,12 @@
 import { useState } from "react";
 import type { FormEvent } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Download, Plus, RefreshCw } from "lucide-react";
 import Button from "@/components/common/Button";
 import AssetRow from "@/components/accounts/AssetRow";
 import ConfirmModal from "@/components/common/ConfirmModal";
 import EmptyState from "@/components/common/EmptyState";
+import ErrorState from "@/components/common/ErrorState";
 import FormInput from "@/components/common/FormInput";
 import GrowlioImportModal from "@/components/common/GrowlioImportModal";
 import GrowlioLinkSection from "@/components/accounts/GrowlioLinkSection";
@@ -20,10 +21,9 @@ import {
   updateSavingsProduct,
 } from "@/api/savingsProducts";
 import { fetchGrowlioRealEstate, importGrowlioRealEstate, syncRealEstate } from "@/api/realEstate";
-import { fetchGoals } from "@/api/goals";
 import { QUERY_KEYS } from "@/constants/queryKeys";
 import { useCrudMutations } from "@/hooks/useCrudMutations";
-import { useSavingsProducts } from "@/hooks/useReferenceData";
+import { useGoals, useSavingsProducts } from "@/hooks/useReferenceData";
 import {
   formatKrw,
   formatKrwPreview,
@@ -82,7 +82,7 @@ export default function RealEstateSection({ users }: Props) {
   const queryClient = useQueryClient();
 
   const { data: allData, isLoading, isError, error, refetch } = useSavingsProducts();
-  const { data: goals } = useQuery({ queryKey: QUERY_KEYS.financialGoals, queryFn: fetchGoals });
+  const { data: goals } = useGoals();
 
   const invalidate = () => queryClient.invalidateQueries({ queryKey: QUERY_KEYS.savingsProducts });
 
@@ -109,10 +109,10 @@ export default function RealEstateSection({ users }: Props) {
 
   if (isError) {
     return (
-      <EmptyState
+      <ErrorState
         title="부동산을 불러오지 못했어요"
-        description={extractErrorMessage(error)}
-        action={{ label: "다시 시도", onClick: () => void refetch() }}
+        message={extractErrorMessage(error)}
+        onRetry={() => void refetch()}
       />
     );
   }

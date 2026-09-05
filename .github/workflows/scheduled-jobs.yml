@@ -19,9 +19,19 @@ on:
     - cron: "*/15 * * * *"
   workflow_dispatch: {}
 
+# 느린 event_reminder_check(*/15)가 다음 틱과 겹치지 않게 직렬화한다. 진행 중인 실행은
+# 죽이지 않고(요약 이메일 발송 중 취소 방지) 뒤 실행이 대기하도록 cancel-in-progress: false.
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
+
 jobs:
   call-internal-job:
     runs-on: ubuntu-latest
+    env:
+      APP_URL: ${{ secrets.APP_URL }}
+      INTERNAL_JOB_SECRET: ${{ secrets.INTERNAL_JOB_SECRET }}
+      FORCE_RUN: ${{ github.event_name == 'workflow_dispatch' && '1' || '' }}
     steps:
       - name: verify required secrets
         run: |
@@ -32,18 +42,12 @@ jobs:
             echo "::error::Missing repository secrets:$missing — set them under Settings > Secrets and variables > Actions"
             exit 1
           fi
-        env:
-          APP_URL: ${{ secrets.APP_URL }}
-          INTERNAL_JOB_SECRET: ${{ secrets.INTERNAL_JOB_SECRET }}
 
       - name: daily_due_date_check
         if: github.event.schedule == '0 22 * * *' || github.event_name == 'workflow_dispatch'
         run: |
           curl -fsS --retry 2 --retry-delay 15 --retry-all-errors --max-time 170 -X POST "$APP_URL/internal/jobs/daily-due-date-check" \
             -H "X-Internal-Job-Secret: $INTERNAL_JOB_SECRET"
-        env:
-          APP_URL: ${{ secrets.APP_URL }}
-          INTERNAL_JOB_SECRET: ${{ secrets.INTERNAL_JOB_SECRET }}
 
       - name: weekly_summary_email (Sun 23:00 UTC = Mon 08:00 KST)
         if: github.event.schedule == '0 23 * * *' || github.event_name == 'workflow_dispatch'
@@ -54,10 +58,6 @@ jobs:
           else
             echo "not Sunday UTC, skipping weekly_summary_email"
           fi
-        env:
-          APP_URL: ${{ secrets.APP_URL }}
-          INTERNAL_JOB_SECRET: ${{ secrets.INTERNAL_JOB_SECRET }}
-          FORCE_RUN: ${{ github.event_name == 'workflow_dispatch' && '1' || '' }}
 
       - name: monthly_summary_email (last UTC day of month 23:00 = 1st 08:00 KST)
         if: github.event.schedule == '0 23 * * *' || github.event_name == 'workflow_dispatch'
@@ -68,10 +68,6 @@ jobs:
           else
             echo "tomorrow (UTC) is not the 1st, skipping monthly_summary_email"
           fi
-        env:
-          APP_URL: ${{ secrets.APP_URL }}
-          INTERNAL_JOB_SECRET: ${{ secrets.INTERNAL_JOB_SECRET }}
-          FORCE_RUN: ${{ github.event_name == 'workflow_dispatch' && '1' || '' }}
 
       - name: monthly_net_worth_snapshot (last UTC day of month 23:05 = 1st 08:05 KST)
         if: github.event.schedule == '5 23 * * *' || github.event_name == 'workflow_dispatch'
@@ -82,25 +78,15 @@ jobs:
           else
             echo "tomorrow (UTC) is not the 1st, skipping monthly_net_worth_snapshot"
           fi
-        env:
-          APP_URL: ${{ secrets.APP_URL }}
-          INTERNAL_JOB_SECRET: ${{ secrets.INTERNAL_JOB_SECRET }}
-          FORCE_RUN: ${{ github.event_name == 'workflow_dispatch' && '1' || '' }}
 
       - name: daily_threshold_safety_net
         if: github.event.schedule == '0 11 * * *' || github.event_name == 'workflow_dispatch'
         run: |
           curl -fsS --retry 2 --retry-delay 15 --retry-all-errors --max-time 170 -X POST "$APP_URL/internal/jobs/daily-threshold-safety-net" \
             -H "X-Internal-Job-Secret: $INTERNAL_JOB_SECRET"
-        env:
-          APP_URL: ${{ secrets.APP_URL }}
-          INTERNAL_JOB_SECRET: ${{ secrets.INTERNAL_JOB_SECRET }}
 
       - name: event_reminder_check
         if: github.event.schedule == '*/15 * * * *' || github.event_name == 'workflow_dispatch'
         run: |
           curl -fsS --retry 2 --retry-delay 15 --retry-all-errors --max-time 170 -X POST "$APP_URL/internal/jobs/event-reminder-check" \
             -H "X-Internal-Job-Secret: $INTERNAL_JOB_SECRET"
-        env:
-          APP_URL: ${{ secrets.APP_URL }}
-          INTERNAL_JOB_SECRET: ${{ secrets.INTERNAL_JOB_SECRET }}

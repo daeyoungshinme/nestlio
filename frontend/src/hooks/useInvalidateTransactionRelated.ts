@@ -13,7 +13,7 @@ export function useInvalidateTransactionRelated() {
     void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.dashboardAll });
     void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.categoryBreakdownAll });
     void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.savingsProducts });
-    void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.netWorth });
+    void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.netWorthAll });
     void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.cashflowPlanAll });
     void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.annualPlanAll });
   };

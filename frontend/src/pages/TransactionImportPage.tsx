@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { ArrowLeft } from "lucide-react";
 import { Link } from "react-router-dom";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation } from "@tanstack/react-query";
 import Button from "@/components/common/Button";
 import ConfirmModal from "@/components/common/ConfirmModal";
 import FormInput from "@/components/common/FormInput";
@@ -12,9 +12,8 @@ import {
   importTransactionsCsv,
   importTransactionsFromSheet,
 } from "@/api/transactions";
-import { fetchSettings } from "@/api/settings";
-import { QUERY_KEYS } from "@/constants/queryKeys";
 import { useInvalidateTransactionRelated } from "@/hooks/useInvalidateTransactionRelated";
+import { useSettings } from "@/hooks/useReferenceData";
 import { currentYear, currentYearMonth, monthBounds } from "@/utils/date";
 import { extractErrorMessage } from "@/utils/error";
 import { toast } from "@/utils/toast";
@@ -68,7 +67,7 @@ export default function TransactionImportPage() {
   const [showUndoConfirm, setShowUndoConfirm] = useState(false);
   const invalidateTransactionRelated = useInvalidateTransactionRelated();
 
-  const { data: settings } = useQuery({ queryKey: QUERY_KEYS.settings, queryFn: fetchSettings });
+  const { data: settings } = useSettings();
 
   const onImportSuccess = (data: ImportResultOut) => {
     setResult(data);

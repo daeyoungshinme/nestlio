@@ -33,19 +33,19 @@ class SavingsProductOut(BaseModel):
 
 class SavingsProductCreateIn(BaseModel):
     name: str
-    current_balance: Decimal = Decimal("0")
-    monthly_saving_amount: Decimal = Decimal("0")
+    current_balance: KrwAmount = Decimal("0")
+    monthly_saving_amount: KrwAmount = Decimal("0")
     product_type: Literal["savings", "investment", "real_estate", "emergency_fund"] = "savings"
-    principal_amount: Decimal | None = None
+    principal_amount: KrwAmount | None = None
     owner_user_id: uuid.UUID | None = None
 
 
 class SavingsProductUpdateIn(BaseModel):
     name: str
-    current_balance: Decimal
-    monthly_saving_amount: Decimal
+    current_balance: KrwAmount
+    monthly_saving_amount: KrwAmount
     product_type: Literal["savings", "investment", "real_estate", "emergency_fund"]
-    principal_amount: Decimal | None = None
+    principal_amount: KrwAmount | None = None
     owner_user_id: uuid.UUID | None = None
 
 

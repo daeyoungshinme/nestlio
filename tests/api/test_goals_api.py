@@ -242,3 +242,7 @@ def test_delete_goal(client, seeded_db):
 
     assert resp.status_code == 204
     assert client.get("/api/v1/financial-goals").json() == []
+
+
+def test_delete_goal_404_when_missing(client):
+    assert client.delete("/api/v1/financial-goals/99999").status_code == 404

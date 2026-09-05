@@ -177,4 +177,5 @@ def import_growlio_accounts(
 
 @router.post("/{product_id}/deactivate", status_code=status.HTTP_204_NO_CONTENT)
 def deactivate_product(product_id: int, db: Session = Depends(get_db), _: User = Depends(get_current_user)):
-    savings_product_service.deactivate_product(db, product_id)
+    if not savings_product_service.deactivate_product(db, product_id):
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "저축상품을 찾을 수 없습니다.")

@@ -18,7 +18,7 @@ export default function QuickAddFab({ onClick, label = "내역 빠르게 추가"
       type="button"
       onClick={onClick}
       style={FAB_BOTTOM_STYLE}
-      className={`fixed bottom-[var(--fab-bottom-mobile)] right-4 lg:bottom-6 ${Z_FAB} flex items-center justify-center w-14 h-14 rounded-full bg-emerald-500 hover:bg-emerald-600 text-white shadow-lg transition-colors active:scale-[0.97]`}
+      className={`fixed bottom-[var(--fab-bottom-mobile)] right-4 lg:bottom-6 ${Z_FAB} flex items-center justify-center w-14 h-14 rounded-full bg-primary hover:bg-primary-700 text-white shadow-lg transition-colors active:scale-[0.97]`}
       aria-label={label}
       title={label}
     >

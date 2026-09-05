@@ -3,6 +3,8 @@ import axiosRetry from "axios-retry";
 import type { InternalAxiosRequestConfig } from "axios";
 import { supabase } from "@/lib/supabase";
 import { toast } from "@/utils/toast";
+import { APP_EVENTS } from "@/constants/events";
+import { ROUTES } from "@/constants/routes";
 
 interface RetryableConfig extends InternalAxiosRequestConfig {
   _retry?: boolean;
@@ -103,16 +105,16 @@ api.interceptors.response.use(
         isRefreshing = false;
       }
 
-      if (window.location.pathname !== "/login") {
+      if (window.location.pathname !== ROUTES.login) {
         toast("세션이 만료되었습니다. 다시 로그인해 주세요.", "error");
-        window.dispatchEvent(new CustomEvent("nestlio:session-expired"));
+        window.dispatchEvent(new CustomEvent(APP_EVENTS.sessionExpired));
       }
     } else if (status === 403 && error.response?.data?.detail === REMOVED_USER_DETAIL) {
       // refreshSession()이 성공해버리는 401 경로와 달리, 제거된 계정은 항상 이 403을 받으므로
       // 재시도 없이 바로 같은 로그아웃 처리를 탄다.
-      if (window.location.pathname !== "/login") {
+      if (window.location.pathname !== ROUTES.login) {
         toast("배우자에 의해 가구에서 제외되었습니다. 다시 로그인해 주세요.", "error");
-        window.dispatchEvent(new CustomEvent("nestlio:session-expired"));
+        window.dispatchEvent(new CustomEvent(APP_EVENTS.sessionExpired));
       }
     } else if (status != null && status >= 500) {
       toast("서버 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.", "error");
