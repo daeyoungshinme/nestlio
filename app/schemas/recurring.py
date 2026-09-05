@@ -5,6 +5,7 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict, field_validator
 
 from app.schemas.category import CategoryOut
+from app.schemas.common import KrwAmount
 
 
 def _validate_days_of_month(days: list[int] | None) -> list[int] | None:
@@ -46,7 +47,7 @@ class RecurringListOut(BaseModel):
 class RecurringCreateIn(BaseModel):
     name: str
     category_id: int
-    amount: Decimal
+    amount: KrwAmount
     type: Literal["income", "expense"] = "expense"
     frequency: Literal["weekly", "monthly", "yearly"]
     days_of_month: list[int] | None = None
@@ -60,7 +61,7 @@ class RecurringCreateIn(BaseModel):
 class RecurringUpdateIn(BaseModel):
     name: str | None = None
     category_id: int | None = None
-    amount: Decimal | None = None
+    amount: KrwAmount | None = None
     type: Literal["income", "expense"] | None = None
     frequency: Literal["weekly", "monthly", "yearly"] | None = None
     days_of_month: list[int] | None = None

@@ -15,8 +15,7 @@ import ScheduleDayCell from "@/components/schedule/ScheduleDayCell";
 import ScheduleEventList from "@/components/schedule/ScheduleEventList";
 import ScheduleMonthList from "@/components/schedule/ScheduleMonthList";
 import { completeEvent, createEvent, deleteEvent, fetchEvents, importGoogleEvents, updateEvent } from "@/api/events";
-import { fetchSettings } from "@/api/settings";
-import { useUsers } from "@/hooks/useReferenceData";
+import { useSettings, useUsers } from "@/hooks/useReferenceData";
 import { QUERY_KEYS } from "@/constants/queryKeys";
 import { STALE_TIME } from "@/constants/queryConfig";
 import { currentDateIso, currentYearMonth, monthBounds, occurrenceDate } from "@/utils/date";
@@ -56,17 +55,13 @@ export default function SchedulePage() {
       },
       { replace: true },
     );
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react/exhaustive-deps
   }, [searchParams]);
 
   const { date_from, date_to } = monthBounds(yearMonth);
 
   const { data: users } = useUsers();
-  const { data: settings } = useQuery({
-    queryKey: QUERY_KEYS.settings,
-    queryFn: fetchSettings,
-    staleTime: STALE_TIME.MEDIUM,
-  });
+  const { data: settings } = useSettings();
   const {
     data,
     isLoading,

@@ -13,13 +13,13 @@ interface Props extends ButtonHTMLAttributes<HTMLButtonElement> {
 }
 
 const VARIANT_CLASSES: Record<Variant, string> = {
-  primary: "bg-blue-600 text-white hover:bg-blue-700",
+  primary: "bg-primary text-white hover:bg-primary-700",
   secondary:
     "border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800",
   danger: "border border-red-300 text-red-600 hover:bg-red-50",
-  ghost: "text-gray-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-950",
+  ghost: "text-gray-400 hover:text-primary hover:bg-primary-50 dark:hover:bg-primary-950",
   outline:
-    "border border-blue-300 dark:border-blue-700 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950",
+    "border border-primary-300 dark:border-primary-700 text-primary dark:text-primary-400 hover:bg-primary-50 dark:hover:bg-primary-950",
 };
 
 const SIZE_CLASSES: Record<Size, string> = {

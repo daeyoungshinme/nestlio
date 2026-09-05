@@ -97,4 +97,5 @@ def sync_all_accounts(
 
 @router.post("/{account_id}/deactivate", status_code=status.HTTP_204_NO_CONTENT)
 def deactivate(account_id: int, db: Session = Depends(get_db), _: User = Depends(get_current_user)):
-    account_service.deactivate_account(db, account_id)
+    if not account_service.deactivate_account(db, account_id):
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "계좌를 찾을 수 없습니다.")

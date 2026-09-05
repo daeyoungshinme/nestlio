@@ -11,7 +11,7 @@ from app.models.savings_product_annual_plan_monthly_target import SavingsProduct
 from app.models.transaction import Transaction
 from app.services import growlio_client, plan_targets
 from app.services.growlio_client import GrowlioSyncError
-from app.utils.dates import month_bounds, parse_year_month, shift_month, year_bounds
+from app.utils.dates import month_bounds, parse_year_month, shift_month, year_bounds, year_month_of
 from app.utils.plan_status import pct_of
 
 PLAN_PRODUCT_TYPES = ("savings", "investment")
@@ -102,10 +102,10 @@ def get_annual_plan(db: Session, product_id: int, year: int) -> dict | None:
     return {
         "product_id": product_id,
         "year": year,
-        "start_month": f"{year}-01",
-        "end_month": f"{year}-12",
+        "start_month": year_month_of(year, 1),
+        "end_month": year_month_of(year, 12),
         "monthly_targets": [
-            {"year_month": f"{year}-{month:02d}", "target_amount": product.monthly_saving_amount}
+            {"year_month": year_month_of(year, month), "target_amount": product.monthly_saving_amount}
             for month in range(1, 13)
         ],
     }
@@ -272,7 +272,8 @@ def compute_annual_plan_summary(
         actual = actuals.get(product.id, Decimal("0"))
         product_targets = targets_by_product.get(product.id, {})
         monthly_amounts = [
-            product_targets.get(f"{year}-{month:02d}", product.monthly_saving_amount) for month in range(1, 13)
+            product_targets.get(year_month_of(year, month), product.monthly_saving_amount)
+            for month in range(1, 13)
         ]
         annual_target = sum(monthly_amounts, Decimal("0"))
         target_to_date = sum(monthly_amounts[:elapsed_months], Decimal("0"))
@@ -368,14 +369,17 @@ def update_product(
     return product
 
 
-def deactivate_product(db: Session, product_id: int) -> None:
+def deactivate_product(db: Session, product_id: int) -> bool:
+    """대상이 있으면 비활성화하고 True, 없으면 False (라우터가 404로 변환)."""
     product = db.get(SavingsProduct, product_id)
-    if product is not None:
-        product.is_active = False
-        product.growlio_account_id = None
-        product.auto_sync_enabled = False
-        product.last_synced_at = None
-        db.commit()
+    if product is None:
+        return False
+    product.is_active = False
+    product.growlio_account_id = None
+    product.auto_sync_enabled = False
+    product.last_synced_at = None
+    db.commit()
+    return True
 
 
 def adjust_balance(db: Session, product_id: int, delta: Decimal) -> None:

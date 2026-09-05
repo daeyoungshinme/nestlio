@@ -97,7 +97,7 @@ export default function TransactionsPage() {
       },
       { replace: true },
     );
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react/exhaustive-deps
   }, [searchParams]);
 
   const { date_from, date_to } = monthBounds(yearMonth);

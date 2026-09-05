@@ -6,6 +6,8 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, field_validator
 
+from app.schemas.common import KrwAmount
+
 RepaymentMethod = Literal["equal_payment", "equal_principal", "bullet", "grace_period", "other"]
 
 _YEAR_MONTH_RE = re.compile(r"^\d{4}-\d{2}$")
@@ -38,8 +40,8 @@ class LoanOut(BaseModel):
 
 class LoanCreateIn(BaseModel):
     name: str
-    balance: Decimal = Decimal("0")
-    monthly_payment: Decimal = Decimal("0")
+    balance: KrwAmount = Decimal("0")
+    monthly_payment: KrwAmount = Decimal("0")
     origination_year_month: str | None = None
     term_months: int | None = None
     interest_rate: Decimal | None = None
@@ -51,8 +53,8 @@ class LoanCreateIn(BaseModel):
 
 class LoanUpdateIn(BaseModel):
     name: str
-    balance: Decimal
-    monthly_payment: Decimal
+    balance: KrwAmount
+    monthly_payment: KrwAmount
     origination_year_month: str | None
     term_months: int | None
     interest_rate: Decimal | None

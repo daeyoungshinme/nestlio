@@ -1,21 +1,23 @@
 import { useState } from "react";
 import type { FormEvent } from "react";
-import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 import { Link2, Plus } from "lucide-react";
 import Button from "@/components/common/Button";
 import AssetRow from "@/components/accounts/AssetRow";
 import ConfirmModal from "@/components/common/ConfirmModal";
 import EmptyState from "@/components/common/EmptyState";
+import ErrorState from "@/components/common/ErrorState";
 import FormInput from "@/components/common/FormInput";
 import Modal from "@/components/common/Modal";
 import OwnerSelect from "@/components/accounts/OwnerSelect";
 import SkeletonCard from "@/components/common/SkeletonCard";
 import InlineStatsBar from "@/components/common/InlineStatsBar";
-import { createLoan, deactivateLoan, fetchLoans, updateLoan } from "@/api/loans";
+import { createLoan, deactivateLoan, updateLoan } from "@/api/loans";
 import { QUERY_KEYS } from "@/constants/queryKeys";
 import { INPUT_SM, LABEL_SM } from "@/constants/inputStyles";
 import { useCrudMutations } from "@/hooks/useCrudMutations";
+import { useLoans } from "@/hooks/useReferenceData";
+import { accountsSectionLink } from "@/constants/routes";
 import { formatKrw, formatKrwPreview, formatSyncedAt, resolveOwnerLabel, toAmountInputValue } from "@/utils/format";
 import { extractErrorMessage } from "@/utils/error";
 import type { LoanOut, RepaymentMethod, UserOut } from "@/types";
@@ -90,7 +92,7 @@ export default function LoansSection({ users }: Props) {
     isError,
     error,
     refetch,
-  } = useQuery({ queryKey: QUERY_KEYS.loans, queryFn: fetchLoans });
+  } = useLoans();
 
   const { createMutation, updateMutation, removeMutation: deactivateMutation } = useCrudMutations({
     invalidateKeys: [QUERY_KEYS.loans],
@@ -103,10 +105,10 @@ export default function LoansSection({ users }: Props) {
 
   if (isError) {
     return (
-      <EmptyState
+      <ErrorState
         title="대출을 불러오지 못했어요"
-        description={extractErrorMessage(error)}
-        action={{ label: "다시 시도", onClick: () => void refetch() }}
+        message={extractErrorMessage(error)}
+        onRetry={() => void refetch()}
       />
     );
   }
@@ -211,7 +213,7 @@ function LoanRow({
       }
       actions={
         loan.growlio_account_id
-          ? [{ icon: <Link2 size={16} />, label: "부동산에서 동기화", onClick: () => navigate("/accounts?section=부동산") }]
+          ? [{ icon: <Link2 size={16} />, label: "부동산에서 동기화", onClick: () => navigate(accountsSectionLink("부동산")) }]
           : []
       }
       onEdit={onEdit}

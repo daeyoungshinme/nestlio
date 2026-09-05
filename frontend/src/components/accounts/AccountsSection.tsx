@@ -7,6 +7,7 @@ import AssetRow from "@/components/accounts/AssetRow";
 import CollapsibleGroup from "@/components/common/CollapsibleGroup";
 import ConfirmModal from "@/components/common/ConfirmModal";
 import EmptyState from "@/components/common/EmptyState";
+import ErrorState from "@/components/common/ErrorState";
 import FormInput from "@/components/common/FormInput";
 import GrowlioImportModal from "@/components/common/GrowlioImportModal";
 import Modal from "@/components/common/Modal";
@@ -110,10 +111,10 @@ export default function AccountsSection({ users }: Props) {
 
   if (isError) {
     return (
-      <EmptyState
+      <ErrorState
         title="계좌를 불러오지 못했어요"
-        description={extractErrorMessage(error)}
-        action={{ label: "다시 시도", onClick: () => void refetch() }}
+        message={extractErrorMessage(error)}
+        onRetry={() => void refetch()}
       />
     );
   }

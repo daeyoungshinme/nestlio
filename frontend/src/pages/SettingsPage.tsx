@@ -13,7 +13,6 @@ import { useLogout } from "@/hooks/useLogout";
 import { useThemeStore } from "@/stores/themeStore";
 import {
   deleteCouplePhoto,
-  fetchSettings,
   setCoachingThresholds,
   setNotificationPrefs,
   setNotifyEmails,
@@ -24,7 +23,8 @@ import {
 import { cancelInvite, createInvite, fetchInvites } from "@/api/invites";
 import { removeUser, updateMe, updateUser } from "@/api/users";
 import type { CoachingThresholdsOut, InviteOut, NotificationPrefsOut } from "@/types";
-import { useMe, useUsers } from "@/hooks/useReferenceData";
+import { useMe, useSettings, useUsers } from "@/hooks/useReferenceData";
+import { ROUTES, accountsSectionLink } from "@/constants/routes";
 import { QUERY_KEYS } from "@/constants/queryKeys";
 import { COACHING_THRESHOLD_PRESETS } from "@/constants/coachingPresets";
 import { MAX_NOTIFY_RECIPIENTS } from "@/constants/settings";
@@ -89,7 +89,7 @@ export default function SettingsPage() {
     isError,
     error,
     refetch,
-  } = useQuery({ queryKey: QUERY_KEYS.settings, queryFn: fetchSettings });
+  } = useSettings();
   const meQuery = useMe();
   const usersQuery = useUsers();
   const invitesQuery = useQuery({ queryKey: QUERY_KEYS.invites, queryFn: fetchInvites });
@@ -473,13 +473,13 @@ export default function SettingsPage() {
       <SettingsSectionCard title="바로가기">
         <div className="space-y-1">
           <SettingsLinkRow
-            to="/accounts?section=저축·투자"
+            to={accountsSectionLink("저축·투자")}
             label="비상금 관리"
             hint="저축·투자 탭에서 비상금 항목으로 기록해요"
           />
-          <SettingsLinkRow to="/categories" label="카테고리 관리" hint="고정·변동·비정기지출 카테고리 추가/수정" />
+          <SettingsLinkRow to={ROUTES.categories} label="카테고리 관리" hint="고정·변동·비정기지출 카테고리 추가/수정" />
           <SettingsLinkRow
-            to="/transactions/import"
+            to={ROUTES.transactionImport}
             label="거래 데이터"
             hint="CSV·구글 시트 가져오기 / CSV 내보내기"
           />

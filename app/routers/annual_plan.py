@@ -1,6 +1,6 @@
 from datetime import date
 
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.database import get_db
@@ -54,4 +54,5 @@ def upsert_plan_item(
 
 @router.delete("/items/{item_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_plan_item(item_id: int, db: Session = Depends(get_db), _: User = Depends(get_current_user)):
-    annual_plan_service.delete_item(db, item_id)
+    if not annual_plan_service.delete_item(db, item_id):
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "연간계획 항목을 찾을 수 없습니다.")
