@@ -15,7 +15,7 @@ ignore = [
 [tool.pytest.ini_options]
 # 오타 마커를 에러로, deprecation 경고도 에러로 승격해 회귀를 조기에 잡는다.
 # 커버리지 게이트/랜덤 순서는 아직 도입하지 않는다(tests/CLAUDE.md 참고).
-addopts = "--strict-markers"
+addopts = "--strict-markers --durations=10"
 filterwarnings = [
     "error",
     # 서드파티에서 나오는, 우리가 당장 손댈 수 없는 알려진 경고는 여기 화이트리스트.

@@ -31,6 +31,8 @@ permissions:
 jobs:
   call-internal-job:
     runs-on: ubuntu-latest
+    # 매달린 실행이 cancel-in-progress:false 직렬화 큐를 막지 않도록. 각 curl은 --max-time 170.
+    timeout-minutes: 10
     env:
       APP_URL: ${{ secrets.APP_URL }}
       INTERNAL_JOB_SECRET: ${{ secrets.INTERNAL_JOB_SECRET }}
