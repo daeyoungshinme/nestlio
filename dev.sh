@@ -75,14 +75,16 @@ echo "[dev.sh] installing dependencies (runtime + dev/test)..."
 mkdir -p data
 
 echo "[dev.sh] running database migrations..."
-"$PYTHON" -m alembic upgrade head
-
-if [ ! -f "data/.seeded" ]; then
-  echo "[dev.sh] first run detected, seeding initial data..."
-  "$PYTHON" scripts/seed_data.py
-  touch "data/.seeded"
-  echo "[dev.sh] seeding done (delete data/.seeded to re-run seed_data.py later)"
+if ! "$PYTHON" -m alembic upgrade head; then
+  echo "[dev.sh] ERROR: alembic upgrade failed." >&2
+  echo "[dev.sh]        Set a real DATABASE_URL in .env — nestlio shares growlio's Supabase" >&2
+  echo "[dev.sh]        Postgres (copy that project's connection string, sync psycopg2 driver)." >&2
+  exit 1
 fi
+
+# seed_data.py는 idempotent다 (이미 있는 행은 건너뜀) — 매 실행마다 그냥 돌린다.
+echo "[dev.sh] seeding default data (skips rows that already exist)..."
+"$PYTHON" scripts/seed_data.py
 
 if [ ! -d "frontend/node_modules" ]; then
   echo "[dev.sh] frontend/node_modules not found, installing frontend dependencies..."

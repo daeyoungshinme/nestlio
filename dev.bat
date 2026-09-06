@@ -49,13 +49,16 @@ if not exist "data" mkdir data
 
 echo [dev.bat] running database migrations...
 "%PYTHON%" -m alembic upgrade head
-
-if not exist "data\.seeded" (
-  echo [dev.bat] first run detected, seeding initial data...
-  "%PYTHON%" scripts\seed_data.py
-  type nul > "data\.seeded"
-  echo [dev.bat] seeding done (delete data\.seeded to re-run seed_data.py later)
+if errorlevel 1 (
+  echo [dev.bat] ERROR: alembic upgrade failed.
+  echo [dev.bat]        Set a real DATABASE_URL in .env - nestlio shares growlio's Supabase
+  echo [dev.bat]        Postgres ^(copy that project's connection string, sync psycopg2 driver^).
+  exit /b 1
 )
+
+rem seed_data.py is idempotent (skips rows that already exist) - just run it every time.
+echo [dev.bat] seeding default data (skips rows that already exist)...
+"%PYTHON%" scripts\seed_data.py
 
 if not exist "frontend\node_modules" (
   echo [dev.bat] frontend\node_modules not found, installing frontend dependencies...
