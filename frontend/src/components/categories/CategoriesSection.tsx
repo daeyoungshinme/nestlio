@@ -14,6 +14,7 @@ import { QUERY_KEYS } from "@/constants/queryKeys";
 import { BENCHMARK_GROUP_LABELS, BENCHMARK_GROUP_ORDER } from "@/constants/benchmarkGroups";
 import { useCrudMutations } from "@/hooks/useCrudMutations";
 import { useCategories } from "@/hooks/useReferenceData";
+import { DEFAULT_CATEGORY_COLOR } from "@/utils/colors";
 import type { BenchmarkGroup, CategoryOut, CategoryType } from "@/types";
 
 const TYPE_LABEL: Record<CategoryType, string> = {
@@ -32,7 +33,13 @@ interface FormState {
   benchmark_group: BenchmarkGroup | "";
 }
 
-const emptyForm: FormState = { name: "", kind: "expense", type: "variable", color: "#888888", benchmark_group: "" };
+const emptyForm: FormState = {
+  name: "",
+  kind: "expense",
+  type: "variable",
+  color: DEFAULT_CATEGORY_COLOR,
+  benchmark_group: "",
+};
 
 export default function CategoriesSection() {
   const [form, setForm] = useState<FormState>(emptyForm);

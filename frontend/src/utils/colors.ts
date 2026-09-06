@@ -220,6 +220,32 @@ export function netWorthTrendChartColor(isDark: boolean): string {
   return NET_WORTH_TREND_CHART_COLOR[isDark ? "dark" : "light"];
 }
 
+/** 저축 추이 스파크라인(대시보드) 라인 색상. 앱 accent(primary=emerald)와 통일하고,
+ * dark 모드에서는 대비를 위해 primary-400 톤을 쓴다. */
+const SAVINGS_TREND_CHART_COLOR = { light: "#059669", dark: "#34D399" };
+
+export function savingsTrendChartColor(isDark: boolean): string {
+  return SAVINGS_TREND_CHART_COLOR[isDark ? "dark" : "light"];
+}
+
+/** 수입/지출 2계열 막대·라인 차트(연간 리포트 등) 색상. 수입은 앱 accent(primary), 지출은
+ * red. 둘 다 dark 모드에서는 한 단계 밝은 톤으로 대비를 확보한다. */
+const INCOME_EXPENSE_CHART_COLOR: Record<"income" | "expense", { light: string; dark: string }> = {
+  income: { light: "#059669", dark: "#34D399" },
+  expense: { light: "#DC2626", dark: "#F87171" },
+};
+
+export function incomeExpenseChartColor(kind: "income" | "expense", isDark: boolean): string {
+  return INCOME_EXPENSE_CHART_COLOR[kind][isDark ? "dark" : "light"];
+}
+
+/** 카테고리 색상이 지정되지 않은 항목(계획 화면 스와치 등)의 폴백. gray-400은 라이트/다크
+ * 배경 모두에서 충분히 보이므로 단일 값으로 둔다. */
+export const CATEGORY_SWATCH_FALLBACK_COLOR = "#9CA3AF";
+
+/** 새 카테고리 폼의 기본 색상 (사용자가 색상 선택기로 바꾸기 전 초기값). */
+export const DEFAULT_CATEGORY_COLOR = "#888888";
+
 export function growlioLinkedBadgeStyle(): string {
   return "bg-blue-50 dark:bg-blue-950 text-blue-700 dark:text-blue-300";
 }

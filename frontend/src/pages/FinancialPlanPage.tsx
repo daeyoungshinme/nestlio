@@ -46,7 +46,7 @@ export default function FinancialPlanPage() {
         { replace: true },
       );
     }
-    // eslint-disable-next-line react/exhaustive-deps
+    // eslint-disable-next-line react/exhaustive-deps -- 마운트 시 1회만 구 딥링크(?tab= 등)를 ?view=로 정리
   }, []);
 
   const handleChange = (view: View) => {

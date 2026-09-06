@@ -42,3 +42,16 @@ body {
     font-size: 1rem !important;
   }
 }
+
+/* 모션 최소화 설정을 켠 사용자에게는 전환/애니메이션을 사실상 제거한다
+   (바텀시트 슬라이드, transition-colors 등 — 인라인 style transition 포함). */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
