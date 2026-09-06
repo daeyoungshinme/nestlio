@@ -12,6 +12,7 @@ import {
 } from "@/api/notifications";
 import { useMe } from "@/hooks/useReferenceData";
 import { QUERY_KEYS } from "@/constants/queryKeys";
+import { NOTIFICATIONS_REFETCH_INTERVAL } from "@/constants/queryConfig";
 import { SIDEBAR_NAV_ITEMS } from "@/constants/nav";
 import { TOUCH_TARGET_COMPACT_MOBILE_ONLY, TOUCH_TARGET_MIN } from "@/constants/uiSizes";
 import { formatDate } from "@/utils/format";
@@ -54,7 +55,7 @@ export default function Header() {
   const { data } = useQuery({
     queryKey: QUERY_KEYS.notifications,
     queryFn: fetchNotifications,
-    refetchInterval: 60_000,
+    refetchInterval: NOTIFICATIONS_REFETCH_INTERVAL,
   });
   const { data: me } = useMe();
 

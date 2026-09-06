@@ -34,6 +34,9 @@ export const QUERY_KEYS = {
   annualPlan: (year: number) => ["annual-plan", year] as const,
   /** Prefix for invalidating every annual-plan year variant at once. */
   annualPlanAll: ["annual-plan"] as const,
+  /** savingsProductsPlan/savingsProductsAnnualPlan/…Detail의 공통 프리픽스이기도 하다 —
+   * invalidateQueries({ queryKey: QUERY_KEYS.savingsProducts })는 계획·연간계획 캐시까지
+   * 전부 무효화한다 (상품 변경이 계획 화면에도 반영돼야 하므로 의도된 동작). */
   savingsProducts: ["savings-products"] as const,
   savingsProductsPlan: (yearMonth: string) => ["savings-products", "plan", yearMonth] as const,
   savingsProductsAnnualPlan: (year: number) => ["savings-products", "annual-plan", year] as const,
