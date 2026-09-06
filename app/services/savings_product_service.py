@@ -55,7 +55,7 @@ def actuals_for_month(db: Session, year_month: str) -> dict[int, Decimal]:
         .group_by(Transaction.savings_product_id)
         .all()
     )
-    return {product_id: amount for product_id, amount in rows}
+    return dict(rows)
 
 
 def trailing_average_actuals(db: Session, year_month: str, months: int = 3) -> dict[int, Decimal]:
@@ -229,7 +229,7 @@ def actuals_for_year(db: Session, year: int) -> dict[int, Decimal]:
         .group_by(Transaction.savings_product_id)
         .all()
     )
-    return {product_id: amount for product_id, amount in rows}
+    return dict(rows)
 
 
 def yearly_monthly_actuals(db: Session, year: int) -> list[Decimal]:

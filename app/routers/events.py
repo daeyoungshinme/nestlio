@@ -6,7 +6,14 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.dependencies import get_current_user
 from app.models.user import User
-from app.schemas.event import EventCompleteIn, EventCreateIn, EventImportResultOut, EventListOut, EventOut, EventUpdateIn
+from app.schemas.event import (
+    EventCompleteIn,
+    EventCreateIn,
+    EventImportResultOut,
+    EventListOut,
+    EventOut,
+    EventUpdateIn,
+)
 from app.services import event_service, recurring_service
 from app.services.event_service import ImportedEventReadOnlyError
 from app.services.google_auth import GoogleNotConnectedError

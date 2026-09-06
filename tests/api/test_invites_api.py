@@ -2,7 +2,6 @@ import uuid
 from unittest.mock import patch
 
 from app.dependencies import get_token_payload
-from app.main import app as fastapi_app
 
 
 def _accept_as(client, email: str):

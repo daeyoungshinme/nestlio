@@ -24,7 +24,7 @@ def test_is_enabled_defaults_true_for_unsaved_type(seeded_db):
 
 def test_set_prefs_persists_and_reflects_in_get(seeded_db):
     db, user = seeded_db["db"], seeded_db["user"]
-    values = {t: True for t in notification_settings_service.NOTIF_TYPES}
+    values = dict.fromkeys(notification_settings_service.NOTIF_TYPES, True)
     values["email_weekly"] = False
 
     result = notification_settings_service.set_prefs(db, values, user.id)

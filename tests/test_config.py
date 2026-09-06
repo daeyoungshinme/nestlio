@@ -5,12 +5,12 @@ from app.config import Settings, validate_startup
 
 
 def _prod_settings(**overrides):
-    base = dict(
-        app_env="production",
-        database_url="postgresql+psycopg2://u:p@host/db",
-        supabase_project_url="https://real.supabase.co",
-        internal_job_secret="a-real-random-secret",
-    )
+    base = {
+        "app_env": "production",
+        "database_url": "postgresql+psycopg2://u:p@host/db",
+        "supabase_project_url": "https://real.supabase.co",
+        "internal_job_secret": "a-real-random-secret",
+    }
     base.update(overrides)
     return Settings(**base)
 

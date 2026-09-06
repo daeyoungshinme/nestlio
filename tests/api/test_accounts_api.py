@@ -125,10 +125,9 @@ def test_sync_account_without_link_returns_409(client):
 
 def test_sync_account_updates_displayed_balance_and_last_synced_at(client, seeded_db):
     db, user, food = seeded_db["db"], seeded_db["user"], seeded_db["food"]
-    create_resp = client.post(
+    client.post(
         "/api/v1/accounts", json={"name": "월급통장", "account_type": "bank", "initial_balance": "100000"}
     )
-    account_id = create_resp.json()["id"]
     _override_bearer_token()
     with patch(
         "app.services.account_service.growlio_client.fetch_account_balances",

@@ -4,8 +4,8 @@ from sqlalchemy import case, func
 from sqlalchemy.orm import Session
 
 from app.config import settings
-from app.models.category import Category
 from app.models.cashflow_plan_item import CashflowPlanItem
+from app.models.category import Category
 from app.models.recurring_expense import RecurringExpense
 from app.services.transaction_report_service import category_breakdown, trailing_average_by_category
 from app.utils.dates import month_bounds, parse_year_month
@@ -37,7 +37,7 @@ def get_budgets_for_month(db: Session, year_month: str) -> dict[int, Decimal]:
         .group_by(effective_category_id)
         .all()
     )
-    return {category_id: total for category_id, total in rows}
+    return dict(rows)
 
 
 def _status(pct: float, warn_pct: float | None = None, critical_pct: float | None = None) -> str:

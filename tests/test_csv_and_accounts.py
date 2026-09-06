@@ -3,7 +3,6 @@ from decimal import Decimal
 from unittest.mock import patch
 
 import pytest
-
 from sqlalchemy.exc import SQLAlchemyError
 
 from app.services import account_service, transaction_import_service, transaction_report_service, transaction_service
@@ -62,7 +61,7 @@ def test_import_csv_skips_unknown_category_and_reports_reason(seeded_db):
 
 
 def test_import_csv_skips_malformed_amount_but_keeps_valid_rows(seeded_db):
-    db, user, food = seeded_db["db"], seeded_db["user"], seeded_db["food"]
+    db, user = seeded_db["db"], seeded_db["user"]
     csv_text = (
         "날짜,구분,카테고리,금액,메모\n"
         "2026-07-05,지출,식비,not-a-number,broken\n"
@@ -157,7 +156,7 @@ def test_account_balance_reflects_initial_balance_plus_transactions(seeded_db):
     db, user, food = seeded_db["db"], seeded_db["user"], seeded_db["food"]
     account = account_service.create_account(db, "현금", "cash", Decimal("100000"))
 
-    tx1 = transaction_service.create_transaction(
+    transaction_service.create_transaction(
         db, user.id, food.id, "income", Decimal("50000"), date(2026, 7, 1), account_id=account.id
     )
     transaction_service.create_transaction(
