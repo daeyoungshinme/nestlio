@@ -50,17 +50,25 @@ def test_walk_reaches_base():
     assert count >= 1
 
 
+# 2026-09-01 스쿼시 시점에 아카이브된 구 체인 개수. 재스쿼시하면 이 값을 갱신한다.
+ARCHIVED_CHAIN_COUNT_AT_SQUASH = 51
+SQUASH_BASELINE_REVISION = "bdba3c3b3277"
+
+
 def test_squash_layout_intact():
-    """2026-09-01 스쿼시 이후 versions/ 최상위에는 베이스라인 1개만 둔다. 구 51개는
-    versions/_archive/ 에 있고 Alembic이 스캔하지 않는다(recursive_version_locations 미설정).
-    새 리비전을 추가하면 이 개수가 늘어나는 건 정상 — 아카이브가 체인에 딸려 들어오거나
-    (head 폭증) 베이스라인이 사라지는 사고만 잡는다."""
+    """2026-09-01 스쿼시 이후 versions/ 최상위에는 베이스라인 + 그 뒤로 쌓인 새 리비전만 둔다.
+    구 체인은 versions/_archive/ 에 있고 Alembic이 스캔하지 않는다(recursive_version_locations
+    미설정). 아카이브가 통째로 사라지거나(스쿼시 무효화) 체인에 딸려 들어오는(head 폭증) 사고,
+    베이스라인이 없어지는 사고를 잡는다."""
     top_level = list(VERSIONS_DIR.glob("*.py"))
     archived = list((VERSIONS_DIR / "_archive").glob("*.py"))
-    assert len(archived) == 51, f"아카이브 개수가 51이 아닙니다: {len(archived)}"
-    assert 1 <= len(top_level) <= 40, f"versions/ 최상위 리비전 수가 이상합니다: {len(top_level)}"
+    assert len(archived) == ARCHIVED_CHAIN_COUNT_AT_SQUASH, (
+        f"아카이브된 구 체인 개수가 {ARCHIVED_CHAIN_COUNT_AT_SQUASH}가 아닙니다: {len(archived)} "
+        "(재스쿼시했다면 ARCHIVED_CHAIN_COUNT_AT_SQUASH를 갱신하세요)"
+    )
+    assert top_level, "versions/ 최상위가 비었습니다 — 베이스라인이 사라졌습니다"
     revs = {r.revision for r in _script_dir().walk_revisions()}
-    assert "bdba3c3b3277" in revs, "스쿼시 베이스라인 bdba3c3b3277이 체인에서 사라졌습니다"
+    assert SQUASH_BASELINE_REVISION in revs, f"스쿼시 베이스라인 {SQUASH_BASELINE_REVISION}이 체인에서 사라졌습니다"
     assert not (revs & {"9e12ea51685e", "b8f2a1c9e4d7"}), (
         "아카이브된 구 리비전이 체인에 다시 포함됐습니다 "
         "(alembic.ini의 recursive_version_locations를 켰는지 확인)"

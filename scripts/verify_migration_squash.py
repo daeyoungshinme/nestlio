@@ -114,7 +114,23 @@ def _objects(dump: str) -> dict[tuple[str, str], object]:
     return objs
 
 
+def _require_clean_migrations_tree() -> None:
+    """이 스크립트는 실행 중 migrations/versions/를 변형했다가 finally에서 되돌린다.
+    Ctrl-C/크래시로 복구가 안 되면 repo가 다중 head로 남으므로, 먼저 커밋되지 않은
+    변경이 없는지 확인한다 (있으면 손상 시 되돌리기 어려움)."""
+    r = subprocess.run(
+        ["git", "status", "--porcelain", "--", "migrations/"],
+        cwd=str(ROOT), capture_output=True, text=True,
+    )
+    if r.returncode == 0 and r.stdout.strip():
+        sys.exit(
+            "migrations/ 에 커밋되지 않은 변경이 있습니다. 이 스크립트는 실행 중 트리를 "
+            "일시 변형하므로, 먼저 커밋하거나 stash한 뒤 다시 실행하세요:\n" + r.stdout
+        )
+
+
 def main() -> None:
+    _require_clean_migrations_tree()
     archived = sorted(p.name for p in ARCHIVE.glob("*.py"))
     baseline = sorted(p.name for p in VERSIONS.glob("*.py"))
     print(f"아카이브 {len(archived)}개, 베이스라인 {len(baseline)}개 ({', '.join(baseline)})")
