@@ -4,7 +4,7 @@ import { Link } from "react-router-dom";
 import Button from "@/components/common/Button";
 import CategoryPicker from "@/components/common/CategoryPicker";
 import FormInput from "@/components/common/FormInput";
-import { INPUT_SM, LABEL_SM } from "@/constants/inputStyles";
+import OwnerSelect from "@/components/common/OwnerSelect";
 import { formatKrw, formatKrwPreview, toAmountInputValue } from "@/utils/format";
 import type { CashflowSection, CategoryOut, UserOut } from "@/types";
 
@@ -104,21 +104,12 @@ export default function CashflowPlanItemForm({
         onChange={(e) => setValues((v) => ({ ...v, name: e.target.value }))}
         required
       />
-      <div>
-        <label className={`block mb-1 font-medium ${LABEL_SM}`}>구분</label>
-        <select
-          className={`${INPUT_SM} w-full`}
-          value={values.owner_user_id}
-          onChange={(e) => setValues((v) => ({ ...v, owner_user_id: e.target.value }))}
-        >
-          <option value="">공통</option>
-          {users?.map((u) => (
-            <option key={u.id} value={u.id}>
-              {u.display_name}
-            </option>
-          ))}
-        </select>
-      </div>
+      <OwnerSelect
+        label="구분"
+        value={values.owner_user_id}
+        onChange={(owner) => setValues((v) => ({ ...v, owner_user_id: owner }))}
+        users={users}
+      />
       <FormInput
         label="금액"
         type="number"

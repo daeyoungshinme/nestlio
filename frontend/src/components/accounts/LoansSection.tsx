@@ -9,7 +9,7 @@ import EmptyState from "@/components/common/EmptyState";
 import ErrorState from "@/components/common/ErrorState";
 import FormInput from "@/components/common/FormInput";
 import Modal from "@/components/common/Modal";
-import OwnerSelect from "@/components/accounts/OwnerSelect";
+import OwnerSelect from "@/components/common/OwnerSelect";
 import SkeletonCard from "@/components/common/SkeletonCard";
 import InlineStatsBar from "@/components/common/InlineStatsBar";
 import { createLoan, deactivateLoan, updateLoan } from "@/api/loans";

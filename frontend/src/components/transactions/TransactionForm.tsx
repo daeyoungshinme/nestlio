@@ -5,6 +5,7 @@ import { ChevronDown, ChevronUp } from "lucide-react";
 import Button from "@/components/common/Button";
 import CategoryPicker from "@/components/common/CategoryPicker";
 import FormInput from "@/components/common/FormInput";
+import OwnerSelect from "@/components/common/OwnerSelect";
 import Tabs from "@/components/common/Tabs";
 import { fetchRecentTransactions } from "@/api/transactions";
 import { fetchCashflowPlan } from "@/api/cashflowPlan";
@@ -439,21 +440,11 @@ export default function TransactionForm({
               </div>
 
               {users.length > 1 && (
-                <div>
-                  <label className={`block mb-1 font-medium ${LABEL_SM}`}>소유자</label>
-                  <select
-                    className={`${INPUT_SM} w-full`}
-                    value={values.owner_user_id}
-                    onChange={(e) => setValues((v) => ({ ...v, owner_user_id: e.target.value }))}
-                  >
-                    <option value="">공통</option>
-                    {users.map((u) => (
-                      <option key={u.id} value={u.id}>
-                        {u.display_name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
+                <OwnerSelect
+                  value={values.owner_user_id}
+                  onChange={(owner) => setValues((v) => ({ ...v, owner_user_id: owner }))}
+                  users={users}
+                />
               )}
             </div>
           )}
@@ -477,21 +468,12 @@ export default function TransactionForm({
           </div>
 
           {users.length > 1 && (
-            <div>
-              <label className={`block mb-1 font-medium ${LABEL_SM}`}>소유자</label>
-              <select
-                className={`${INPUT_SM} w-32`}
-                value={values.owner_user_id}
-                onChange={(e) => setValues((v) => ({ ...v, owner_user_id: e.target.value }))}
-              >
-                <option value="">공통</option>
-                {users.map((u) => (
-                  <option key={u.id} value={u.id}>
-                    {u.display_name}
-                  </option>
-                ))}
-              </select>
-            </div>
+            <OwnerSelect
+              value={values.owner_user_id}
+              onChange={(owner) => setValues((v) => ({ ...v, owner_user_id: owner }))}
+              users={users}
+              selectClassName="w-32"
+            />
           )}
         </>
       )}
