@@ -1,7 +1,7 @@
 from decimal import Decimal
 
 from sqlalchemy import ForeignKey, Numeric, String, UniqueConstraint
-from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.orm import Mapped, mapped_column
 
 from app.database import Base
 

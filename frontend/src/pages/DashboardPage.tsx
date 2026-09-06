@@ -23,13 +23,18 @@ import QuickAddFab from "@/components/common/QuickAddFab";
 import TransactionForm from "@/components/transactions/TransactionForm";
 import { fetchDashboard } from "@/api/dashboard";
 import { fetchCashflowPlan } from "@/api/cashflowPlan";
-import { fetchNetWorth } from "@/api/netWorth";
-import { fetchSettings } from "@/api/settings";
-import { fetchGoals } from "@/api/goals";
 import { createTransaction } from "@/api/transactions";
 import { useAuthStore } from "@/stores/authStore";
 import { useInvalidateTransactionRelated } from "@/hooks/useInvalidateTransactionRelated";
-import { useAccounts, useCategories, useSavingsProducts, useUsers } from "@/hooks/useReferenceData";
+import {
+  useAccounts,
+  useCategories,
+  useGoals,
+  useNetWorth,
+  useSavingsProducts,
+  useSettings,
+  useUsers,
+} from "@/hooks/useReferenceData";
 import { QUERY_KEYS } from "@/constants/queryKeys";
 import { STALE_TIME } from "@/constants/queryConfig";
 import { insightSeverityStyle, progressStatusBadgeClass, progressStatusLabel, worseStatus } from "@/utils/colors";
@@ -40,6 +45,7 @@ import { estimateGoalAcceleration } from "@/utils/monthRange";
 import { extractErrorMessage } from "@/utils/error";
 import { toast } from "@/utils/toast";
 import { findGrowlioInvestmentLink } from "@/constants/growlio";
+import { ROUTES, accountsSectionLink, planViewLink } from "@/constants/routes";
 import type { DashboardPeriod, SavingsProductOut } from "@/types";
 import { ChevronDown, ChevronRight, Flame, Target } from "lucide-react";
 
@@ -47,15 +53,15 @@ const PERIOD_TABS: DashboardPeriod[] = ["today", "week", "month"];
 const PERIOD_LABEL: Record<DashboardPeriod, string> = { today: "오늘", week: "이번주", month: "이번달" };
 
 const INSIGHT_LINKS: Partial<Record<string, { to: string; label: string }>> = {
-  savings_rate: { to: "/transactions", label: "가계부 보기" },
-  fixed_cost_ratio: { to: "/transactions", label: "가계부 보기" },
-  variable_spend_trend: { to: "/transactions", label: "가계부 보기" },
-  discretionary_ratio: { to: "/transactions", label: "가계부 보기" },
-  debt_ratio: { to: "/transactions", label: "가계부 보기" },
-  category_benchmark: { to: "/reports/yearly", label: "연간 리포트 보기" },
-  budget_overrun: { to: "/financial-plan?view=이번 달", label: "이번 달 계획 보기" },
-  emergency_fund: { to: "/accounts?section=저축·투자", label: "저축·투자 보기" },
-  savings_execution: { to: "/accounts?section=저축·투자", label: "저축·투자 보기" },
+  savings_rate: { to: ROUTES.transactions, label: "가계부 보기" },
+  fixed_cost_ratio: { to: ROUTES.transactions, label: "가계부 보기" },
+  variable_spend_trend: { to: ROUTES.transactions, label: "가계부 보기" },
+  discretionary_ratio: { to: ROUTES.transactions, label: "가계부 보기" },
+  debt_ratio: { to: ROUTES.transactions, label: "가계부 보기" },
+  category_benchmark: { to: ROUTES.reportsYearly, label: "연간 리포트 보기" },
+  budget_overrun: { to: planViewLink("이번 달"), label: "이번 달 계획 보기" },
+  emergency_fund: { to: accountsSectionLink("저축·투자"), label: "저축·투자 보기" },
+  savings_execution: { to: accountsSectionLink("저축·투자"), label: "저축·투자 보기" },
 };
 
 export default function DashboardPage() {
@@ -99,21 +105,9 @@ export default function DashboardPage() {
     staleTime: STALE_TIME.SHORT,
     enabled: period === "month",
   });
-  const { data: settingsData } = useQuery({
-    queryKey: QUERY_KEYS.settings,
-    queryFn: fetchSettings,
-    staleTime: STALE_TIME.MEDIUM,
-  });
-  const { data: netWorth } = useQuery({
-    queryKey: QUERY_KEYS.netWorth,
-    queryFn: () => fetchNetWorth(),
-    staleTime: STALE_TIME.MEDIUM,
-  });
-  const { data: goals } = useQuery({
-    queryKey: QUERY_KEYS.financialGoals,
-    queryFn: fetchGoals,
-    staleTime: STALE_TIME.MEDIUM,
-  });
+  const { data: settingsData } = useSettings();
+  const { data: netWorth } = useNetWorth();
+  const { data: goals } = useGoals();
   const { data: categories } = useCategories(undefined, { enabled: showQuickAdd });
   const { data: accounts } = useAccounts({ enabled: showQuickAdd });
   const { data: savingsProducts } = useSavingsProducts();
@@ -301,7 +295,7 @@ export default function DashboardPage() {
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {!topGoal ? (
-          <Link to="/financial-plan?view=목표" className="relative card block hover:border-emerald-300 dark:hover:border-emerald-700 transition-colors">
+          <Link to={planViewLink("목표")} className="relative card block hover:border-emerald-300 dark:hover:border-emerald-700 transition-colors">
             <ChevronRight size={16} className="absolute top-5 right-5 text-gray-300 dark:text-gray-600" aria-hidden="true" />
             <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">우리 부부 목표</h3>
             <EmptyState
@@ -312,7 +306,7 @@ export default function DashboardPage() {
             />
           </Link>
         ) : (
-          <Link to="/financial-plan?view=목표" className="relative block">
+          <Link to={planViewLink("목표")} className="relative block">
             <ChevronRight size={16} className="absolute top-5 right-5 text-gray-300 dark:text-gray-600 z-10" aria-hidden="true" />
             <GoalProgressCard
               className="hover:border-emerald-300 dark:hover:border-emerald-700 transition-colors"
@@ -366,7 +360,7 @@ export default function DashboardPage() {
           </Link>
         )}
 
-        <Link to="/accounts" className="relative card block hover:border-emerald-300 dark:hover:border-emerald-700 transition-colors">
+        <Link to={ROUTES.accounts} className="relative card block hover:border-emerald-300 dark:hover:border-emerald-700 transition-colors">
           <ChevronRight size={16} className="absolute top-4 right-4 text-gray-300 dark:text-gray-600" aria-hidden="true" />
           <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">순자산</h3>
           {!netWorth ? (

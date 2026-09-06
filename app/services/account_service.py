@@ -63,12 +63,15 @@ def update_account(
     return account
 
 
-def deactivate_account(db: Session, account_id: int) -> None:
+def deactivate_account(db: Session, account_id: int) -> bool:
+    """대상이 있으면 비활성화하고 True, 없으면 False (라우터가 404로 변환)."""
     account = db.get(Account, account_id)
-    if account is not None:
-        account.is_active = False
-        account.growlio_account_id = None
-        db.commit()
+    if account is None:
+        return False
+    account.is_active = False
+    account.growlio_account_id = None
+    db.commit()
+    return True
 
 
 def list_growlio_bank_accounts(bearer_token: str) -> list[dict]:

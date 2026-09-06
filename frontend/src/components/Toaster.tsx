@@ -1,11 +1,12 @@
 import { useEffect, useState } from "react";
 import type { ToastEvent } from "@/utils/toast";
+import { APP_EVENTS } from "@/constants/events";
 import { Z_TOASTER } from "@/constants/zIndex";
 import { BOTTOM_NAV_HEIGHT_PX } from "@/constants/uiSizes";
 
 const COLORS: Record<string, string> = {
   error: "bg-red-600",
-  success: "bg-green-600",
+  success: "bg-primary",
   info: "bg-blue-600",
 };
 
@@ -25,8 +26,8 @@ export default function Toaster() {
         detail.action ? 6000 : 3500,
       );
     };
-    window.addEventListener("nestlio:toast", handler);
-    return () => window.removeEventListener("nestlio:toast", handler);
+    window.addEventListener(APP_EVENTS.toast, handler);
+    return () => window.removeEventListener(APP_EVENTS.toast, handler);
   }, []);
 
   if (toasts.length === 0) return null;

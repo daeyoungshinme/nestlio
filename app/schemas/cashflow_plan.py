@@ -4,6 +4,8 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict
 
+from app.schemas.common import KrwAmount
+
 CashflowSection = Literal["income", "fixed", "variable", "irregular"]
 
 
@@ -41,7 +43,7 @@ class CashflowPlanItemUpsertIn(BaseModel):
     year_month: str
     owner_user_id: uuid.UUID | None = None
     name: str
-    amount: Decimal
+    amount: KrwAmount
     category_id: int | None = None
     sort_order: int = 0
     # 연간계획 폴백 항목(CashflowPlanItemOut.annual_plan_item_id)을 수정/저장해 승격시킬 때 프론트엔드가
@@ -54,7 +56,7 @@ class CashflowPlanItemSplitIn(BaseModel):
     section: CashflowSection
     owner_user_id: uuid.UUID | None = None
     name: str
-    total_amount: Decimal
+    total_amount: KrwAmount
     start_year_month: str
     category_id: int | None = None
     sort_order: int = 0

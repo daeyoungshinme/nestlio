@@ -16,6 +16,7 @@ import ConfirmModal from "@/components/common/ConfirmModal";
 import Modal from "@/components/common/Modal";
 import MonthPicker from "@/components/common/MonthPicker";
 import { currentYearMonth, shiftYearMonth } from "@/utils/date";
+import ErrorState from "@/components/common/ErrorState";
 import SkeletonCard from "@/components/common/SkeletonCard";
 import SummaryCard from "@/components/common/SummaryCard";
 import {
@@ -55,7 +56,7 @@ export default function CashflowPlanTab({ view }: { view: "monthly" | "annual" }
   const nextYearMonth = shiftYearMonth(yearMonth, 1);
   const nextYearMonthLabel = formatYearMonth(nextYearMonth);
 
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError, refetch } = useQuery({
     queryKey: QUERY_KEYS.cashflowPlan(yearMonth),
     queryFn: () => fetchCashflowPlan(yearMonth),
   });
@@ -114,21 +115,39 @@ export default function CashflowPlanTab({ view }: { view: "monthly" | "annual" }
     onError: (err) => toast(extractErrorMessage(err), "error"),
   });
 
+  // "최근 3개월 평균 제안값을 다음 달 계획에 반영" — 카테고리 예산/수입 항목이 공유하는 read-modify-write.
+  // 다음 달 계획을 조회해 매칭 항목이 있으면 갱신, 없으면 새로 만든다.
+  const applySuggestion = async (opts: {
+    match: (i: CashflowPlanItemOut) => boolean;
+    section: CashflowSection;
+    name: string;
+    amount: string;
+    categoryId: number | null;
+    ownerFallback?: string | null;
+  }) => {
+    const nextPlan = await fetchCashflowPlan(nextYearMonth);
+    const existing = nextPlan.items.find(opts.match);
+    return upsertCashflowPlanItem({
+      id: existing?.id ?? null,
+      section: opts.section,
+      year_month: nextYearMonth,
+      owner_user_id: existing?.owner_user_id ?? opts.ownerFallback ?? null,
+      name: existing?.name ?? opts.name,
+      amount: opts.amount,
+      category_id: opts.categoryId,
+      sort_order: existing?.sort_order ?? 0,
+    });
+  };
+
   const applyCategorySuggestionMutation = useMutation({
-    mutationFn: async (row: BudgetRowOut) => {
-      const nextPlan = await fetchCashflowPlan(nextYearMonth);
-      const existing = nextPlan.items.find((i) => i.category_id === row.category_id);
-      return upsertCashflowPlanItem({
-        id: existing?.id ?? null,
+    mutationFn: (row: BudgetRowOut) =>
+      applySuggestion({
+        match: (i) => i.category_id === row.category_id,
         section: row.type,
-        year_month: nextYearMonth,
-        owner_user_id: existing?.owner_user_id ?? null,
-        name: existing?.name ?? row.name,
+        name: row.name,
         amount: row.suggested_amount!,
-        category_id: row.category_id,
-        sort_order: existing?.sort_order ?? 0,
-      });
-    },
+        categoryId: row.category_id,
+      }),
     onMutate: (row) => setApplyingCategoryId(row.category_id),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.cashflowPlan(nextYearMonth) });
@@ -139,20 +158,15 @@ export default function CashflowPlanTab({ view }: { view: "monthly" | "annual" }
   });
 
   const applyIncomeSuggestionMutation = useMutation({
-    mutationFn: async ({ item, suggestedAmount }: { item: CashflowPlanItemOut; suggestedAmount: string }) => {
-      const nextPlan = await fetchCashflowPlan(nextYearMonth);
-      const existing = nextPlan.items.find((i) => i.section === "income" && i.name === item.name);
-      return upsertCashflowPlanItem({
-        id: existing?.id ?? null,
+    mutationFn: ({ item, suggestedAmount }: { item: CashflowPlanItemOut; suggestedAmount: string }) =>
+      applySuggestion({
+        match: (i) => i.section === "income" && i.name === item.name,
         section: "income",
-        year_month: nextYearMonth,
-        owner_user_id: existing?.owner_user_id ?? item.owner_user_id,
-        name: existing?.name ?? item.name,
+        name: item.name,
         amount: suggestedAmount,
-        category_id: null,
-        sort_order: existing?.sort_order ?? 0,
-      });
-    },
+        categoryId: null,
+        ownerFallback: item.owner_user_id,
+      }),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.cashflowPlan(nextYearMonth) });
       toast(`${nextYearMonthLabel} 계획에 반영했습니다.`, "success");
@@ -164,6 +178,9 @@ export default function CashflowPlanTab({ view }: { view: "monthly" | "annual" }
     return <AnnualPlanPanel />;
   }
 
+  if (isError) {
+    return <ErrorState onRetry={() => void refetch()} />;
+  }
   if (isLoading || !data) {
     return <SkeletonCard rows={6} />;
   }

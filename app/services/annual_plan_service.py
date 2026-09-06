@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session, selectinload
 from app.models.annual_plan_item import AnnualPlanItem
 from app.models.annual_plan_item_monthly_target import AnnualPlanItemMonthlyTarget
 from app.services import budget_service, plan_targets, transaction_report_service
-from app.utils.dates import year_bounds
+from app.utils.dates import year_bounds, year_month_of
 from app.utils.plan_status import pct_of
 
 SECTIONS = ("income", "fixed", "variable", "irregular")
@@ -72,11 +72,14 @@ def upsert_item(
     return item
 
 
-def delete_item(db: Session, id: int) -> None:
+def delete_item(db: Session, id: int) -> bool:
+    """대상 항목이 있으면 삭제하고 True, 없으면 False (라우터가 404로 변환)."""
     item = db.get(AnnualPlanItem, id)
-    if item is not None:
-        db.delete(item)
-        db.commit()
+    if item is None:
+        return False
+    db.delete(item)
+    db.commit()
+    return True
 
 
 def item_to_out(item: AnnualPlanItem) -> dict:
@@ -129,7 +132,7 @@ def section_summary(
     actual_total = Decimal("0")
     target_to_date = Decimal("0")
     for i, month in enumerate(range(1, 13)):
-        year_month = f"{year}-{month:02d}"
+        year_month = year_month_of(year, month)
         target = targets_by_month.get(year_month, Decimal("0.00"))
         actual = breakdown[i][section] if i < elapsed_months else None
         pct = pct_of(actual, target, zero_planned_default=None) if actual is not None else None

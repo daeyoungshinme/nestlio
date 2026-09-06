@@ -32,6 +32,11 @@ def year_month_str(d: date) -> str:
     return d.strftime("%Y-%m")
 
 
+def year_month_of(year: int, month: int) -> str:
+    """(year, month) -> "YYYY-MM". 손으로 f"{year}-{month:02d}"를 만들지 않는다."""
+    return f"{year:04d}-{month:02d}"
+
+
 def parse_year_month(s: str) -> date:
     year, month = s.split("-")
     return date(int(year), int(month), 1)

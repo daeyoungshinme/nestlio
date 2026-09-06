@@ -2,7 +2,7 @@
 
 React + TypeScript + Vite + Tailwind CSS SPA. growlio(`d:\project\growlio\frontend`)의 디자인 시스템/컴포넌트 컨벤션·인증 방식을 그대로 이식했다 — 새 UI를 추가할 때는 먼저 growlio에 유사한 화면/컴포넌트가 있는지 확인하고 패턴을 맞춘다. Capacitor(네이티브 앱 패키징), Sentry는 의도적으로 도입하지 않았다 (반응형 웹만 지원). PWA는 growlio처럼 `vite-plugin-pwa`/Workbox 기반 서비스워커·오프라인 캐싱까지는 아직 도입하지 않았지만, `public/manifest.webmanifest` + `public/icons/`만 추가해 홈 화면 설치(installability)는 지원한다 — `index.html`의 `<link rel="manifest">`/`apple-touch-icon`으로 연결. 오프라인에서는 여전히 동작하지 않는다.
 
-**아이콘**: 소스는 `public/favicon.svg` 하나뿐(512x512 뷰박스, growlio와 통일감 있는 불투명 rounded-square 배경 + `primary` 팔레트 색상). 여기서 필요한 모든 래스터를 `npm run generate:icons`(`scripts/generate-icons.mjs`, `sharp`+`png-to-ico` 사용)로 생성한다 — `public/icons/icon-{16,32,48,180,192,512}.png`와 `public/favicon.ico`. `favicon.svg`를 수정하면 반드시 이 스크립트를 다시 실행해 PNG/ICO를 재생성해야 한다(자동으로 반영되지 않음, 빌드 파이프라인에 포함되어 있지 않다).
+**아이콘**: 소스는 `public/favicon.svg` 하나뿐(512x512 뷰박스, growlio와 통일감 있는 불투명 rounded-square 배경의 부부 알 일러스트 — 앱 내부 accent(`tailwind.config.ts`의 `primary`, emerald)와는 별개인 독립 브랜드 마크다). 여기서 필요한 모든 래스터를 `npm run generate:icons`(`scripts/generate-icons.mjs`, `sharp`+`png-to-ico` 사용)로 생성한다 — `public/icons/icon-{16,32,48,180,192,512}.png`와 `public/favicon.ico`. `favicon.svg`를 수정하면 반드시 이 스크립트를 다시 실행해 PNG/ICO를 재생성해야 한다(자동으로 반영되지 않음, 빌드 파이프라인에 포함되어 있지 않다).
 
 ## Commands
 
@@ -10,6 +10,7 @@ React + TypeScript + Vite + Tailwind CSS SPA. growlio(`d:\project\growlio\fronte
 ```bash
 cd frontend && npm install
 ```
+Node 22 (`.nvmrc`, CI `ci.yml`도 Node 22).
 
 ### 실행
 ```bash
@@ -76,7 +77,7 @@ cd frontend && npm run test:watch  # 워치 모드
 **컴포넌트 디렉토리** (`src/components/`): 페이지별 디렉토리(`financialPlan/`, `accounts/`, `dashboard/`, `categories/`, `settings/`, `transactions/`)는 대체로 해당 페이지 1:1 전용 컴포넌트라 개별 나열 대신 디렉토리 단위로만 적는다 — 여러 페이지가 공유하거나 구조가 특이해 미리 알아둘 필요가 있는 것만 아래에 개별로 짚는다. 새 컴포넌트를 추가할 때 이 목록 전체를 갱신하지 않아도 된다(추가/삭제 때마다 드리프트가 나므로).
 - `layout/` — `AppLayout.tsx`(사이드바+헤더+본문+하단탭 셸), `Sidebar.tsx`(`hidden lg:flex`), `Header.tsx`(데스크톱/모바일 공통 상단바), `BottomNav.tsx`(`lg:hidden fixed bottom-0`, "더보기" 바텀시트 포함)
 - `common/` — growlio에서 옮긴 범용 컴포넌트(`Button`/`Modal`/`ConfirmModal`/`Tabs`/`FormInput`/`EmptyState`/`SkeletonCard`/`PageLoader`)와 nestlio 전용(`SummaryCard`/`SummaryCards`, `Badge`, `StatusBadge` — 색상/상태 표시는 항상 `utils/colors.ts` 경유), 그리고 여러 페이지가 공유하는 것들: `CategoryPicker`(카테고리 `<select>`, `kind` prop으로 수입/지출 필터링), `GrowlioImportModal`(growlio 미연동 항목을 골라 가져오는 제네릭 모달 — 계좌/저축상품/부동산 탭이 타입 파라미터로 재사용), `QuickAddFab`(가계부 페이지 하단 우측 빠른 추가 버튼), `DayPicker`/`WeekPicker`/`MonthPicker`, `CollapsibleGroup`, `RowActionButtons`/`AccountActionsMenu`
-- `transactions/TransactionForm.tsx` — 가계부 캘린더 페이지의 거래 추가/수정 모달과 `/transactions/:id/edit` 수정 페이지가 공유하는 폼
+- `transactions/TransactionForm.tsx` — 가계부 캘린더 페이지의 거래 추가/수정 인라인 모달(목록·날짜 모달 양쪽)이 공유하는 폼. 구 `/transactions/:id/edit` 전용 페이지는 삭제됐다
 - `transactions/EventForm.tsx` — 같은 페이지의 일정 추가/수정 모달이 쓰는 폼 (제목/종일/시작·종료일시/장소/설명/반복/리마인더)
 - `transactions/MonthCalendarGrid.tsx` — 월간 캘린더 그리드 셸(요일 헤더 + 7열 그리드, `buildGrid`/`todayIso`). 셀 렌더링은 `renderCell` render prop으로 위임하는 제네릭 컴포넌트
 - `transactions/LedgerDayCell.tsx` — `MonthCalendarGrid`의 날짜 셀. 거래 수입/지출 금액 + 일정 제목 칩 + 반복 거래 예정 배지를 함께 표시

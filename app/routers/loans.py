@@ -53,4 +53,5 @@ def update_loan(
 
 @router.post("/{loan_id}/deactivate", status_code=status.HTTP_204_NO_CONTENT)
 def deactivate_loan(loan_id: int, db: Session = Depends(get_db), _: User = Depends(get_current_user)):
-    loan_service.deactivate_loan(db, loan_id)
+    if not loan_service.deactivate_loan(db, loan_id):
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "대출을 찾을 수 없습니다.")

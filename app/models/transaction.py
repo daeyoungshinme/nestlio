@@ -47,3 +47,9 @@ class Transaction(Base):
     category: Mapped["Category"] = relationship(lazy="joined")
     account: Mapped["Account | None"] = relationship(lazy="joined")
     savings_product: Mapped["SavingsProduct | None"] = relationship(lazy="joined")
+
+    # 비영속(트랜잭션 스코프) 플래그 — DB 컬럼이 아니다(그래서 Mapped 애노테이션을 붙이지 않는다).
+    # growlio 잔액 반영이 best-effort로 실패했을 때 transaction_service._push_growlio가 True로
+    # 세팅하고, 라우터가 이를 읽어 응답 헤더(X-Growlio-Sync-Warning)로만 알린다.
+    # TransactionOut 스키마에는 포함하지 않는다.
+    growlio_sync_failed = False

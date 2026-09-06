@@ -7,6 +7,7 @@ import Button from "@/components/common/Button";
 import CollapsibleGroup from "@/components/common/CollapsibleGroup";
 import ConfirmModal from "@/components/common/ConfirmModal";
 import EmptyState from "@/components/common/EmptyState";
+import ErrorState from "@/components/common/ErrorState";
 import FormInput from "@/components/common/FormInput";
 import FundingSourceChecklist from "@/components/financialPlan/FundingSourceChecklist";
 import GoalMonthlyTargetEditor from "@/components/financialPlan/GoalMonthlyTargetEditor";
@@ -21,18 +22,17 @@ import { fetchDashboard } from "@/api/dashboard";
 import {
   createGoal,
   deleteGoal,
-  fetchGoals,
   fetchGrowlioGoalSettings,
   updateGoal,
   updateGoalMonthlyTarget,
 } from "@/api/goals";
-import { fetchLoans } from "@/api/loans";
 import { FORM_LABEL, FORM_SECTION_LABEL, INLINE_BUTTON_OFFSET, TEXTAREA_SM } from "@/constants/inputStyles";
 import { QUERY_KEYS } from "@/constants/queryKeys";
 import { STALE_TIME } from "@/constants/queryConfig";
 import { TOUCH_TARGET_MIN_HEIGHT } from "@/constants/uiSizes";
 import { useCrudMutations } from "@/hooks/useCrudMutations";
-import { useAccounts, useSavingsProducts } from "@/hooks/useReferenceData";
+import { useAccounts, useGoals, useLoans, useSavingsProducts } from "@/hooks/useReferenceData";
+import { planViewLink } from "@/constants/routes";
 import { progressStatusBadgeClass, progressStatusLabel } from "@/utils/colors";
 import { computeCardStatus, daysUntil, isGoalAchieved } from "@/utils/goalStatus";
 import { GOAL_SORT_LABELS, sortGoals, type GoalSortLabel } from "@/utils/goalSort";
@@ -190,14 +190,10 @@ export default function GoalsTab() {
   const [progressDraft, setProgressDraft] = useState<Record<number, string>>({});
   const [monthlyTargetDraft, setMonthlyTargetDraft] = useState<Record<string, string>>({});
 
-  const { data, isLoading } = useQuery({ queryKey: QUERY_KEYS.financialGoals, queryFn: fetchGoals });
+  const { data, isLoading, isError, refetch } = useGoals();
   const { data: savingsProducts } = useSavingsProducts();
   const { data: accounts } = useAccounts();
-  const { data: loans } = useQuery({
-    queryKey: QUERY_KEYS.loans,
-    queryFn: fetchLoans,
-    staleTime: STALE_TIME.MEDIUM,
-  });
+  const { data: loans } = useLoans();
   // goal_pace 코칭 문구는 대시보드 카드에서만 보여준다(중복 노출 제거). 이 쿼리는
   // investable_surplus(이번 달 여유자금 힌트, 아래 사용처 참고)를 위해 유지한다.
   const { data: dashboard } = useQuery({
@@ -261,6 +257,9 @@ export default function GoalsTab() {
     onError: (err) => toast(extractErrorMessage(err), "error"),
   });
 
+  if (isError) {
+    return <ErrorState onRetry={() => void refetch()} />;
+  }
   if (isLoading || !data) {
     return <SkeletonCard rows={4} />;
   }
@@ -533,8 +532,8 @@ export default function GoalsTab() {
   return (
     <div className="space-y-6">
       <Link
-        to="/financial-plan?view=연간"
-        className="block text-xs text-gray-500 dark:text-gray-400 hover:text-emerald-600 dark:hover:text-emerald-400"
+        to={planViewLink("연간")}
+        className="block text-xs text-gray-500 dark:text-gray-400 hover:text-primary dark:hover:text-primary-400"
       >
         올해 저축 계획·실적(계획 수입 − 계획 지출 대비 실제 순저축)은 연간 탭에서 확인해요 →
       </Link>
@@ -652,7 +651,7 @@ function GoalFormModal({
     existingGoal === null ? (
       <Tabs
         tabs={GOAL_KIND_TABS}
-        activeTab={KIND_TO_GOAL_KIND_TAB[draft.kind as "goal" | "challenge"]}
+        activeTab={KIND_TO_GOAL_KIND_TAB[draft.kind]}
         onChange={(tab) => {
           const nextKind = GOAL_KIND_TAB_TO_KIND[tab];
           setDraft((d) => ({
@@ -682,15 +681,17 @@ function GoalFormModal({
         toast("growlio에 설정된 투자목표가 없어요.", "error");
         return;
       }
+      const goalAmount = data.goal_amount;
+      const annualDepositGoal = data.annual_deposit_goal;
       // 다른 목표에 이미 연동된 상품은 후보에서 제외(availableSavingsProducts 참고).
       const growlioProductIds = availableSavingsProducts.filter(isGrowlioLinkedInvestment).map((p) => String(p.id));
       setDraft((d) => ({
         ...d,
         name: d.name.trim() === "" ? "growlio 투자목표" : d.name,
-        required_amount: String(Math.round(data.goal_amount as number)),
+        required_amount: String(Math.round(goalAmount)),
         monthly_saving_amount:
-          data.annual_deposit_goal !== null
-            ? String(Math.round(data.annual_deposit_goal / 12))
+          annualDepositGoal !== null
+            ? String(Math.round(annualDepositGoal / 12))
             : d.monthly_saving_amount,
         savings_product_ids: growlioProductIds.length > 0 ? growlioProductIds : d.savings_product_ids,
       }));

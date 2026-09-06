@@ -1,5 +1,6 @@
 import { BarChart3, CalendarDays, Home, Landmark, Settings, Target, Wallet } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
+import { ROUTES } from "@/constants/routes";
 
 export interface NavItem {
   to: string;
@@ -12,13 +13,13 @@ export interface NavGroup {
   items: NavItem[];
 }
 
-const DASHBOARD: NavItem = { to: "/", icon: Home, label: "대시보드" };
-const TRANSACTIONS: NavItem = { to: "/transactions", icon: Wallet, label: "가계부" };
-const ACCOUNTS: NavItem = { to: "/accounts", icon: Landmark, label: "자산" };
-const SCHEDULE: NavItem = { to: "/schedule", icon: CalendarDays, label: "일정" };
-const REPORTS_YEARLY: NavItem = { to: "/reports/yearly", icon: BarChart3, label: "연간리포트" };
-const FINANCIAL_PLAN: NavItem = { to: "/financial-plan", icon: Target, label: "계획·목표" };
-const SETTINGS: NavItem = { to: "/settings", icon: Settings, label: "설정" };
+const DASHBOARD: NavItem = { to: ROUTES.dashboard, icon: Home, label: "대시보드" };
+const TRANSACTIONS: NavItem = { to: ROUTES.transactions, icon: Wallet, label: "가계부" };
+const ACCOUNTS: NavItem = { to: ROUTES.accounts, icon: Landmark, label: "자산" };
+const SCHEDULE: NavItem = { to: ROUTES.schedule, icon: CalendarDays, label: "일정" };
+const REPORTS_YEARLY: NavItem = { to: ROUTES.reportsYearly, icon: BarChart3, label: "연간리포트" };
+const FINANCIAL_PLAN: NavItem = { to: ROUTES.financialPlan, icon: Target, label: "계획·목표" };
+const SETTINGS: NavItem = { to: ROUTES.settings, icon: Settings, label: "설정" };
 
 /** 사이드바(데스크톱, lg 이상)는 아래 그룹을 순서대로 전부 보여준다. 대시보드/연간리포트/설정은
  * 그룹 헤더 없이 단독으로 둔다. 앱의 유일한 목적("부부가 세운 자산증식 목표 달성")을 중심으로
@@ -56,6 +57,11 @@ function byPaths(paths: string[]): NavItem[] {
 /** 하단 탭(모바일)은 엄지 도달 범위/터치 타겟 크기를 지키기 위해 사용 빈도가 높은
  * 4개(대시보드/가계부/계획·목표/자산)만 상시 노출하고, 나머지(일정/연간리포트/설정)는
  * "더보기" 시트로 접는다. 목표 달성 루프의 중심축(계획·목표)을 자산보다 앞에 둔다. */
-export const BOTTOM_NAV_PRIMARY_ITEMS: NavItem[] = byPaths(["/", "/transactions", "/financial-plan", "/accounts"]);
+export const BOTTOM_NAV_PRIMARY_ITEMS: NavItem[] = byPaths([
+  ROUTES.dashboard,
+  ROUTES.transactions,
+  ROUTES.financialPlan,
+  ROUTES.accounts,
+]);
 
-export const BOTTOM_NAV_MORE_ITEMS: NavItem[] = byPaths(["/schedule", "/reports/yearly", "/settings"]);
+export const BOTTOM_NAV_MORE_ITEMS: NavItem[] = byPaths([ROUTES.schedule, ROUTES.reportsYearly, ROUTES.settings]);

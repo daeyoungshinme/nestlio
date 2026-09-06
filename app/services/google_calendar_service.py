@@ -1,14 +1,20 @@
+import logging
 from datetime import date, datetime, time, timedelta
 from zoneinfo import ZoneInfo
 
 from googleapiclient.discovery import build
+from googleapiclient.errors import HttpError
 from sqlalchemy.orm import Session
 
 from app.models.event import Event
 from app.models.recurring_expense import RecurringExpense
 from app.services.google_auth import get_credentials
 
+logger = logging.getLogger(__name__)
+
 CALENDAR_ID = "primary"
+# Google이 "이 이벤트는 이제 없다"고 알려주는 상태 코드 — 이때만 링크를 끊고 재생성한다.
+_GONE_STATUSES = {404, 410}
 TIME_ZONE = "Asia/Seoul"
 _RRULE_FREQ = {"weekly": "WEEKLY", "monthly": "MONTHLY"}
 
@@ -45,8 +51,11 @@ def upsert_event_for_recurring(db: Session, recurring: RecurringExpense) -> None
             ).execute()
             db.commit()
             return
-        except Exception:
-            # event may have been deleted on the Google side - fall through and recreate
+        except HttpError as e:
+            if e.resp.status not in _GONE_STATUSES:
+                raise
+            # 구글 쪽에서 이벤트가 삭제된 경우에만 링크를 끊고 아래에서 재생성한다.
+            # (네트워크/인증/429 등 일시적 오류에 재생성하면 캘린더에 중복 이벤트가 쌓인다)
             recurring.calendar_event_id = None
 
     created = service.events().insert(calendarId=CALENDAR_ID, body=body).execute()
@@ -96,8 +105,10 @@ def upsert_event(db: Session, event: Event) -> None:
             ).execute()
             db.commit()
             return
-        except Exception:
-            # event may have been deleted on the Google side - fall through and recreate
+        except HttpError as e:
+            if e.resp.status not in _GONE_STATUSES:
+                raise
+            # 구글 쪽에서 이벤트가 삭제된 경우에만 링크를 끊고 아래에서 재생성한다.
             event.google_calendar_event_id = None
 
     created = service.events().insert(calendarId=CALENDAR_ID, body=body).execute()
@@ -142,5 +153,10 @@ def delete_event(event: Event) -> None:
     service = _service()
     try:
         service.events().delete(calendarId=CALENDAR_ID, eventId=event.google_calendar_event_id).execute()
+    except HttpError as e:
+        # 이미 지워진(404/410) 경우는 목표 달성이므로 무시하되, 그 외 오류는 로그로 남긴다.
+        # 로컬 이벤트 삭제 자체는 계속 진행돼야 하므로 여기서 raise하지 않는다(best-effort).
+        if e.resp.status not in _GONE_STATUSES:
+            logger.exception("구글 캘린더 이벤트 삭제 실패 (event_id=%s)", event.google_calendar_event_id)
     except Exception:
-        pass
+        logger.exception("구글 캘린더 이벤트 삭제 중 예외 (event_id=%s)", event.google_calendar_event_id)

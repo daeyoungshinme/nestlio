@@ -263,7 +263,6 @@ def _trailing_average_by_owner_batch(
     range_end = month_bounds(max(month_starts))[1]
     rows = (
         db.query(Transaction.owner_user_id, Transaction.category_id, Transaction.amount)
-        .join(Category, Transaction.category_id == Category.id)
         .filter(
             Transaction.type == type_,
             Transaction.transaction_date >= range_start,

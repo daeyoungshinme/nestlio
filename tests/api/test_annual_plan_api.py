@@ -130,6 +130,10 @@ def test_delete_item(client):
     assert list_resp.json()["items"] == []
 
 
+def test_delete_item_404_when_missing(client):
+    assert client.delete("/api/v1/annual-plan/items/99999").status_code == 404
+
+
 def test_get_plan_returns_all_four_section_summaries(client):
     resp = client.get("/api/v1/annual-plan", params={"year": 2026})
     assert resp.status_code == 200

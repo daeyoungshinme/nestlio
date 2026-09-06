@@ -7,13 +7,12 @@ import SkeletonCard from "@/components/common/SkeletonCard";
 import CollapsibleGroup from "@/components/common/CollapsibleGroup";
 import AssetCompositionDonut from "@/components/accounts/AssetCompositionDonut";
 import NetWorthTrendChart from "@/components/accounts/NetWorthTrendChart";
-import { fetchGrowlioUnlinkedNetWorth, fetchNetWorth } from "@/api/netWorth";
+import { fetchGrowlioUnlinkedNetWorth } from "@/api/netWorth";
 import { syncAllSavingsProducts } from "@/api/savingsProducts";
-import { fetchLoans } from "@/api/loans";
 import { syncAllAccounts } from "@/api/accounts";
 import { syncAllRealEstate } from "@/api/realEstate";
 import { QUERY_KEYS } from "@/constants/queryKeys";
-import { useSavingsProducts } from "@/hooks/useReferenceData";
+import { useLoans, useNetWorth, useSavingsProducts } from "@/hooks/useReferenceData";
 import { formatKrw, formatKrwCompact } from "@/utils/format";
 import { computeRealEstateNet, splitSavingsAndRealEstate } from "@/utils/netWorth";
 import { netWorthTextColor } from "@/utils/colors";
@@ -24,7 +23,7 @@ import type { GrowlioSyncAllOut, GrowlioSyncFailureOut } from "@/types";
 export default function AccountsSnapshotCard() {
   const queryClient = useQueryClient();
   const [syncFailures, setSyncFailures] = useState<GrowlioSyncFailureOut[] | null>(null);
-  const { data, isLoading } = useQuery({ queryKey: QUERY_KEYS.netWorth, queryFn: () => fetchNetWorth(12) });
+  const { data, isLoading } = useNetWorth(12);
   // "저축·투자"/"부동산" 카드 분리용 — 같은 상품 목록(다른 탭들과 쿼리 키 공유, 추가 네트워크 요청
   // 없음)에서 부동산 몫만 빼는 계산은 splitSavingsAndRealEstate(utils/netWorth.ts)로 통일한다
   // (DashboardPage의 순자산 카드도 동일 함수를 써서 두 화면 숫자가 항상 일치하도록 보장).
@@ -32,7 +31,7 @@ export default function AccountsSnapshotCard() {
   // 도넛의 부동산 조각을 담보대출 순액으로 보여주기 위한 대출 목록(다른 탭들과 쿼리 키 공유,
   // 추가 네트워크 요청 없음) — growlio_account_id로 부동산 자산과 짝지어진 대출만 골라낸다
   // (app/services/real_estate_service.py의 담보대출 연동과 동일한 매칭 방식).
-  const { data: loans } = useQuery({ queryKey: QUERY_KEYS.loans, queryFn: fetchLoans });
+  const { data: loans } = useLoans();
 
   // growlio에 있지만 아직 안 가져온 자산 — growlio HTTP를 2회 더 부르므로 화면 로드마다 자동
   // 실행하지 않고(대시보드에서 이 카드로 옮기면서 그 비용도 함께 뺐다) 버튼으로만 조회한다.
@@ -58,7 +57,7 @@ export default function AccountsSnapshotCard() {
       void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.accounts });
       void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.savingsProducts });
       void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.loans });
-      void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.netWorth });
+      void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.netWorthAll });
 
       const fulfilled = results.filter(
         (r): r is PromiseFulfilledResult<GrowlioSyncAllOut> => r.status === "fulfilled",

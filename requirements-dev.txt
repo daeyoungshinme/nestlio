@@ -1,0 +1,3 @@
+# 테스트/개발 전용 의존성. 프로덕션 이미지(render.yaml: requirements.txt만 설치)에는 들어가지 않는다.
+# CI backend job과 로컬 개발에서만: pip install -r requirements.txt -r requirements-dev.txt
+pytest==8.3.3

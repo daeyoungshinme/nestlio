@@ -82,7 +82,7 @@ def create_transaction(
             notification_service.check_and_alert_budget_threshold(db, payload.category_id)
         except Exception:
             logger.exception("예산 초과 알림 발송 실패 (거래는 정상 저장됨)")
-    if getattr(tx, "growlio_sync_failed", False):
+    if tx.growlio_sync_failed:
         response.headers["X-Growlio-Sync-Warning"] = "1"
     return tx
 
@@ -217,7 +217,7 @@ def update_transaction(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
     if tx is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="거래 내역을 찾을 수 없습니다.")
-    if getattr(tx, "growlio_sync_failed", False):
+    if tx.growlio_sync_failed:
         response.headers["X-Growlio-Sync-Warning"] = "1"
     return tx
 

@@ -62,7 +62,7 @@ export default function ConfirmModal({
             onClick={onConfirm}
             disabled={confirmDisabled}
             className={`${TOUCH_TARGET_MIN} px-4 text-sm font-medium rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${
-              danger ? "bg-red-600 text-white hover:bg-red-700" : "bg-blue-600 text-white hover:bg-blue-700"
+              danger ? "bg-red-600 text-white hover:bg-red-700" : "bg-primary text-white hover:bg-primary-700"
             }`}
           >
             {confirmLabel}

@@ -128,4 +128,5 @@ def update_monthly_target(
 
 @router.delete("/{goal_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_goal(goal_id: int, db: Session = Depends(get_db), _: User = Depends(get_current_user)):
-    goal_service.delete_goal(db, goal_id)
+    if not goal_service.delete_goal(db, goal_id):
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "목표를 찾을 수 없습니다.")

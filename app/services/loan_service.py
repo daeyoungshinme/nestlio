@@ -69,8 +69,11 @@ def update_loan(
     return loan
 
 
-def deactivate_loan(db: Session, loan_id: int) -> None:
+def deactivate_loan(db: Session, loan_id: int) -> bool:
+    """대상이 있으면 비활성화하고 True, 없으면 False (라우터가 404로 변환)."""
     loan = db.get(Loan, loan_id)
-    if loan is not None:
-        loan.is_active = False
-        db.commit()
+    if loan is None:
+        return False
+    loan.is_active = False
+    db.commit()
+    return True

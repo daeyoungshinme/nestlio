@@ -2,6 +2,7 @@ import { Link } from "react-router-dom";
 import ProgressBar from "@/components/common/ProgressBar";
 import { insightSeverityStyle } from "@/utils/colors";
 import { formatKrw } from "@/utils/format";
+import { planViewLink } from "@/constants/routes";
 import type { CategoryBenchmarkRowOut, OwnerOverspendHighlightOut } from "@/types";
 
 interface Props {
@@ -22,8 +23,8 @@ export default function SpendingFocusCard({
       <div className="flex items-center justify-between text-sm">
         <span className="font-medium text-gray-700 dark:text-gray-300">지출 줄이기</span>
         <Link
-          to="/financial-plan?view=이번 달"
-          className="text-xs font-semibold text-emerald-600 dark:text-emerald-400 hover:underline"
+          to={planViewLink("이번 달")}
+          className="text-xs font-semibold text-primary dark:text-primary-400 hover:underline"
         >
           예산 조정하기
         </Link>

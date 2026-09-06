@@ -43,7 +43,7 @@ class GoalMonthlyTargetOut(BaseModel):
 
 
 class GoalMonthlyTargetAchievedIn(BaseModel):
-    achieved_amount: Decimal
+    achieved_amount: KrwAmount
 
 
 class FinancialGoalOut(BaseModel):
@@ -85,9 +85,9 @@ class FinancialGoalCreateIn(BaseModel):
     description: str | None = None
     target_age: int | None = None
     target_date: date | None = None
-    required_amount: Decimal = Decimal("0")
-    monthly_saving_amount: Decimal = Decimal("0")
-    current_amount: Decimal = Decimal("0")
+    required_amount: KrwAmount = Decimal("0")
+    monthly_saving_amount: KrwAmount = Decimal("0")
+    current_amount: KrwAmount = Decimal("0")
     funding_sources: list[FundingSourceIn] = []
     start_date: date | None = None
     monthly_targets: list[GoalMonthlyTargetIn] | None = None
@@ -99,9 +99,9 @@ class FinancialGoalUpdateIn(BaseModel):
     description: str | None = None
     target_age: int | None
     target_date: date | None = None
-    required_amount: Decimal
-    monthly_saving_amount: Decimal
-    current_amount: Decimal = Decimal("0")
+    required_amount: KrwAmount
+    monthly_saving_amount: KrwAmount
+    current_amount: KrwAmount = Decimal("0")
     funding_sources: list[FundingSourceIn] = []
     start_date: date | None = None
     monthly_targets: list[GoalMonthlyTargetIn] | None = None

@@ -4,6 +4,7 @@ import { ChevronDown } from "lucide-react";
 import SummaryCard from "@/components/common/SummaryCard";
 import { formatKrw, formatKrwCompact, formatPercent } from "@/utils/format";
 import { planStatusTextClass, type PlanStatus } from "@/utils/colors";
+import { planViewLink } from "@/constants/routes";
 import type { TotalsOut } from "@/types";
 
 export interface PlanCardSummary {
@@ -93,7 +94,7 @@ export default function SummaryCards({ totals, collapsible = false, planSummary 
             />
           </div>
           <Link
-            to="/financial-plan?view=이번 달"
+            to={planViewLink("이번 달")}
             className="block text-center text-xs font-semibold text-gray-500 dark:text-gray-400 underline hover:no-underline"
           >
             {planSummary ? "계획 상세보기" : "계획 대비 보기"}

@@ -45,8 +45,11 @@ def update_category(
     return category
 
 
-def deactivate_category(db: Session, category_id: int) -> None:
+def deactivate_category(db: Session, category_id: int) -> bool:
+    """대상이 있으면 비활성화하고 True, 없으면 False (라우터가 404로 변환)."""
     category = db.get(Category, category_id)
-    if category is not None:
-        category.is_active = False
-        db.commit()
+    if category is None:
+        return False
+    category.is_active = False
+    db.commit()
+    return True

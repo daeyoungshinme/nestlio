@@ -43,7 +43,9 @@ export const QUERY_KEYS = {
   growlioBankAccounts: ["growlio-accounts", "accounts"] as const,
   growlioRealEstateAccounts: ["growlio-accounts", "real-estate"] as const,
   loans: ["loans"] as const,
-  netWorth: ["net-worth"] as const,
+  netWorth: (months = 12) => ["net-worth", months] as const,
+  /** Prefix for invalidating every net-worth months variant at once. */
+  netWorthAll: ["net-worth"] as const,
   netWorthGrowlioUnlinked: ["net-worth", "growlio-unlinked"] as const,
   recurring: ["recurring"] as const,
   notifications: ["notifications"] as const,

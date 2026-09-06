@@ -84,6 +84,10 @@ def test_deactivate_category_excludes_it_from_list(client):
     assert all(c["id"] != category_id for c in list_resp.json())
 
 
+def test_deactivate_category_404_when_missing(client):
+    assert client.post("/api/v1/categories/99999/deactivate").status_code == 404
+
+
 def test_get_current_user_profile(client, seeded_db):
     user = seeded_db["user"]
     resp = client.get("/api/v1/users/me")

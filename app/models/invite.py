@@ -20,3 +20,8 @@ class Invite(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
     expires_at: Mapped[datetime] = mapped_column(DateTime)
     accepted_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+
+    # 비영속 플래그 — DB 컬럼이 아니다(그래서 Mapped 애노테이션을 붙이지 않는다).
+    # invite_service.create_invite가 방금 초대 이메일을 실제로 보냈는지
+    # (None=아직 시도 안 함, True/False=발송 성공/실패) 담아 to_out이 응답에 싣는다.
+    email_sent = None

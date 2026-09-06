@@ -1,6 +1,12 @@
 """스쿼시된 베이스라인이 아카이브된 구 체인과 스키마상 동일한지, 그리고 현재 모델과
 드리프트가 없는지 검증한다.
 
+⚠️ 일회성 검증 도구다. 2026-09-01 스쿼시 검증용이며 다음 스쿼시 전까지는 실행할 일이 없다.
+실행 중 `migrations/versions/`에 아카이브 51개를 잠시 복사하고 베이스라인을 `.bak`으로
+리네임했다가 `finally`에서 되돌린다 — 도중에 Ctrl-C/크래시가 나면 repo 트리가 다중 head
+상태로 남을 수 있으니, 반드시 커밋되지 않은 변경이 없는 상태에서 실행하고 중단 시
+`git status`/`git checkout -- migrations/`로 확인·복구한다.
+
 `tests/conftest.py`가 SQLite로 도는 것과 달리 이 검증은 진짜 PostgreSQL이 필요하다
 (마이그레이션에 `household.` 스키마와 raw SQL이 있어 SQLite로 대체 불가). 임베디드
 Postgres(`pgserver`)를 쓰므로 로컬에 Postgres/Docker를 깔 필요는 없다:

@@ -4,6 +4,7 @@ import { ArrowRight, Pencil } from "lucide-react";
 import { Link } from "react-router-dom";
 import Button from "@/components/common/Button";
 import EmptyState from "@/components/common/EmptyState";
+import ErrorState from "@/components/common/ErrorState";
 import Modal from "@/components/common/Modal";
 import SkeletonCard from "@/components/common/SkeletonCard";
 import StatusBadge from "@/components/common/StatusBadge";
@@ -17,6 +18,7 @@ import {
   upsertSavingsProductAnnualPlan,
 } from "@/api/savingsProducts";
 import { useSavingsProducts, useUsers } from "@/hooks/useReferenceData";
+import { accountsSectionLink, planViewLink } from "@/constants/routes";
 import { QUERY_KEYS } from "@/constants/queryKeys";
 import { TOUCH_TARGET_MIN_MOBILE_ONLY } from "@/constants/uiSizes";
 import { formatKrw, formatPercent } from "@/utils/format";
@@ -37,7 +39,7 @@ import type {
   UserOut,
 } from "@/types";
 
-const ACCOUNTS_SAVINGS_TAB_LINK = "/accounts?section=저축·투자";
+const ACCOUNTS_SAVINGS_TAB_LINK = accountsSectionLink("저축·투자");
 const VIEW_MODE_TABS = ["이번 달", "올해 누적"] as const;
 type ViewMode = (typeof VIEW_MODE_TABS)[number];
 
@@ -303,12 +305,22 @@ export default function SavingsInvestmentPlanPanel({
   const [viewMode, setViewMode] = useState<ViewMode>(initialViewMode);
   const year = Number(yearMonth.slice(0, 4));
 
-  const { data: monthData, isLoading: isMonthLoading } = useQuery({
+  const {
+    data: monthData,
+    isLoading: isMonthLoading,
+    isError: isMonthError,
+    refetch: refetchMonth,
+  } = useQuery({
     queryKey: QUERY_KEYS.savingsProductsPlan(yearMonth),
     queryFn: () => fetchSavingsProductsPlan(yearMonth),
     enabled: viewMode === "이번 달",
   });
-  const { data: annualData, isLoading: isAnnualLoading } = useQuery({
+  const {
+    data: annualData,
+    isLoading: isAnnualLoading,
+    isError: isAnnualError,
+    refetch: refetchAnnual,
+  } = useQuery({
     queryKey: QUERY_KEYS.savingsProductsAnnualPlan(year),
     queryFn: () => fetchSavingsProductsAnnualPlan(year),
     enabled: viewMode === "올해 누적",
@@ -319,6 +331,9 @@ export default function SavingsInvestmentPlanPanel({
   const isMonthMode = viewMode === "이번 달";
   const isLoading = isMonthMode ? isMonthLoading || !monthData : isAnnualLoading || !annualData;
 
+  if (isMonthMode ? isMonthError : isAnnualError) {
+    return <ErrorState onRetry={() => void (isMonthMode ? refetchMonth() : refetchAnnual())} />;
+  }
   if (isLoading) {
     return <SkeletonCard rows={4} />;
   }
@@ -334,8 +349,8 @@ export default function SavingsInvestmentPlanPanel({
   const investmentItems = items.filter((i) => i.product_type === "investment");
 
   const otherViewLink = isMonthMode
-    ? { to: "/financial-plan?view=연간", label: "연간 누적 보기" }
-    : { to: "/financial-plan?view=이번 달", label: "이번 달 상세 보기" };
+    ? { to: planViewLink("연간"), label: "연간 누적 보기" }
+    : { to: planViewLink("이번 달"), label: "이번 달 상세 보기" };
 
   return (
     <div className="space-y-4">

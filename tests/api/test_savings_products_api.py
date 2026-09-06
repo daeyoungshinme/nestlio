@@ -236,3 +236,7 @@ def test_growlio_import_creates_one_product_per_selected_account(client, seeded_
     # 가져오기를 실행한 로그인 사용자가 그 상품의 소유자로 자동 설정된다
     for product in body:
         assert product["owner_user_id"] == str(seeded_db["user"].id)
+
+
+def test_deactivate_product_404_when_missing(client):
+    assert client.post("/api/v1/savings-products/99999/deactivate").status_code == 404

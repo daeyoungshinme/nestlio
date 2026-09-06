@@ -36,7 +36,8 @@ def _push_growlio(
     """저축/투자 잔액 조정을 growlio 쪽에도 best-effort로 반영한다.
 
     growlio가 잠들어있거나 응답하지 않아도 가계부 저장 자체는 이미 끝난 뒤이므로 절대
-    raise하지 않는다 — 실패 시 로그만 남기고 tx에 비영속 플래그(growlio_sync_failed)를 얹어
+    raise하지 않는다 — 실패 시 로그만 남기고 tx의 비영속 플래그
+    `Transaction.growlio_sync_failed`(모델에 선언된 클래스 속성, DB 컬럼 아님)를 True로 세팅해
     라우터가 응답 헤더로 경고를 알릴 수 있게 한다(TransactionOut 스키마 변경 없이 소비).
     """
     if not bearer_token:

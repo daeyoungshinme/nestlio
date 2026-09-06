@@ -9,14 +9,6 @@ from app.models.savings_product import SavingsProduct
 from app.services import growlio_client
 from app.services.growlio_client import GrowlioSyncError
 
-__all__ = [
-    "GrowlioSyncError",
-    "list_growlio_real_estate",
-    "import_from_growlio",
-    "sync_from_growlio",
-    "sync_all_from_growlio",
-]
-
 
 def list_growlio_real_estate(bearer_token: str) -> list[dict]:
     """연동 대상 선택 UI를 위해 growlio 부동산 계좌 목록을 전달한다."""
@@ -169,11 +161,7 @@ def sync_all_from_growlio(db: Session, bearer_token: str, *, now: datetime) -> t
         match = growlio_client.find_by_growlio_id(items, product.growlio_account_id)
         if match is None:
             failed.append(
-                {
-                    "id": product.id,
-                    "name": product.name,
-                    "reason": "growlio에서 연동된 부동산 계좌를 찾을 수 없습니다 (배우자 계정이거나 삭제되었을 수 있습니다).",
-                }
+                {"id": product.id, "name": product.name, "reason": growlio_client.SYNC_MATCH_FAILED_REASON}
             )
             continue
         product.current_balance = growlio_client.to_decimal_krw(match["market_value_krw"])

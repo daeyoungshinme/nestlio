@@ -54,7 +54,7 @@ def to_out(invite: Invite) -> dict:
         "expires_at": invite.expires_at,
         "accepted_at": invite.accepted_at,
         "accept_url": _accept_url(invite.token),
-        "email_sent": getattr(invite, "email_sent", None),
+        "email_sent": invite.email_sent,
     }
 
 

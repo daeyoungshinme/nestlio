@@ -91,6 +91,10 @@ def test_deactivate_account_excludes_it_from_list(client):
     assert all(r["account"]["id"] != account_id for r in list_resp.json())
 
 
+def test_deactivate_account_404_when_missing(client):
+    assert client.post("/api/v1/accounts/99999/deactivate").status_code == 404
+
+
 def test_list_growlio_accounts_proxies_bank_accounts_only(client):
     _override_bearer_token()
 
