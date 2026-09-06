@@ -22,8 +22,14 @@ cd frontend && npm run dev
 ### 빌드 & 타입 체크
 ```bash
 cd frontend && npm run build       # tsc -b && vite build → frontend/dist
-cd frontend && npm run typecheck   # npx tsc --noEmit 과 동일 (빌드 산출물 없음)
+cd frontend && npm run typecheck   # tsc --noEmit (빌드 산출물 없음)
+cd frontend && npm run lint        # oxlint --deny-warnings (경고도 CI 실패로 취급)
 ```
+
+타입체크는 `tsconfig.app.json`/`tsconfig.node.json`이 `strict: true`다. oxlint는
+`.oxlintrc.json`에서 `correctness` 카테고리 전체 + `react/exhaustive-deps`(stale-closure
+방지)·`import/no-cycle`을 error로 올렸고, `npm run lint`가 `--deny-warnings`라 경고 1건도
+CI를 통과하지 못한다.
 
 > **주의**: `frontend/.env`(`VITE_SUPABASE_URL`/`VITE_SUPABASE_ANON_KEY`)는 빌드 시점에 번들에 그대로 굳어 들어간다(`src/lib/supabase.ts`). `.env`가 없거나 오래된 상태로 `npm run build`를 실행하면, 실행 시 `main.tsx` import 체인 최상단에서 `supabase.ts`가 즉시 `throw`해 React가 마운트되기도 전에 죽는다 — `ErrorBoundary`도 못 잡는 모듈 로드 단계 예외라 브라우저에는 아무 에러 표시 없이 **완전히 빈 화면**만 남는다. `.env`를 수정했다면 반드시 재빌드한다 (`npm run dev`는 매번 새로 읽으므로 영향 없음).
 
