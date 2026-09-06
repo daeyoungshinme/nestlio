@@ -25,7 +25,7 @@ export function categoryTypeBadgeStyle(type: "fixed" | "variable" | "irregular")
 }
 
 const TRANSACTION_TYPE_STYLE: Record<"income" | "expense", string> = {
-  income: "bg-emerald-50 dark:bg-emerald-950 text-emerald-600 dark:text-emerald-400",
+  income: "bg-primary-50 dark:bg-primary-950 text-primary-600 dark:text-primary-400",
   expense: "bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400",
 };
 
@@ -34,7 +34,7 @@ export function transactionTypeBadgeStyle(type: "income" | "expense"): string {
 }
 
 const TRANSACTION_AMOUNT_TEXT: Record<"income" | "expense", string> = {
-  income: "text-emerald-600 dark:text-emerald-400",
+  income: "text-primary-600 dark:text-primary-400",
   expense: "text-gray-700 dark:text-gray-300",
 };
 
@@ -45,13 +45,13 @@ export function transactionAmountTextColor(type: "income" | "expense"): string {
 export type PlanStatus = "ok" | "warn" | "critical";
 
 const PLAN_STATUS_BAR: Record<PlanStatus, string> = {
-  ok: "bg-emerald-500",
+  ok: "bg-primary-500",
   warn: "bg-amber-500",
   critical: "bg-red-500",
 };
 
 const PLAN_STATUS_TEXT: Record<PlanStatus, string> = {
-  ok: "text-emerald-600 dark:text-emerald-400",
+  ok: "text-primary-600 dark:text-primary-400",
   warn: "text-amber-600 dark:text-amber-400",
   critical: "text-red-600 dark:text-red-400",
 };
@@ -78,14 +78,14 @@ export function worseStatus(a: PlanStatus | null, b: PlanStatus | null): PlanSta
 export type SavingsProductType = "savings" | "investment" | "real_estate" | "emergency_fund";
 
 const SAVINGS_PRODUCT_TYPE_BADGE_STYLE: Record<SavingsProductType, string> = {
-  savings: "bg-emerald-50 dark:bg-emerald-950 text-emerald-600 dark:text-emerald-400",
+  savings: "bg-primary-50 dark:bg-primary-950 text-primary-600 dark:text-primary-400",
   investment: "bg-blue-50 dark:bg-blue-950 text-blue-600 dark:text-blue-400",
   real_estate: "bg-amber-50 dark:bg-amber-950 text-amber-600 dark:text-amber-400",
   emergency_fund: "bg-rose-50 dark:bg-rose-950 text-rose-600 dark:text-rose-400",
 };
 
 const SAVINGS_PRODUCT_TYPE_DOT: Record<SavingsProductType, string> = {
-  savings: "bg-emerald-500",
+  savings: "bg-primary-500",
   investment: "bg-blue-500",
   real_estate: "bg-amber-500",
   emergency_fund: "bg-rose-500",
@@ -117,14 +117,14 @@ export function returnRateTextColor(pct: number): string {
 }
 
 export function netWorthTextColor(netWorth: number): string {
-  return netWorth >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400";
+  return netWorth >= 0 ? "text-primary-600 dark:text-primary-400" : "text-red-600 dark:text-red-400";
 }
 
 export type InviteStatus = "pending" | "accepted" | "expired";
 
 const INVITE_STATUS_TEXT: Record<InviteStatus, string> = {
   pending: "text-blue-600 dark:text-blue-400",
-  accepted: "text-emerald-600 dark:text-emerald-400",
+  accepted: "text-primary-600 dark:text-primary-400",
   expired: "text-gray-400 dark:text-gray-500",
 };
 
@@ -145,7 +145,7 @@ export function inviteStatusLabel(status: InviteStatus): string {
 export type ConnectionStatus = "connected" | "disconnected";
 
 const CONNECTION_STATUS_BADGE: Record<ConnectionStatus, string> = {
-  connected: "bg-emerald-50 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300",
+  connected: "bg-primary-50 dark:bg-primary-950 text-primary-700 dark:text-primary-300",
   disconnected: "bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400",
 };
 
@@ -170,7 +170,7 @@ export type ProgressStatus = "on_track" | "behind" | "achieved" | "expired" | "n
 const PROGRESS_STATUS_BADGE: Record<ProgressStatus, string> = {
   on_track: "bg-blue-50 dark:bg-blue-950 text-blue-700 dark:text-blue-300",
   behind: "bg-amber-50 dark:bg-amber-950 text-amber-700 dark:text-amber-300",
-  achieved: "bg-emerald-50 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300",
+  achieved: "bg-primary-50 dark:bg-primary-950 text-primary-700 dark:text-primary-300",
   expired: "bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400",
   neutral: "bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400",
 };
@@ -229,7 +229,7 @@ export function googleImportedEventBadgeStyle(): string {
 }
 
 export function linkedGoalBadgeStyle(): string {
-  return "bg-emerald-50 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300";
+  return "bg-primary-50 dark:bg-primary-950 text-primary-700 dark:text-primary-300";
 }
 
 /** 대시보드 "함께 모은 돈" 카드에서 이번 기간 저축을 더 많이 한 배우자에게 붙이는 리더 배지. */

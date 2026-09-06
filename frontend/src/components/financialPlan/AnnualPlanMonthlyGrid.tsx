@@ -73,7 +73,7 @@ export default function AnnualPlanMonthlyGrid({ startMonth, endMonth, targets, o
                 disabled={Number(amount) <= 0}
                 aria-label="이 금액을 나머지 달에 적용"
                 title="이 금액을 나머지 달에 적용"
-                className={`${TOUCH_TARGET_MIN_MOBILE_ONLY} shrink-0 p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-950 rounded-lg transition-colors disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-gray-400`}
+                className={`${TOUCH_TARGET_MIN_MOBILE_ONLY} shrink-0 p-2 text-gray-400 hover:text-primary-600 hover:bg-primary-50 dark:hover:bg-primary-950 rounded-lg transition-colors disabled:opacity-30 disabled:hover:bg-transparent disabled:hover:text-gray-400`}
               >
                 <Copy size={14} />
               </button>

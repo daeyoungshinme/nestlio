@@ -83,7 +83,7 @@ export default function Header() {
   return (
     <header className="flex items-center justify-between lg:justify-end px-3 pt-[calc(0.5rem+env(safe-area-inset-top))] pb-2 lg:px-6 lg:py-3 border-b border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900">
       <div className="flex items-center gap-2 lg:hidden min-w-0">
-        <PiggyBank className="text-blue-600 dark:text-blue-400 shrink-0" size={20} aria-hidden="true" />
+        <PiggyBank className="text-primary-600 dark:text-primary-400 shrink-0" size={20} aria-hidden="true" />
         {pageLabel && (
           <span className="font-bold text-base text-gray-900 dark:text-gray-50 truncate">{pageLabel}</span>
         )}
@@ -111,7 +111,7 @@ export default function Header() {
               <div className="flex justify-end px-4 pt-3">
                 <button
                   onClick={() => readAllMutation.mutate()}
-                  className="text-xs font-medium text-blue-600 dark:text-blue-400 hover:underline"
+                  className="text-xs font-medium text-primary-600 dark:text-primary-400 hover:underline"
                 >
                   모두 읽음
                 </button>
@@ -138,7 +138,7 @@ export default function Header() {
                     className={`w-full text-left px-3 py-3 rounded-lg transition-colors cursor-pointer ${
                       n.is_read
                         ? "text-gray-500 dark:text-gray-400"
-                        : "bg-blue-50 dark:bg-blue-950 text-gray-900 dark:text-gray-50"
+                        : "bg-primary-50 dark:bg-primary-950 text-gray-900 dark:text-gray-50"
                     } hover:bg-gray-100 dark:hover:bg-gray-800`}
                   >
                     <div className="flex items-center justify-between gap-2">
@@ -162,7 +162,7 @@ export default function Header() {
                             aria-pressed={myReaction?.emoji === emoji}
                             className={`${TOUCH_TARGET_COMPACT_MOBILE_ONLY} rounded-full text-sm transition-colors ${
                               myReaction?.emoji === emoji
-                                ? "bg-blue-100 dark:bg-blue-900 ring-2 ring-blue-400 dark:ring-blue-600"
+                                ? "bg-primary-100 dark:bg-primary-900 ring-2 ring-primary-400 dark:ring-primary-600"
                                 : "bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700"
                             }`}
                           >

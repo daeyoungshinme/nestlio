@@ -197,7 +197,7 @@ function ProductRow({
               onClick={() => setIsPlanModalOpen(true)}
               aria-label="월별 계획 편집"
               title="월별 계획 편집"
-              className={`${TOUCH_TARGET_MIN_MOBILE_ONLY} p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-950 rounded-lg transition-colors`}
+              className={`${TOUCH_TARGET_MIN_MOBILE_ONLY} p-1.5 text-gray-400 hover:text-primary-600 hover:bg-primary-50 dark:hover:bg-primary-950 rounded-lg transition-colors`}
             >
               <Pencil size={14} />
             </button>
@@ -359,7 +359,7 @@ export default function SavingsInvestmentPlanPanel({
       ) : (
         <Link
           to={otherViewLink.to}
-          className="inline-flex items-center gap-1 text-xs text-gray-500 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400"
+          className="inline-flex items-center gap-1 text-xs text-gray-500 dark:text-gray-400 hover:text-primary-600 dark:hover:text-primary-400"
         >
           {otherViewLink.label} <ArrowRight size={12} />
         </Link>
@@ -377,7 +377,7 @@ export default function SavingsInvestmentPlanPanel({
           <div className="flex justify-center pb-2">
             <Link
               to={ACCOUNTS_SAVINGS_TAB_LINK}
-              className="inline-flex items-center gap-1 text-sm text-blue-600 dark:text-blue-400 hover:underline"
+              className="inline-flex items-center gap-1 text-sm text-primary-600 dark:text-primary-400 hover:underline"
             >
               자산현황에서 추가하기 <ArrowRight size={14} />
             </Link>
@@ -408,7 +408,7 @@ export default function SavingsInvestmentPlanPanel({
           <div className="flex justify-end">
             <Link
               to={ACCOUNTS_SAVINGS_TAB_LINK}
-              className="inline-flex items-center gap-1 text-sm text-gray-500 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400"
+              className="inline-flex items-center gap-1 text-sm text-gray-500 dark:text-gray-400 hover:text-primary-600 dark:hover:text-primary-400"
             >
               자산현황에서 관리하기 <ArrowRight size={14} />
             </Link>

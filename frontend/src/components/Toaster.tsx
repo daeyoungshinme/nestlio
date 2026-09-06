@@ -7,7 +7,7 @@ import { BOTTOM_NAV_HEIGHT_PX } from "@/constants/uiSizes";
 const COLORS: Record<string, string> = {
   error: "bg-red-600",
   success: "bg-primary",
-  info: "bg-blue-600",
+  info: "bg-primary-600",
 };
 
 const MAX_TOASTS = 3;

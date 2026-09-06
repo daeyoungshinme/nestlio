@@ -50,7 +50,7 @@ export default function ScheduleEventRow({ event, onEdit, onDelete, onToggleComp
             )}
             <StatusBadge
               label={event.creator.display_name}
-              toneClassName="bg-blue-50 dark:bg-blue-950 text-blue-600 dark:text-blue-400"
+              toneClassName="bg-primary-50 dark:bg-primary-950 text-primary-600 dark:text-primary-400"
             />
             <StatusBadge
               label={`담당 ${event.assignee?.display_name ?? "공동"}`}

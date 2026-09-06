@@ -97,13 +97,13 @@ export default function AuthCallbackPage() {
     <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-950 px-4">
       <div className="w-full max-w-sm bg-white dark:bg-gray-900 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 p-8 text-center">
         <div className="flex items-center gap-2 mb-6 justify-center">
-          <PiggyBank className="text-blue-600 dark:text-blue-400" size={28} />
+          <PiggyBank className="text-primary-600 dark:text-primary-400" size={28} />
           <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-50">Nestlio</h1>
         </div>
 
         {state === "checking" && (
           <div className="flex flex-col items-center gap-3" role="status" aria-label="로딩 중">
-            <Loader2 size={24} className="animate-spin text-blue-500" aria-hidden="true" />
+            <Loader2 size={24} className="animate-spin text-primary-500" aria-hidden="true" />
             <p className="text-sm text-gray-500 dark:text-gray-400">이메일 인증을 확인하는 중입니다...</p>
           </div>
         )}
@@ -123,7 +123,7 @@ export default function AuthCallbackPage() {
             <div className="p-4 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-700">
               <p className="text-sm text-red-700 dark:text-red-300">{errorMessage}</p>
             </div>
-            <Link to="/login" className="text-sm text-blue-600 dark:text-blue-400 hover:underline">
+            <Link to="/login" className="text-sm text-primary-600 dark:text-primary-400 hover:underline">
               로그인으로 이동
             </Link>
           </div>

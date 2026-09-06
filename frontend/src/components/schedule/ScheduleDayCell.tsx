@@ -28,7 +28,7 @@ function ScheduleDayCell({ date, day, inCurrentMonth, isToday, events, onSelect 
       <span
         className={`text-xs sm:text-sm font-medium ${
           isToday
-            ? "bg-blue-600 text-white rounded-full w-5 h-5 sm:w-6 sm:h-6 flex items-center justify-center"
+            ? "bg-primary-600 text-white rounded-full w-5 h-5 sm:w-6 sm:h-6 flex items-center justify-center"
             : "text-gray-700 dark:text-gray-300"
         }`}
       >

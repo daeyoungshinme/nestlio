@@ -85,7 +85,7 @@ export default function CashflowPlanItemRow({
       <div className="flex items-center gap-1 shrink-0">
         <span className="text-sm font-semibold text-gray-700 dark:text-gray-300">{formatKrw(item.amount)}</span>
         {item.from_annual_plan && (
-          <span className="px-1.5 py-0.5 rounded text-[10px] font-medium whitespace-nowrap bg-blue-50 text-blue-600 dark:bg-blue-950 dark:text-blue-300">
+          <span className="px-1.5 py-0.5 rounded text-[10px] font-medium whitespace-nowrap bg-primary-50 text-primary-600 dark:bg-primary-950 dark:text-primary-300">
             연간계획
           </span>
         )}

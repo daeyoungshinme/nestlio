@@ -37,7 +37,7 @@ export default class ErrorBoundary extends Component<Props, State> {
             )}
             <button
               onClick={() => this.setState({ hasError: false, error: null })}
-              className="text-xs text-blue-600 dark:text-blue-400 hover:underline"
+              className="text-xs text-primary-600 dark:text-primary-400 hover:underline"
             >
               다시 시도
             </button>
@@ -54,7 +54,7 @@ export default class ErrorBoundary extends Component<Props, State> {
           )}
           <button
             onClick={() => window.location.reload()}
-            className="px-4 py-1.5 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+            className="px-4 py-1.5 text-sm bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors"
           >
             새로고침
           </button>

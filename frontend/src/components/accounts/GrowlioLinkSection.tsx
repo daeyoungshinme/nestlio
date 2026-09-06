@@ -86,7 +86,7 @@ export default function GrowlioLinkSection<T>({
               type="button"
               onClick={() => linkMutation.mutate(getRowId(row))}
               disabled={linkMutation.isPending}
-              className="w-full flex items-center justify-between gap-2 px-3 py-2 text-sm text-left rounded-lg border border-gray-200 dark:border-gray-700 hover:border-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950 transition-colors disabled:opacity-50"
+              className="w-full flex items-center justify-between gap-2 px-3 py-2 text-sm text-left rounded-lg border border-gray-200 dark:border-gray-700 hover:border-primary-400 hover:bg-primary-50 dark:hover:bg-primary-950 transition-colors disabled:opacity-50"
             >
               <span className="truncate">{getRowLabel(row)}</span>
               <span className="shrink-0 text-gray-500 dark:text-gray-400">{formatKrw(getRowAmount(row))}</span>

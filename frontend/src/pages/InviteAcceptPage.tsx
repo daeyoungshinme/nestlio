@@ -15,7 +15,7 @@ function AuthCard({ children }: { children: React.ReactNode }) {
     <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-950 px-4">
       <div className="w-full max-w-sm bg-white dark:bg-gray-900 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 p-8">
         <div className="flex items-center gap-2 mb-6 justify-center">
-          <PiggyBank className="text-blue-600 dark:text-blue-400" size={28} />
+          <PiggyBank className="text-primary-600 dark:text-primary-400" size={28} />
           <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-50">Nestlio</h1>
         </div>
         {children}
@@ -29,7 +29,7 @@ function InviteMessage({ message }: { message: string }) {
     <AuthCard>
       <div className="text-center space-y-4">
         <p className="text-sm text-gray-600 dark:text-gray-300">{message}</p>
-        <Link to="/login" className="text-sm text-blue-600 dark:text-blue-400 hover:underline">
+        <Link to="/login" className="text-sm text-primary-600 dark:text-primary-400 hover:underline">
           로그인으로 이동
         </Link>
       </div>
@@ -245,7 +245,7 @@ export default function InviteAcceptPage() {
         <button
           type="submit"
           disabled={submitting}
-          className="w-full bg-blue-600 text-white rounded-lg py-2 text-sm font-medium hover:bg-blue-700 disabled:opacity-50 transition-colors"
+          className="w-full bg-primary-600 text-white rounded-lg py-2 text-sm font-medium hover:bg-primary-700 disabled:opacity-50 transition-colors"
         >
           {submitting ? "처리 중..." : alreadyRegistered ? "로그인하고 초대 수락" : "가입하기"}
         </button>
@@ -253,7 +253,7 @@ export default function InviteAcceptPage() {
 
       <p className="text-center text-sm text-gray-500 dark:text-gray-400 mt-4">
         이미 계정이 있으신가요?{" "}
-        <Link to="/login" className="text-blue-600 dark:text-blue-400 hover:underline">
+        <Link to="/login" className="text-primary-600 dark:text-primary-400 hover:underline">
           로그인
         </Link>
       </p>

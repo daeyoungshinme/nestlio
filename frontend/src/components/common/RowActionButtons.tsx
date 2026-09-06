@@ -27,7 +27,7 @@ export default function RowActionButtons({
         <button
           onClick={onEdit}
           aria-label={editLabel}
-          className={`${TOUCH_TARGET_MIN_MOBILE_ONLY} p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-950 rounded-lg transition-colors`}
+          className={`${TOUCH_TARGET_MIN_MOBILE_ONLY} p-2 text-gray-400 hover:text-primary-600 hover:bg-primary-50 dark:hover:bg-primary-950 rounded-lg transition-colors`}
         >
           <Pencil size={16} />
         </button>

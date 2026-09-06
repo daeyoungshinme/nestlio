@@ -27,7 +27,7 @@ export default function BottomNav() {
             className={({ isActive }) =>
               `flex flex-col items-center justify-center gap-0.5 px-2 py-3 min-w-0 flex-1 ${TOUCH_TARGET_MIN_HEIGHT} text-xs font-medium transition-colors ${
                 isActive
-                  ? "text-blue-600 dark:text-blue-400 border-t-2 border-blue-600 dark:border-blue-400 -mt-px"
+                  ? "text-primary-600 dark:text-primary-400 border-t-2 border-primary-600 dark:border-primary-400 -mt-px"
                   : "text-gray-500 dark:text-gray-400 border-t-2 border-transparent -mt-px"
               }`
             }
@@ -41,7 +41,7 @@ export default function BottomNav() {
           aria-current={isMoreActive ? "page" : undefined}
           className={`flex flex-col items-center justify-center gap-0.5 px-2 py-3 min-w-0 flex-1 ${TOUCH_TARGET_MIN_HEIGHT} text-xs font-medium transition-colors border-t-2 -mt-px ${
             isMoreActive
-              ? "text-blue-600 dark:text-blue-400 border-blue-600 dark:border-blue-400"
+              ? "text-primary-600 dark:text-primary-400 border-primary-600 dark:border-primary-400"
               : "text-gray-500 dark:text-gray-400 border-transparent"
           }`}
         >
