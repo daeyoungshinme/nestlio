@@ -1,4 +1,3 @@
-from datetime import date
 from typing import Literal
 
 from fastapi import APIRouter, Depends, Query
@@ -9,6 +8,7 @@ from app.dependencies import get_current_user
 from app.models.user import User
 from app.schemas.dashboard import DashboardOut, MonthlyRetrospectiveOut
 from app.services import dashboard_service, retrospective_service
+from app.utils.dates import today_kst
 
 router = APIRouter(prefix="/dashboard", tags=["dashboard"])
 
@@ -22,7 +22,7 @@ def dashboard(
     _: User = Depends(get_current_user),
 ):
     return dashboard_service.build(
-        db, period=period, day=day, year_month=year_month, today=date.today()
+        db, period=period, day=day, year_month=year_month, today=today_kst()
     )
 
 
@@ -33,4 +33,4 @@ def monthly_retrospective(
 ):
     """지난달(가장 최근 완결된 달) 요약 — 부부가 함께 돌아보는 월간 회고 카드용.
     월간 요약 이메일(notification_service.send_monthly_summary)과 retrospective_service를 공유한다."""
-    return retrospective_service.build(db, date.today())
+    return retrospective_service.build(db, today_kst())

@@ -11,7 +11,7 @@ from app.models.goal_funding_source import GoalFundingSource
 from app.models.goal_monthly_target import GoalMonthlyTarget
 from app.models.transaction import Transaction
 from app.services import account_service, growlio_client, plan_targets
-from app.utils.dates import month_bounds, months_between, parse_year_month, shift_month, year_month_str
+from app.utils.dates import month_bounds, months_between, now_kst, parse_year_month, shift_month, year_month_str
 
 
 class MonthlyTargetNotFoundError(Exception):
@@ -316,7 +316,7 @@ def _apply_challenge_completion(db: Session, goal: FinancialGoal, now: datetime 
     완료 시각을 기록한다(실제 축하 알림 발송 여부는 notification_service가 별도로 판단한다)."""
     if goal.kind != "challenge":
         return
-    now = now or datetime.now()
+    now = now or now_kst()
     current_amount = compute_current_amount(db, goal)
     if goal.status == "active" and goal.required_amount > 0 and current_amount >= goal.required_amount:
         goal.status = "succeeded"

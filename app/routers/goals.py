@@ -1,5 +1,4 @@
 import logging
-from datetime import date, datetime
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
@@ -15,6 +14,7 @@ from app.schemas.financial_goal import (
     GrowlioGoalSettingsOut,
 )
 from app.services import goal_service, notification_service
+from app.utils.dates import now_kst, today_kst
 
 router = APIRouter(prefix="/financial-goals", tags=["financial-goals"])
 logger = logging.getLogger(__name__)
@@ -28,7 +28,7 @@ def get_growlio_goal(bearer_token: str = Depends(get_bearer_token), _: User = De
 
 @router.get("", response_model=list[FinancialGoalOut])
 def list_goals(db: Session = Depends(get_db), _: User = Depends(get_current_user)):
-    today = date.today()
+    today = today_kst()
     return [goal_service.to_out(db, goal, today) for goal in goal_service.list_goals(db)]
 
 
@@ -38,7 +38,7 @@ def create_goal(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    now = datetime.now()
+    now = now_kst()
     today = now.date()
     try:
         goal = goal_service.create_goal(
@@ -74,7 +74,7 @@ def update_goal(
     db: Session = Depends(get_db),
     _: User = Depends(get_current_user),
 ):
-    now = datetime.now()
+    now = now_kst()
     today = now.date()
     try:
         goal = goal_service.update_goal(
@@ -118,7 +118,7 @@ def update_monthly_target(
         raise HTTPException(status.HTTP_404_NOT_FOUND, str(exc)) from exc
     if goal is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "재무목표를 찾을 수 없습니다.")
-    today = date.today()
+    today = today_kst()
     try:
         notification_service.check_and_celebrate_goal_milestone(db, goal.id, today)
     except Exception:

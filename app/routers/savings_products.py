@@ -1,5 +1,3 @@
-from datetime import date, datetime
-
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
@@ -20,7 +18,7 @@ from app.schemas.savings_product import (
     SavingsProductUpdateIn,
 )
 from app.services import coaching_settings_service, savings_product_service
-from app.utils.dates import year_month_str
+from app.utils.dates import now_kst, today_kst, year_month_str
 
 router = APIRouter(prefix="/savings-products", tags=["savings-products"])
 
@@ -34,7 +32,7 @@ def list_products(db: Session = Depends(get_db), _: User = Depends(get_current_u
 def get_plan_summary(
     year_month: str | None = None, db: Session = Depends(get_db), _: User = Depends(get_current_user)
 ):
-    ym = year_month or year_month_str(date.today())
+    ym = year_month or year_month_str(today_kst())
     thresholds = coaching_settings_service.get_thresholds(db)
     return savings_product_service.compute_plan_summary(
         db, ym, thresholds["budget_warn_pct"], thresholds["budget_critical_pct"]
@@ -43,7 +41,7 @@ def get_plan_summary(
 
 @router.get("/annual-plan", response_model=SavingsProductAnnualPlanListOut)
 def get_annual_plan_summary(year: int | None = None, db: Session = Depends(get_db), _: User = Depends(get_current_user)):
-    today = date.today()
+    today = today_kst()
     thresholds = coaching_settings_service.get_thresholds(db)
     return savings_product_service.compute_annual_plan_summary(
         db, year or today.year, as_of=today,
@@ -146,7 +144,7 @@ def sync_product(
     bearer_token: str = Depends(get_bearer_token),
     _: User = Depends(get_current_user),
 ):
-    product = savings_product_service.sync_from_growlio(db, product_id, bearer_token, now=datetime.now())
+    product = savings_product_service.sync_from_growlio(db, product_id, bearer_token, now=now_kst())
     if product is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "저축/투자 상품을 찾을 수 없습니다.")
     return product
@@ -158,7 +156,7 @@ def sync_all_products(
     bearer_token: str = Depends(get_bearer_token),
     _: User = Depends(get_current_user),
 ):
-    synced_count, failed = savings_product_service.sync_all_from_growlio(db, bearer_token, now=datetime.now())
+    synced_count, failed = savings_product_service.sync_all_from_growlio(db, bearer_token, now=now_kst())
     return SavingsProductSyncAllOut(synced_count=synced_count, failed=failed)
 
 
@@ -171,7 +169,7 @@ def import_growlio_accounts(
 ):
     """선택한 growlio 계좌들을 각각 새 저축/투자 상품으로 일괄 가져온다 ('전체 선택' 가져오기)."""
     return savings_product_service.import_from_growlio(
-        db, payload.growlio_account_ids, bearer_token, current_user.id, now=datetime.now()
+        db, payload.growlio_account_ids, bearer_token, current_user.id, now=now_kst()
     )
 
 

@@ -17,7 +17,7 @@ from app.services import (
     savings_product_service,
     transaction_report_service,
 )
-from app.utils.dates import month_bounds, parse_year_month, year_month_str
+from app.utils.dates import month_bounds, parse_year_month, today_kst, year_month_str
 
 # months to keep emergency fund runway comfortably inside
 EMERGENCY_FUND_MIN_MONTHS = 3
@@ -359,7 +359,7 @@ def compute_insights(
 ) -> list[Insight]:
     """호출부가 이미 같은 기간의 totals/breakdown/goals/thresholds/benchmark_rows를 조회·계산해둔
     경우, 넘겨받아 재조회·재계산을 피한다."""
-    year_month = year_month or year_month_str(date.today())
+    year_month = year_month or year_month_str(today_kst())
     month_start = parse_year_month(year_month)
     start, end = month_bounds(month_start)
 

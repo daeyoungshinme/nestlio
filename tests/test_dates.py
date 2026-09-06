@@ -1,0 +1,22 @@
+"""app/utils/dates.py의 KST 벽시계 헬퍼 검증.
+
+now_kst()/today_kst()는 벽시계를 읽는 함수라 "시간 결정론" 컨벤션대로 고정 시각을
+주입해 검증할 수는 없다 — 대신 (기계 TZ와 무관하게 성립하는) UTC 대비 +9시간 오프셋과
+두 헬퍼의 상호 일관성을 확인한다. 이게 서버 TZ가 UTC여도 "naive == KST" 컨벤션이
+유지되는지를 지키는 가드다.
+"""
+from datetime import datetime, timezone
+
+from app.utils.dates import now_kst, today_kst
+
+
+def test_now_kst_is_naive_and_utc_plus_nine():
+    utc_now = datetime.now(timezone.utc).replace(tzinfo=None)
+    kst_now = now_kst()
+    assert kst_now.tzinfo is None
+    offset_seconds = (kst_now - utc_now).total_seconds()
+    assert 9 * 3600 - 5 <= offset_seconds <= 9 * 3600 + 5
+
+
+def test_today_kst_matches_now_kst_date():
+    assert today_kst() == now_kst().date()

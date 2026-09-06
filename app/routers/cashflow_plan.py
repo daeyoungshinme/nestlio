@@ -1,5 +1,3 @@
-from datetime import date
-
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
@@ -16,13 +14,13 @@ from app.schemas.cashflow_plan import (
     CashflowPlanSplitResultOut,
 )
 from app.services import budget_service, cashflow_plan_service, coaching_settings_service
-from app.utils.dates import months_remaining_in_year, parse_year_month, shift_month, year_month_str
+from app.utils.dates import months_remaining_in_year, parse_year_month, shift_month, today_kst, year_month_str
 
 router = APIRouter(prefix="/cashflow-plan", tags=["cashflow-plan"])
 
 
 def _plan_list(db: Session, year_month: str | None) -> dict:
-    ym = year_month or year_month_str(date.today())
+    ym = year_month or year_month_str(today_kst())
     month_start = parse_year_month(ym)
     items = cashflow_plan_service.list_items_with_annual_fallback(db, ym)
     actuals = cashflow_plan_service.actuals_for_month(db, ym)

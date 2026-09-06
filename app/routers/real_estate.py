@@ -1,5 +1,3 @@
-from datetime import datetime
-
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
@@ -13,6 +11,7 @@ from app.schemas.real_estate import (
     RealEstateSyncAllOut,
 )
 from app.services import real_estate_service
+from app.utils.dates import now_kst
 
 router = APIRouter(prefix="/real-estate", tags=["real-estate"])
 
@@ -32,7 +31,7 @@ def import_growlio_real_estate(
 ):
     """선택한 growlio 부동산 계좌들을 자산 항목(+담보대출)으로 일괄 가져온다."""
     pairs = real_estate_service.import_from_growlio(
-        db, payload.growlio_account_ids, bearer_token, current_user.id, now=datetime.now()
+        db, payload.growlio_account_ids, bearer_token, current_user.id, now=now_kst()
     )
     return [RealEstateImportResultOut(savings_product=product, loan=loan) for product, loan in pairs]
 
@@ -43,7 +42,7 @@ def sync_all_real_estate(
     bearer_token: str = Depends(get_bearer_token),
     _: User = Depends(get_current_user),
 ):
-    synced_count, failed = real_estate_service.sync_all_from_growlio(db, bearer_token, now=datetime.now())
+    synced_count, failed = real_estate_service.sync_all_from_growlio(db, bearer_token, now=now_kst())
     return RealEstateSyncAllOut(synced_count=synced_count, failed=failed)
 
 
@@ -54,7 +53,7 @@ def sync_real_estate(
     bearer_token: str = Depends(get_bearer_token),
     _: User = Depends(get_current_user),
 ):
-    result = real_estate_service.sync_from_growlio(db, savings_product_id, bearer_token, now=datetime.now())
+    result = real_estate_service.sync_from_growlio(db, savings_product_id, bearer_token, now=now_kst())
     if result is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "부동산 상품을 찾을 수 없습니다.")
     product, loan = result

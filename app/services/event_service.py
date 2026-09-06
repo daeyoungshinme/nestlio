@@ -11,7 +11,7 @@ from app.models.recurring_expense import RecurringExpense
 from app.models.user import User
 from app.services import gmail_service, notification_settings_service
 from app.services.google_auth import GoogleNotConnectedError, is_connected
-from app.utils.dates import advance_due_date
+from app.utils.dates import advance_due_date, now_kst
 
 logger = logging.getLogger("event_service")
 
@@ -139,7 +139,7 @@ def update_event(db: Session, event_id: int, actor_id: uuid.UUID, **fields) -> E
 
 
 def delete_event(db: Session, event_id: int, actor_id: uuid.UUID, now: datetime | None = None) -> bool:
-    now = now or datetime.now()
+    now = now or now_kst()
     event = db.get(Event, event_id)
     if event is None:
         return False
@@ -163,7 +163,7 @@ def set_completed(db: Session, event_id: int, completed: bool, now: datetime | N
     구글 캘린더에는 완료 개념이 없어 _sync_to_google을 호출하지 않고, 체크박스 토글마다 배우자에게
     메일이 가면 과도하므로 _notify_other_spouse도 호출하지 않는다(담당자 배정 자체는 create_event/
     update_event가 이미 알린다)."""
-    now = now or datetime.now()
+    now = now or now_kst()
     event = db.get(Event, event_id)
     if event is None:
         return None

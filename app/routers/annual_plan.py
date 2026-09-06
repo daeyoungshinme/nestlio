@@ -8,6 +8,7 @@ from app.dependencies import get_current_user
 from app.models.user import User
 from app.schemas.annual_plan import AnnualPlanItemUpsertIn, AnnualPlanListOut
 from app.services import annual_plan_service, coaching_settings_service
+from app.utils.dates import today_kst
 
 router = APIRouter(prefix="/annual-plan", tags=["annual-plan"])
 
@@ -26,7 +27,7 @@ def _plan_list(db: Session, year: int, today: date) -> dict:
 
 @router.get("", response_model=AnnualPlanListOut)
 def get_plan(year: int, db: Session = Depends(get_db), _: User = Depends(get_current_user)):
-    return _plan_list(db, year, date.today())
+    return _plan_list(db, year, today_kst())
 
 
 @router.put("/items", response_model=AnnualPlanListOut)
@@ -49,7 +50,7 @@ def upsert_plan_item(
         payload.end_month,
         monthly_targets=[mt.model_dump() for mt in payload.monthly_targets],
     )
-    return _plan_list(db, payload.year, date.today())
+    return _plan_list(db, payload.year, today_kst())
 
 
 @router.delete("/items/{item_id}", status_code=status.HTTP_204_NO_CONTENT)

@@ -1,5 +1,24 @@
 from calendar import monthrange
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
+from zoneinfo import ZoneInfo
+
+KST = ZoneInfo("Asia/Seoul")
+
+
+def now_kst() -> datetime:
+    """현재 시각을 KST 벽시계 기준 naive datetime으로 반환한다.
+
+    앱 전반이 naive datetime을 "KST 벽시계"로 취급한다(예: `event_service`가 구글 일정을
+    `.astimezone(_SEOUL_TZ).replace(tzinfo=None)`로 저장). 배포 컨테이너 TZ는
+    `Asia/Seoul`로 고정하지만(`render.yaml`), 로컬·CI가 다른 TZ여도 결과가 흔들리지
+    않도록 시각 판단에는 `datetime.now()` 대신 항상 이 헬퍼를 쓴다.
+    """
+    return datetime.now(KST).replace(tzinfo=None)
+
+
+def today_kst() -> date:
+    """오늘 날짜를 KST 기준으로 반환한다. `date.today()`를 직접 호출하지 않는다."""
+    return datetime.now(KST).date()
 
 
 def week_bounds(d: date) -> tuple[date, date]:

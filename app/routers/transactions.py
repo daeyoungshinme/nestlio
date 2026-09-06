@@ -23,7 +23,7 @@ from app.schemas.transaction import (
 from app.services import notification_service, transaction_import_service, transaction_report_service, transaction_service
 from app.services.google_auth import GoogleNotConnectedError
 from app.services.google_sheets_service import GoogleSheetsReadError
-from app.utils.dates import month_bounds
+from app.utils.dates import month_bounds, today_kst
 
 router = APIRouter(prefix="/transactions", tags=["transactions"])
 logger = logging.getLogger("transactions")
@@ -44,11 +44,11 @@ def list_transactions(
     db: Session = Depends(get_db),
     _: User = Depends(get_current_user),
 ):
-    default_from, default_to = month_bounds(date.today())
+    default_from, default_to = month_bounds(today_kst())
     df = date_from or (None if q else default_from)
     dt = date_to or (None if q else default_to)
     items = transaction_service.list_transactions(db, df, dt, category_id, type, user_id, q=q)
-    totals = transaction_report_service.period_totals(db, df or _ALL_TIME_START, dt or date.today())
+    totals = transaction_report_service.period_totals(db, df or _ALL_TIME_START, dt or today_kst())
     return {"items": items, "totals": totals}
 
 
@@ -96,7 +96,7 @@ def category_breakdown(
     db: Session = Depends(get_db),
     _: User = Depends(get_current_user),
 ):
-    default_from, default_to = month_bounds(date.today())
+    default_from, default_to = month_bounds(today_kst())
     df = date_from or default_from
     dt = date_to or default_to
     return transaction_report_service.category_breakdown(db, df, dt, type, user_id)
@@ -110,7 +110,7 @@ def recent_items(
     db: Session = Depends(get_db),
     _: User = Depends(get_current_user),
 ):
-    return transaction_service.frequent_unique_transactions(db, type, date.today(), is_savings, limit)
+    return transaction_service.frequent_unique_transactions(db, type, today_kst(), is_savings, limit)
 
 
 @router.get("/export.csv")
@@ -124,7 +124,7 @@ def export_csv(
     db: Session = Depends(get_db),
     _: User = Depends(get_current_user),
 ):
-    default_from, default_to = month_bounds(date.today())
+    default_from, default_to = month_bounds(today_kst())
     df = date_from or default_from
     dt = date_to or default_to
     items = transaction_service.list_transactions(db, df, dt, category_id, type, user_id, q=q)

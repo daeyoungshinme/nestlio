@@ -21,7 +21,7 @@ from app.services import (
     transaction_report_service,
 )
 from app.services.google_auth import is_connected
-from app.utils.dates import week_bounds, year_month_str
+from app.utils.dates import now_kst, today_kst, week_bounds, year_month_str
 
 logger = logging.getLogger(__name__)
 
@@ -120,7 +120,7 @@ def _contribution_summary_text(owner_totals: list[dict]) -> str | None:
 
 
 def send_weekly_summary(db: Session, today: date | None = None, force: bool = False) -> bool:
-    today = today or date.today()
+    today = today or today_kst()
     start, end = week_bounds(today)
     period_key = start.isoformat()
     if not force and not notification_settings_service.is_enabled(db, "email_weekly"):
@@ -154,7 +154,7 @@ def send_weekly_summary(db: Session, today: date | None = None, force: bool = Fa
 
 
 def send_monthly_summary(db: Session, today: date | None = None, force: bool = False) -> bool:
-    today = today or date.today()
+    today = today or today_kst()
     r = retrospective_service.build(db, today)
     start, end, period_key = r["start"], r["end"], r["year_month"]
     if not force and not notification_settings_service.is_enabled(db, "email_monthly"):
@@ -216,7 +216,7 @@ def _send_threshold_alert(db: Session, row: dict, year_month: str) -> bool:
 
 def check_and_alert_budget_threshold(db: Session, category_id: int, year_month: str | None = None) -> bool:
     """Send an alert if this category just crossed the warn/critical budget threshold this month."""
-    year_month = year_month or year_month_str(date.today())
+    year_month = year_month or year_month_str(today_kst())
     rows = budget_service.budget_vs_actual(db, year_month)
     row = next((r for r in rows if r["category_id"] == category_id), None)
     if row is None:
@@ -230,7 +230,7 @@ def _celebrate_goal_milestone(db: Session, goal, today: date | None = None) -> b
     jumped past multiple milestones at once, only the highest is sent. Milestone-crossing +
     dedup bookkeeping lives in milestone_service. 일반 목표(kind="goal")는 25/50/75/100% 각각
     축하하고, 챌린지(kind="challenge")는 옛 Challenge 모델과 동일하게 100% 한 번만 축하한다."""
-    today = today or date.today()
+    today = today or today_kst()
     if goal is None or not goal.required_amount:
         return False
     is_challenge = goal.kind == "challenge"
@@ -287,7 +287,7 @@ def check_all_goal_milestones(db: Session, today: date | None = None) -> int:
 
 
 def check_all_categories_threshold(db: Session, year_month: str | None = None) -> int:
-    year_month = year_month or year_month_str(date.today())
+    year_month = year_month or year_month_str(today_kst())
     rows = budget_service.budget_vs_actual(db, year_month)
     sent = 0
     for row in rows:
@@ -399,7 +399,7 @@ def unread_count(db: Session, user_id: uuid.UUID) -> int:
 
 
 def mark_read(db: Session, user_id: uuid.UUID, notification_log_id: int, now: datetime | None = None) -> None:
-    now = now or datetime.now()
+    now = now or now_kst()
     log = db.get(NotificationLog, notification_log_id)
     if log is None:
         raise NotificationNotFoundError("알림을 찾을 수 없습니다.")
@@ -415,7 +415,7 @@ def mark_read(db: Session, user_id: uuid.UUID, notification_log_id: int, now: da
 
 
 def mark_all_read(db: Session, user_id: uuid.UUID, now: datetime | None = None) -> int:
-    now = now or datetime.now()
+    now = now or now_kst()
     already_read = db.query(NotificationRead.notification_log_id).filter(NotificationRead.user_id == user_id)
     unread_ids = [row[0] for row in db.query(NotificationLog.id).filter(~NotificationLog.id.in_(already_read))]
     for log_id in unread_ids:

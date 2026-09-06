@@ -11,6 +11,13 @@ services:
     startCommand: "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port $PORT"
     healthCheckPath: /
     envVars:
+      # 컨테이너 기본 TZ는 UTC다. 앱은 naive datetime을 "KST 벽시계"로 취급하므로
+      # (event_service가 구글 일정을 KST naive로 저장) 프로세스 TZ를 Asia/Seoul로 고정한다 —
+      # 이러면 date.today()/datetime.now()도 KST가 된다. 코드는 app/utils/dates.py의
+      # now_kst()/today_kst()로 한 번 더 방어하지만, 라우터가 파싱하는 날짜 경계까지 맞추려면
+      # 이 값이 필요하다.
+      - key: TZ
+        value: Asia/Seoul
       - key: PYTHON_VERSION
         value: 3.11.9
       - key: NODE_VERSION

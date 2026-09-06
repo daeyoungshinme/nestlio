@@ -10,7 +10,7 @@ from app.models.category import Category
 from app.models.transaction import Transaction
 from app.models.user import User
 from app.services import user_service
-from app.utils.dates import month_bounds, shift_month, year_bounds, year_month_str
+from app.utils.dates import month_bounds, shift_month, today_kst, year_bounds, year_month_str
 
 
 def period_totals(db: Session, date_from: date, date_to: date) -> dict:
@@ -418,7 +418,7 @@ def _category_breakdown_by_month(db: Session, month_starts: list[date], type_: s
 
 def monthly_trend(db: Session, months: int = 6, anchor: date | None = None) -> list[dict]:
     """Income/expense totals for the trailing `months` calendar months, oldest first."""
-    anchor = anchor or date.today()
+    anchor = anchor or today_kst()
     month_starts = [shift_month(anchor, -offset) for offset in range(months - 1, -1, -1)]
     totals_by_month = _monthly_totals_map(db, month_starts)
     return [
@@ -474,7 +474,7 @@ def category_monthly_trend(
     """Per-category spend for each of the trailing `months` calendar months, for a
     multi-line trend chart. Only the top `top_n` categories (by total spend across the
     window) get their own series; everything else is folded into a '기타' series."""
-    anchor = anchor or date.today()
+    anchor = anchor or today_kst()
     month_starts = [shift_month(anchor, -offset) for offset in range(months - 1, -1, -1)]
     month_keys = [year_month_str(m) for m in month_starts]
     breakdown_by_month = _category_breakdown_by_month(db, month_starts, type_)

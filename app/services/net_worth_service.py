@@ -16,7 +16,7 @@ from app.services import (
     real_estate_service,
     savings_product_service,
 )
-from app.utils.dates import parse_year_month, shift_month, year_month_str
+from app.utils.dates import now_kst, parse_year_month, shift_month, year_month_str
 
 logger = logging.getLogger(__name__)
 
@@ -163,7 +163,7 @@ def refresh_stale_growlio_links(bearer_token: str, *, now: datetime | None = Non
     요청 스코프 세션(get_db)은 응답 후 닫히므로 자체 세션을 연다 — 스케줄러 job과 같은 패턴."""
     from app.database import SessionLocal
 
-    now = now or datetime.now()
+    now = now or now_kst()
     db = SessionLocal()
     try:
         if not _has_stale_growlio_links(db, now):
