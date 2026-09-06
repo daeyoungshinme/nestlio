@@ -15,14 +15,6 @@ done
 BACKEND_PORT=8899
 FRONTEND_PORT=5273
 
-kill_port() {
-  local port="$1"
-  echo "[dev.sh] stopping existing process on port $port (if any)..."
-  timeout 10 powershell.exe -NoProfile -Command \
-    "Get-NetTCPConnection -LocalPort $port -State Listen -ErrorAction SilentlyContinue | Select-Object -ExpandProperty OwningProcess -Unique | ForEach-Object { Stop-Process -Id \$_ -Force -ErrorAction SilentlyContinue }" \
-    < /dev/null || true
-}
-
 is_port_in_use() {
   local port="$1"
   local result
@@ -46,27 +38,21 @@ find_free_port() {
   echo "$port"
 }
 
-if [ "$KEEP_PORT" = "1" ]; then
-  ORIG_BACKEND_PORT="$BACKEND_PORT"
-  BACKEND_PORT=$(find_free_port "$BACKEND_PORT")
-  if [ "$BACKEND_PORT" != "$ORIG_BACKEND_PORT" ]; then
-    echo "[dev.sh] port $ORIG_BACKEND_PORT busy, using $BACKEND_PORT for backend instead (--keep-port)"
-  fi
-  if [ "$MODE" = "dev" ]; then
-    ORIG_FRONTEND_PORT="$FRONTEND_PORT"
-    FRONTEND_PORT=$(find_free_port "$FRONTEND_PORT")
-    if [ "$FRONTEND_PORT" != "$ORIG_FRONTEND_PORT" ]; then
-      echo "[dev.sh] port $ORIG_FRONTEND_PORT busy, using $FRONTEND_PORT for frontend instead (--keep-port)"
-    fi
-  fi
-else
-  kill_port "$BACKEND_PORT"
-  if [ "$MODE" = "dev" ]; then
-    kill_port "$FRONTEND_PORT"
-  fi
-  sleep 1
+# 포트가 사용 중이면(대개 이미 떠 있는 개발 서버) 죽이지 않고 다음 빈 포트로 넘어간다 —
+# dev.bat과 동일한 방침(사용자의 실행 중인 백엔드를 무단으로 종료하지 않는다).
+# 남아 있는 --keep-port 인자는 하위호환용 no-op이다.
+ORIG_BACKEND_PORT="$BACKEND_PORT"
+BACKEND_PORT=$(find_free_port "$BACKEND_PORT")
+if [ "$BACKEND_PORT" != "$ORIG_BACKEND_PORT" ]; then
+  echo "[dev.sh] port $ORIG_BACKEND_PORT busy, using $BACKEND_PORT for backend instead"
 fi
-echo "[dev.sh] stop step done, continuing..."
+if [ "$MODE" = "dev" ]; then
+  ORIG_FRONTEND_PORT="$FRONTEND_PORT"
+  FRONTEND_PORT=$(find_free_port "$FRONTEND_PORT")
+  if [ "$FRONTEND_PORT" != "$ORIG_FRONTEND_PORT" ]; then
+    echo "[dev.sh] port $ORIG_FRONTEND_PORT busy, using $FRONTEND_PORT for frontend instead"
+  fi
+fi
 
 VENV_PY=".venv/Scripts/python.exe"
 
@@ -83,8 +69,8 @@ if [ ! -f ".env" ] && [ -f ".env.example" ]; then
   cp ".env.example" ".env"
 fi
 
-echo "[dev.sh] installing dependencies..."
-"$PYTHON" -m pip install -q -r requirements.txt
+echo "[dev.sh] installing dependencies (runtime + dev/test)..."
+"$PYTHON" -m pip install -q -r requirements.txt -r requirements-dev.txt
 
 mkdir -p data
 

@@ -45,12 +45,13 @@
 ## 환경 변수
 
 `.env.example` 참고. 주요 그룹:
+- 런타임: `TZ=Asia/Seoul`(앱은 naive datetime을 KST 벽시계로 취급 — 컨테이너 기본 UTC면 스케줄러 날짜 경계가 어긋난다. 코드는 `app/utils/dates.py`의 `now_kst()`/`today_kst()`로도 방어), `APP_ENV`(`production`이면 필수 시크릿 누락 시 부팅을 막는다 — `app/config.py::validate_startup`. Render는 `RENDER` 환경변수로도 감지)
 - DB: `DATABASE_URL`
 - Supabase(growlio와 공유, JWT 검증용): `SUPABASE_PROJECT_URL`
 - CORS: `CORS_ORIGINS` (프론트엔드 오리진 목록)
 - 프론트엔드 오리진(배우자 초대 이메일의 가입 링크 조립용): `APP_BASE_URL`
 - 알림: `NOTIFY_EMAIL_TO`
-- 코칭엔진 임계값(0-100 %): `SAVINGS_RATE_*`, `FIXED_COST_RATIO_*`, `BUDGET_*_PCT`, `DISCRETIONARY_RATIO_WARN`, `DEBT_RATIO_WARN`, `BENCHMARK_*_WARN_PCT`(표준 카테고리별 지출 벤치마크, 설정 화면에서 부부가 직접 조정 가능)
+- 코칭엔진 임계값(0-100 %): 정본은 `app/config.py` 기본값이고 부부가 설정 화면에서 조정한 값이 우선한다. 기본값 자체를 환경별로 바꿔야 할 때만 `SAVINGS_RATE_*`, `FIXED_COST_RATIO_*`, `BUDGET_*_PCT`, `DISCRETIONARY_RATIO_WARN`, `DEBT_RATIO_WARN`, `BENCHMARK_*_WARN_PCT`, `EMERGENCY_FUND_*_MONTHS`, `GOAL_PACE_*_PCT`, `SAVINGS_EXECUTION_*_PCT`, `VARIABLE_TREND_FLAG_PCT` 등을 `.env`에 넣는다(`render.yaml`엔 두지 않는다).
 - growlio 연동(계좌·부동산 잔액 조회/동기화, 저축·투자 거래 입출금 반영, 재무목표 프리필): `GROWLIO_API_BASE_URL` — 비어 있으면 연동 기능 전체가 꺼진다
 - 부부 사진 저장용 Supabase Storage: `SUPABASE_SERVICE_ROLE_KEY`, `SUPABASE_STORAGE_BUCKET`, `MAX_UPLOAD_SIZE_MB` — 백엔드가 `/media/couple-photo`에서 프록시로 서빙한다(`app/services/couple_photo_service.py`, `app/main.py`). 둘 중 하나라도 비어 있으면 "사진 없음"으로 동작한다.
 - 예약 작업 인증: `INTERNAL_JOB_SECRET` — GitHub Actions가 `/internal/jobs/{job_name}` 호출 시 `X-Internal-Job-Secret` 헤더로 보낸다.

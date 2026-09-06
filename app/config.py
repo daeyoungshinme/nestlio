@@ -31,8 +31,8 @@ class Settings(BaseSettings):
     # 프론트엔드 SPA의 오리진 (초대 이메일에 넣을 가입 링크 조립용)
     app_base_url: str = "http://localhost:5273"
 
-    # growlio(자산관리, 별도 서비스) 백엔드 — 저축상품 잔액 자동 동기화용 읽기전용 API 호출.
-    # 비어 있으면 동기화 기능 자체를 비활성화한다 (savings_product_service.sync_from_growlio).
+    # growlio(자산관리, 별도 서비스) 백엔드 — 계좌·부동산 잔액 동기화, 저축·투자 거래 반영,
+    # 재무목표 프리필용 API 호출. 비어 있으면 growlio 연동 기능 전체를 비활성화한다.
     growlio_api_base_url: str = ""
 
     savings_rate_warn: float = 20
