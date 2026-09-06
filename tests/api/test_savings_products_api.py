@@ -1,13 +1,6 @@
 from decimal import Decimal
 from unittest.mock import patch
 
-from app.dependencies import get_bearer_token
-from app.main import app as fastapi_app
-
-
-def _override_bearer_token():
-    fastapi_app.dependency_overrides[get_bearer_token] = lambda: "fake-jwt"
-
 
 def test_growlio_link_and_unlink(client, seeded_db):
     create_resp = client.post(
@@ -60,7 +53,6 @@ def test_growlio_link_missing_product_returns_404(client, seeded_db):
 
 
 def test_sync_without_link_returns_409(client, seeded_db):
-    _override_bearer_token()
     create_resp = client.post(
         "/api/v1/savings-products",
         json={"name": "적금", "current_balance": "0", "monthly_saving_amount": "0", "product_type": "savings"},
@@ -73,7 +65,6 @@ def test_sync_without_link_returns_409(client, seeded_db):
 
 
 def test_sync_updates_balance(client, seeded_db):
-    _override_bearer_token()
     create_resp = client.post(
         "/api/v1/savings-products",
         json={"name": "적금", "current_balance": "0", "monthly_saving_amount": "0", "product_type": "savings"},
@@ -96,7 +87,6 @@ def test_sync_updates_balance(client, seeded_db):
 
 
 def test_list_growlio_accounts_proxies_client(client, seeded_db):
-    _override_bearer_token()
 
     with patch(
         "app.services.savings_product_service.growlio_client.fetch_account_balances",
@@ -210,7 +200,6 @@ def test_upsert_product_annual_plan_missing_product_returns_404(client, seeded_d
 
 
 def test_growlio_import_creates_one_product_per_selected_account(client, seeded_db):
-    _override_bearer_token()
 
     with patch(
         "app.services.savings_product_service.growlio_client.fetch_account_balances",

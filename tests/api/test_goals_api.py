@@ -4,11 +4,8 @@ def test_get_growlio_goal_settings_returns_501_when_not_configured(client, seede
     실제 .env GROWLIO_API_BASE_URL 값과 무관하게 그 상황을 재현한다."""
     from unittest.mock import patch
 
-    from app.dependencies import get_bearer_token
-    from app.main import app as fastapi_app
     from app.services.growlio_client import GrowlioNotConfiguredError
 
-    fastapi_app.dependency_overrides[get_bearer_token] = lambda: "fake-jwt"
 
     with patch(
         "app.services.goal_service.growlio_client.fetch_investment_goal",

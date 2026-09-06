@@ -12,6 +12,17 @@ ignore = [
     "B008",  # FastAPI: Depends()/Query()를 기본 인자로 쓰는 관용 패턴
 ]
 
+[tool.pytest.ini_options]
+# 오타 마커를 에러로, deprecation 경고도 에러로 승격해 회귀를 조기에 잡는다.
+# 커버리지 게이트/랜덤 순서는 아직 도입하지 않는다(tests/CLAUDE.md 참고).
+addopts = "--strict-markers"
+filterwarnings = [
+    "error",
+    # 서드파티에서 나오는, 우리가 당장 손댈 수 없는 알려진 경고는 여기 화이트리스트.
+    "ignore::DeprecationWarning:pydantic.*",
+    "ignore::DeprecationWarning:google.*",
+]
+
 [tool.ruff.lint.per-file-ignores]
 # SQLAlchemy 모델의 Mapped["SiblingModel"] 문자열 forward ref는 런타임 레지스트리가
 # 해석한다 — ruff는 undefined name으로 오탐한다.

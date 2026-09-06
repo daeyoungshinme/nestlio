@@ -1,13 +1,7 @@
 from decimal import Decimal
 from unittest.mock import patch
 
-from app.dependencies import get_bearer_token
-from app.main import app as fastapi_app
 from app.services.growlio_client import GrowlioNotConfiguredError, GrowlioRequestError
-
-
-def _override_bearer_token():
-    fastapi_app.dependency_overrides[get_bearer_token] = lambda: "fake-jwt"
 
 
 def test_get_net_worth_aggregates_current_state(client):
@@ -38,7 +32,6 @@ def test_get_net_worth_aggregates_current_state(client):
 
 
 def test_get_growlio_unlinked_net_worth_returns_summary(client):
-    _override_bearer_token()
 
     with (
         patch(
@@ -61,7 +54,6 @@ def test_get_growlio_unlinked_net_worth_returns_summary(client):
 
 
 def test_get_growlio_unlinked_net_worth_not_configured_returns_zero(client):
-    _override_bearer_token()
 
     with patch(
         "app.services.net_worth_service.growlio_client.fetch_account_balances",
@@ -76,7 +68,6 @@ def test_get_growlio_unlinked_net_worth_not_configured_returns_zero(client):
 
 
 def test_get_growlio_unlinked_net_worth_request_failure_returns_zero(client):
-    _override_bearer_token()
 
     with patch(
         "app.services.net_worth_service.growlio_client.fetch_account_balances",
