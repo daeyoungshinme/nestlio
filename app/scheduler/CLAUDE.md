@@ -4,7 +4,7 @@
 
 ## 구조
 
-- `jobs.py`: 잡 본문 (실제 로직은 `app/services`에 위임) — 트리거 방식이 바뀌어도 이 파일은 그대로 재사용된다.
+- `jobs.py`: 잡 본문 (실제 로직은 `app/services`에 위임) — 트리거 방식이 바뀌어도 이 파일은 그대로 재사용된다. 시각은 `app/utils/dates.py`의 `now_kst()`/`today_kst()`로 읽어 서비스에 명시 주입한다(`datetime.now()`/`date.today()` 직접 호출 금지 — 컨테이너 TZ가 UTC라 KST 가정과 9시간 어긋난다. `render.yaml`의 `TZ=Asia/Seoul`이 이중 방어).
 - `app/routers/internal_jobs.py`: `job_name → callable` 매핑(`JOB_REGISTRY`), `X-Internal-Job-Secret` 헤더 검증(`settings.internal_job_secret`), `POST /internal/jobs/{job_name}` 엔드포인트.
 - `.github/workflows/scheduled-jobs.yml`: GitHub Actions `schedule:` cron (UTC 기준, KST = UTC+9로 환산)이 `curl`로 위 엔드포인트를 호출한다. 요일/말일 조건이 필요한 잡(주간·월간)은 워크플로 스텝 안에서 셸로 분기한다.
 
@@ -13,8 +13,8 @@
 | id (JOB_REGISTRY 키) | 스케줄 (KST) | 호출 |
 |---|---|---|
 | `daily-due-date-check` | 매일 07:00 | `recurring_service.generate_due_transactions` + 캘린더 동기화 |
-| `weekly-summary-email` | 매주 월 08:00 | `notification_service.send_weekly_summary` |
-| `monthly-summary-email` | 매월 1일 08:00 | `notification_service.send_monthly_summary` |
+| `weekly-summary-email` | 매주 월 08:00 | `notification_service.send_weekly_summary(db, today=today_kst())` |
+| `monthly-summary-email` | 매월 1일 08:00 | `notification_service.send_monthly_summary(db, today=today_kst())` |
 | `daily-threshold-safety-net` | 매일 20:00 | `notification_service.check_all_categories_threshold` + `goal_service.sync_challenge_statuses` + `check_all_goal_milestones` (실시간 체크 누락 대비 백스톱, 저장 이벤트 없이 연동 잔액만 자연 증가한 챌린지 상태 전환 포함) |
 | `monthly-net-worth-snapshot` | 매월 1일 08:05 | `net_worth_service.record_snapshot` (순자산 추이 차트용 월별 스냅샷 기록) |
 | `event-reminder-check` | 15분 간격 | `event_service.send_due_reminders` (일정 시작 전 리마인더 이메일) |

@@ -38,18 +38,20 @@
 - 배포 스냅샷 실행: `dev.sh run` (Windows: `dev.bat run`) — `frontend/dist`를 정적 빌드한 뒤 uvicorn 단일 프로세스(8899 포트)로 서빙한다. 프론트 수정 시 재빌드가 필요하다 (구 `run.sh`/`run.bat`은 이 모드로 통합됨).
 - 의존성 설치: 런타임은 `pip install -r requirements.txt`, 테스트/개발은 여기에 `-r requirements-dev.txt`를 더한다 (`pytest` 등 테스트 전용 의존성은 프로덕션 이미지에 넣지 않는다)
 - 테스트: `pytest` (pytest 설정 파일 없음, 기본 옵션으로 동작 — 상세 컨벤션은 [tests/CLAUDE.md](tests/CLAUDE.md))
+- 백엔드 린트: `ruff check .` (설정은 `pyproject.toml` `[tool.ruff]` — 포매팅 전면 재정렬은 안 하고 미사용 import/변수·bugbear·import 정렬만 강제). CI(`ci.yml`)가 `ruff check` + `pip check` + `pytest`를 돌린다.
 - 마이그레이션: Alembic (`alembic.ini`, `migrations/`) — 모델 변경 시 리비전 생성 필요. 배포는 `alembic upgrade head`(`render.yaml`)라 체인이 깨지면 배포 전체가 실패하므로, `tests/test_migrations.py`가 Postgres 없이도 CI에서 head 1개·down_revision 연결·base 1개를 가드한다. 2026-09-01에 51개 선형 체인을 단일 베이스라인(`bdba3c3b3277_squashed_baseline`) 하나로 스쿼시했고, 구 리비전 파일은 `migrations/versions/_archive/`에 참고용으로만 남아 있다(Alembic이 스캔하지 않음 — 자세한 건 그 디렉토리의 `README.md`). 스키마 무결성(구 체인 == 베이스라인 == 모델) 전체 검증은 `scripts/verify_migration_squash.py`(pgserver 필요).
 - 배포: FastAPI가 `frontend/dist`(빌드된 SPA)를 정적 파일로 서빙하는 단일 프로세스 구조 (growlio의 nginx/Render+Vercel 분리 구조와 다른, nestlio 규모에 맞춘 의도적 단순화). Render 무료 웹서비스 1개로 배포한다 (`render.yaml` 참고) — DB는 별도로 마련할 필요 없이 growlio와 공유하는 Supabase Postgres를 그대로 쓴다. Render 무료 티어는 디스크가 완전히 휘발성이라 부부 사진은 Supabase Storage에, 구글 OAuth 토큰은 Postgres에 저장한다(아래 참고). 15분 미사용 시 슬립하므로 예약 작업은 인프로세스 스케줄러 대신 GitHub Actions가 트리거한다([app/scheduler/CLAUDE.md](app/scheduler/CLAUDE.md)).
 
 ## 환경 변수
 
 `.env.example` 참고. 주요 그룹:
+- 런타임: `TZ=Asia/Seoul`(앱은 naive datetime을 KST 벽시계로 취급 — 컨테이너 기본 UTC면 스케줄러 날짜 경계가 어긋난다. 코드는 `app/utils/dates.py`의 `now_kst()`/`today_kst()`로도 방어), `APP_ENV`(`production`이면 필수 시크릿 누락 시 부팅을 막는다 — `app/config.py::validate_startup`. Render는 `RENDER` 환경변수로도 감지)
 - DB: `DATABASE_URL`
 - Supabase(growlio와 공유, JWT 검증용): `SUPABASE_PROJECT_URL`
 - CORS: `CORS_ORIGINS` (프론트엔드 오리진 목록)
 - 프론트엔드 오리진(배우자 초대 이메일의 가입 링크 조립용): `APP_BASE_URL`
 - 알림: `NOTIFY_EMAIL_TO`
-- 코칭엔진 임계값(0-100 %): `SAVINGS_RATE_*`, `FIXED_COST_RATIO_*`, `BUDGET_*_PCT`, `DISCRETIONARY_RATIO_WARN`, `DEBT_RATIO_WARN`, `BENCHMARK_*_WARN_PCT`(표준 카테고리별 지출 벤치마크, 설정 화면에서 부부가 직접 조정 가능)
+- 코칭엔진 임계값(0-100 %): 정본은 `app/config.py` 기본값이고 부부가 설정 화면에서 조정한 값이 우선한다. 기본값 자체를 환경별로 바꿔야 할 때만 `SAVINGS_RATE_*`, `FIXED_COST_RATIO_*`, `BUDGET_*_PCT`, `DISCRETIONARY_RATIO_WARN`, `DEBT_RATIO_WARN`, `BENCHMARK_*_WARN_PCT`, `EMERGENCY_FUND_*_MONTHS`, `GOAL_PACE_*_PCT`, `SAVINGS_EXECUTION_*_PCT`, `VARIABLE_TREND_FLAG_PCT` 등을 `.env`에 넣는다(`render.yaml`엔 두지 않는다).
 - growlio 연동(계좌·부동산 잔액 조회/동기화, 저축·투자 거래 입출금 반영, 재무목표 프리필): `GROWLIO_API_BASE_URL` — 비어 있으면 연동 기능 전체가 꺼진다
 - 부부 사진 저장용 Supabase Storage: `SUPABASE_SERVICE_ROLE_KEY`, `SUPABASE_STORAGE_BUCKET`, `MAX_UPLOAD_SIZE_MB` — 백엔드가 `/media/couple-photo`에서 프록시로 서빙한다(`app/services/couple_photo_service.py`, `app/main.py`). 둘 중 하나라도 비어 있으면 "사진 없음"으로 동작한다.
 - 예약 작업 인증: `INTERNAL_JOB_SECRET` — GitHub Actions가 `/internal/jobs/{job_name}` 호출 시 `X-Internal-Job-Secret` 헤더로 보낸다.

@@ -41,7 +41,7 @@ import { insightSeverityStyle, progressStatusBadgeClass, progressStatusLabel, wo
 import { computeCardStatus, daysUntil } from "@/utils/goalStatus";
 import { formatDate, formatKrw, formatKrwCompact, formatWeekRange, formatYearMonth, pctOf } from "@/utils/format";
 import { splitSavingsAndRealEstate } from "@/utils/netWorth";
-import { estimateGoalAcceleration } from "@/utils/monthRange";
+import { estimateGoalAcceleration } from "@/utils/goalAcceleration";
 import { extractErrorMessage } from "@/utils/error";
 import { toast } from "@/utils/toast";
 import { findGrowlioInvestmentLink } from "@/constants/growlio";

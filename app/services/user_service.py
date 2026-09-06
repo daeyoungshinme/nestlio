@@ -4,6 +4,7 @@ from datetime import datetime
 from sqlalchemy.orm import Session
 
 from app.models.user import User
+from app.utils.dates import now_kst
 
 # 부부 전용 앱이라 로컬 users는 최대 2명으로 제한된다 (app/dependencies.py의 자동 미러링,
 # app/services/invite_service.py의 초대 발송/수락 둘 다 이 상한을 공유한다).
@@ -27,6 +28,21 @@ def list_users(db: Session) -> list[User]:
     return db.query(User).filter(User.removed_at.is_(None)).order_by(User.display_name).all()
 
 
+def household_has_capacity(db: Session) -> bool:
+    """새 로컬 User를 하나 더 만들 여지가 있는지 (가구 정원 MAX_HOUSEHOLD_USERS 미만)."""
+    return len(list_users(db)) < MAX_HOUSEHOLD_USERS
+
+
+def mirror_supabase_user(db: Session, user_id: uuid.UUID, email: str) -> User:
+    """Supabase Auth 사용자를 로컬 User 행으로 미러링한다 (dependencies.get_current_user 전용).
+    정원 체크는 호출부가 먼저 한다 — 여기서는 쓰기만 담당해 라우터→서비스→모델 계층을 지킨다."""
+    user = User(id=user_id, email=email, display_name=email.split("@")[0] if email else "user")
+    db.add(user)
+    db.commit()
+    db.refresh(user)
+    return user
+
+
 def get_user(db: Session, user_id: uuid.UUID) -> User | None:
     return db.get(User, user_id)
 
@@ -42,7 +58,7 @@ def remove_user(db: Session, target: User, requested_by: User, now: datetime | N
     """target을 소프트 삭제한다 - 거래내역 등 target.id를 참조하는 기존 데이터는 그대로 두고
     removed_at만 채운다 (하드 삭제는 8개 테이블의 FK 위반을 일으킨다). list_users()가 이후
     target을 제외하므로 가구 정원이 다시 열려 새 계정이 그 자리를 채울 수 있다."""
-    now = now or datetime.now()
+    now = now or now_kst()
     if target.id == requested_by.id:
         raise CannotRemoveSelfError("본인 계정은 이 방법으로 제거할 수 없습니다.")
     target.removed_at = now

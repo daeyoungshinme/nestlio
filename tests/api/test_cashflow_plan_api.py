@@ -5,7 +5,6 @@ from app.services import transaction_service
 
 
 def test_upsert_and_list_plan_item(client, seeded_db):
-    user = seeded_db["user"]
     resp = client.put(
         "/api/v1/cashflow-plan/items",
         json={
@@ -54,7 +53,6 @@ def test_upsert_plan_item_with_category_returns_category_name(client, seeded_db)
 
 
 def test_copy_previous_month(client, seeded_db):
-    user = seeded_db["user"]
     client.put(
         "/api/v1/cashflow-plan/items",
         json={

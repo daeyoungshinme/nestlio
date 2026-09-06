@@ -32,7 +32,7 @@ export default function GoalPurposeSummary({ heading, purposes, activeLabel, onS
             className={[
               "flex flex-col items-center gap-1 rounded-xl px-1 py-2.5 text-center transition-colors border",
               activeLabel === p.label
-                ? "border-blue-300 dark:border-blue-700 bg-blue-50 dark:bg-blue-950"
+                ? "border-primary-300 dark:border-primary-700 bg-primary-50 dark:bg-primary-950"
                 : "border-gray-100 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800/60",
             ].join(" ")}
           >

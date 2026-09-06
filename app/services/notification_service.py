@@ -6,8 +6,8 @@ from decimal import Decimal
 from sqlalchemy.orm import Session
 
 from app.models.notification_log import NotificationLog
-from app.models.notification_read import NotificationRead
 from app.models.notification_reaction import NotificationReaction
+from app.models.notification_read import NotificationRead
 from app.models.user import User
 from app.services import (
     budget_service,
@@ -21,7 +21,7 @@ from app.services import (
     transaction_report_service,
 )
 from app.services.google_auth import is_connected
-from app.utils.dates import week_bounds, year_month_str
+from app.utils.dates import now_kst, today_kst, week_bounds, year_month_str
 
 logger = logging.getLogger(__name__)
 
@@ -119,8 +119,21 @@ def _contribution_summary_text(owner_totals: list[dict]) -> str | None:
     return line
 
 
+def _with_streak_and_contribution(body: str, *, streak: int, owner_totals: list[dict]) -> str:
+    """주간·월간 요약 본문에 공통으로 붙는 '연속 N개월 페이스' + '부부 기여도' 줄을 덧붙인다."""
+    extra_lines = []
+    if streak > 0:
+        extra_lines.append(f"연속 {streak}개월째 목표 페이스를 지키고 있어요 \U0001F525")
+    contribution_text = _contribution_summary_text(owner_totals)
+    if contribution_text:
+        extra_lines.append(contribution_text)
+    if extra_lines:
+        body += "\n\n" + "\n".join(extra_lines)
+    return body
+
+
 def send_weekly_summary(db: Session, today: date | None = None, force: bool = False) -> bool:
-    today = today or date.today()
+    today = today or today_kst()
     start, end = week_bounds(today)
     period_key = start.isoformat()
     if not force and not notification_settings_service.is_enabled(db, "email_weekly"):
@@ -132,15 +145,7 @@ def send_weekly_summary(db: Session, today: date | None = None, force: bool = Fa
     owner_totals = transaction_report_service.totals_by_owner(db, start, end)
     streak = _savings_streak(db, end)
     body = _format_summary("주간 가계부 요약", start, end, totals, breakdown)
-
-    extra_lines = []
-    if streak > 0:
-        extra_lines.append(f"연속 {streak}개월째 목표 페이스를 지키고 있어요 \U0001F525")
-    contribution_text = _contribution_summary_text(owner_totals)
-    if contribution_text:
-        extra_lines.append(contribution_text)
-    if extra_lines:
-        body += "\n\n" + "\n".join(extra_lines)
+    body = _with_streak_and_contribution(body, streak=streak, owner_totals=owner_totals)
 
     if is_connected():
         html = email_templates.build_weekly_summary_html(
@@ -154,7 +159,7 @@ def send_weekly_summary(db: Session, today: date | None = None, force: bool = Fa
 
 
 def send_monthly_summary(db: Session, today: date | None = None, force: bool = False) -> bool:
-    today = today or date.today()
+    today = today or today_kst()
     r = retrospective_service.build(db, today)
     start, end, period_key = r["start"], r["end"], r["year_month"]
     if not force and not notification_settings_service.is_enabled(db, "email_monthly"):
@@ -164,15 +169,7 @@ def send_monthly_summary(db: Session, today: date | None = None, force: bool = F
     totals, breakdown, owner_totals, insights = r["totals"], r["breakdown"], r["owner_totals"], r["insights"]
     streak = _savings_streak(db, end)
     body = _format_summary("월간 가계부 요약", start, end, totals, breakdown)
-
-    extra_lines = []
-    if streak > 0:
-        extra_lines.append(f"연속 {streak}개월째 목표 페이스를 지키고 있어요 \U0001F525")
-    contribution_text = _contribution_summary_text(owner_totals)
-    if contribution_text:
-        extra_lines.append(contribution_text)
-    if extra_lines:
-        body += "\n\n" + "\n".join(extra_lines)
+    body = _with_streak_and_contribution(body, streak=streak, owner_totals=owner_totals)
 
     if insights:
         body += "\n\n자산증식 코칭:\n"
@@ -216,7 +213,7 @@ def _send_threshold_alert(db: Session, row: dict, year_month: str) -> bool:
 
 def check_and_alert_budget_threshold(db: Session, category_id: int, year_month: str | None = None) -> bool:
     """Send an alert if this category just crossed the warn/critical budget threshold this month."""
-    year_month = year_month or year_month_str(date.today())
+    year_month = year_month or year_month_str(today_kst())
     rows = budget_service.budget_vs_actual(db, year_month)
     row = next((r for r in rows if r["category_id"] == category_id), None)
     if row is None:
@@ -230,7 +227,7 @@ def _celebrate_goal_milestone(db: Session, goal, today: date | None = None) -> b
     jumped past multiple milestones at once, only the highest is sent. Milestone-crossing +
     dedup bookkeeping lives in milestone_service. 일반 목표(kind="goal")는 25/50/75/100% 각각
     축하하고, 챌린지(kind="challenge")는 옛 Challenge 모델과 동일하게 100% 한 번만 축하한다."""
-    today = today or date.today()
+    today = today or today_kst()
     if goal is None or not goal.required_amount:
         return False
     is_challenge = goal.kind == "challenge"
@@ -281,20 +278,23 @@ def check_all_goal_milestones(db: Session, today: date | None = None) -> int:
         try:
             if _celebrate_goal_milestone(db, goal, today):
                 sent += 1
-        except Exception:
+        except Exception:  # noqa: BLE001
+            # 한 목표의 실패가 세션을 오염시켜 이후 _log_sent 커밋이 연쇄 실패하지 않도록 롤백.
+            db.rollback()
             logger.exception("goal_milestone_alert_failed goal_id=%s", goal.id)
     return sent
 
 
 def check_all_categories_threshold(db: Session, year_month: str | None = None) -> int:
-    year_month = year_month or year_month_str(date.today())
+    year_month = year_month or year_month_str(today_kst())
     rows = budget_service.budget_vs_actual(db, year_month)
     sent = 0
     for row in rows:
         try:
             if _send_threshold_alert(db, row, year_month):
                 sent += 1
-        except Exception:
+        except Exception:  # noqa: BLE001
+            db.rollback()
             logger.exception("threshold_alert_failed category_id=%s", row["category_id"])
     return sent
 
@@ -399,7 +399,7 @@ def unread_count(db: Session, user_id: uuid.UUID) -> int:
 
 
 def mark_read(db: Session, user_id: uuid.UUID, notification_log_id: int, now: datetime | None = None) -> None:
-    now = now or datetime.now()
+    now = now or now_kst()
     log = db.get(NotificationLog, notification_log_id)
     if log is None:
         raise NotificationNotFoundError("알림을 찾을 수 없습니다.")
@@ -415,7 +415,7 @@ def mark_read(db: Session, user_id: uuid.UUID, notification_log_id: int, now: da
 
 
 def mark_all_read(db: Session, user_id: uuid.UUID, now: datetime | None = None) -> int:
-    now = now or datetime.now()
+    now = now or now_kst()
     already_read = db.query(NotificationRead.notification_log_id).filter(NotificationRead.user_id == user_id)
     unread_ids = [row[0] for row in db.query(NotificationLog.id).filter(~NotificationLog.id.in_(already_read))]
     for log_id in unread_ids:

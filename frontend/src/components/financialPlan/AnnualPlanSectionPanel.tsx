@@ -69,7 +69,7 @@ export default function AnnualPlanSectionPanel({
           {sectionKey !== "income" && (
             <Link
               to="/categories"
-              className={`${TOUCH_TARGET_MIN_MOBILE_ONLY} p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-950 rounded-lg transition-colors`}
+              className={`${TOUCH_TARGET_MIN_MOBILE_ONLY} p-2 text-gray-400 hover:text-primary-600 hover:bg-primary-50 dark:hover:bg-primary-950 rounded-lg transition-colors`}
               aria-label="카테고리 관리"
               title="카테고리 관리"
             >
@@ -78,7 +78,7 @@ export default function AnnualPlanSectionPanel({
           )}
           <button
             onClick={onAddItem}
-            className={`${TOUCH_TARGET_MIN_MOBILE_ONLY} p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-950 rounded-lg transition-colors`}
+            className={`${TOUCH_TARGET_MIN_MOBILE_ONLY} p-2 text-gray-400 hover:text-primary-600 hover:bg-primary-50 dark:hover:bg-primary-950 rounded-lg transition-colors`}
             aria-label={`${label} 항목 추가`}
           >
             <Plus size={16} />

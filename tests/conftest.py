@@ -1,6 +1,4 @@
 import sys
-from datetime import date
-from decimal import Decimal
 from pathlib import Path
 
 import pytest
@@ -11,9 +9,9 @@ from sqlalchemy.pool import StaticPool
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
+import app.models  # noqa: F401 ensures all models are registered on Base.metadata
 from app.database import Base, get_db
 from app.dependencies import get_bearer_token, get_current_user, get_token_payload
-import app.models  # noqa: F401 ensures all models are registered on Base.metadata
 from app.main import app as fastapi_app
 from app.models.category import Category
 from app.models.user import User

@@ -111,7 +111,7 @@ function LedgerDayCell({
       <span
         className={`text-xs sm:text-sm font-medium ${
           isToday
-            ? "bg-blue-600 text-white rounded-full w-5 h-5 sm:w-6 sm:h-6 flex items-center justify-center"
+            ? "bg-primary-600 text-white rounded-full w-5 h-5 sm:w-6 sm:h-6 flex items-center justify-center"
             : "text-gray-700 dark:text-gray-300"
         }`}
       >
@@ -133,7 +133,7 @@ function LedgerDayCell({
           ))}
         {hasSchedule && (
           <span
-            className="w-1.5 h-1.5 rounded-full bg-blue-400 dark:bg-blue-500"
+            className="w-1.5 h-1.5 rounded-full bg-primary-400 dark:bg-primary-500"
             title={`일정·반복 예정 ${events.length + recurringDue.length}건`}
           />
         )}

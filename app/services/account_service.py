@@ -5,6 +5,7 @@ from decimal import Decimal
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
+from app.constants.sort_order import DEFAULT_SORT_ORDER
 from app.models.account import Account
 from app.models.transaction import Transaction
 from app.services import growlio_client
@@ -25,7 +26,7 @@ def create_account(
         name=name,
         account_type=account_type,
         initial_balance=initial_balance,
-        sort_order=999,
+        sort_order=DEFAULT_SORT_ORDER,
         owner_user_id=owner_user_id,
     )
     db.add(account)
@@ -112,7 +113,7 @@ def import_from_growlio(
             account_type="bank",
             initial_balance=growlio_client.to_decimal_krw(account["current_value_krw"]),
             growlio_account_id=account_id,
-            sort_order=999,
+            sort_order=DEFAULT_SORT_ORDER,
             owner_user_id=owner_user_id,
         )
         db.add(new_account)

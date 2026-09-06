@@ -16,7 +16,7 @@ from app.services import (
     net_worth_service,
     transaction_report_service,
 )
-from app.utils.dates import month_bounds, parse_year_month, week_bounds, year_month_str
+from app.utils.dates import month_bounds, parse_year_month, today_kst, week_bounds, year_month_str
 
 Period = Literal["today", "week", "month"]
 
@@ -42,7 +42,7 @@ def build(
     year_month: str | None = None,
     today: date | None = None,
 ) -> dict:
-    today = today or date.today()
+    today = today or today_kst()
     anchor, start, end = _resolve_range(period, day, year_month, today)
 
     totals = transaction_report_service.period_totals(db, start, end)

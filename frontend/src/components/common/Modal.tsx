@@ -21,6 +21,10 @@ interface Props {
   closeOnBackdrop?: boolean;
 }
 
+// 모달 최대 높이 비율. 아래 className의 `max-h-[85dvh]`와 반드시 같은 값이어야 한다
+// (visualViewport를 지원하는 브라우저는 style이, 아니면 className이 적용됨).
+const MAX_HEIGHT_RATIO = 0.85;
+
 export default function Modal({ children, onClose, title, size = "md", closeOnBackdrop = false }: Props) {
   const { dialogRef, overlayRef, handleRef } = useModalBehavior(onClose);
   const titleId = useId();
@@ -38,7 +42,7 @@ export default function Modal({ children, onClose, title, size = "md", closeOnBa
         aria-modal="true"
         aria-labelledby={title != null ? titleId : undefined}
         className={`bg-white dark:bg-gray-900 rounded-t-2xl sm:rounded-2xl shadow-xl w-full ${SIZE_CLASSES[size]} max-h-[85dvh] flex flex-col overscroll-contain`}
-        style={viewportHeight != null ? { maxHeight: `${viewportHeight * 0.85}px` } : undefined}
+        style={viewportHeight != null ? { maxHeight: `${viewportHeight * MAX_HEIGHT_RATIO}px` } : undefined}
         onClick={(e) => e.stopPropagation()}
       >
         <div ref={handleRef} className="sm:hidden flex justify-center pt-2 pb-1 shrink-0 touch-none" aria-hidden="true">

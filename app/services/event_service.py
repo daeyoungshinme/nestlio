@@ -11,7 +11,7 @@ from app.models.recurring_expense import RecurringExpense
 from app.models.user import User
 from app.services import gmail_service, notification_settings_service
 from app.services.google_auth import GoogleNotConnectedError, is_connected
-from app.utils.dates import advance_due_date
+from app.utils.dates import advance_due_date, now_kst
 
 logger = logging.getLogger("event_service")
 
@@ -139,7 +139,7 @@ def update_event(db: Session, event_id: int, actor_id: uuid.UUID, **fields) -> E
 
 
 def delete_event(db: Session, event_id: int, actor_id: uuid.UUID, now: datetime | None = None) -> bool:
-    now = now or datetime.now()
+    now = now or now_kst()
     event = db.get(Event, event_id)
     if event is None:
         return False
@@ -163,7 +163,7 @@ def set_completed(db: Session, event_id: int, completed: bool, now: datetime | N
     구글 캘린더에는 완료 개념이 없어 _sync_to_google을 호출하지 않고, 체크박스 토글마다 배우자에게
     메일이 가면 과도하므로 _notify_other_spouse도 호출하지 않는다(담당자 배정 자체는 create_event/
     update_event가 이미 알린다)."""
-    now = now or datetime.now()
+    now = now or now_kst()
     event = db.get(Event, event_id)
     if event is None:
         return None
@@ -288,9 +288,11 @@ def import_from_google(db: Session, range_start: date, range_end: date, actor_id
     return {"created": created, "updated": updated, "skipped": skipped}
 
 
-def send_due_reminders(db: Session, now: datetime, window_minutes: int = 15) -> int:
-    """Send reminder emails for occurrences whose reminder time falls within
-    [now, now + window_minutes). Meant to be called by a periodic scheduler job."""
+def send_due_reminders(db: Session, now: datetime, window_minutes: int = 30) -> int:
+    """Send reminder emails for occurrences whose reminder time has arrived (or arrives within
+    `window_minutes`) and whose event is still upcoming. Meant to be called by a periodic
+    scheduler job — catch-up safe: a missed/delayed tick is recovered on the next run, and
+    NotificationLog dedup prevents duplicate sends."""
     if not is_connected():
         return 0
     if not notification_settings_service.is_enabled(db, "event_reminder"):
@@ -318,7 +320,9 @@ def _due_occurrences(event: Event, now: datetime, window_minutes: int) -> list[d
     due = []
     for occurrence in _occurrences_in_range(event, range_start, range_end):
         reminder_at = occurrence - lead
-        if now <= reminder_at < now + timedelta(minutes=window_minutes):
+        # 리마인더 시각이 도래했고(윈도우 안에 들어왔고) 일정 자체는 아직 미래면 발송 대상.
+        # 지난 틱이 밀려서 reminder_at이 now보다 과거여도 잡는다 — 중복은 dedup이 막는다.
+        if reminder_at <= now + timedelta(minutes=window_minutes) and now < occurrence:
             due.append(occurrence)
     return due
 
@@ -358,7 +362,7 @@ def _send_reminder_email(db: Session, event: Event, occurrence: datetime) -> Non
         gmail_service.send_email(
             f"[Nestlio] 일정 리마인더: {event.title}", body, to=notification_settings_service.get_recipients(db)
         )
-    except Exception:
+    except Exception:  # noqa: BLE001 - best-effort 부수효과, 로그만 남기고 진행
         logger.exception("일정 리마인더 이메일 발송 실패: %s", event.title)
 
 
@@ -375,7 +379,7 @@ def _notify_other_spouse(db: Session, event: Event, actor_id: uuid.UUID, action_
     body = _event_summary_text(event, event.start_at, header=action_label)
     try:
         gmail_service.send_email(f"[Nestlio] {action_label}: {event.title}", body, to=recipients)
-    except Exception:
+    except Exception:  # noqa: BLE001 - best-effort 부수효과, 로그만 남기고 진행
         logger.exception("일정 알림 이메일 발송 실패: %s", event.title)
 
 
@@ -400,7 +404,7 @@ def _sync_to_google(db: Session, event: Event) -> None:
         google_calendar_service.upsert_event(db, event)
     except GoogleNotConnectedError:
         pass
-    except Exception:
+    except Exception:  # noqa: BLE001 - best-effort 부수효과, 로그만 남기고 진행
         logger.exception("캘린더 이벤트 동기화 실패: %s", event.title)
 
 
@@ -413,5 +417,5 @@ def _remove_from_google(event: Event) -> None:
         google_calendar_service.delete_event(event)
     except GoogleNotConnectedError:
         pass
-    except Exception:
+    except Exception:  # noqa: BLE001 - best-effort 부수효과, 로그만 남기고 진행
         logger.exception("캘린더 이벤트 삭제 실패: %s", event.title)

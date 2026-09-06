@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 from app.models.recurring_expense import RecurringExpense
 from app.models.transaction import Transaction
 from app.services.transaction_service import create_transaction
-from app.utils.dates import advance_recurring_date, first_monthly_date_on_or_after
+from app.utils.dates import advance_recurring_date, first_monthly_date_on_or_after, today_kst
 
 logger = logging.getLogger(__name__)
 
@@ -21,7 +21,7 @@ def list_recurring(db: Session, active_only: bool = True) -> list[RecurringExpen
 
 
 def upcoming(db: Session, within_days: int = 14, today: date | None = None) -> list[RecurringExpense]:
-    today = today or date.today()
+    today = today or today_kst()
     horizon = today + timedelta(days=within_days)
     return (
         db.query(RecurringExpense)
@@ -113,7 +113,7 @@ def reactivate_recurring(db: Session, recurring_id: int, today: date | None = No
     """deactivate_recurring의 대칭 함수. 비활성 기간 동안 밀린 next_due_date를 오늘 이후로
     앞당겨서, 재활성화 직후 generate_due_transactions가 소급분을 한꺼번에 만들어버리지
     않게 한다."""
-    today = today or date.today()
+    today = today or today_kst()
     recurring = db.get(RecurringExpense, recurring_id)
     if recurring is None:
         return None
@@ -132,7 +132,7 @@ def reactivate_recurring(db: Session, recurring_id: int, today: date | None = No
 def generate_due_transactions(db: Session, today: date | None = None) -> list[Transaction]:
     """Post a transaction for every active recurring expense whose next_due_date has arrived,
     then roll next_due_date forward. Safe to call repeatedly (idempotent per due date)."""
-    today = today or date.today()
+    today = today or today_kst()
     due_items = (
         db.query(RecurringExpense)
         .filter(RecurringExpense.is_active.is_(True), RecurringExpense.next_due_date <= today)

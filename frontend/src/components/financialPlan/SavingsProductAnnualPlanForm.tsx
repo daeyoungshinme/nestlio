@@ -5,7 +5,7 @@ import Button from "@/components/common/Button";
 import FormInput from "@/components/common/FormInput";
 import { INPUT_SM, LABEL_SM } from "@/constants/inputStyles";
 import { syncTargetsToPeriod } from "@/utils/monthRange";
-import { formatKrwPreview } from "@/utils/format";
+import { formatKrwPreview, formatMonthOnly } from "@/utils/format";
 import type { SavingsProductAnnualPlanMonthlyTargetIn } from "@/types";
 
 export interface SavingsProductAnnualPlanFormValues {
@@ -72,7 +72,7 @@ export default function SavingsProductAnnualPlanForm({
               .filter((ym) => ym <= endMonth)
               .map((ym) => (
                 <option key={ym} value={ym}>
-                  {Number(ym.slice(5))}월
+                  {formatMonthOnly(ym)}
                 </option>
               ))}
           </select>
@@ -84,7 +84,7 @@ export default function SavingsProductAnnualPlanForm({
               .filter((ym) => ym >= startMonth)
               .map((ym) => (
                 <option key={ym} value={ym}>
-                  {Number(ym.slice(5))}월
+                  {formatMonthOnly(ym)}
                 </option>
               ))}
           </select>

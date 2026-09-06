@@ -12,6 +12,7 @@ import {
 } from "@/api/notifications";
 import { useMe } from "@/hooks/useReferenceData";
 import { QUERY_KEYS } from "@/constants/queryKeys";
+import { NOTIFICATIONS_REFETCH_INTERVAL } from "@/constants/queryConfig";
 import { SIDEBAR_NAV_ITEMS } from "@/constants/nav";
 import { TOUCH_TARGET_COMPACT_MOBILE_ONLY, TOUCH_TARGET_MIN } from "@/constants/uiSizes";
 import { formatDate } from "@/utils/format";
@@ -51,10 +52,10 @@ export default function Header() {
   const pageLabel = currentPageLabel(location.pathname);
   const queryClient = useQueryClient();
 
-  const { data } = useQuery({
+  const { data, isLoading: notificationsLoading, isError: notificationsError } = useQuery({
     queryKey: QUERY_KEYS.notifications,
     queryFn: fetchNotifications,
-    refetchInterval: 60_000,
+    refetchInterval: NOTIFICATIONS_REFETCH_INTERVAL,
   });
   const { data: me } = useMe();
 
@@ -83,7 +84,7 @@ export default function Header() {
   return (
     <header className="flex items-center justify-between lg:justify-end px-3 pt-[calc(0.5rem+env(safe-area-inset-top))] pb-2 lg:px-6 lg:py-3 border-b border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900">
       <div className="flex items-center gap-2 lg:hidden min-w-0">
-        <PiggyBank className="text-blue-600 dark:text-blue-400 shrink-0" size={20} aria-hidden="true" />
+        <PiggyBank className="text-primary-600 dark:text-primary-400 shrink-0" size={20} aria-hidden="true" />
         {pageLabel && (
           <span className="font-bold text-base text-gray-900 dark:text-gray-50 truncate">{pageLabel}</span>
         )}
@@ -111,13 +112,21 @@ export default function Header() {
               <div className="flex justify-end px-4 pt-3">
                 <button
                   onClick={() => readAllMutation.mutate()}
-                  className="text-xs font-medium text-blue-600 dark:text-blue-400 hover:underline"
+                  className="text-xs font-medium text-primary-600 dark:text-primary-400 hover:underline"
                 >
                   모두 읽음
                 </button>
               </div>
             )}
             <div className="overflow-y-auto px-2 py-2">
+              {notificationsLoading && (
+                <p className="px-3 py-6 text-center text-sm text-gray-400 dark:text-gray-500">불러오는 중…</p>
+              )}
+              {notificationsError && (
+                <p className="px-3 py-6 text-center text-sm text-gray-500 dark:text-gray-400">
+                  알림을 불러오지 못했습니다.
+                </p>
+              )}
               {data && data.items.length === 0 && (
                 <EmptyState icon={Bell} title="알림이 없습니다" compact />
               )}
@@ -127,33 +136,32 @@ export default function Header() {
                 return (
                   <div
                     key={n.id}
-                    role="button"
-                    tabIndex={0}
-                    onClick={() => !n.is_read && readMutation.mutate(n.id)}
-                    onKeyDown={(e) => {
-                      if (e.key !== "Enter" && e.key !== " ") return;
-                      e.preventDefault();
-                      if (!n.is_read) readMutation.mutate(n.id);
-                    }}
-                    className={`w-full text-left px-3 py-3 rounded-lg transition-colors cursor-pointer ${
+                    className={`px-3 py-3 rounded-lg ${
                       n.is_read
                         ? "text-gray-500 dark:text-gray-400"
-                        : "bg-blue-50 dark:bg-blue-950 text-gray-900 dark:text-gray-50"
-                    } hover:bg-gray-100 dark:hover:bg-gray-800`}
+                        : "bg-primary-50 dark:bg-primary-950 text-gray-900 dark:text-gray-50"
+                    }`}
                   >
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="text-sm font-medium">{notificationTitle(n)}</span>
-                      <span className="text-xs text-gray-400 dark:text-gray-500 shrink-0">
-                        {formatDate(n.sent_at.slice(0, 10))}
+                    <button
+                      type="button"
+                      disabled={n.is_read}
+                      onClick={() => readMutation.mutate(n.id)}
+                      className="w-full text-left rounded-md transition-colors enabled:hover:bg-gray-100 dark:enabled:hover:bg-gray-800 disabled:cursor-default -mx-1 px-1 py-0.5"
+                    >
+                      <span className="flex items-center justify-between gap-2">
+                        <span className="text-sm font-medium">{notificationTitle(n)}</span>
+                        <span className="text-xs text-gray-400 dark:text-gray-500 shrink-0">
+                          {formatDate(n.sent_at.slice(0, 10))}
+                        </span>
                       </span>
-                    </div>
-                    {n.detail && (
-                      <p className="mt-1 text-xs text-gray-500 dark:text-gray-400 whitespace-pre-line line-clamp-2">
-                        {n.detail}
-                      </p>
-                    )}
+                      {n.detail && (
+                        <span className="mt-1 block text-xs text-gray-500 dark:text-gray-400 whitespace-pre-line line-clamp-2">
+                          {n.detail}
+                        </span>
+                      )}
+                    </button>
                     {REACTABLE_NOTIF_TYPES.has(n.notif_type) && (
-                      <div onClick={(e) => e.stopPropagation()} className="mt-2 flex items-center flex-wrap gap-1.5">
+                      <div className="mt-2 flex items-center flex-wrap gap-1.5">
                         {REACTION_EMOJIS.map((emoji) => (
                           <button
                             key={emoji}
@@ -162,7 +170,7 @@ export default function Header() {
                             aria-pressed={myReaction?.emoji === emoji}
                             className={`${TOUCH_TARGET_COMPACT_MOBILE_ONLY} rounded-full text-sm transition-colors ${
                               myReaction?.emoji === emoji
-                                ? "bg-blue-100 dark:bg-blue-900 ring-2 ring-blue-400 dark:ring-blue-600"
+                                ? "bg-primary-100 dark:bg-primary-900 ring-2 ring-primary-400 dark:ring-primary-600"
                                 : "bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700"
                             }`}
                           >

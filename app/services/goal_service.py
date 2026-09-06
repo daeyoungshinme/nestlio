@@ -1,4 +1,3 @@
-import math
 import uuid
 from datetime import date, datetime
 from decimal import Decimal
@@ -6,12 +5,13 @@ from decimal import Decimal
 from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
+from app.constants.sort_order import DEFAULT_SORT_ORDER
 from app.models.financial_goal import FinancialGoal
 from app.models.goal_funding_source import GoalFundingSource
 from app.models.goal_monthly_target import GoalMonthlyTarget
 from app.models.transaction import Transaction
 from app.services import account_service, growlio_client, plan_targets
-from app.utils.dates import month_bounds, months_between, parse_year_month, shift_month, year_month_str
+from app.utils.dates import month_bounds, months_between, now_kst, parse_year_month, shift_month, year_month_str
 
 
 class MonthlyTargetNotFoundError(Exception):
@@ -189,7 +189,9 @@ def compute_eta_year_month(
     if monthly_saving_amount <= 0:
         return None
     remaining = required_amount - current_amount
-    months = math.ceil(remaining / monthly_saving_amount)
+    # 정수 나눗셈 후 나머지가 있으면 한 달 더 — Decimal //는 0쪽으로 절삭하므로 divmod로 올림한다.
+    whole, rem = divmod(remaining, monthly_saving_amount)
+    months = int(whole) + (1 if rem > 0 else 0)
     return year_month_str(shift_month(today, months))
 
 
@@ -316,7 +318,7 @@ def _apply_challenge_completion(db: Session, goal: FinancialGoal, now: datetime 
     완료 시각을 기록한다(실제 축하 알림 발송 여부는 notification_service가 별도로 판단한다)."""
     if goal.kind != "challenge":
         return
-    now = now or datetime.now()
+    now = now or now_kst()
     current_amount = compute_current_amount(db, goal)
     if goal.status == "active" and goal.required_amount > 0 and current_amount >= goal.required_amount:
         goal.status = "succeeded"
@@ -348,7 +350,7 @@ def create_goal(
         required_amount=required_amount,
         monthly_saving_amount=monthly_saving_amount,
         manual_current_amount=current_amount,
-        sort_order=999,
+        sort_order=DEFAULT_SORT_ORDER,
         kind=kind,
         description=description,
         start_date=start_date,

@@ -1,5 +1,3 @@
-from datetime import datetime
-
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
@@ -16,6 +14,7 @@ from app.schemas.account import (
 )
 from app.schemas.savings_product import GrowlioAccountOut
 from app.services import account_service
+from app.utils.dates import now_kst
 
 router = APIRouter(prefix="/accounts", tags=["accounts"])
 
@@ -79,7 +78,7 @@ def sync_account(
     bearer_token: str = Depends(get_bearer_token),
     _: User = Depends(get_current_user),
 ):
-    account = account_service.sync_account(db, account_id, bearer_token, now=datetime.now())
+    account = account_service.sync_account(db, account_id, bearer_token, now=now_kst())
     if account is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "계좌를 찾을 수 없습니다.")
     return account
@@ -91,7 +90,7 @@ def sync_all_accounts(
     bearer_token: str = Depends(get_bearer_token),
     _: User = Depends(get_current_user),
 ):
-    synced_count, failed = account_service.sync_all_accounts(db, bearer_token, now=datetime.now())
+    synced_count, failed = account_service.sync_all_accounts(db, bearer_token, now=now_kst())
     return AccountSyncAllOut(synced_count=synced_count, failed=failed)
 
 

@@ -7,15 +7,9 @@ import StatusBadge from "@/components/common/StatusBadge";
 import { TOUCH_TARGET_MIN_MOBILE_ONLY } from "@/constants/uiSizes";
 import { growlioLinkedBadgeStyle } from "@/utils/colors";
 
-export interface AssetRowAction extends AccountActionsMenuItem {
-  /** 데스크톱 아이콘 버튼 hover 색상. 기본은 동기화류(blue), 외부 링크처럼 다른 톤이 필요하면 지정. */
-  tone?: "blue" | "emerald";
-}
+export type AssetRowAction = AccountActionsMenuItem;
 
-const TONE_HOVER_CLASS: Record<NonNullable<AssetRowAction["tone"]>, string> = {
-  blue: "hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-950",
-  emerald: "hover:text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-950",
-};
+const ACTION_HOVER_CLASS = "hover:text-primary-600 hover:bg-primary-50 dark:hover:bg-primary-950";
 
 interface Props {
   name: string;
@@ -78,7 +72,7 @@ export default function AssetRow({
       <div className="flex items-center gap-1 shrink-0">
         <div className="hidden sm:flex items-center gap-1">
           {actions.map((action, i) => {
-            const className = `${TOUCH_TARGET_MIN_MOBILE_ONLY} p-2 text-gray-400 ${TONE_HOVER_CLASS[action.tone ?? "blue"]} rounded-lg transition-colors disabled:opacity-50 flex items-center justify-center`;
+            const className = `${TOUCH_TARGET_MIN_MOBILE_ONLY} p-2 text-gray-400 ${ACTION_HOVER_CLASS} rounded-lg transition-colors disabled:opacity-50 flex items-center justify-center`;
             return action.href ? (
               <a
                 key={i}

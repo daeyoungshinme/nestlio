@@ -9,12 +9,16 @@ import { formatKrw, formatYearMonth } from "@/utils/format";
 
 export default function MonthlyRetrospectiveCard() {
   const [open, setOpen] = useState(false);
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, isError } = useQuery({
     queryKey: QUERY_KEYS.monthlyRetrospective,
     queryFn: fetchMonthlyRetrospective,
     staleTime: STALE_TIME.SHORT,
   });
 
+  // 지난달 회고는 보조 위젯이라, 불러오지 못하면 대시보드에 에러를 띄우기보다 조용히 숨긴다.
+  if (isError) {
+    return null;
+  }
   if (isLoading || !data) {
     return <SkeletonCard rows={2} />;
   }

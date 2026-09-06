@@ -2,17 +2,10 @@ from datetime import date
 from decimal import Decimal
 from unittest.mock import patch
 
-from app.dependencies import get_bearer_token
-from app.main import app as fastapi_app
 from app.services import transaction_service
 
 
-def _override_bearer_token():
-    fastapi_app.dependency_overrides[get_bearer_token] = lambda: "fake-jwt"
-
-
 def test_create_and_get_transaction(client, seeded_db):
-    _override_bearer_token()
     food = seeded_db["food"]
     resp = client.post(
         "/api/v1/transactions",
@@ -43,7 +36,6 @@ def test_create_transaction_sets_warning_header_when_growlio_push_fails(client, 
     from app.models.savings_product import SavingsProduct
     from app.services import growlio_client
 
-    _override_bearer_token()
     db = seeded_db["db"]
     savings_category = Category(name="저축/투자", type="fixed", color="#10b981", is_savings=True, sort_order=0)
     product = SavingsProduct(
@@ -72,7 +64,6 @@ def test_create_transaction_sets_warning_header_when_growlio_push_fails(client, 
 
 
 def test_create_transaction_without_growlio_link_has_no_warning_header(client, seeded_db):
-    _override_bearer_token()
     food = seeded_db["food"]
     resp = client.post(
         "/api/v1/transactions",
@@ -88,7 +79,6 @@ def test_create_transaction_without_growlio_link_has_no_warning_header(client, s
 
 
 def test_update_transaction(client, seeded_db):
-    _override_bearer_token()
     db, user, food, rent = seeded_db["db"], seeded_db["user"], seeded_db["food"], seeded_db["rent"]
     tx = transaction_service.create_transaction(db, user.id, food.id, "expense", Decimal("10000"), date(2026, 7, 1))
 
@@ -107,7 +97,6 @@ def test_update_transaction(client, seeded_db):
 
 
 def test_update_unknown_transaction_returns_404(client):
-    _override_bearer_token()
     resp = client.put(
         "/api/v1/transactions/999999",
         json={"amount": "1000", "type": "expense", "category_id": 1, "transaction_date": "2026-07-01"},
@@ -116,7 +105,6 @@ def test_update_unknown_transaction_returns_404(client):
 
 
 def test_delete_transaction(client, seeded_db):
-    _override_bearer_token()
     db, user, food = seeded_db["db"], seeded_db["user"], seeded_db["food"]
     tx = transaction_service.create_transaction(db, user.id, food.id, "expense", Decimal("5000"), date(2026, 7, 1))
 
@@ -139,7 +127,6 @@ def test_list_transactions_filters_by_date_range(client, seeded_db):
 
 
 def test_bulk_delete_transactions(client, seeded_db):
-    _override_bearer_token()
     db, user, food = seeded_db["db"], seeded_db["user"], seeded_db["food"]
     tx1 = transaction_service.create_transaction(db, user.id, food.id, "expense", Decimal("1000"), date(2026, 7, 1))
     tx2 = transaction_service.create_transaction(db, user.id, food.id, "expense", Decimal("2000"), date(2026, 7, 2))

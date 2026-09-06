@@ -2,13 +2,13 @@
 
 ## pytest 설정
 
-- `pytest.ini`/`pyproject.toml`/`setup.cfg` 등 pytest 설정 파일이 없다 — 기본 옵션으로 동작한다. 새로 설정을 추가하려면 왜 필요한지 먼저 확인한다.
+- pytest 설정은 `pyproject.toml`의 `[tool.pytest.ini_options]`에 있다 — `--strict-markers`(오타 마커 = 에러)와 `filterwarnings = ["error", ...]`(deprecation 경고도 에러로 승격, 서드파티 알려진 경고만 화이트리스트). 커버리지 게이트·`pytest-randomly`는 아직 도입하지 않았다.
 - `conftest.py`에서 `sys.path`를 직접 조작해 `app` 패키지를 임포트한다.
 
 ## DB 픽스처
 
 - `db_session`: 테스트마다 새로운 in-memory SQLite 엔진(`sqlite:///:memory:`)을 만들어 격리를 보장한다. 트랜잭션 롤백 방식이 아니라 아예 별도 엔진이다.
-- `seeded_db`: `db_session` 위에 spouse1 유저 1명 + 카테고리 3개(food/variable, rent/fixed, events/irregular)를 시드한 뒤 `{db, user, food, rent, events}` dict를 반환한다. **대부분의 테스트는 이 픽스처를 사용한다.**
+- `seeded_db`: `db_session` 위에 spouse1 유저 1명 + 카테고리 4개(지출 food/variable, rent/fixed, events/irregular + 수입 salary/fixed)를 시드한 뒤 `{db, user, food, rent, events, salary}` dict를 반환한다. **대부분의 테스트는 이 픽스처를 사용한다.**
 
 ## 라우터/HTTP 테스트 (`tests/api/`)
 

@@ -2,13 +2,7 @@ from datetime import date
 from decimal import Decimal
 from unittest.mock import patch
 
-from app.dependencies import get_bearer_token
-from app.main import app as fastapi_app
 from app.services import transaction_service
-
-
-def _override_bearer_token():
-    fastapi_app.dependency_overrides[get_bearer_token] = lambda: "fake-jwt"
 
 
 def test_create_and_list_accounts(client, seeded_db):
@@ -96,7 +90,6 @@ def test_deactivate_account_404_when_missing(client):
 
 
 def test_list_growlio_accounts_proxies_bank_accounts_only(client):
-    _override_bearer_token()
 
     with patch(
         "app.services.account_service.growlio_client.fetch_account_balances",
@@ -116,7 +109,6 @@ def test_sync_account_without_link_returns_409(client):
         "/api/v1/accounts", json={"name": "월급통장", "account_type": "bank", "initial_balance": "0"}
     )
     account_id = create_resp.json()["id"]
-    _override_bearer_token()
 
     resp = client.post(f"/api/v1/accounts/{account_id}/sync")
 
@@ -125,11 +117,9 @@ def test_sync_account_without_link_returns_409(client):
 
 def test_sync_account_updates_displayed_balance_and_last_synced_at(client, seeded_db):
     db, user, food = seeded_db["db"], seeded_db["user"], seeded_db["food"]
-    create_resp = client.post(
+    client.post(
         "/api/v1/accounts", json={"name": "월급통장", "account_type": "bank", "initial_balance": "100000"}
     )
-    account_id = create_resp.json()["id"]
-    _override_bearer_token()
     with patch(
         "app.services.account_service.growlio_client.fetch_account_balances",
         return_value=[
@@ -168,7 +158,6 @@ def test_sync_account_updates_displayed_balance_and_last_synced_at(client, seede
 
 
 def test_sync_all_accounts_returns_synced_count_and_failed_list(client):
-    _override_bearer_token()
     with patch(
         "app.services.account_service.growlio_client.fetch_account_balances",
         return_value=[
@@ -186,7 +175,6 @@ def test_sync_all_accounts_returns_synced_count_and_failed_list(client):
 
 
 def test_growlio_import_creates_one_account_per_selected_bank_account(client, seeded_db):
-    _override_bearer_token()
 
     with patch(
         "app.services.account_service.growlio_client.fetch_account_balances",

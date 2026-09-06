@@ -1,3 +1,4 @@
+import pytest
 from google.oauth2.credentials import Credentials
 
 from app.models.google_oauth_token import GoogleOAuthToken
@@ -7,11 +8,8 @@ from app.services import google_auth
 def test_is_connected_false_and_get_credentials_raises_when_no_token(db_session):
     assert google_auth.is_connected() is False
 
-    try:
+    with pytest.raises(google_auth.GoogleNotConnectedError):
         google_auth.get_credentials()
-        assert False, "expected GoogleNotConnectedError"
-    except google_auth.GoogleNotConnectedError:
-        pass
 
 
 def test_is_connected_true_when_token_row_exists_and_not_expired(db_session):

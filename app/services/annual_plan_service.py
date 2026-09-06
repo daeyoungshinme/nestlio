@@ -192,7 +192,7 @@ def category_budgets_for_year(db: Session, year: int) -> dict[int, Decimal]:
         .group_by(AnnualPlanItem.category_id)
         .all()
     )
-    return {category_id: total for category_id, total in rows}
+    return dict(rows)
 
 
 def category_budget_vs_actual(

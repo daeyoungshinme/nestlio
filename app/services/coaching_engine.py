@@ -17,22 +17,14 @@ from app.services import (
     savings_product_service,
     transaction_report_service,
 )
-from app.utils.dates import month_bounds, parse_year_month, year_month_str
+from app.utils.dates import month_bounds, parse_year_month, today_kst, year_month_str
 
-# months to keep emergency fund runway comfortably inside
-EMERGENCY_FUND_MIN_MONTHS = 3
-EMERGENCY_FUND_TARGET_MONTHS = 6
-
-# goal pace: actual savings vs sum of goals' monthly_saving_amount (percentage of target)
-GOAL_PACE_CRITICAL_PCT = 70
-GOAL_PACE_INFO_PCT = 100
-
-# savings execution: actual net-worth savings_total growth vs theoretical surplus (income - expense)
-SAVINGS_EXECUTION_CRITICAL_PCT = 50
-SAVINGS_EXECUTION_WARN_PCT = 80
-
-# variable-spend vs trailing-3-month-average flag threshold (percentage points)
-VARIABLE_TREND_FLAG_PCT = 20
+# 코칭 임계값은 app/config.py의 settings에 있다 (app/services/CLAUDE.md 컨벤션). 뜻:
+#   emergency_fund_min/target_months — 비상금 런웨이(고정지출 기준 개월수)
+#   goal_pace_critical/info_pct       — 실제 저축 vs 목표 월저축액 합의 % (100=info, 70미만=critical)
+#   savings_execution_critical/warn_pct — 실제 순자산 저축 증가분 vs 이론적 잉여(수입-지출)의 %
+#   variable_trend_flag_pct           — 변동지출이 최근 3개월 평균 대비 몇 %p 늘면 경고
+#   category_benchmark_top_n          — compute_insights가 대시보드에 노출할 벤치마크 인사이트 개수
 
 
 @dataclass
@@ -104,7 +96,7 @@ def variable_spend_trend_insights(current_breakdown: list[dict], trailing_avg: d
         if not avg:
             continue
         change_pct = _pct(row["amount"] - avg, avg)
-        if change_pct >= VARIABLE_TREND_FLAG_PCT:
+        if change_pct >= settings.variable_trend_flag_pct:
             insights.append(
                 Insight(
                     "variable_spend_trend",
@@ -148,9 +140,6 @@ def debt_ratio_insight(
     return None
 
 
-CATEGORY_BENCHMARK_TOP_N = 2
-
-
 def benchmark_pcts_from_thresholds(thresholds: dict[str, float]) -> dict[str, float]:
     """category_benchmark_rows()에 넘길 group→경고 임계값 매핑을 settings/coaching_settings_service의
     thresholds에서 뽑아낸다. "other"처럼 가이드라인이 없는 그룹은 COMPARABLE_BENCHMARK_GROUPS 기준으로 제외."""
@@ -192,7 +181,7 @@ def category_benchmark_rows(
 
 def category_benchmark_insights(rows: list[dict]) -> list[Insight]:
     """category_benchmark_rows 결과 중 가이드라인을 초과한 그룹만 초과폭이 큰 순으로 변환한다.
-    compute_insights가 상위 CATEGORY_BENCHMARK_TOP_N개만 대시보드 알림에 노출한다 — 전체 비교표는
+    compute_insights가 상위 settings.category_benchmark_top_n개만 대시보드 알림에 노출한다 — 전체 비교표는
     연간 리포트(app/routers/reports.py)가 별도로 보여준다."""
     warn_rows = [row for row in rows if row["status"] == "warn"]
     warn_rows.sort(key=lambda row: row["pct"] - row["benchmark_pct"], reverse=True)
@@ -212,13 +201,13 @@ def goal_pace_insight(totals: dict, goals: list[dict]) -> Insight | None:
     if target_monthly <= 0:
         return None
     pct = _pct(totals["savings"], target_monthly)
-    if pct < GOAL_PACE_CRITICAL_PCT:
+    if pct < settings.goal_pace_critical_pct:
         return Insight(
             "goal_pace",
             "critical",
             f"이번달 저축액이 목표 월 저축액의 {pct:.0f}%예요. 목표 페이스에 많이 못 미쳤어요. 이번 달엔 같이 지출을 점검해볼까요?",
         )
-    if pct < GOAL_PACE_INFO_PCT:
+    if pct < settings.goal_pace_info_pct:
         return Insight(
             "goal_pace", "warning", f"이번달 저축액이 목표 월 저축액의 {pct:.0f}%예요. 우리 조금만 더 힘내볼까요?"
         )
@@ -234,14 +223,14 @@ def savings_execution_insight(surplus: Decimal, actual_saved: Decimal | None) ->
     if actual_saved is None or surplus <= 0:
         return None
     pct = _pct(actual_saved, surplus)
-    if pct < SAVINGS_EXECUTION_CRITICAL_PCT:
+    if pct < settings.savings_execution_critical_pct:
         return Insight(
             "savings_execution",
             "critical",
             f"이번달 남은 돈 {surplus:,.0f}원 중 실제로 저축·투자한 금액은 "
             f"{actual_saved:,.0f}원({pct:.0f}%)뿐이에요. 나머지는 계좌에 머물러 있어요.",
         )
-    if pct < SAVINGS_EXECUTION_WARN_PCT:
+    if pct < settings.savings_execution_warn_pct:
         return Insight(
             "savings_execution",
             "warning",
@@ -267,7 +256,7 @@ def recommend_surplus_allocation(
     surplus: Decimal, emergency_fund_balance: Decimal | None, avg_monthly_fixed: Decimal
 ) -> dict:
     """이번달 투자 가능 여유자금(investable_surplus)을 비상금 보충분과 투자 가능분으로 나눈다.
-    비상금이 emergency_fund_insight와 같은 기준(EMERGENCY_FUND_TARGET_MONTHS)에 못 미치면
+    비상금이 emergency_fund_insight와 같은 기준(settings.emergency_fund_target_months)에 못 미치면
     부족분을 여유자금에서 먼저 채우도록 제안하고, 남는 만큼만 투자 가능분으로 돌린다. 비상금
     잔액이 설정되지 않았거나 평균 고정지출을 알 수 없으면(커버리지 계산 불가) 전액 투자
     가능분으로 취급한다 — InvestSurplusCard가 "잉여자금을 growlio에 담으라"고 무조건 권하던
@@ -276,7 +265,7 @@ def recommend_surplus_allocation(
         return {"emergency_fund_portion": Decimal("0"), "investable_portion": Decimal("0")}
     if emergency_fund_balance is None or avg_monthly_fixed <= 0:
         return {"emergency_fund_portion": Decimal("0"), "investable_portion": surplus}
-    target_balance = avg_monthly_fixed * EMERGENCY_FUND_TARGET_MONTHS
+    target_balance = avg_monthly_fixed * settings.emergency_fund_target_months
     shortfall = max(target_balance - emergency_fund_balance, Decimal("0"))
     emergency_fund_portion = min(shortfall, surplus)
     return {"emergency_fund_portion": emergency_fund_portion, "investable_portion": surplus - emergency_fund_portion}
@@ -313,17 +302,17 @@ def emergency_fund_insight(current_balance: Decimal | None, avg_monthly_fixed: D
     if current_balance is None or avg_monthly_fixed <= 0:
         return None
     months_covered = float(current_balance / avg_monthly_fixed)
-    if months_covered < EMERGENCY_FUND_MIN_MONTHS:
+    if months_covered < settings.emergency_fund_min_months:
         return Insight(
             "emergency_fund",
             "warning",
-            f"비상금이 고정지출의 {months_covered:.1f}개월치입니다. 최소 {EMERGENCY_FUND_MIN_MONTHS}개월치를 목표로 해보세요.",
+            f"비상금이 고정지출의 {months_covered:.1f}개월치입니다. 최소 {settings.emergency_fund_min_months}개월치를 목표로 해보세요.",
         )
-    if months_covered < EMERGENCY_FUND_TARGET_MONTHS:
+    if months_covered < settings.emergency_fund_target_months:
         return Insight(
             "emergency_fund",
             "info",
-            f"비상금이 고정지출의 {months_covered:.1f}개월치입니다. {EMERGENCY_FUND_TARGET_MONTHS}개월치가 이상적이에요. 함께 조금씩 채워가요.",
+            f"비상금이 고정지출의 {months_covered:.1f}개월치입니다. {settings.emergency_fund_target_months}개월치가 이상적이에요. 함께 조금씩 채워가요.",
         )
     return Insight(
         "emergency_fund", "info", f"비상금이 고정지출의 {months_covered:.1f}개월치로 충분합니다. 든든하게 잘 대비하고 있어요!"
@@ -359,7 +348,7 @@ def compute_insights(
 ) -> list[Insight]:
     """호출부가 이미 같은 기간의 totals/breakdown/goals/thresholds/benchmark_rows를 조회·계산해둔
     경우, 넘겨받아 재조회·재계산을 피한다."""
-    year_month = year_month or year_month_str(date.today())
+    year_month = year_month or year_month_str(today_kst())
     month_start = parse_year_month(year_month)
     start, end = month_bounds(month_start)
 
@@ -397,7 +386,7 @@ def compute_insights(
         if benchmark_rows is not None
         else category_benchmark_rows(totals, breakdown, benchmark_pcts_from_thresholds(thresholds))
     )
-    insights.extend(category_benchmark_insights(benchmark_rows)[:CATEGORY_BENCHMARK_TOP_N])
+    insights.extend(category_benchmark_insights(benchmark_rows)[:settings.category_benchmark_top_n])
 
     current_balance, avg_fixed = fund_context if fund_context is not None else emergency_fund_context(db, month_start)
     if current_balance is not None:

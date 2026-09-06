@@ -112,14 +112,10 @@ def get_current_user(
         # 상한에 도달한 뒤에는 더 이상 새 계정이 생기지 않는다. 배우자 초대(invite_service)는
         # 여전히 쓸 수 있지만 필수 경로는 아니다 - 표시 이름을 미리 지정해 초대장을 보내는
         # 보조 수단일 뿐, 계정 생성 자체를 막는 게이트가 아니다.
-        if len(user_service.list_users(db)) >= user_service.MAX_HOUSEHOLD_USERS:
+        if not user_service.household_has_capacity(db):
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="이미 가구 인원(2명)이 모두 등록되어 있습니다.",
             )
-        email = payload.get("email", "")
-        user = User(id=user_id, email=email, display_name=email.split("@")[0] if email else "user")
-        db.add(user)
-        db.commit()
-        db.refresh(user)
+        user = user_service.mirror_supabase_user(db, user_id, payload.get("email", ""))
     return user

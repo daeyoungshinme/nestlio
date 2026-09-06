@@ -15,7 +15,7 @@ export default function Sidebar() {
     >
       <div className="px-3 mb-8">
         <div className="flex items-center gap-2">
-          <PiggyBank className="text-blue-600 dark:text-blue-400" size={22} aria-hidden="true" />
+          <PiggyBank className="text-primary-600 dark:text-primary-400" size={22} aria-hidden="true" />
           <span className="font-bold text-lg text-gray-900 dark:text-gray-50">Nestlio</span>
         </div>
       </div>
@@ -36,7 +36,7 @@ export default function Sidebar() {
                 className={({ isActive }) =>
                   `flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
                     isActive
-                      ? "bg-blue-50 dark:bg-blue-950 text-blue-600 dark:text-blue-400"
+                      ? "bg-primary-50 dark:bg-primary-950 text-primary-600 dark:text-primary-400"
                       : "text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 hover:text-gray-900 dark:hover:text-gray-50"
                   }`
                 }

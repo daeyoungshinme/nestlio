@@ -310,7 +310,6 @@ function SavingsProductRow({
       icon: <ExternalLink size={16} />,
       label: "growlio에서 포트폴리오 보기",
       href: growlioPortfolioUrl(product.growlio_account_id as string),
-      tone: "emerald",
     });
   }
 

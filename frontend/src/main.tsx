@@ -5,14 +5,14 @@ import React from "react";
 import ReactDOM from "react-dom/client";
 import App from "./App";
 import "./index.css";
-import { PERSIST_CACHE_KEY, PERSIST_QUERY_KEYS, STALE_TIME } from "./constants/queryConfig";
+import { DEFAULT_GC_TIME, PERSIST_CACHE_KEY, PERSIST_QUERY_KEYS, STALE_TIME } from "./constants/queryConfig";
 
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
       staleTime: STALE_TIME.SHORT,
       retry: 1,
-      gcTime: 30 * 60 * 1000,
+      gcTime: DEFAULT_GC_TIME,
       refetchOnWindowFocus: (query) => Date.now() - (query.state.dataUpdatedAt ?? 0) > 60_000,
     },
   },

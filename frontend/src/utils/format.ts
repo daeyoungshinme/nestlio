@@ -68,6 +68,11 @@ export function formatYearMonth(yearMonth: string): string {
   return `${year}년 ${Number(month)}월`;
 }
 
+/** "2026-07" -> "7월" (연간 그리드처럼 연도가 자명한 곳에서 월만 표기). */
+export function formatMonthOnly(yearMonth: string): string {
+  return `${Number(yearMonth.slice(5, 7))}월`;
+}
+
 /** "2026-07-28", "2026-08-03" -> "7/28 - 8/3" */
 export function formatWeekRange(mondayIso: string, sundayIso: string): string {
   const [, m1, d1] = mondayIso.split("-").map(Number);

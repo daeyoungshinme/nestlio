@@ -32,9 +32,12 @@ export default function NetWorthTrendChart({ history }: Props) {
   // 최대 6개 정도만 균등 간격으로 남기고 나머지는 건너뛴다.
   const tickInterval = chartData.length > 6 ? Math.ceil(chartData.length / 6) - 1 : 0;
   const lineColor = netWorthTrendChartColor(isDark);
+  const first = chartData[0];
+  const last = chartData[chartData.length - 1];
+  const chartSummary = `순자산 추이: ${first.name} ${formatKrw(first.순자산)}에서 ${last.name} ${formatKrw(last.순자산)}까지 ${chartData.length}개월.`;
 
   return (
-    <div className="h-[180px] sm:h-[220px]">
+    <div className="h-[180px] sm:h-[220px]" role="img" aria-label={chartSummary}>
       <ResponsiveContainer width="100%" height="100%">
         <AreaChart data={chartData}>
           <defs>

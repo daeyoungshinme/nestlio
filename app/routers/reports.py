@@ -1,5 +1,4 @@
 import uuid
-from datetime import date
 from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -10,7 +9,7 @@ from app.dependencies import get_current_user
 from app.models.user import User
 from app.schemas.reports import CategoryTrendOut, YearlyReportOut
 from app.services import coaching_engine, coaching_settings_service, transaction_report_service
-from app.utils.dates import year_bounds
+from app.utils.dates import today_kst, year_bounds
 
 router = APIRouter(prefix="/reports", tags=["reports"])
 
@@ -35,7 +34,7 @@ def yearly(
     db: Session = Depends(get_db),
     _: User = Depends(get_current_user),
 ):
-    year = year or date.today().year
+    year = year or today_kst().year
     monthly = transaction_report_service.yearly_monthly_breakdown(db, year)
     # totals(소득 등)는 owner 필터와 무관하게 항상 가구 전체 기준으로 유지한다 — benchmark 비교가
     # "가구 소득 대비 이 배우자의 지출 비중"을 뜻하도록 하기 위함("이 배우자 개인 소득 대비"가 아님).

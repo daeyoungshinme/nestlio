@@ -113,7 +113,7 @@ export default function GrowlioImportModal<TRow, TResult>({
                 return (
                   <label
                     key={id}
-                    className="flex items-center justify-between gap-2 px-3 py-2 text-sm rounded-lg border border-gray-200 dark:border-gray-700 cursor-pointer hover:border-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950 transition-colors"
+                    className="flex items-center justify-between gap-2 px-3 py-2 text-sm rounded-lg border border-gray-200 dark:border-gray-700 cursor-pointer hover:border-primary-400 hover:bg-primary-50 dark:hover:bg-primary-950 transition-colors"
                   >
                     <span className="flex items-center gap-2 min-w-0">
                       <input

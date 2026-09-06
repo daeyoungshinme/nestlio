@@ -5,6 +5,7 @@ from decimal import Decimal
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
+from app.constants.sort_order import DEFAULT_SORT_ORDER
 from app.models.savings_product import SavingsProduct
 from app.models.savings_product_annual_plan import SavingsProductAnnualPlan
 from app.models.savings_product_annual_plan_monthly_target import SavingsProductAnnualPlanMonthlyTarget
@@ -55,7 +56,7 @@ def actuals_for_month(db: Session, year_month: str) -> dict[int, Decimal]:
         .group_by(Transaction.savings_product_id)
         .all()
     )
-    return {product_id: amount for product_id, amount in rows}
+    return dict(rows)
 
 
 def trailing_average_actuals(db: Session, year_month: str, months: int = 3) -> dict[int, Decimal]:
@@ -229,7 +230,7 @@ def actuals_for_year(db: Session, year: int) -> dict[int, Decimal]:
         .group_by(Transaction.savings_product_id)
         .all()
     )
-    return {product_id: amount for product_id, amount in rows}
+    return dict(rows)
 
 
 def yearly_monthly_actuals(db: Session, year: int) -> list[Decimal]:
@@ -332,7 +333,7 @@ def create_product(
         monthly_saving_amount=monthly_saving_amount,
         product_type=product_type,
         principal_amount=principal_amount,
-        sort_order=999,
+        sort_order=DEFAULT_SORT_ORDER,
         owner_user_id=owner_user_id,
     )
     db.add(product)
@@ -494,7 +495,7 @@ def import_from_growlio(
             growlio_account_id=account_id,
             auto_sync_enabled=True,
             last_synced_at=now,
-            sort_order=999,
+            sort_order=DEFAULT_SORT_ORDER,
             owner_user_id=owner_user_id,
         )
         db.add(product)

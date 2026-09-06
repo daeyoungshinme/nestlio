@@ -30,6 +30,11 @@ export function shiftDateIso(dateIso: string, deltaDays: number): string {
   return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
 }
 
+/** "YYYY-MM" 또는 "YYYY-MM-DD"에서 연도(number). `Number(s.slice(0, 4))`를 손으로 쓰지 않는다. */
+export function yearOf(yearMonthOrDate: string): number {
+  return Number(yearMonthOrDate.slice(0, 4));
+}
+
 /** "YYYY-MM"에 개월 수를 더한 "YYYY-MM". */
 export function shiftYearMonth(yearMonth: string, delta: number): string {
   const [y, m] = yearMonth.split("-").map(Number);

@@ -13,7 +13,6 @@ from app.services import (
     transaction_service,
 )
 from app.services.coaching_engine import (
-    Insight,
     budget_overrun_insights,
     category_benchmark_insights,
     category_benchmark_rows,
@@ -101,7 +100,6 @@ def test_budget_overrun_insights_filters_unbudgeted_and_under_threshold():
     insights = budget_overrun_insights(rows)
     names = {i.message.split()[0] for i in insights}
     assert names == {"여가", "교통"}
-    severities = {i.rule_code: i.severity for i in insights}
 
 
 # --- variable spend trend: +20% vs trailing 3-month average --------------------------------

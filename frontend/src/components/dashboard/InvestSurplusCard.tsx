@@ -1,7 +1,7 @@
 import { ExternalLink, PlusCircle, ShieldCheck, TrendingUp } from "lucide-react";
 import { GROWLIO_APP_URL, growlioPortfolioUrl, isGrowlioLinkedInvestment } from "@/constants/growlio";
 import { formatKrw } from "@/utils/format";
-import type { GoalAcceleration } from "@/utils/monthRange";
+import type { GoalAcceleration } from "@/utils/goalAcceleration";
 import type { SavingsProductOut, SurplusAllocationOut } from "@/types";
 
 interface Props {

@@ -6,7 +6,7 @@ import CategoryPicker from "@/components/common/CategoryPicker";
 import FormInput from "@/components/common/FormInput";
 import { INPUT_SM, LABEL_SM } from "@/constants/inputStyles";
 import { syncTargetsToPeriod } from "@/utils/monthRange";
-import { formatKrwPreview } from "@/utils/format";
+import { formatKrwPreview, formatMonthOnly } from "@/utils/format";
 import type { AnnualPlanItemMonthlyTargetIn, CashflowSection, CategoryOut, UserOut } from "@/types";
 
 export interface AnnualPlanItemFormValues {
@@ -138,7 +138,7 @@ export default function AnnualPlanItemForm({
               .filter((ym) => ym <= endMonth)
               .map((ym) => (
                 <option key={ym} value={ym}>
-                  {Number(ym.slice(5))}월
+                  {formatMonthOnly(ym)}
                 </option>
               ))}
           </select>
@@ -150,7 +150,7 @@ export default function AnnualPlanItemForm({
               .filter((ym) => ym >= startMonth)
               .map((ym) => (
                 <option key={ym} value={ym}>
-                  {Number(ym.slice(5))}월
+                  {formatMonthOnly(ym)}
                 </option>
               ))}
           </select>

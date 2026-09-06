@@ -12,8 +12,9 @@
 
 - 시간이 필요한 함수는 `today=`/`now=` 파라미터로 호출부에서 주입받도록 시그니처를 만든다 (예: `recurring_service.generate_due_transactions(db, today=...)`, `notification_service.send_weekly_summary(db, today=...)`).
 - **테스트는 항상 이 파라미터에 고정 날짜를 명시적으로 넘겨 검증한다** — 이게 이 패턴의 핵심 목적이다. 자세한 활용법은 [tests/CLAUDE.md](../../tests/CLAUDE.md) 참고.
-- 서비스 경계에서 `today = today or date.today()`처럼 폴백 기본값을 두는 것은 허용한다 — 라우터·스케줄러 호출부가 매번 명시하지 않아도 되게 하는 편의다. 다만 폴백에 의존하면 그 함수는 테스트 불가이므로, 새 함수를 추가할 때 실제 시간 판단(경계·경과월 계산 등)은 반드시 주입값으로 하고 폴백은 "인자 생략 시 오늘"의 얇은 방어로만 둔다.
-- 스케줄러 잡(`app/scheduler/jobs.py`)은 합법적 주입 지점이다 — 잡 함수가 `today=date.today()` / `now=datetime.now()`를 명시해 서비스에 넘긴다.
+- 서비스 경계에서 `today = today or today_kst()`처럼 폴백 기본값을 두는 것은 허용한다 — 라우터·스케줄러 호출부가 매번 명시하지 않아도 되게 하는 편의다. 다만 폴백에 의존하면 그 함수는 테스트 불가이므로, 새 함수를 추가할 때 실제 시간 판단(경계·경과월 계산 등)은 반드시 주입값으로 하고 폴백은 "인자 생략 시 오늘"의 얇은 방어로만 둔다.
+- 스케줄러 잡(`app/scheduler/jobs.py`)은 합법적 주입 지점이다 — 잡 함수가 `today=today_kst()` / `now=now_kst()`를 명시해 서비스에 넘긴다.
+- **시각은 항상 `app/utils/dates.py`의 `now_kst()`/`today_kst()`로 읽는다.** `datetime.now()`/`date.today()`를 직접 호출하지 않는다 — 앱은 naive datetime을 "KST 벽시계"로 취급하는데(`event_service`가 구글 일정을 KST naive로 저장), 배포 컨테이너 TZ는 UTC라 직접 호출하면 9시간 어긋난다. `render.yaml`이 `TZ=Asia/Seoul`을 주입해 이중으로 방어하지만, 코드에서도 헬퍼를 쓴다.
 
 ## Google 연동 가드 (google_auth / gmail_service / google_calendar_service / google_sheets_service)
 

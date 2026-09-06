@@ -64,9 +64,13 @@ export default function AssetCompositionDonut({ accounts, savingsInvestment, rea
     color: assetCategoryChartColor(key, isDark),
   })).filter((d) => d.value > 0);
 
+  const donutSummary = `자산 구성: ${data
+    .map((d) => `${d.label} ${Math.round((d.value / total) * 100)}%`)
+    .join(", ")}.`;
+
   return (
     <div className={`${CHART_COLUMN_CLASS} flex flex-col items-center gap-0`}>
-      <div className={CHART_BOX_CLASS}>
+      <div className={CHART_BOX_CLASS} role="img" aria-label={donutSummary}>
         <ResponsiveContainer width="100%" height="100%">
           <PieChart>
             <Pie data={data} dataKey="value" nameKey="label" innerRadius="50%" outerRadius="90%" paddingAngle={3}>
