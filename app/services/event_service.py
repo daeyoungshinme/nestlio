@@ -288,9 +288,11 @@ def import_from_google(db: Session, range_start: date, range_end: date, actor_id
     return {"created": created, "updated": updated, "skipped": skipped}
 
 
-def send_due_reminders(db: Session, now: datetime, window_minutes: int = 15) -> int:
-    """Send reminder emails for occurrences whose reminder time falls within
-    [now, now + window_minutes). Meant to be called by a periodic scheduler job."""
+def send_due_reminders(db: Session, now: datetime, window_minutes: int = 30) -> int:
+    """Send reminder emails for occurrences whose reminder time has arrived (or arrives within
+    `window_minutes`) and whose event is still upcoming. Meant to be called by a periodic
+    scheduler job — catch-up safe: a missed/delayed tick is recovered on the next run, and
+    NotificationLog dedup prevents duplicate sends."""
     if not is_connected():
         return 0
     if not notification_settings_service.is_enabled(db, "event_reminder"):
@@ -318,7 +320,9 @@ def _due_occurrences(event: Event, now: datetime, window_minutes: int) -> list[d
     due = []
     for occurrence in _occurrences_in_range(event, range_start, range_end):
         reminder_at = occurrence - lead
-        if now <= reminder_at < now + timedelta(minutes=window_minutes):
+        # 리마인더 시각이 도래했고(윈도우 안에 들어왔고) 일정 자체는 아직 미래면 발송 대상.
+        # 지난 틱이 밀려서 reminder_at이 now보다 과거여도 잡는다 — 중복은 dedup이 막는다.
+        if reminder_at <= now + timedelta(minutes=window_minutes) and now < occurrence:
             due.append(occurrence)
     return due
 

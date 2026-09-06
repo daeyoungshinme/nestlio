@@ -224,6 +224,23 @@ def test_send_due_reminders_is_deduped(mock_connected, mock_send, seeded_db):
 
 
 @patch("app.services.event_service.gmail_service.send_email")
+@patch("app.services.event_service.is_connected", return_value=True)
+def test_send_due_reminders_wide_window_catches_delayed_tick(mock_connected, mock_send, seeded_db):
+    """리마인더 시각(09:00)을 겨냥한 cron 틱이 통째로 밀려도, 다음 틱이 30분 윈도우로
+    소급해서 잡아야 한다 — GitHub Actions cron이 best-effort라서."""
+    db, user = seeded_db["db"], seeded_db["user"]
+    _spouse2(db)
+    event_service.create_event(
+        db, created_by=user.id, title="병원", start_at=datetime(2026, 7, 15, 10, 0), reminder_minutes_before=60
+    )
+    mock_send.reset_mock()
+
+    # 09:00 틱은 누락됐고 09:20에야 실행됨 — 15분 윈도우였다면 놓쳤을 것
+    late = event_service.send_due_reminders(db, now=datetime(2026, 7, 15, 9, 20), window_minutes=30)
+    assert late == 1
+
+
+@patch("app.services.event_service.gmail_service.send_email")
 @patch("app.services.event_service.is_connected", return_value=False)
 def test_no_notification_when_google_not_connected(mock_connected, mock_send, seeded_db):
     db, user = seeded_db["db"], seeded_db["user"]

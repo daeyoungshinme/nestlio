@@ -100,12 +100,16 @@ def monthly_net_worth_snapshot() -> None:
 
 
 def event_reminder_check() -> None:
-    """Sends reminder emails for shared events whose reminder time has arrived (15분 간격 실행)."""
+    """Sends reminder emails for shared events whose reminder time has arrived (15분 간격 실행).
+
+    윈도우를 실행 주기(15분)보다 넓은 30분으로 잡는다 — GitHub Actions cron은 best-effort라
+    5~15분씩 밀리거나 틱이 통째로 누락될 수 있는데, 좁은 윈도우면 그 사이 리마인더가 조용히
+    유실된다. 중복 발송은 send_due_reminders의 NotificationLog dedup이 막는다."""
     db = SessionLocal()
     try:
         if not is_connected():
             return
-        event_service.send_due_reminders(db, now=now_kst(), window_minutes=15)
+        event_service.send_due_reminders(db, now=now_kst(), window_minutes=30)
     except Exception:
         logger.exception("일정 리마인더 발송 실패")
         raise
