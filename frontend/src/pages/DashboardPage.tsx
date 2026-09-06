@@ -37,7 +37,14 @@ import {
 } from "@/hooks/useReferenceData";
 import { QUERY_KEYS } from "@/constants/queryKeys";
 import { STALE_TIME } from "@/constants/queryConfig";
-import { insightSeverityStyle, progressStatusBadgeClass, progressStatusLabel, worseStatus } from "@/utils/colors";
+import {
+  insightSeverityStyle,
+  progressStatusBadgeClass,
+  progressStatusLabel,
+  savingsTrendChartColor,
+  worseStatus,
+} from "@/utils/colors";
+import { useThemeStore } from "@/stores/themeStore";
 import { computeCardStatus, daysUntil } from "@/utils/goalStatus";
 import { formatDate, formatKrw, formatKrwCompact, formatWeekRange, formatYearMonth, pctOf } from "@/utils/format";
 import { splitSavingsAndRealEstate } from "@/utils/netWorth";
@@ -72,6 +79,7 @@ export default function DashboardPage() {
   const [showQuickAdd, setShowQuickAdd] = useState(false);
   const [quickAddPrefill, setQuickAddPrefill] = useState<Record<string, string> | null>(null);
   const [showMore, setShowMore] = useState(false);
+  const isDark = useThemeStore((s) => s.isDark);
   const invalidateAll = useInvalidateTransactionRelated();
 
   const anchor = period === "month" ? yearMonth : period === "week" ? week : day;
@@ -344,7 +352,7 @@ export default function DashboardPage() {
                             <Line
                               type="monotone"
                               dataKey="savings"
-                              stroke="#10b981"
+                              stroke={savingsTrendChartColor(isDark)}
                               strokeWidth={2}
                               dot={false}
                               activeDot={{ r: 4 }}

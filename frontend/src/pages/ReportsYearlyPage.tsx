@@ -30,7 +30,8 @@ import { STALE_TIME } from "@/constants/queryConfig";
 import { TOUCH_TARGET_MIN_MOBILE_ONLY } from "@/constants/uiSizes";
 import { formatKrw, formatKrwCompact, formatPercent, formatYearMonth, formatMonthOnly } from "@/utils/format";
 import { extractErrorMessage } from "@/utils/error";
-import { planStatusBarClass, planStatusTextClass } from "@/utils/colors";
+import { incomeExpenseChartColor, planStatusBarClass, planStatusTextClass } from "@/utils/colors";
+import { useThemeStore } from "@/stores/themeStore";
 import type { CategoryBenchmarkRowOut } from "@/types";
 import { PieChart as PieChartIcon, TrendingUp } from "lucide-react";
 
@@ -46,6 +47,7 @@ export default function ReportsYearlyPage() {
   const [year, setYear] = useState(new Date().getFullYear());
   const [ownerTab, setOwnerTab] = useState(ALL_OWNERS_TAB);
   const [hiddenSeries, setHiddenSeries] = useState<Set<string>>(new Set());
+  const isDark = useThemeStore((s) => s.isDark);
   const toggleSeries = (name: string) => {
     setHiddenSeries((prev) => {
       const next = new Set(prev);
@@ -145,8 +147,8 @@ export default function ReportsYearlyPage() {
               <YAxis tick={{ fontSize: 12 }} tickFormatter={(v) => formatKrwCompact(Number(v))} width={70} />
               <Tooltip formatter={(v) => formatKrw(Number(v))} />
               <Legend />
-              <Bar dataKey="수입" fill="#2563EB" radius={[4, 4, 0, 0]} />
-              <Bar dataKey="지출" fill="#DC2626" radius={[4, 4, 0, 0]} />
+              <Bar dataKey="수입" fill={incomeExpenseChartColor("income", isDark)} radius={[4, 4, 0, 0]} />
+              <Bar dataKey="지출" fill={incomeExpenseChartColor("expense", isDark)} radius={[4, 4, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
         </div>

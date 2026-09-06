@@ -97,7 +97,7 @@ export default function TransactionsPage() {
       },
       { replace: true },
     );
-    // eslint-disable-next-line react/exhaustive-deps
+    // eslint-disable-next-line react/exhaustive-deps -- setShowRecurringSheet/setSearchParams는 안정적, searchParams만 관찰
   }, [searchParams]);
 
   const { date_from, date_to } = monthBounds(yearMonth);

@@ -32,7 +32,7 @@ export default function AccountsPage() {
     if (requested && (SECTIONS as readonly string[]).includes(requested)) {
       document.getElementById(sectionId(requested as Section))?.scrollIntoView({ block: "start" });
     }
-    // eslint-disable-next-line react/exhaustive-deps
+    // eslint-disable-next-line react/exhaustive-deps -- 마운트 시 1회만 딥링크(?section=)로 스크롤
   }, []);
 
   return (

@@ -6,6 +6,7 @@ import SectionAchievementBar from "@/components/financialPlan/SectionAchievement
 import CollapsibleGroup from "@/components/common/CollapsibleGroup";
 import { TOUCH_TARGET_MIN_MOBILE_ONLY } from "@/constants/uiSizes";
 import { groupItemsByCategory } from "@/utils/categoryGroup";
+import { CATEGORY_SWATCH_FALLBACK_COLOR } from "@/utils/colors";
 import { formatKrw } from "@/utils/format";
 import type {
   AnnualCategoryBudgetRowOut,
@@ -99,7 +100,7 @@ export default function AnnualPlanSectionPanel({
                     <>
                       <span
                         className="inline-block w-2 h-2 rounded-full shrink-0"
-                        style={{ backgroundColor: group.category_color ?? "#9ca3af" }}
+                        style={{ backgroundColor: group.category_color ?? CATEGORY_SWATCH_FALLBACK_COLOR }}
                       />
                       <span className="text-sm font-medium text-gray-700 dark:text-gray-300 truncate">
                         {group.category_name ?? "미분류"}
