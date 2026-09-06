@@ -64,7 +64,12 @@ export default function CashflowPlanTab({ view }: { view: "monthly" | "annual" }
   const { data: categories } = useCategories("expense");
   // 반복거래 등록/가계부 즉시추가 모달은 수입 카테고리도 골라야 하므로 지출 전용인 위 categories와 별도로 전체를 받는다.
   const { data: allCategories } = useCategories();
-  const { data: savingsPlanData } = useQuery({
+  const {
+    data: savingsPlanData,
+    isLoading: savingsLoading,
+    isError: savingsError,
+    refetch: refetchSavings,
+  } = useQuery({
     queryKey: QUERY_KEYS.savingsProductsPlan(yearMonth),
     queryFn: () => fetchSavingsProductsPlan(yearMonth),
   });
@@ -178,10 +183,17 @@ export default function CashflowPlanTab({ view }: { view: "monthly" | "annual" }
     return <AnnualPlanPanel />;
   }
 
-  if (isError) {
-    return <ErrorState onRetry={() => void refetch()} />;
+  if (isError || savingsError) {
+    return (
+      <ErrorState
+        onRetry={() => {
+          void refetch();
+          void refetchSavings();
+        }}
+      />
+    );
   }
-  if (isLoading || !data) {
+  if (isLoading || savingsLoading || !data) {
     return <SkeletonCard rows={6} />;
   }
 

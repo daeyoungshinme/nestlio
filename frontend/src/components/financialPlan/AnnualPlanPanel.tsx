@@ -51,7 +51,12 @@ export default function AnnualPlanPanel() {
     queryKey: QUERY_KEYS.annualPlan(year),
     queryFn: () => fetchAnnualPlan(year),
   });
-  const { data: savingsAnnualData } = useQuery({
+  const {
+    data: savingsAnnualData,
+    isLoading: savingsLoading,
+    isError: savingsError,
+    refetch: refetchSavings,
+  } = useQuery({
     queryKey: QUERY_KEYS.savingsProductsAnnualPlan(year),
     queryFn: () => fetchSavingsProductsAnnualPlan(year),
   });
@@ -86,10 +91,17 @@ export default function AnnualPlanPanel() {
     onError: (err) => toast(extractErrorMessage(err), "error"),
   });
 
-  if (isError) {
-    return <ErrorState onRetry={() => void refetch()} />;
+  if (isError || savingsError) {
+    return (
+      <ErrorState
+        onRetry={() => {
+          void refetch();
+          void refetchSavings();
+        }}
+      />
+    );
   }
-  if (isLoading || !data) {
+  if (isLoading || savingsLoading || !data) {
     return <SkeletonCard rows={6} />;
   }
 

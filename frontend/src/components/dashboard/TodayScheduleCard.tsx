@@ -26,7 +26,7 @@ export default function TodayScheduleCard({ day, users }: Props) {
   const [showAdd, setShowAdd] = useState(false);
   const queryClient = useQueryClient();
 
-  const { data } = useQuery({
+  const { data, isError, refetch } = useQuery({
     queryKey: QUERY_KEYS.events(day, day),
     queryFn: () => fetchEvents(day, day),
     staleTime: STALE_TIME.SHORT,
@@ -66,7 +66,15 @@ export default function TodayScheduleCard({ day, users }: Props) {
         </div>
       </div>
 
-      {events.length === 0 ? (
+      {isError ? (
+        <button
+          type="button"
+          onClick={() => void refetch()}
+          className="w-full text-left text-sm text-gray-500 dark:text-gray-400 hover:underline min-h-[44px]"
+        >
+          일정을 불러오지 못했어요. 다시 시도하려면 눌러주세요.
+        </button>
+      ) : events.length === 0 ? (
         <EmptyState icon={CalendarDays} title="오늘 등록된 일정이 없어요" compact />
       ) : (
         <div className="space-y-2">
