@@ -1,32 +1,23 @@
-# React + TypeScript + Vite
+# nestlio frontend
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+React + TypeScript + Vite + Tailwind CSS SPA. growlio의 디자인 시스템·인증 방식을 이식했다.
 
-Currently, two official plugins are available:
+실제 개발 컨벤션(디렉토리 구조, 라우트, 상태/데이터 흐름, 디자인 규칙)은 **[frontend/CLAUDE.md](CLAUDE.md)** 를 본다.
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+## 커맨드
 
-## React Compiler
-
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
-
-## Expanding the Oxlint configuration
-
-If you are developing a production application, we recommend enabling type-aware lint rules by installing `oxlint-tsgolint` and editing `.oxlintrc.json`:
-
-```json
-{
-  "$schema": "./node_modules/oxlint/configuration_schema.json",
-  "plugins": ["react", "typescript", "oxc"],
-  "options": {
-    "typeAware": true
-  },
-  "rules": {
-    "react/rules-of-hooks": "error",
-    "react/only-export-components": ["warn", { "allowConstantExport": true }]
-  }
-}
+```bash
+npm install                # 의존성 설치 (Node 22, .nvmrc)
+npm run dev                # Vite dev 서버 (5273 고정, /api → 127.0.0.1:8899 프록시)
+npm run build              # tsc -b && vite build → dist/
+npm run typecheck          # tsc --noEmit
+npm run lint               # oxlint --deny-warnings (경고도 CI 실패)
+npm run test               # vitest run
 ```
 
-See the [Oxlint rules documentation](https://oxc.rs/docs/guide/usage/linter/rules) for the full list of rules and categories.
+백엔드까지 한 번에 띄우려면 루트의 `dev.sh` / `dev.bat` 을 인자 없이 실행한다.
+
+## 환경 변수
+
+`frontend/.env` (`.env.example` 참고). `VITE_SUPABASE_URL` / `VITE_SUPABASE_ANON_KEY` 는
+빌드 시점에 번들에 굳어 들어간다 — `.env` 수정 후에는 반드시 재빌드. 자세한 내용은 CLAUDE.md 참고.
