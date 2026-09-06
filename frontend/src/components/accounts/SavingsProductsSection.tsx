@@ -14,7 +14,7 @@ import FormInput from "@/components/common/FormInput";
 import Modal from "@/components/common/Modal";
 import GrowlioImportModal from "@/components/common/GrowlioImportModal";
 import GrowlioLinkSection from "@/components/accounts/GrowlioLinkSection";
-import OwnerSelect from "@/components/accounts/OwnerSelect";
+import OwnerSelect from "@/components/common/OwnerSelect";
 import SkeletonCard from "@/components/common/SkeletonCard";
 import StatusBadge from "@/components/common/StatusBadge";
 import InlineStatsBar from "@/components/common/InlineStatsBar";

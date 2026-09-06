@@ -4,6 +4,7 @@ import AnnualPlanMonthlyGrid from "@/components/financialPlan/AnnualPlanMonthlyG
 import Button from "@/components/common/Button";
 import CategoryPicker from "@/components/common/CategoryPicker";
 import FormInput from "@/components/common/FormInput";
+import OwnerSelect from "@/components/common/OwnerSelect";
 import { INPUT_SM, LABEL_SM } from "@/constants/inputStyles";
 import { syncTargetsToPeriod } from "@/utils/monthRange";
 import { formatKrwPreview, formatMonthOnly } from "@/utils/format";
@@ -111,21 +112,7 @@ export default function AnnualPlanItemForm({
         onChange={(e) => setName(e.target.value)}
         required
       />
-      <div>
-        <label className={`block mb-1 font-medium ${LABEL_SM}`}>구분</label>
-        <select
-          className={`${INPUT_SM} w-full`}
-          value={ownerUserId}
-          onChange={(e) => setOwnerUserId(e.target.value)}
-        >
-          <option value="">공통</option>
-          {users?.map((u) => (
-            <option key={u.id} value={u.id}>
-              {u.display_name}
-            </option>
-          ))}
-        </select>
-      </div>
+      <OwnerSelect label="구분" value={ownerUserId} onChange={setOwnerUserId} users={users} />
       <div className="grid grid-cols-2 gap-2">
         <div>
           <label className={`block mb-1 font-medium ${LABEL_SM}`}>적용 시작월</label>

@@ -2,7 +2,7 @@ import { useState } from "react";
 import type { FormEvent } from "react";
 import Button from "@/components/common/Button";
 import FormInput from "@/components/common/FormInput";
-import OwnerSelect from "@/components/accounts/OwnerSelect";
+import OwnerSelect from "@/components/common/OwnerSelect";
 import { INPUT_SM, LABEL_SM } from "@/constants/inputStyles";
 import type { EventCreateIn, EventFrequency, EventOut, UserOut } from "@/types";
 
