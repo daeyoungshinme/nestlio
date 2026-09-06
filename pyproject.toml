@@ -21,10 +21,12 @@ filterwarnings = [
     # 서드파티에서 나오는, 우리가 당장 손댈 수 없는 알려진 경고는 여기 화이트리스트.
     "ignore::DeprecationWarning:pydantic.*",
     "ignore::DeprecationWarning:google.*",
-    # starlette 최신판 TestClient이 import 시점에 던지는 서드파티 deprecation 경고들.
-    # httpx2는 아직 정식 릴리스가 아니고, anyio.abc.BlockingPortal 별칭은 starlette
-    # 쪽 코드가 참조한다 — 둘 다 우리가 손댈 수 없어 상류가 정리될 때까지 무시한다.
-    "ignore::starlette.exceptions.StarletteDeprecationWarning",
+    # starlette TestClient이 import 시점에 던지는 서드파티 경고들. httpx2는 아직 정식
+    # 릴리스가 아니고, anyio.abc.BlockingPortal 별칭은 starlette 쪽 코드가 참조한다 —
+    # 둘 다 우리가 손댈 수 없어 상류가 정리될 때까지 무시한다. 경고 클래스 심볼
+    # (starlette.exceptions.StarletteDeprecationWarning)을 직접 참조하면 상류에서
+    # 그 심볼이 옮겨지거나 사라질 때 pytest가 필터 파싱 단계에서 죽으므로 메시지로 매칭한다.
+    "ignore:Using `httpx` with `starlette.testclient` is deprecated:UserWarning",
     "ignore:The anyio.abc.BlockingPortal alias is deprecated:DeprecationWarning",
 ]
 

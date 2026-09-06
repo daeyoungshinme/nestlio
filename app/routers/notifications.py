@@ -51,7 +51,7 @@ def react(
     except notification_service.NotificationNotFoundError as exc:
         raise HTTPException(status.HTTP_404_NOT_FOUND, str(exc)) from None
     except notification_service.InvalidReactionError as exc:
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, str(exc)) from None
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, str(exc)) from None
 
 
 @router.delete("/{notification_log_id}/reaction", status_code=status.HTTP_204_NO_CONTENT)
