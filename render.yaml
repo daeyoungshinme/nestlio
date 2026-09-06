@@ -18,6 +18,9 @@ services:
       # 이 값이 필요하다.
       - key: TZ
         value: Asia/Seoul
+      # production이면 config.py의 시동 검증이 필수 시크릿 누락 시 부팅을 막는다(fail-fast).
+      - key: APP_ENV
+        value: production
       - key: PYTHON_VERSION
         value: 3.11.9
       - key: NODE_VERSION
