@@ -44,6 +44,16 @@ class Settings(BaseSettings):
     discretionary_ratio_warn: float = 15
     debt_ratio_warn: float = 30
 
+    # 코칭엔진 나머지 임계값 (coaching_engine.py에 하드코딩돼 있던 것 — 뜻은 그 파일 상단 주석 참고)
+    emergency_fund_min_months: int = 3
+    emergency_fund_target_months: int = 6
+    goal_pace_critical_pct: float = 70
+    goal_pace_info_pct: float = 100
+    savings_execution_critical_pct: float = 50
+    savings_execution_warn_pct: float = 80
+    variable_trend_flag_pct: float = 20
+    category_benchmark_top_n: int = 2
+
     # 표준 카테고리(app/constants/benchmark_groups.py)별 "일반적인 2인 가구" 지출 가이드라인.
     # 통계청 등 공식 통계 연동이 아니라 통상적으로 통용되는 참고 비율(소득 대비 %)이며,
     # 설정 화면(coaching_settings_service)에서 부부가 직접 조정할 수 있다.
@@ -79,8 +89,13 @@ class Settings(BaseSettings):
             value = getattr(self, name)
             if not 0 <= value <= 100:
                 raise ValueError(f"{name}={value} — 코칭 임계값은 0-100 범위여야 합니다.")
-        if not self.savings_rate_warn > self.savings_rate_critical:
-            raise ValueError("SAVINGS_RATE_WARN은 SAVINGS_RATE_CRITICAL보다 커야 합니다.")
+        for hi, lo, label in (
+            (self.savings_rate_warn, self.savings_rate_critical, "SAVINGS_RATE"),
+            (self.goal_pace_info_pct, self.goal_pace_critical_pct, "GOAL_PACE"),
+            (self.savings_execution_warn_pct, self.savings_execution_critical_pct, "SAVINGS_EXECUTION"),
+        ):
+            if not hi > lo:
+                raise ValueError(f"{label}: '낮을수록 나쁨' 임계값은 warn/info > critical이어야 합니다.")
         for warn, crit, label in (
             (self.fixed_cost_ratio_warn, self.fixed_cost_ratio_critical, "FIXED_COST_RATIO"),
             (self.budget_warn_pct, self.budget_critical_pct, "BUDGET"),
