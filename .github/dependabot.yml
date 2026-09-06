@@ -7,6 +7,8 @@ updates:
     groups:
       python-deps:
         patterns: ["*"]
+        # 메이저는 그룹에 넣지 않는다 — 개별 PR로 떨어져 나와 사람이 검토한다.
+        update-types: ["minor", "patch"]
 
   - package-ecosystem: npm
     directory: "/frontend"
@@ -15,8 +17,16 @@ updates:
     groups:
       frontend-deps:
         patterns: ["*"]
+        # tailwindcss 3→4, typescript 6→7 같은 메이저가 그룹에 섞여 들어오면
+        # 빌드가 깨진 채로 22개 묶음 PR이 올라온다(postcss 플러그인 분리 등).
+        # 메이저는 그룹에서 제외해 개별 PR로 검토·마이그레이션한다.
+        update-types: ["minor", "patch"]
 
   - package-ecosystem: github-actions
     directory: "/"
     schedule:
       interval: weekly
+    groups:
+      actions-deps:
+        patterns: ["*"]
+        update-types: ["minor", "patch"]
