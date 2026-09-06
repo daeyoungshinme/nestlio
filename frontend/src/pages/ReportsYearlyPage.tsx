@@ -28,7 +28,7 @@ import { useUsers } from "@/hooks/useReferenceData";
 import { QUERY_KEYS } from "@/constants/queryKeys";
 import { STALE_TIME } from "@/constants/queryConfig";
 import { TOUCH_TARGET_MIN_MOBILE_ONLY } from "@/constants/uiSizes";
-import { formatKrw, formatKrwCompact, formatPercent, formatYearMonth } from "@/utils/format";
+import { formatKrw, formatKrwCompact, formatPercent, formatYearMonth, formatMonthOnly } from "@/utils/format";
 import { extractErrorMessage } from "@/utils/error";
 import { planStatusBarClass, planStatusTextClass } from "@/utils/colors";
 import type { CategoryBenchmarkRowOut } from "@/types";
@@ -99,7 +99,7 @@ export default function ReportsYearlyPage() {
   }
 
   const monthlyData = data.monthly.map((row) => ({
-    name: `${Number(row.year_month.slice(5))}월`,
+    name: formatMonthOnly(row.year_month),
     수입: Number(row.income),
     지출: Number(row.expense),
   }));

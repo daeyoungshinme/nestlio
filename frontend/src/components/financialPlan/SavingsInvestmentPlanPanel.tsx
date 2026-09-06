@@ -22,6 +22,7 @@ import { accountsSectionLink, planViewLink } from "@/constants/routes";
 import { QUERY_KEYS } from "@/constants/queryKeys";
 import { TOUCH_TARGET_MIN_MOBILE_ONLY } from "@/constants/uiSizes";
 import { formatKrw, formatPercent } from "@/utils/format";
+import { yearOf } from "@/utils/date";
 import {
   linkedGoalBadgeStyle,
   planStatusTextClass,
@@ -303,7 +304,7 @@ export default function SavingsInvestmentPlanPanel({
   showViewToggle?: boolean;
 }) {
   const [viewMode, setViewMode] = useState<ViewMode>(initialViewMode);
-  const year = Number(yearMonth.slice(0, 4));
+  const year = yearOf(yearMonth);
 
   const {
     data: monthData,

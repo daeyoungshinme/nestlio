@@ -3,7 +3,7 @@ import Button from "@/components/common/Button";
 import { FORM_LABEL, INPUT_SM } from "@/constants/inputStyles";
 import { TOUCH_TARGET_MIN_MOBILE_ONLY } from "@/constants/uiSizes";
 import { useMonthlyTargetGrid } from "@/hooks/useMonthlyTargetGrid";
-import { formatKrw, formatKrwPreview } from "@/utils/format";
+import { formatKrw, formatKrwPreview, formatMonthOnly } from "@/utils/format";
 import type { AnnualPlanItemMonthlyTargetIn } from "@/types";
 
 interface Props {
@@ -56,7 +56,7 @@ export default function AnnualPlanMonthlyGrid({ startMonth, endMonth, targets, o
           const amount = amountByMonth.get(ym) ?? "0";
           return (
             <div key={ym} className="flex items-center gap-2 px-3 py-2">
-              <span className="text-sm text-gray-900 dark:text-gray-50 w-12 shrink-0">{Number(ym.slice(5))}월</span>
+              <span className="text-sm text-gray-900 dark:text-gray-50 w-12 shrink-0">{formatMonthOnly(ym)}</span>
               <input
                 type="number"
                 inputMode="decimal"

@@ -15,7 +15,7 @@ import type { GoalProgressCardBadge, GoalProgressCardExtraDetail } from "@/compo
 import GoalSectionHeader from "@/components/financialPlan/GoalSectionHeader";
 import SkeletonCard from "@/components/common/SkeletonCard";
 import Tabs from "@/components/common/Tabs";
-import { currentYearMonth } from "@/utils/date";
+import { currentYearMonth, yearOf } from "@/utils/date";
 import { fetchDashboard } from "@/api/dashboard";
 import { createGoal, deleteGoal, updateGoal, updateGoalMonthlyTarget } from "@/api/goals";
 import { INLINE_BUTTON_OFFSET } from "@/constants/inputStyles";
@@ -28,7 +28,7 @@ import { planViewLink } from "@/constants/routes";
 import { progressStatusBadgeClass, progressStatusLabel } from "@/utils/colors";
 import { computeCardStatus, daysUntil, isGoalAchieved } from "@/utils/goalStatus";
 import { GOAL_SORT_LABELS, sortGoals, type GoalSortLabel } from "@/utils/goalSort";
-import { estimateGoalAcceleration } from "@/utils/monthRange";
+import { estimateGoalAcceleration } from "@/utils/goalAcceleration";
 import { extractErrorMessage } from "@/utils/error";
 import { formatDate, formatKrw, formatKrwPreview, formatYearMonth, toAmountInputValue } from "@/utils/format";
 import { toast } from "@/utils/toast";
@@ -70,7 +70,7 @@ export default function GoalsTab() {
     staleTime: STALE_TIME.SHORT,
   });
 
-  const year = Number(yearMonth.slice(0, 4));
+  const year = yearOf(yearMonth);
   const { createMutation, updateMutation, removeMutation: deleteMutation, invalidate } = useCrudMutations({
     // 목표에 연동된 저축상품의 월 계획액이 목표 저장 시 함께 갱신되므로(app/services/goal_service.py::
     // _sync_funding_product_monthly_amount), 저축상품 관련 쿼리도 함께 무효화한다.
