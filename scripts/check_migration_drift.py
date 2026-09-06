@@ -67,12 +67,12 @@ def main() -> None:
     with tempfile.TemporaryDirectory() as d:
         srv = pgserver.get_server(d)
         try:
-            root_uri = srv.get_uri()
-            base = root_uri.rsplit("/", 1)[0]
+            # get_uri(database=...) 로 받아야 한다 — Linux의 pgserver는 unix 소켓 URI라
+            # 문자열을 rsplit("/")로 자르면 소켓 경로가 깨진다.
             srv.psql("DROP DATABASE IF EXISTS drift_db WITH (FORCE);")
             srv.psql("CREATE DATABASE drift_db;")
             srv.psql("\\c drift_db\nCREATE SCHEMA IF NOT EXISTS household;")
-            db_uri = f"{base}/drift_db"
+            db_uri = srv.get_uri(database="drift_db")
 
             r = _alembic(db_uri, "upgrade", "head")
             if r.returncode:
