@@ -119,6 +119,19 @@ def _contribution_summary_text(owner_totals: list[dict]) -> str | None:
     return line
 
 
+def _with_streak_and_contribution(body: str, *, streak: int, owner_totals: list[dict]) -> str:
+    """주간·월간 요약 본문에 공통으로 붙는 '연속 N개월 페이스' + '부부 기여도' 줄을 덧붙인다."""
+    extra_lines = []
+    if streak > 0:
+        extra_lines.append(f"연속 {streak}개월째 목표 페이스를 지키고 있어요 \U0001F525")
+    contribution_text = _contribution_summary_text(owner_totals)
+    if contribution_text:
+        extra_lines.append(contribution_text)
+    if extra_lines:
+        body += "\n\n" + "\n".join(extra_lines)
+    return body
+
+
 def send_weekly_summary(db: Session, today: date | None = None, force: bool = False) -> bool:
     today = today or today_kst()
     start, end = week_bounds(today)
@@ -132,15 +145,7 @@ def send_weekly_summary(db: Session, today: date | None = None, force: bool = Fa
     owner_totals = transaction_report_service.totals_by_owner(db, start, end)
     streak = _savings_streak(db, end)
     body = _format_summary("주간 가계부 요약", start, end, totals, breakdown)
-
-    extra_lines = []
-    if streak > 0:
-        extra_lines.append(f"연속 {streak}개월째 목표 페이스를 지키고 있어요 \U0001F525")
-    contribution_text = _contribution_summary_text(owner_totals)
-    if contribution_text:
-        extra_lines.append(contribution_text)
-    if extra_lines:
-        body += "\n\n" + "\n".join(extra_lines)
+    body = _with_streak_and_contribution(body, streak=streak, owner_totals=owner_totals)
 
     if is_connected():
         html = email_templates.build_weekly_summary_html(
@@ -164,15 +169,7 @@ def send_monthly_summary(db: Session, today: date | None = None, force: bool = F
     totals, breakdown, owner_totals, insights = r["totals"], r["breakdown"], r["owner_totals"], r["insights"]
     streak = _savings_streak(db, end)
     body = _format_summary("월간 가계부 요약", start, end, totals, breakdown)
-
-    extra_lines = []
-    if streak > 0:
-        extra_lines.append(f"연속 {streak}개월째 목표 페이스를 지키고 있어요 \U0001F525")
-    contribution_text = _contribution_summary_text(owner_totals)
-    if contribution_text:
-        extra_lines.append(contribution_text)
-    if extra_lines:
-        body += "\n\n" + "\n".join(extra_lines)
+    body = _with_streak_and_contribution(body, streak=streak, owner_totals=owner_totals)
 
     if insights:
         body += "\n\n자산증식 코칭:\n"
@@ -281,7 +278,9 @@ def check_all_goal_milestones(db: Session, today: date | None = None) -> int:
         try:
             if _celebrate_goal_milestone(db, goal, today):
                 sent += 1
-        except Exception:
+        except Exception:  # noqa: BLE001
+            # 한 목표의 실패가 세션을 오염시켜 이후 _log_sent 커밋이 연쇄 실패하지 않도록 롤백.
+            db.rollback()
             logger.exception("goal_milestone_alert_failed goal_id=%s", goal.id)
     return sent
 
@@ -294,7 +293,8 @@ def check_all_categories_threshold(db: Session, year_month: str | None = None) -
         try:
             if _send_threshold_alert(db, row, year_month):
                 sent += 1
-        except Exception:
+        except Exception:  # noqa: BLE001
+            db.rollback()
             logger.exception("threshold_alert_failed category_id=%s", row["category_id"])
     return sent
 

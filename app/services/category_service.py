@@ -1,5 +1,6 @@
 from sqlalchemy.orm import Session
 
+from app.constants.sort_order import DEFAULT_SORT_ORDER
 from app.models.category import Category
 
 
@@ -15,7 +16,7 @@ def list_categories(db: Session, active_only: bool = True, kind: str | None = No
 def create_category(
     db: Session, name: str, type_: str, color: str, kind: str = "expense", benchmark_group: str | None = None
 ) -> Category:
-    category = Category(name=name, kind=kind, type=type_, color=color, sort_order=999, benchmark_group=benchmark_group)
+    category = Category(name=name, kind=kind, type=type_, color=color, sort_order=DEFAULT_SORT_ORDER, benchmark_group=benchmark_group)
     db.add(category)
     db.commit()
     db.refresh(category)

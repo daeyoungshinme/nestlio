@@ -7,7 +7,7 @@ from pydantic import BaseModel, ConfigDict
 
 from app.schemas.account import AccountOut
 from app.schemas.category import CategoryOut
-from app.schemas.common import TotalsOut
+from app.schemas.common import KrwAmount, TotalsOut
 from app.schemas.savings_product import SavingsProductOut
 from app.schemas.user import UserOut
 
@@ -33,7 +33,8 @@ class TransactionOut(BaseModel):
 
 
 class TransactionCreateIn(BaseModel):
-    amount: Decimal
+    # 빈 문자열("")도 0으로 받는다 — 다른 *In 스키마와 동일 (app/schemas/common.py)
+    amount: KrwAmount
     type: Literal["income", "expense"]
     category_id: int
     transaction_date: date

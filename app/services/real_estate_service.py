@@ -4,6 +4,7 @@ from decimal import Decimal
 
 from sqlalchemy.orm import Session
 
+from app.constants.sort_order import DEFAULT_SORT_ORDER
 from app.models.loan import Loan
 from app.models.savings_product import SavingsProduct
 from app.services import growlio_client
@@ -50,7 +51,7 @@ def _upsert_linked_loan(
         growlio_account_id=growlio_account_id,
         auto_sync_enabled=True,
         last_synced_at=now,
-        sort_order=999,
+        sort_order=DEFAULT_SORT_ORDER,
         owner_user_id=owner_user_id,
     )
     db.add(loan)
@@ -88,7 +89,7 @@ def import_from_growlio(
             growlio_account_id=account_id,
             auto_sync_enabled=True,
             last_synced_at=now,
-            sort_order=999,
+            sort_order=DEFAULT_SORT_ORDER,
             owner_user_id=owner_user_id,
         )
         db.add(product)

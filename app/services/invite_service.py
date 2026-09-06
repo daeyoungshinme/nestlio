@@ -10,7 +10,6 @@ from app.models.invite import Invite
 from app.models.user import User
 from app.services import gmail_service, user_service
 from app.services.google_auth import is_connected
-from app.services.user_service import MAX_HOUSEHOLD_USERS
 from app.utils.dates import now_kst
 
 logger = logging.getLogger(__name__)
@@ -76,7 +75,7 @@ def _send_invite_email(invite: Invite) -> bool:
 
 def create_invite(db: Session, invited_by_id: uuid.UUID, email: str, now: datetime | None = None) -> Invite:
     now = now or now_kst()
-    if len(user_service.list_users(db)) >= MAX_HOUSEHOLD_USERS:
+    if not user_service.household_has_capacity(db):
         raise HouseholdFullError("이미 두 명의 사용자가 등록되어 있습니다.")
 
     existing = db.query(Invite).filter(Invite.email == email, Invite.accepted_at.is_(None)).first()
@@ -142,7 +141,7 @@ def accept_invite(
 
     user = db.get(User, user_id)
     if user is None:
-        if len(user_service.list_users(db)) >= MAX_HOUSEHOLD_USERS:
+        if not user_service.household_has_capacity(db):
             raise HouseholdFullError("이미 두 명의 사용자가 등록되어 있습니다.")
         user = User(id=user_id, email=invite.email, display_name=display_name)
         db.add(user)

@@ -362,7 +362,7 @@ def _send_reminder_email(db: Session, event: Event, occurrence: datetime) -> Non
         gmail_service.send_email(
             f"[Nestlio] 일정 리마인더: {event.title}", body, to=notification_settings_service.get_recipients(db)
         )
-    except Exception:
+    except Exception:  # noqa: BLE001 - best-effort 부수효과, 로그만 남기고 진행
         logger.exception("일정 리마인더 이메일 발송 실패: %s", event.title)
 
 
@@ -379,7 +379,7 @@ def _notify_other_spouse(db: Session, event: Event, actor_id: uuid.UUID, action_
     body = _event_summary_text(event, event.start_at, header=action_label)
     try:
         gmail_service.send_email(f"[Nestlio] {action_label}: {event.title}", body, to=recipients)
-    except Exception:
+    except Exception:  # noqa: BLE001 - best-effort 부수효과, 로그만 남기고 진행
         logger.exception("일정 알림 이메일 발송 실패: %s", event.title)
 
 
@@ -404,7 +404,7 @@ def _sync_to_google(db: Session, event: Event) -> None:
         google_calendar_service.upsert_event(db, event)
     except GoogleNotConnectedError:
         pass
-    except Exception:
+    except Exception:  # noqa: BLE001 - best-effort 부수효과, 로그만 남기고 진행
         logger.exception("캘린더 이벤트 동기화 실패: %s", event.title)
 
 
@@ -417,5 +417,5 @@ def _remove_from_google(event: Event) -> None:
         google_calendar_service.delete_event(event)
     except GoogleNotConnectedError:
         pass
-    except Exception:
+    except Exception:  # noqa: BLE001 - best-effort 부수효과, 로그만 남기고 진행
         logger.exception("캘린더 이벤트 삭제 실패: %s", event.title)

@@ -3,6 +3,7 @@ from decimal import Decimal
 
 from sqlalchemy.orm import Session
 
+from app.constants.sort_order import DEFAULT_SORT_ORDER
 from app.models.loan import Loan
 
 
@@ -32,7 +33,7 @@ def create_loan(
         term_months=term_months,
         interest_rate=interest_rate,
         repayment_method=repayment_method,
-        sort_order=999,
+        sort_order=DEFAULT_SORT_ORDER,
         owner_user_id=owner_user_id,
     )
     db.add(loan)

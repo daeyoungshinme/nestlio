@@ -13,15 +13,23 @@ from app.services import user_service
 from app.utils.dates import month_bounds, shift_month, today_kst, year_bounds, year_month_str
 
 
+def _period_expense_filters(date_from: date, date_to: date):
+    """집계 쿼리 공통 필터: 기간 내 + 저축상품 연결이 아닌(=순수 수입/지출) 거래.
+    `db.query(...).filter(*_period_expense_filters(a, b), 추가조건)` 형태로 쓴다."""
+    return (
+        Transaction.transaction_date >= date_from,
+        Transaction.transaction_date <= date_to,
+        Transaction.savings_product_id.is_(None),
+    )
+
+
 def period_totals(db: Session, date_from: date, date_to: date) -> dict:
     """Income / expense / fixed / variable / irregular totals for a date range."""
     rows = (
         db.query(Transaction.type, Category.type.label("cat_type"), func.sum(Transaction.amount))
         .join(Category, Transaction.category_id == Category.id)
         .filter(
-            Transaction.transaction_date >= date_from,
-            Transaction.transaction_date <= date_to,
-            Transaction.savings_product_id.is_(None),
+            *_period_expense_filters(date_from, date_to),
         )
         .group_by(Transaction.type, Category.type)
         .all()
@@ -49,9 +57,7 @@ def totals_by_user(db: Session, date_from: date, date_to: date) -> list[dict]:
         db.query(User.id, User.display_name, Transaction.type, func.sum(Transaction.amount))
         .join(Transaction, Transaction.user_id == User.id)
         .filter(
-            Transaction.transaction_date >= date_from,
-            Transaction.transaction_date <= date_to,
-            Transaction.savings_product_id.is_(None),
+            *_period_expense_filters(date_from, date_to),
         )
         .group_by(User.id, Transaction.type)
         .all()
@@ -79,9 +85,7 @@ def totals_by_owner(db: Session, date_from: date, date_to: date) -> list[dict]:
     income_expense_rows = (
         db.query(Transaction.owner_user_id, Transaction.type, func.sum(Transaction.amount))
         .filter(
-            Transaction.transaction_date >= date_from,
-            Transaction.transaction_date <= date_to,
-            Transaction.savings_product_id.is_(None),
+            *_period_expense_filters(date_from, date_to),
         )
         .group_by(Transaction.owner_user_id, Transaction.type)
         .all()
@@ -152,9 +156,7 @@ def _category_breakdown_base_query(db: Session, date_from: date, date_to: date, 
         .join(Transaction, Transaction.category_id == Category.id)
         .filter(
             Transaction.type == type_,
-            Transaction.transaction_date >= date_from,
-            Transaction.transaction_date <= date_to,
-            Transaction.savings_product_id.is_(None),
+            *_period_expense_filters(date_from, date_to),
         )
     )
 
@@ -225,9 +227,7 @@ def _category_breakdown_by_owner_batch(
         .join(Category, Transaction.category_id == Category.id)
         .filter(
             Transaction.type == type_,
-            Transaction.transaction_date >= date_from,
-            Transaction.transaction_date <= date_to,
-            Transaction.savings_product_id.is_(None),
+            *_period_expense_filters(date_from, date_to),
         )
         .group_by(Transaction.owner_user_id, Category.id)
         .order_by(func.sum(Transaction.amount).desc())
@@ -265,9 +265,7 @@ def _trailing_average_by_owner_batch(
         db.query(Transaction.owner_user_id, Transaction.category_id, Transaction.amount)
         .filter(
             Transaction.type == type_,
-            Transaction.transaction_date >= range_start,
-            Transaction.transaction_date <= range_end,
-            Transaction.savings_product_id.is_(None),
+            *_period_expense_filters(range_start, range_end),
         )
         .all()
     )
@@ -350,9 +348,7 @@ def _monthly_totals_map(db: Session, month_starts: list[date]) -> dict[str, dict
         db.query(Transaction.transaction_date, Transaction.type, Category.type, Transaction.amount)
         .join(Category, Transaction.category_id == Category.id)
         .filter(
-            Transaction.transaction_date >= range_start,
-            Transaction.transaction_date <= range_end,
-            Transaction.savings_product_id.is_(None),
+            *_period_expense_filters(range_start, range_end),
         )
         .all()
     )
@@ -390,9 +386,7 @@ def _category_breakdown_by_month(db: Session, month_starts: list[date], type_: s
         .join(Category, Transaction.category_id == Category.id)
         .filter(
             Transaction.type == type_,
-            Transaction.transaction_date >= range_start,
-            Transaction.transaction_date <= range_end,
-            Transaction.savings_product_id.is_(None),
+            *_period_expense_filters(range_start, range_end),
         )
         .all()
     )
