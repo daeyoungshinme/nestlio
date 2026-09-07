@@ -114,7 +114,13 @@ export default function SchedulePage() {
     mutationFn: () => importGoogleEvents(date_from, date_to),
     onSuccess: (result) => {
       invalidateEvents();
-      toast(`구글 캘린더에서 ${result.created + result.updated}건을 가져왔어요.`, "success");
+      const changed = result.created + result.updated;
+      toast(
+        changed === 0
+          ? "이미 최신 상태예요. 새로 가져온 일정은 없습니다."
+          : `구글 캘린더에서 ${changed}건을 반영했어요.`,
+        "success",
+      );
     },
     onError: (err) => toast(extractErrorMessage(err), "error"),
   });

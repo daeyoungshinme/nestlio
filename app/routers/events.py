@@ -1,6 +1,9 @@
+import logging
 from datetime import date
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from google.auth.exceptions import RefreshError
+from googleapiclient.errors import HttpError
 from sqlalchemy.orm import Session
 
 from app.database import get_db
@@ -16,8 +19,10 @@ from app.schemas.event import (
 )
 from app.services import event_service, recurring_service
 from app.services.event_service import ImportedEventReadOnlyError
-from app.services.google_auth import GoogleNotConnectedError
+from app.services.google_auth import GoogleAuthError, GoogleNotConnectedError
 from app.utils.dates import month_bounds, today_kst
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/events", tags=["events"])
 
@@ -36,6 +41,14 @@ def import_google_events(
         return event_service.import_from_google(db, df, dt, current_user.id)
     except GoogleNotConnectedError as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+    except GoogleAuthError as exc:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
+    except (HttpError, RefreshError) as exc:
+        logger.warning("구글 캘린더 일정 가져오기 실패", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="구글 캘린더에서 일정을 가져오지 못했어요. 잠시 후 다시 시도하거나 재연결해 주세요.",
+        ) from exc
 
 
 @router.get("", response_model=EventListOut)

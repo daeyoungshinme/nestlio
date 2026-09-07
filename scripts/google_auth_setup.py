@@ -18,6 +18,9 @@ it up immediately, no redeploy needed. The running app auto-refreshes it from th
 NOTE: SCOPES 목록에 새 스코프를 추가했다면(예: spreadsheets.readonly), 기존에 이미
 연동되어 있었더라도 이 스크립트를 다시 실행해 재동의해야 한다 - 저장된 리프레시 토큰은
 최초 동의 시점의 스코프로 고정되어 있어, 코드만 바꾼다고 새 스코프가 자동으로 붙지 않는다.
+
+연동이 만료됐거나("구글 연동이 만료됐어요" 안내) 토큰 갱신이 안 될 때도 이 스크립트만
+다시 실행하면 된다 - prompt=consent로 항상 새 refresh token을 받아 저장한다.
 """
 import sys
 from pathlib import Path
@@ -46,7 +49,10 @@ def main():
         }
     }
     flow = InstalledAppFlow.from_client_config(client_config, SCOPES)
-    creds = flow.run_local_server(port=0)
+    # access_type=offline + prompt=consent: 재실행(재연결) 시에도 Google이 새 refresh token을
+    # 반드시 발급하도록 강제한다. 이게 없으면 재동의 때 refresh token이 응답에서 빠져
+    # save_credentials가 refresh_token=None으로 덮어쓰고, 이후 앱이 토큰을 갱신하지 못한다.
+    creds = flow.run_local_server(port=0, access_type="offline", prompt="consent")
     save_credentials(creds)
     print("연결 완료. 토큰이 household.google_oauth_tokens 테이블에 저장되었습니다.")
 
