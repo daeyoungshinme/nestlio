@@ -346,6 +346,27 @@ def test_import_from_google_skips_own_recurring_event(mock_connected, mock_list,
 
 @patch("app.services.google_calendar_service.list_events")
 @patch("app.services.event_service.is_connected", return_value=True)
+def test_import_from_google_skips_malformed_item_but_keeps_going(mock_connected, mock_list, seeded_db):
+    db, user = seeded_db["db"], seeded_db["user"]
+    mock_list.return_value = [
+        {"id": "bad-1", "summary": "깨진 일정", "start": {"dateTime": "not-a-timestamp"}},
+        {
+            "id": "gcal-ok",
+            "summary": "정상 일정",
+            "start": {"dateTime": "2026-07-10T09:00:00+09:00"},
+            "end": {"dateTime": "2026-07-10T10:00:00+09:00"},
+        },
+    ]
+
+    result = event_service.import_from_google(db, date(2026, 7, 1), date(2026, 7, 31), actor_id=user.id)
+
+    assert result == {"created": 1, "updated": 0, "skipped": 1}
+    items = event_service.list_events(db, date(2026, 7, 1), date(2026, 7, 31))
+    assert [i["title"] for i in items] == ["정상 일정"]
+
+
+@patch("app.services.google_calendar_service.list_events")
+@patch("app.services.event_service.is_connected", return_value=True)
 def test_import_from_google_all_day_end_date_inverts_google_exclusive_end(mock_connected, mock_list, seeded_db):
     db, user = seeded_db["db"], seeded_db["user"]
     mock_list.return_value = [
