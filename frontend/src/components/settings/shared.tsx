@@ -2,6 +2,11 @@ import type { ReactNode } from "react";
 import { ChevronRight } from "lucide-react";
 import { Link } from "react-router-dom";
 import { TOUCH_TARGET_ROW } from "@/constants/uiSizes";
+import { extractErrorMessage } from "@/utils/error";
+import { toast } from "@/utils/toast";
+
+/** 설정 섹션들의 공통 mutation onError — 서버 메시지를 토스트로 띄운다. */
+export const onMutationError = (err: unknown) => toast(extractErrorMessage(err), "error");
 
 /** 설정탭 카드의 공용 래퍼 — 기존에 섹션마다 반복하던 `.card` + 손으로 스타일링한 제목을 대체한다. */
 export function SettingsSectionCard({
