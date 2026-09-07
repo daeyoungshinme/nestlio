@@ -102,6 +102,18 @@ def test_import_google_events_returns_400_when_not_connected(mock_connected, cli
     assert resp.status_code == 400
 
 
+@patch("app.routers.events.event_service.import_from_google")
+def test_import_google_events_returns_409_when_reauth_needed(mock_import, client):
+    from app.services.google_auth import GoogleAuthError
+
+    mock_import.side_effect = GoogleAuthError("구글 연동이 만료됐어요.")
+
+    resp = client.post("/api/v1/events/import-google")
+
+    assert resp.status_code == 409
+    assert "만료" in resp.json()["detail"]
+
+
 def test_update_imported_event_returns_403(client, seeded_db):
     db, user = seeded_db["db"], seeded_db["user"]
     imported = Event(

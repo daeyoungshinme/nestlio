@@ -1,3 +1,4 @@
+from google.auth.exceptions import RefreshError
 from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
 
@@ -14,6 +15,16 @@ SCOPES = [
 
 class GoogleNotConnectedError(Exception):
     """Raised when no GoogleOAuthToken row exists - run scripts/google_auth_setup.py first."""
+
+
+class GoogleAuthError(Exception):
+    """토큰 행은 있으나 액세스 토큰이 만료됐고 refresh도 불가능한 상태(리프레시 토큰 없음/revoke).
+    scripts/google_auth_setup.py를 다시 실행해 재연결해야 한다 — "행 없음"(GoogleNotConnectedError)과 구분한다."""
+
+
+_REAUTH_MESSAGE = (
+    "구글 연동이 만료됐어요. 터미널에서 scripts/google_auth_setup.py를 다시 실행해 재연결해 주세요."
+)
 
 
 # 아래 두 함수는 app/services/CLAUDE.md의 "첫 인자는 항상 db" 규칙에 대한 예외다.
@@ -45,9 +56,18 @@ def get_credentials() -> Credentials:
             client_id=settings.google_oauth_client_id,
             client_secret=settings.google_oauth_client_secret,
             scopes=row.scopes.split(","),
+            expiry=row.expiry,
         )
-        if creds.expired and creds.refresh_token:
-            creds.refresh(Request())
+        # creds.valid == (token is not None and not expired). expiry가 저장돼 있으면 만료 시 여기서
+        # 선제 갱신하고 새 토큰을 DB에 남긴다. (expiry 인자를 안 넘기면 google-auth는 토큰이 절대
+        # 만료되지 않는 것으로 취급해 이 블록이 죽은 코드가 된다.)
+        if not creds.valid:
+            if not creds.refresh_token:
+                raise GoogleAuthError(_REAUTH_MESSAGE)
+            try:
+                creds.refresh(Request())
+            except RefreshError as exc:
+                raise GoogleAuthError(_REAUTH_MESSAGE) from exc
             row.access_token = creds.token
             row.expiry = creds.expiry
             db.commit()
