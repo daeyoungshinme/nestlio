@@ -256,7 +256,14 @@ def import_from_google(db: Session, range_start: date, range_end: date, actor_id
         if master_id in own_master_ids:
             continue
 
-        parsed = _parse_google_event(item)
+        try:
+            parsed = _parse_google_event(item)
+        except Exception:
+            # 구글 일정 하나가 예상 밖 포맷(예: 특이한 dateTime)이어도 그 달 전체 import를
+            # 중단시키지 않는다 - 해당 건만 건너뛰고 나머지는 계속 가져온다.
+            logger.warning("구글 일정 파싱 실패, 건너뜀 (id=%s)", item.get("id"), exc_info=True)
+            skipped += 1
+            continue
         if parsed is None:
             skipped += 1
             continue
