@@ -10,7 +10,7 @@ def test_dashboard_today_returns_totals_and_insights(client, seeded_db):
     today = date.today()
     transaction_service.create_transaction(db, user.id, food.id, "income", Decimal("100000"), today)
 
-    resp = client.get("/api/v1/dashboard", params={"period": "today"})
+    resp = client.get("/api/v1/dashboard", params={"period": "today", "date": today.isoformat()})
 
     assert resp.status_code == 200
     body = resp.json()
