@@ -161,20 +161,14 @@ def sync_all_accounts(db: Session, bearer_token: str, *, now: datetime) -> tuple
         return 0, []
     growlio_accounts = growlio_client.fetch_account_balances(bearer_token)
     balances = balances_for(db, [a.id for a in linked_accounts])  # 계좌마다 current_balance()를 재조회하지 않도록 배치
-    synced_count = 0
-    failed: list[dict] = []
-    for account in linked_accounts:
-        match = growlio_client.find_by_growlio_id(growlio_accounts, account.growlio_account_id)
-        if match is None:
-            failed.append(
-                {"id": account.id, "name": account.name, "reason": growlio_client.SYNC_MATCH_FAILED_REASON}
-            )
-            continue
-        _rebase_initial_balance(
+    synced_count, failed = growlio_client.sync_linked_rows(
+        linked_accounts,
+        growlio_accounts,
+        now=now,
+        apply=lambda account, match: _rebase_initial_balance(
             account, growlio_client.to_decimal_krw(match["current_value_krw"]), balances[account.id]
-        )
-        account.last_synced_at = now
-        synced_count += 1
+        ),
+    )
     db.commit()
     return synced_count, failed
 
