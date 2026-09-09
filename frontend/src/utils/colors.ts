@@ -263,6 +263,16 @@ export function contributionLeaderBadgeStyle(): string {
   return "bg-amber-50 dark:bg-amber-950 text-amber-700 dark:text-amber-300";
 }
 
+/** 대시보드 상단 목표 카드의 D-day(목표일까지 남은 일수) 배지. */
+export function goalDeadlineBadgeStyle(): string {
+  return "bg-primary-50 dark:bg-primary-950 text-primary-700 dark:text-primary-300";
+}
+
+/** 대시보드 목표 카드의 "N개월 연속" 저축 페이스 유지 배지. */
+export function savingsStreakBadgeStyle(): string {
+  return "bg-amber-50 dark:bg-amber-950 text-amber-700 dark:text-amber-300";
+}
+
 const RECURRING_LINK_BADGE_STYLE: Record<"active" | "inactive", string> = {
   active: "bg-indigo-50 dark:bg-indigo-950 text-indigo-600 dark:text-indigo-400",
   inactive: "bg-gray-100 dark:bg-gray-800 text-gray-400 dark:text-gray-500",
@@ -294,4 +304,31 @@ export function formErrorTextClass(): string {
 /** FormInput의 실시간 프리뷰(정보성) 텍스트 색상. */
 export function formPreviewTextClass(): string {
   return "text-blue-600 dark:text-blue-400";
+}
+
+/** 금액 증감 등 방향성 값의 텍스트 색상 (SummaryCard/InlineStatsBar 공용).
+ * positive는 앱 accent(primary)와 같은 emerald 계열이지만 의미가 "긍정적 방향"이라 별도 함수. */
+const AMOUNT_TONE_TEXT: Record<"default" | "positive" | "negative", string> = {
+  default: "text-gray-900 dark:text-gray-50",
+  positive: "text-primary-600 dark:text-primary-400",
+  negative: "text-red-600 dark:text-red-400",
+};
+
+export function amountToneClass(tone: "default" | "positive" | "negative"): string {
+  return AMOUNT_TONE_TEXT[tone];
+}
+
+/** "반복" 개념 액센트(indigo) — 일정 화면의 반복 일정 아이콘/배지. colors.ts의
+ * recurringLinkBadgeStyle(자동 반영 배지)과 색은 같지만 문구/용도가 달라 별도 함수로 둔다. */
+export function recurringAccentIconClass(): string {
+  return "text-indigo-500";
+}
+
+export function recurringAccentBadgeStyle(): string {
+  return "bg-indigo-50 dark:bg-indigo-950 text-indigo-600 dark:text-indigo-400";
+}
+
+/** 반복 규칙 선택 칩(활성 상태) — RecurringForm의 요일/주기 토글. */
+export function recurringSelectedChipClass(): string {
+  return "bg-indigo-600 text-white";
 }

@@ -150,7 +150,7 @@ export default function AccountsSnapshotCard() {
 
       <div className="px-1">
         {growlioUnlinked && growlioUnlinked.item_count > 0 ? (
-          <p className="text-xs text-emerald-600 dark:text-emerald-400">
+          <p className="text-xs text-primary-600 dark:text-primary-400">
             growlio 미연동 자산 +{formatKrw(growlioUnlinked.net_total)} ({growlioUnlinked.item_count}건) — 각 섹션의
             "growlio에서 가져오기"로 추가하세요.
           </p>

@@ -4,6 +4,7 @@ import Button from "@/components/common/Button";
 import EmptyState from "@/components/common/EmptyState";
 import StatusBadge from "@/components/common/StatusBadge";
 import ScheduleEventRow from "@/components/schedule/ScheduleEventRow";
+import { recurringAccentBadgeStyle, recurringAccentIconClass } from "@/utils/colors";
 import { formatKrw } from "@/utils/format";
 import type { EventOut, RecurringOut } from "@/types";
 
@@ -46,11 +47,11 @@ export default function ScheduleEventList({
           {recurringDue.map((recurring) => (
             <div key={recurring.id} className="card flex items-center justify-between gap-3">
               <div className="min-w-0 flex items-center gap-2">
-                <Repeat size={14} className="shrink-0 text-indigo-500" aria-hidden="true" />
+                <Repeat size={14} className={`shrink-0 ${recurringAccentIconClass()}`} aria-hidden="true" />
                 <p className="text-sm font-medium text-gray-900 dark:text-gray-50 truncate">{recurring.name}</p>
                 <StatusBadge
                   label="반복 내역 예정"
-                  toneClassName="bg-indigo-50 dark:bg-indigo-950 text-indigo-600 dark:text-indigo-400"
+                  toneClassName={recurringAccentBadgeStyle()}
                   className="shrink-0"
                 />
               </div>

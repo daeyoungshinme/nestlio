@@ -60,7 +60,7 @@ export default function TodayScheduleCard({ day, users }: Props) {
           <Button size="sm" icon={<Plus size={14} />} onClick={() => setShowAdd(true)}>
             일정 추가
           </Button>
-          <Link to="/schedule" className="text-xs font-semibold text-emerald-600 dark:text-emerald-400 hover:underline">
+          <Link to="/schedule" className="text-xs font-semibold text-primary-600 dark:text-primary-400 hover:underline">
             전체 일정 보기 →
           </Link>
         </div>
@@ -96,7 +96,7 @@ export default function TodayScheduleCard({ day, users }: Props) {
                 </p>
                 <StatusBadge
                   label={`담당 ${event.assignee?.display_name ?? "공동"}`}
-                  toneClassName="bg-emerald-50 dark:bg-emerald-950 text-emerald-600 dark:text-emerald-400"
+                  toneClassName="bg-primary-50 dark:bg-primary-950 text-primary-600 dark:text-primary-400"
                 />
               </div>
             );

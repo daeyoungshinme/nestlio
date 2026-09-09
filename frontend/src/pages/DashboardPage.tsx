@@ -39,9 +39,11 @@ import {
 import { QUERY_KEYS } from "@/constants/queryKeys";
 import { STALE_TIME } from "@/constants/queryConfig";
 import {
+  goalDeadlineBadgeStyle,
   insightSeverityStyle,
   progressStatusBadgeClass,
   progressStatusLabel,
+  savingsStreakBadgeStyle,
   savingsTrendChartColor,
   worseStatus,
 } from "@/utils/colors";
@@ -183,7 +185,7 @@ export default function DashboardPage() {
     if (topGoal.target_date !== null) {
       topGoalBadges.push({
         label: `D-${daysUntil(topGoal.target_date)}`,
-        toneClassName: "bg-emerald-50 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300",
+        toneClassName: goalDeadlineBadgeStyle(),
       });
     }
     const goalStatus = computeCardStatus(topGoal);
@@ -193,7 +195,7 @@ export default function DashboardPage() {
     if (data.savings_streak_months > 0) {
       topGoalBadges.push({
         label: `${data.savings_streak_months}개월 연속`,
-        toneClassName: "bg-amber-50 dark:bg-amber-950 text-amber-700 dark:text-amber-300",
+        toneClassName: savingsStreakBadgeStyle(),
         icon: <Flame size={11} aria-hidden="true" />,
       });
     }
@@ -308,7 +310,7 @@ export default function DashboardPage() {
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {!topGoal ? (
-          <Link to={planViewLink("목표")} className="relative card block hover:border-emerald-300 dark:hover:border-emerald-700 transition-colors">
+          <Link to={planViewLink("목표")} className="relative card block hover:border-primary-300 dark:hover:border-primary-700 transition-colors">
             <ChevronRight size={16} className="absolute top-5 right-5 text-gray-300 dark:text-gray-600" aria-hidden="true" />
             <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">우리 부부 목표</h3>
             <EmptyState
@@ -322,7 +324,7 @@ export default function DashboardPage() {
           <Link to={planViewLink("목표")} className="relative block">
             <ChevronRight size={16} className="absolute top-5 right-5 text-gray-300 dark:text-gray-600 z-10" aria-hidden="true" />
             <GoalProgressCard
-              className="hover:border-emerald-300 dark:hover:border-emerald-700 transition-colors"
+              className="hover:border-primary-300 dark:hover:border-primary-700 transition-colors"
               metaLine="우리 부부 목표"
               title={topGoal.name}
               badges={topGoalBadges}
@@ -379,7 +381,7 @@ export default function DashboardPage() {
             <ErrorState compact message="순자산을 불러오지 못했습니다." onRetry={() => void refetchNetWorth()} />
           </div>
         ) : (
-          <Link to={ROUTES.accounts} className="relative card block hover:border-emerald-300 dark:hover:border-emerald-700 transition-colors">
+          <Link to={ROUTES.accounts} className="relative card block hover:border-primary-300 dark:hover:border-primary-700 transition-colors">
             <ChevronRight size={16} className="absolute top-4 right-4 text-gray-300 dark:text-gray-600" aria-hidden="true" />
             <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">순자산</h3>
             {!netWorth ? (

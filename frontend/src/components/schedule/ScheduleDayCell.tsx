@@ -42,7 +42,7 @@ function ScheduleDayCell({ date, day, inCurrentMonth, isToday, events, onSelect 
             className={`w-full truncate text-[9px] sm:text-[10px] font-medium px-1 rounded ${
               event.completed_at != null
                 ? "bg-gray-100 dark:bg-gray-800 text-gray-400 dark:text-gray-500 line-through"
-                : "bg-emerald-50 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-400"
+                : "bg-primary-50 dark:bg-primary-950 text-primary-700 dark:text-primary-400"
             }`}
           >
             {event.title}

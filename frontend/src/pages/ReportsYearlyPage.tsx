@@ -1,7 +1,7 @@
 import { useNavigate } from "react-router-dom";
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { ChevronLeft, ChevronRight, Scale } from "lucide-react";
+import { ChevronLeft, ChevronRight, PieChart as PieChartIcon, Scale, TrendingUp } from "lucide-react";
 import {
   Bar,
   BarChart,
@@ -33,7 +33,6 @@ import { extractErrorMessage } from "@/utils/error";
 import { incomeExpenseChartColor, planStatusBarClass, planStatusTextClass } from "@/utils/colors";
 import { useThemeStore } from "@/stores/themeStore";
 import type { CategoryBenchmarkRowOut } from "@/types";
-import { PieChart as PieChartIcon, TrendingUp } from "lucide-react";
 
 const CATEGORY_TREND_MONTHS = 6;
 const ALL_OWNERS_TAB = "전체";

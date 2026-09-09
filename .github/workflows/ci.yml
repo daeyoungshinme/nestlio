@@ -68,6 +68,14 @@ jobs:
       # high 이상 취약점이 있으면 실패. dev/빌드타임 의존성 포함(프론트는 전부 클라이언트로
       # 나가거나 빌드에 쓰임). 상위에서 아직 못 고치는 전이 취약점은 package.json `overrides` 로 고정.
       - run: npm audit --audit-level=high
+      # 디자인 토큰 가드: 인터랙티브 크롬은 raw emerald-*/indigo-* 대신 primary 토큰이나
+      # utils/colors.ts 헬퍼를 쓴다 (tailwind.config.ts 주석). colors.ts 는 상태색 정본이라 제외.
+      - name: no raw emerald/indigo classes
+        run: |
+          if git grep -nE '(emerald|indigo)-[0-9]' -- src ':!src/utils/colors.ts' ':!src/types/api.generated.ts'; then
+            echo "::error::raw emerald-*/indigo-* class found — use the primary token or a utils/colors.ts helper"
+            exit 1
+          fi
       - run: npm run lint
       - run: npm run test
       - run: npm run build

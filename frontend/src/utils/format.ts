@@ -21,7 +21,7 @@ export function formatNumber(value: string | number | null | undefined): string 
 /** 억원/만원 단위 축약 표기. 예: 150_000_000 -> "1.50억원", 5_000_000 -> "500만원", 3_000 -> "3,000원" */
 export function formatKrwCompact(n: number): string {
   if (Math.abs(n) >= 1e8) return `${(n / 1e8).toFixed(2)}억원`;
-  if (Math.abs(n) >= 1e4) return `${Math.round(n / 1e4).toLocaleString()}만원`;
+  if (Math.abs(n) >= 1e4) return `${KRW_FORMATTER.format(Math.round(n / 1e4))}만원`;
   return `${KRW_FORMATTER.format(Math.floor(n))}원`;
 }
 
