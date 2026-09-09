@@ -26,6 +26,7 @@ cp .env.example .env      # DATABASE_URL 등 채우기 (growlio와 공유하는 
 
 ```bash
 pip install -r requirements.txt -r requirements-dev.txt
+pre-commit install   # 커밋 시 ruff/oxlint/기본 위생 훅 (.pre-commit-config.yaml)
 ruff check . && pytest
 cd frontend && npm run lint && npm run test && npm run build
 ```

@@ -485,4 +485,3 @@ export default function GoalsTab() {
     </div>
   );
 }
-
