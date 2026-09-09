@@ -17,6 +17,7 @@ import type { GoalProgressCardBadge } from "@/components/financialPlan/GoalProgr
 import SummaryCards, { type PlanCardSummary, type PlanSummaryLabel } from "@/components/common/SummaryCards";
 import SkeletonCard from "@/components/common/SkeletonCard";
 import ErrorState from "@/components/common/ErrorState";
+import QueryBoundary from "@/components/common/QueryBoundary";
 import EmptyState from "@/components/common/EmptyState";
 import Modal from "@/components/common/Modal";
 import QuickAddFab from "@/components/common/QuickAddFab";
@@ -114,16 +115,20 @@ export default function DashboardPage() {
     enabled: period === "month",
   });
   const { data: settingsData } = useSettings();
-  const { data: netWorth } = useNetWorth();
+  const { data: netWorth, isError: netWorthError, refetch: refetchNetWorth } = useNetWorth();
   const { data: goals } = useGoals();
-  const { data: categories } = useCategories(undefined, { enabled: showQuickAdd });
-  const { data: accounts } = useAccounts({ enabled: showQuickAdd });
-  const { data: savingsProducts } = useSavingsProducts();
+  // 빠른 추가 모달의 입력 양식을 채우는 참조 데이터. 하나라도 에러나면 모달 안에서 영구
+  // 스켈레톤에 갇히던 것을 <QueryBoundary>로 감싸 재시도를 노출한다.
+  const categoriesQuery = useCategories(undefined, { enabled: showQuickAdd });
+  const accountsQuery = useAccounts({ enabled: showQuickAdd });
+  const savingsProductsQuery = useSavingsProducts();
+  const savingsProducts = savingsProductsQuery.data;
   // 자산현황(/accounts) 순자산 카드와 동일한 구성으로 보이도록 부동산을 저축·투자에서 분리한다.
   const { savingsInvestmentTotal, realEstateTotal } = netWorth
     ? splitSavingsAndRealEstate(Number(netWorth.current.savings_total), savingsProducts)
     : { savingsInvestmentTotal: 0, realEstateTotal: 0 };
-  const { data: users } = useUsers();
+  const usersQuery = useUsers();
+  const users = usersQuery.data;
   const currentUserId = useAuthStore((s) => s.userId);
 
   const createMutation = useMutation({
@@ -368,50 +373,57 @@ export default function DashboardPage() {
           </Link>
         )}
 
-        <Link to={ROUTES.accounts} className="relative card block hover:border-emerald-300 dark:hover:border-emerald-700 transition-colors">
-          <ChevronRight size={16} className="absolute top-4 right-4 text-gray-300 dark:text-gray-600" aria-hidden="true" />
-          <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">순자산</h3>
-          {!netWorth ? (
-            <SkeletonCard rows={2} />
-          ) : (
-            <>
-              <p className="text-2xl font-bold text-gray-900 dark:text-gray-50 mb-1 truncate" title={formatKrw(netWorth.current.net_worth)}>
-                {formatKrwCompact(Number(netWorth.current.net_worth))}
-              </p>
-              <p className="text-xs text-gray-400 dark:text-gray-500 mb-3 truncate">
-                {formatKrw(netWorth.current.net_worth)}
-              </p>
-              <div className="space-y-1 text-sm text-gray-500 dark:text-gray-400">
-                <div className="flex justify-between gap-2">
-                  <span className="shrink-0">계좌</span>
-                  <span className="truncate" title={formatKrw(netWorth.current.accounts_total)}>
-                    {formatKrwCompact(Number(netWorth.current.accounts_total))}
-                  </span>
-                </div>
-                <div className="flex justify-between gap-2">
-                  <span className="shrink-0">저축·투자</span>
-                  <span className="truncate" title={formatKrw(savingsInvestmentTotal)}>
-                    {formatKrwCompact(savingsInvestmentTotal)}
-                  </span>
-                </div>
-                {realEstateTotal > 0 && (
+        {netWorthError ? (
+          <div className="relative card">
+            <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">순자산</h3>
+            <ErrorState compact message="순자산을 불러오지 못했습니다." onRetry={() => void refetchNetWorth()} />
+          </div>
+        ) : (
+          <Link to={ROUTES.accounts} className="relative card block hover:border-emerald-300 dark:hover:border-emerald-700 transition-colors">
+            <ChevronRight size={16} className="absolute top-4 right-4 text-gray-300 dark:text-gray-600" aria-hidden="true" />
+            <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">순자산</h3>
+            {!netWorth ? (
+              <SkeletonCard rows={2} />
+            ) : (
+              <>
+                <p className="text-2xl font-bold text-gray-900 dark:text-gray-50 mb-1 truncate" title={formatKrw(netWorth.current.net_worth)}>
+                  {formatKrwCompact(Number(netWorth.current.net_worth))}
+                </p>
+                <p className="text-xs text-gray-400 dark:text-gray-500 mb-3 truncate">
+                  {formatKrw(netWorth.current.net_worth)}
+                </p>
+                <div className="space-y-1 text-sm text-gray-500 dark:text-gray-400">
                   <div className="flex justify-between gap-2">
-                    <span className="shrink-0">부동산</span>
-                    <span className="truncate" title={formatKrw(realEstateTotal)}>
-                      {formatKrwCompact(realEstateTotal)}
+                    <span className="shrink-0">계좌</span>
+                    <span className="truncate" title={formatKrw(netWorth.current.accounts_total)}>
+                      {formatKrwCompact(Number(netWorth.current.accounts_total))}
                     </span>
                   </div>
-                )}
-                <div className="flex justify-between gap-2">
-                  <span className="shrink-0">대출</span>
-                  <span className="truncate" title={`-${formatKrw(netWorth.current.loans_total)}`}>
-                    -{formatKrwCompact(Number(netWorth.current.loans_total))}
-                  </span>
+                  <div className="flex justify-between gap-2">
+                    <span className="shrink-0">저축·투자</span>
+                    <span className="truncate" title={formatKrw(savingsInvestmentTotal)}>
+                      {formatKrwCompact(savingsInvestmentTotal)}
+                    </span>
+                  </div>
+                  {realEstateTotal > 0 && (
+                    <div className="flex justify-between gap-2">
+                      <span className="shrink-0">부동산</span>
+                      <span className="truncate" title={formatKrw(realEstateTotal)}>
+                        {formatKrwCompact(realEstateTotal)}
+                      </span>
+                    </div>
+                  )}
+                  <div className="flex justify-between gap-2">
+                    <span className="shrink-0">대출</span>
+                    <span className="truncate" title={`-${formatKrw(netWorth.current.loans_total)}`}>
+                      -{formatKrwCompact(Number(netWorth.current.loans_total))}
+                    </span>
+                  </div>
                 </div>
-              </div>
-            </>
-          )}
-        </Link>
+              </>
+            )}
+          </Link>
+        )}
       </div>
 
       <SummaryCards totals={data.totals} collapsible planSummary={planSummary} />
@@ -469,14 +481,16 @@ export default function DashboardPage() {
       {showQuickAdd && (
         <Modal onClose={closeQuickAdd} title={quickAddPrefill ? "여유자금 저축 기록" : "내역 추가"}>
           <div className="p-6 overflow-y-auto">
-            {!categories || !accounts || !savingsProducts || !users ? (
-              <SkeletonCard rows={4} />
-            ) : (
+            <QueryBoundary
+              queries={[categoriesQuery, accountsQuery, savingsProductsQuery, usersQuery]}
+              loadingFallback={<SkeletonCard rows={4} />}
+              errorMessage="입력 양식을 불러오지 못했습니다."
+            >
               <TransactionForm
-                categories={categories}
-                accounts={accounts}
-                savingsProducts={savingsProducts}
-                users={users}
+                categories={categoriesQuery.data!}
+                accounts={accountsQuery.data!}
+                savingsProducts={savingsProductsQuery.data!}
+                users={usersQuery.data!}
                 currentUserId={currentUserId ?? undefined}
                 layout="stack"
                 isNew
@@ -485,7 +499,7 @@ export default function DashboardPage() {
                 initialValues={quickAddPrefill ?? { transaction_date: currentDateIso() }}
                 onSubmit={(payload) => createMutation.mutate(payload)}
               />
-            )}
+            </QueryBoundary>
           </div>
         </Modal>
       )}

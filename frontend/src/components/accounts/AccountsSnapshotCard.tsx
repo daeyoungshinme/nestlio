@@ -4,6 +4,7 @@ import { RefreshCw } from "lucide-react";
 import Button from "@/components/common/Button";
 import Modal from "@/components/common/Modal";
 import SkeletonCard from "@/components/common/SkeletonCard";
+import ErrorState from "@/components/common/ErrorState";
 import CollapsibleGroup from "@/components/common/CollapsibleGroup";
 import AssetCompositionDonut from "@/components/accounts/AssetCompositionDonut";
 import NetWorthTrendChart from "@/components/accounts/NetWorthTrendChart";
@@ -23,7 +24,7 @@ import type { GrowlioSyncAllOut, GrowlioSyncFailureOut } from "@/types";
 export default function AccountsSnapshotCard() {
   const queryClient = useQueryClient();
   const [syncFailures, setSyncFailures] = useState<GrowlioSyncFailureOut[] | null>(null);
-  const { data, isLoading } = useNetWorth(12);
+  const { data, isLoading, isError, error, refetch } = useNetWorth(12);
   // "저축·투자"/"부동산" 카드 분리용 — 같은 상품 목록(다른 탭들과 쿼리 키 공유, 추가 네트워크 요청
   // 없음)에서 부동산 몫만 빼는 계산은 splitSavingsAndRealEstate(utils/netWorth.ts)로 통일한다
   // (DashboardPage의 순자산 카드도 동일 함수를 써서 두 화면 숫자가 항상 일치하도록 보장).
@@ -84,6 +85,15 @@ export default function AccountsSnapshotCard() {
     },
   });
 
+  if (isError) {
+    return (
+      <ErrorState
+        title="자산 요약을 불러오지 못했어요"
+        message={extractErrorMessage(error)}
+        onRetry={() => void refetch()}
+      />
+    );
+  }
   if (isLoading || !data) {
     return <SkeletonCard rows={3} />;
   }
