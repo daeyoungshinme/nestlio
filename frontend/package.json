@@ -54,5 +54,9 @@
     "typescript": "~6.0.2",
     "vite": "^8.2.2",
     "vitest": "^4.1.11"
+  },
+  "overridesComment": "js-yaml: openapi-typescript → @redocly/openapi-core 가 끌어오는 4.3.1 이 GHSA-2883-xcg3-v3hh(high). 빌드타임 전용이라 번들엔 안 들어가지만 npm audit 게이트를 통과시키려 패치본으로 고정. openapi-typescript 상위 릴리스가 해결하면 제거.",
+  "overrides": {
+    "js-yaml": "^4.3.2"
   }
 }
