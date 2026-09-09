@@ -6,8 +6,9 @@ now_kst()/today_kst()는 벽시계를 읽는 함수라 "시간 결정론" 컨벤
 유지되는지를 지키는 가드다.
 """
 from datetime import UTC, datetime
+from zoneinfo import ZoneInfo
 
-from app.utils.dates import now_kst, today_kst
+from app.utils.dates import now_kst, to_kst_naive, today_kst
 
 
 def test_now_kst_is_naive_and_utc_plus_nine():
@@ -20,3 +21,14 @@ def test_now_kst_is_naive_and_utc_plus_nine():
 
 def test_today_kst_matches_now_kst_date():
     assert today_kst() == now_kst().date()
+
+
+def test_to_kst_naive_converts_offset_datetime_to_kst_wallclock():
+    # 구글 일정이 주는 형태: UTC+0 오프셋 표기 → KST(+9) 벽시계 naive
+    utc_dt = datetime(2026, 8, 11, 0, 0, tzinfo=UTC)
+    assert to_kst_naive(utc_dt) == datetime(2026, 8, 11, 9, 0)
+    assert to_kst_naive(utc_dt).tzinfo is None
+
+    # 이미 KST 오프셋이면 그대로 벽시계만 남는다
+    kst_dt = datetime(2026, 8, 11, 15, 30, tzinfo=ZoneInfo("Asia/Seoul"))
+    assert to_kst_naive(kst_dt) == datetime(2026, 8, 11, 15, 30)

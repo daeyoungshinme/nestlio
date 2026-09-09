@@ -1,7 +1,6 @@
 import logging
 import uuid
 from datetime import date, datetime, timedelta
-from zoneinfo import ZoneInfo
 
 from sqlalchemy.orm import Session
 
@@ -11,12 +10,11 @@ from app.models.recurring_expense import RecurringExpense
 from app.models.user import User
 from app.services import gmail_service, notification_settings_service
 from app.services.google_auth import GoogleNotConnectedError, is_connected
-from app.utils.dates import advance_due_date, now_kst
+from app.utils.dates import advance_due_date, now_kst, to_kst_naive
 
 logger = logging.getLogger("event_service")
 
 _MAX_OCCURRENCE_STEPS = 2000
-_SEOUL_TZ = ZoneInfo("Asia/Seoul")
 
 
 class ImportedEventReadOnlyError(Exception):
@@ -192,10 +190,10 @@ def _parse_google_event(item: dict) -> dict | None:
             end_at = datetime.combine(date.fromisoformat(end["date"]) - timedelta(days=1), datetime.min.time())
     elif "dateTime" in start:
         all_day = False
-        start_at = datetime.fromisoformat(start["dateTime"]).astimezone(_SEOUL_TZ).replace(tzinfo=None)
+        start_at = to_kst_naive(datetime.fromisoformat(start["dateTime"]))
         end_at = None
         if end and "dateTime" in end:
-            end_at = datetime.fromisoformat(end["dateTime"]).astimezone(_SEOUL_TZ).replace(tzinfo=None)
+            end_at = to_kst_naive(datetime.fromisoformat(end["dateTime"]))
     else:
         return None
 
