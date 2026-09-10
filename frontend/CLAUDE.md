@@ -33,14 +33,22 @@ CI를 통과하지 못한다.
 
 > **주의**: `frontend/.env`(`VITE_SUPABASE_URL`/`VITE_SUPABASE_ANON_KEY`)는 빌드 시점에 번들에 그대로 굳어 들어간다(`src/lib/supabase.ts`). `.env`가 없거나 오래된 상태로 `npm run build`를 실행하면, 실행 시 `main.tsx` import 체인 최상단에서 `supabase.ts`가 즉시 `throw`해 React가 마운트되기도 전에 죽는다 — `ErrorBoundary`도 못 잡는 모듈 로드 단계 예외라 브라우저에는 아무 에러 표시 없이 **완전히 빈 화면**만 남는다. `.env`를 수정했다면 반드시 재빌드한다 (`npm run dev`는 매번 새로 읽으므로 영향 없음).
 
-### API 타입 자동 생성
+### API 타입 (드리프트 가드)
+
+이 앱의 **정본 타입은 손으로 옮긴 `src/types/index.ts`** 다. `src/types/api.generated.ts` 는
+그 옆에 두는 **추적되는 참조 산출물**로, 백엔드 스키마가 바뀌었는데 프론트에 반영하지 않은
+드리프트를 CI(`ci.yml` 의 `api-types-drift` 잡)가 잡게 해준다.
+
 ```bash
-# 백엔드(127.0.0.1:8899)가 떠 있는 상태에서 실행
+# 백엔드를 띄우지 않고 오프라인 재생성 (app.openapi() 를 파이썬으로 덤프 → openapi-typescript).
+# .venv 파이썬을 쓰려면 PYTHON=../.venv/Scripts/python 처럼 지정.
 cd frontend && npm run generate:api-types
-# → src/types/api.generated.ts 생성 (.gitignore 대상, 자동 생성 안 됨 — 수동 실행 필요)
-# 현재는 손으로 옮긴 src/types/index.ts를 사용 중 — 백엔드 스키마가 안정화되면
-# api.generated.ts로 점진 대체를 검토한다.
+# npm run generate:api-types:live  # 8899에 백엔드가 떠 있을 때 HTTP로 받는 대체 경로
 ```
+
+`app/schemas/*.py` 를 바꾼 PR은 `npm run generate:api-types` 를 돌려 갱신된
+`api.generated.ts` 를 함께 커밋해야 한다 — 안 하면 `api-types-drift` 잡이
+`git diff --exit-code` 로 실패한다. `types/index.ts` 는 그 diff를 보고 사람이 맞춘다.
 
 ### 테스트
 ```bash

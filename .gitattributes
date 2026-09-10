@@ -1,0 +1,4 @@
+# 자동 생성 파일은 항상 LF로 저장한다 — CI(Linux)가 재생성해 `git diff --exit-code`로
+# 백엔드 스키마 드리프트를 검사하므로, Windows 체크아웃의 CRLF 변환이 섞이면 diff가
+# 통째로 어긋난다 (frontend/scripts/generate-api-types.mjs, ci.yml 의 api-types-drift 잡).
+frontend/src/types/api.generated.ts text eol=lf
