@@ -9,7 +9,8 @@ nestlio와 growlio는 같은 Supabase 프로젝트를 공유하므로, 사용자
 프리필(app/services/goal_service.py)에서 사용한다.
 """
 
-from datetime import date
+from collections.abc import Callable
+from datetime import date, datetime
 from decimal import Decimal
 
 import httpx
@@ -130,6 +131,34 @@ def to_decimal_krw(raw) -> Decimal:
 def find_by_growlio_id(items: list[dict], growlio_id: str) -> dict | None:
     """growlio 목록 응답에서 id가 일치하는 항목을 찾는다 (단건 동기화 매칭용)."""
     return next((item for item in items if item["id"] == growlio_id), None)
+
+
+def sync_linked_rows(
+    linked_rows: list,
+    growlio_items: list[dict],
+    *,
+    now: datetime,
+    apply: Callable[[object, dict], None],
+) -> tuple[int, list[dict]]:
+    """전체 동기화(sync_all_*)의 공통 골격: growlio 목록에 1:1 매칭, 매칭 실패는 예외 대신
+    failed 목록에 축적하고 나머지 동기화를 계속한다.
+
+    account_service/savings_product_service/real_estate_service가 공유한다. 각 원소는
+    `.id`/`.name`/`.growlio_account_id`/`.last_synced_at`를 갖는 ORM 로우여야 하고,
+    도메인별 잔액·필드 갱신은 `apply(row, match)` 콜백이 담당한다. 이 함수는 매칭,
+    `last_synced_at` 세팅, synced_count/failed 집계만 하며 `db.commit()`은 호출부의 몫이다.
+    """
+    synced_count = 0
+    failed: list[dict] = []
+    for row in linked_rows:
+        match = find_by_growlio_id(growlio_items, row.growlio_account_id)
+        if match is None:
+            failed.append({"id": row.id, "name": row.name, "reason": SYNC_MATCH_FAILED_REASON})
+            continue
+        apply(row, match)
+        row.last_synced_at = now
+        synced_count += 1
+    return synced_count, failed
 
 
 def already_linked_growlio_ids(db: Session, model, *, active_only: bool = True) -> set[str]:

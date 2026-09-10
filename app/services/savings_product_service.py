@@ -448,18 +448,13 @@ def sync_all_from_growlio(db: Session, bearer_token: str, *, now: datetime) -> t
     if not linked_products:
         return 0, []
     growlio_accounts = growlio_client.fetch_account_balances(bearer_token)
-    synced_count = 0
-    failed: list[dict] = []
-    for product in linked_products:
-        match = growlio_client.find_by_growlio_id(growlio_accounts, product.growlio_account_id)
-        if match is None:
-            failed.append(
-                {"id": product.id, "name": product.name, "reason": growlio_client.SYNC_MATCH_FAILED_REASON}
-            )
-            continue
+
+    def _apply(product: SavingsProduct, match: dict) -> None:
         product.current_balance = growlio_client.to_decimal_krw(match["current_value_krw"])
-        product.last_synced_at = now
-        synced_count += 1
+
+    synced_count, failed = growlio_client.sync_linked_rows(
+        linked_products, growlio_accounts, now=now, apply=_apply
+    )
     db.commit()
     return synced_count, failed
 

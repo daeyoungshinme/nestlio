@@ -156,21 +156,13 @@ def sync_all_from_growlio(db: Session, bearer_token: str, *, now: datetime) -> t
     if not linked_products:
         return 0, []
     items = growlio_client.fetch_real_estate_items(bearer_token)
-    synced_count = 0
-    failed: list[dict] = []
-    for product in linked_products:
-        match = growlio_client.find_by_growlio_id(items, product.growlio_account_id)
-        if match is None:
-            failed.append(
-                {"id": product.id, "name": product.name, "reason": growlio_client.SYNC_MATCH_FAILED_REASON}
-            )
-            continue
+
+    def _apply(product: SavingsProduct, match: dict) -> None:
         product.current_balance = growlio_client.to_decimal_krw(match["market_value_krw"])
         if match.get("purchase_price_krw"):
             product.principal_amount = growlio_client.to_decimal_krw(match["purchase_price_krw"])
-        product.last_synced_at = now
-
         _update_linked_loan_balance(db, product.growlio_account_id, match.get("mortgage_balance_krw") or 0, now)
-        synced_count += 1
+
+    synced_count, failed = growlio_client.sync_linked_rows(linked_products, items, now=now, apply=_apply)
     db.commit()
     return synced_count, failed
