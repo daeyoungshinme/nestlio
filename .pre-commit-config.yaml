@@ -1,0 +1,38 @@
+# 로컬 pre-commit 훅. 지금까지 ruff/oxlint/pytest/tsc 는 전부 push 후 CI 에서만 돌아서,
+# 린트/포맷 실수를 CI 왕복 뒤에야 알았다. 이 훅들은 그 대부분을 커밋 시점에 잡는다.
+#
+# 설치: pip install -r requirements-dev.txt && pre-commit install
+# 전체 수동 실행: pre-commit run --all-files
+#
+# CI 를 대체하지 않는다 — CI 가 여전히 최종 게이트다. 포매터 전면 재정렬은 하지 않는다
+# (CLAUDE.md 방침). ruff-check 의 --fix 는 이 repo 가 select 한 규칙(F/I/B/UP/C4)의
+# 안전한 자동수정(미사용 import 제거, import 정렬 등)만 건드리며 CI 가 요구하는 것과 동일하다.
+exclude: '^(frontend/src/types/api\.generated\.ts|migrations/versions/_archive/)'
+
+repos:
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.16.5 # requirements-dev.txt 의 ruff 핀과 함께 올린다
+    hooks:
+      - id: ruff-check
+        args: [--fix]
+
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: end-of-file-fixer
+      - id: trailing-whitespace
+      - id: check-merge-conflict
+      - id: check-yaml
+      - id: check-added-large-files
+        args: [--maxkb=512]
+
+  - repo: local
+    hooks:
+      - id: oxlint
+        name: oxlint (frontend)
+        # 스테이징에 frontend TS 파일이 있을 때만. oxlint 는 거의 즉시 끝나므로 전체를 검사한다.
+        # frontend/node_modules 가 있어야 한다 (npm ci / npm install 후).
+        entry: bash -c 'cd frontend && npx oxlint --deny-warnings'
+        language: system
+        files: '^frontend/src/.*\.(ts|tsx)$'
+        pass_filenames: false
