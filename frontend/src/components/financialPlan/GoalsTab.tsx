@@ -230,7 +230,7 @@ export default function GoalsTab() {
           href={growlioPortfolioUrl(growlioAccountId)}
           target="_blank"
           rel="noopener noreferrer"
-          className="inline-flex items-center gap-1 text-xs font-medium text-emerald-600 dark:text-emerald-400 hover:underline"
+          className="inline-flex items-center gap-1 text-xs font-medium text-primary-600 dark:text-primary-400 hover:underline"
         >
           <ExternalLink size={12} />
           이 목표의 투자금, growlio에서 포트폴리오로 굴리기
@@ -447,7 +447,7 @@ export default function GoalsTab() {
             <CollapsibleGroup
               header={
                 <span className="flex items-center gap-1.5 text-sm font-semibold text-gray-700 dark:text-gray-300">
-                  <Trophy size={14} className="text-emerald-500" />
+                  <Trophy size={14} className="text-primary-500" />
                   달성한 목표
                 </span>
               }

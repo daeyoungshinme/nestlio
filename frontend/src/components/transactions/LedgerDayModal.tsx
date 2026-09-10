@@ -62,7 +62,7 @@ export default function LedgerDayModal({
 
         <Link
           to={`/schedule?date=${date}`}
-          className="flex items-center gap-2 pt-3 border-t border-gray-100 dark:border-gray-800 text-xs font-medium text-gray-500 dark:text-gray-400 hover:text-emerald-600 dark:hover:text-emerald-400"
+          className="flex items-center gap-2 pt-3 border-t border-gray-100 dark:border-gray-800 text-xs font-medium text-gray-500 dark:text-gray-400 hover:text-primary-600 dark:hover:text-primary-400"
         >
           <CalendarDays size={14} aria-hidden="true" />
           {scheduleCount > 0 ? `이 날 일정 ${scheduleCount}건 보기` : "이 날 일정 추가·관리"} →

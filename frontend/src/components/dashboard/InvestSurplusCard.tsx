@@ -38,7 +38,7 @@ export default function InvestSurplusCard({
   return (
     <div className="card space-y-3">
       <div className="flex items-center gap-2 text-sm">
-        <TrendingUp size={16} className="text-emerald-600 dark:text-emerald-400 shrink-0" />
+        <TrendingUp size={16} className="text-primary-600 dark:text-primary-400 shrink-0" />
         <span className="font-medium text-gray-700 dark:text-gray-300">
           이번 달 아직 저축·투자로 옮기지 않은 여유자금
         </span>
@@ -69,7 +69,7 @@ export default function InvestSurplusCard({
                   <button
                     type="button"
                     onClick={() => onRecordInvestment(product, surplusAllocation.investable_portion)}
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-700 transition-colors"
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-white bg-primary-600 hover:bg-primary-700 transition-colors"
                   >
                     <PlusCircle size={12} />
                     {product.name}에 {formatKrw(surplusAllocation.investable_portion)} 저축 기록
@@ -79,7 +79,7 @@ export default function InvestSurplusCard({
                   href={growlioPortfolioUrl(product.growlio_account_id!)}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950 hover:bg-emerald-100 dark:hover:bg-emerald-900 transition-colors"
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-primary-600 dark:text-primary-400 bg-primary-50 dark:bg-primary-950 hover:bg-primary-100 dark:hover:bg-primary-900 transition-colors"
                 >
                   <ExternalLink size={12} />
                   포트폴리오 열기
@@ -88,7 +88,7 @@ export default function InvestSurplusCard({
             ))}
           </div>
           {topGoalAcceleration && targets.some((p) => p.growlio_account_id === topGoalGrowlioAccountId) && (
-            <p className="text-xs text-emerald-600 dark:text-emerald-400">
+            <p className="text-xs text-primary-600 dark:text-primary-400">
               지금 넣으면 우리 부부 목표 달성을 {topGoalAcceleration.monthsSaved}개월 앞당길 수 있어요
             </p>
           )}

@@ -75,7 +75,7 @@ export default function GoalProgressCard({
         <div className="flex-1">
           <ProgressBar pct={pct} />
         </div>
-        <span className="text-xs font-semibold text-emerald-600 dark:text-emerald-400 shrink-0">
+        <span className="text-xs font-semibold text-primary-600 dark:text-primary-400 shrink-0">
           {formatPercent(pct)}
         </span>
       </div>

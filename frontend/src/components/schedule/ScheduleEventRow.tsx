@@ -54,7 +54,7 @@ export default function ScheduleEventRow({ event, onEdit, onDelete, onToggleComp
             />
             <StatusBadge
               label={`담당 ${event.assignee?.display_name ?? "공동"}`}
-              toneClassName="bg-emerald-50 dark:bg-emerald-950 text-emerald-600 dark:text-emerald-400"
+              toneClassName="bg-primary-50 dark:bg-primary-950 text-primary-600 dark:text-primary-400"
             />
             {event.source === "google_import" && (
               <StatusBadge label="Google 캘린더" toneClassName={googleImportedEventBadgeStyle()} />
