@@ -1,4 +1,4 @@
-import { lazy, Suspense, useState } from "react";
+import { useState } from "react";
 import { Link } from "react-router-dom";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import Tabs from "@/components/common/Tabs";
@@ -11,6 +11,7 @@ import TodayScheduleCard from "@/components/dashboard/TodayScheduleCard";
 import CoupleContributionCard from "@/components/dashboard/CoupleContributionCard";
 import SpendingFocusCard from "@/components/dashboard/SpendingFocusCard";
 import InvestSurplusCard from "@/components/dashboard/InvestSurplusCard";
+import SavingsTrendSparkline from "@/components/dashboard/SavingsTrendSparkline";
 import GoalProgressCard from "@/components/financialPlan/GoalProgressCard";
 import type { GoalProgressCardBadge } from "@/components/financialPlan/GoalProgressCard";
 import SummaryCards, { type PlanCardSummary, type PlanSummaryLabel } from "@/components/common/SummaryCards";
@@ -48,8 +49,6 @@ import { findGrowlioInvestmentLink } from "@/constants/growlio";
 import { ROUTES, accountsSectionLink, planViewLink } from "@/constants/routes";
 import type { DashboardPeriod, SavingsProductOut } from "@/types";
 import { ChevronDown, ChevronRight, Flame, Target } from "lucide-react";
-
-const SavingsTrendSparkline = lazy(() => import("@/components/dashboard/SavingsTrendSparkline"));
 
 const PERIOD_TABS: DashboardPeriod[] = ["today", "week", "month"];
 const PERIOD_LABEL: Record<DashboardPeriod, string> = { today: "오늘", week: "이번주", month: "이번달" };
@@ -346,9 +345,7 @@ export default function DashboardPage() {
                     <div className="pt-4 border-t border-gray-100 dark:border-gray-800">
                       <p className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">최근 {sparklineData.length}개월 저축 추이</p>
                       <div className="h-12">
-                        <Suspense fallback={<div className="h-12" />}>
-                          <SavingsTrendSparkline data={sparklineData} isDark={isDark} />
-                        </Suspense>
+                        <SavingsTrendSparkline data={sparklineData} isDark={isDark} />
                       </div>
                     </div>
                   )}
