@@ -84,10 +84,13 @@ export default function RealEstateSection({ users }: Props) {
   const { data: allData, isLoading, isError, error, refetch } = useSavingsProducts();
   const { data: goals } = useGoals();
 
-  const invalidate = () => queryClient.invalidateQueries({ queryKey: QUERY_KEYS.savingsProducts });
+  const invalidate = () => {
+    void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.savingsProducts });
+    void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.dashboardBootstrap });
+  };
 
   const { createMutation, updateMutation, removeMutation: deactivateMutation } = useCrudMutations({
-    invalidateKeys: [QUERY_KEYS.savingsProducts],
+    invalidateKeys: [QUERY_KEYS.savingsProducts, QUERY_KEYS.dashboardBootstrap],
     api: { create: createSavingsProduct, update: updateSavingsProduct, remove: deactivateSavingsProduct },
     messages: { create: "부동산을 추가했습니다.", update: "저장했습니다.", remove: "비활성화했습니다." },
     onCreateSuccess: () => setFormTarget(null),
@@ -233,7 +236,7 @@ export default function RealEstateSection({ users }: Props) {
             );
           }}
           existingGrowlioAccountIds={existingGrowlioAccountIds}
-          invalidateKeys={[QUERY_KEYS.savingsProducts, QUERY_KEYS.loans]}
+          invalidateKeys={[QUERY_KEYS.savingsProducts, QUERY_KEYS.loans, QUERY_KEYS.dashboardBootstrap]}
           onClose={() => setImportOpen(false)}
         />
       )}
@@ -394,7 +397,7 @@ function RealEstateFormModal({
             getRowId={(item) => item.id}
             getRowLabel={(item) => item.name}
             getRowAmount={(item) => item.market_value_krw}
-            invalidateKeys={[QUERY_KEYS.savingsProducts]}
+            invalidateKeys={[QUERY_KEYS.savingsProducts, QUERY_KEYS.dashboardBootstrap]}
             onLinked={onClose}
           />
         )}

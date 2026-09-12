@@ -85,6 +85,25 @@ def test_dashboard_savings_streak_reflects_consecutive_goal_pace_months(client, 
     assert resp.json()["savings_streak_months"] == 1
 
 
+def test_dashboard_bootstrap_combines_reference_data(client, seeded_db):
+    db, user = seeded_db["db"], seeded_db["user"]
+    goal_service.create_goal(db, 1, "여행자금", None, Decimal("10000000"), Decimal("500000"))
+    client.post(
+        "/api/v1/savings-products",
+        json={"name": "적금", "current_balance": "1000000", "monthly_saving_amount": "300000"},
+    )
+
+    resp = client.get("/api/v1/dashboard/bootstrap")
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["settings"]["google_connected"] is False
+    assert Decimal(body["net_worth"]["current"]["net_worth"]) == Decimal("1000000")
+    assert body["goals"][0]["name"] == "여행자금"
+    assert body["savings_products"][0]["name"] == "적금"
+    assert body["users"][0]["display_name"] == user.display_name
+
+
 def test_monthly_retrospective_summarizes_previous_completed_month(client, seeded_db):
     db, user, food = seeded_db["db"], seeded_db["user"], seeded_db["food"]
     prev_start, _ = month_bounds(shift_month(date.today(), -1))

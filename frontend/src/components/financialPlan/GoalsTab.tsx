@@ -79,6 +79,7 @@ export default function GoalsTab() {
       QUERY_KEYS.savingsProducts,
       QUERY_KEYS.savingsProductsPlan(yearMonth),
       QUERY_KEYS.savingsProductsAnnualPlan(year),
+      QUERY_KEYS.dashboardBootstrap,
     ],
     api: { create: createGoal, update: updateGoal, remove: deleteGoal },
     messages: { create: "추가했습니다.", update: "저장했습니다.", remove: "삭제했습니다." },

@@ -82,6 +82,7 @@ jobs:
         env:
           VITE_SUPABASE_URL: "https://placeholder.supabase.co"
           VITE_SUPABASE_ANON_KEY: "placeholder-anon-key"
+      - run: npm run check:bundle-size
 
   # 손으로 옮긴 frontend/src/types/index.ts 는 정본이지만, 백엔드 스키마가 바뀌었는데
   # 그 사실을 프론트에 반영하지 않는 드리프트를 잡을 방법이 없었다. api.generated.ts 를

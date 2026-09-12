@@ -27,7 +27,10 @@ interface Props {
 export default function NotificationSettingsSection({ prefs, notifyEmails }: Props) {
   const queryClient = useQueryClient();
   const [newNotifyEmail, setNewNotifyEmail] = useState("");
-  const invalidateSettings = () => void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.settings });
+  const invalidateSettings = () => {
+    void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.settings });
+    void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.dashboardBootstrap });
+  };
 
   const weeklyEmailMutation = useMutation({
     mutationFn: testWeeklyEmail,

@@ -23,6 +23,10 @@ export const QUERY_KEYS = {
   yearlyReport: (year: number, owner?: string) => ["yearly-report", year, owner ?? "all"] as const,
   categoryTrend: (months: number) => ["category-trend", months] as const,
   settings: ["settings"] as const,
+  /** settings/financial-goals/savings-products/users/net-worth 중 하나라도 invalidate하는
+   * 곳은 DashboardPage가 이 데이터를 dashboard-bootstrap으로 묶어서 읽으므로 이 키도 함께
+   * invalidate한다. */
+  dashboardBootstrap: ["dashboard-bootstrap"] as const,
   me: ["me"] as const,
   users: ["users"] as const,
   invites: ["invites"] as const,

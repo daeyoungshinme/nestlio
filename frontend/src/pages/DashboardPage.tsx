@@ -1,7 +1,6 @@
-import { useState } from "react";
+import { lazy, Suspense, useState } from "react";
 import { Link } from "react-router-dom";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { LineChart, Line, ResponsiveContainer, Tooltip } from "recharts";
 import Tabs from "@/components/common/Tabs";
 import MonthPicker from "@/components/common/MonthPicker";
 import DayPicker from "@/components/common/DayPicker";
@@ -27,15 +26,7 @@ import { fetchCashflowPlan } from "@/api/cashflowPlan";
 import { createTransaction } from "@/api/transactions";
 import { useAuthStore } from "@/stores/authStore";
 import { useInvalidateTransactionRelated } from "@/hooks/useInvalidateTransactionRelated";
-import {
-  useAccounts,
-  useCategories,
-  useGoals,
-  useNetWorth,
-  useSavingsProducts,
-  useSettings,
-  useUsers,
-} from "@/hooks/useReferenceData";
+import { useAccounts, useCategories, useDashboardBootstrap } from "@/hooks/useReferenceData";
 import { QUERY_KEYS } from "@/constants/queryKeys";
 import { STALE_TIME } from "@/constants/queryConfig";
 import {
@@ -44,7 +35,6 @@ import {
   progressStatusBadgeClass,
   progressStatusLabel,
   savingsStreakBadgeStyle,
-  savingsTrendChartColor,
   worseStatus,
 } from "@/utils/colors";
 import { useThemeStore } from "@/stores/themeStore";
@@ -58,6 +48,8 @@ import { findGrowlioInvestmentLink } from "@/constants/growlio";
 import { ROUTES, accountsSectionLink, planViewLink } from "@/constants/routes";
 import type { DashboardPeriod, SavingsProductOut } from "@/types";
 import { ChevronDown, ChevronRight, Flame, Target } from "lucide-react";
+
+const SavingsTrendSparkline = lazy(() => import("@/components/dashboard/SavingsTrendSparkline"));
 
 const PERIOD_TABS: DashboardPeriod[] = ["today", "week", "month"];
 const PERIOD_LABEL: Record<DashboardPeriod, string> = { today: "오늘", week: "이번주", month: "이번달" };
@@ -116,21 +108,25 @@ export default function DashboardPage() {
     staleTime: STALE_TIME.SHORT,
     enabled: period === "month",
   });
-  const { data: settingsData } = useSettings();
-  const { data: netWorth, isError: netWorthError, refetch: refetchNetWorth } = useNetWorth();
-  const { data: goals } = useGoals();
+  // settings/net-worth/financial-goals/savings-products/users를 한 요청으로 묶어서 가져온다
+  // (고지연 환경에서 병렬 요청 수를 줄이기 위함). 이 5개 중 하나라도 변경하는 mutation은
+  // QUERY_KEYS.dashboardBootstrap도 함께 invalidate해야 한다(queryKeys.ts 주석 참고).
+  const bootstrap = useDashboardBootstrap();
+  const settingsData = bootstrap.data?.settings;
+  const netWorth = bootstrap.data?.net_worth;
+  const netWorthError = bootstrap.isError;
+  const refetchNetWorth = bootstrap.refetch;
+  const goals = bootstrap.data?.goals;
+  const savingsProducts = bootstrap.data?.savings_products;
+  const users = bootstrap.data?.users;
   // 빠른 추가 모달의 입력 양식을 채우는 참조 데이터. 하나라도 에러나면 모달 안에서 영구
   // 스켈레톤에 갇히던 것을 <QueryBoundary>로 감싸 재시도를 노출한다.
   const categoriesQuery = useCategories(undefined, { enabled: showQuickAdd });
   const accountsQuery = useAccounts({ enabled: showQuickAdd });
-  const savingsProductsQuery = useSavingsProducts();
-  const savingsProducts = savingsProductsQuery.data;
   // 자산현황(/accounts) 순자산 카드와 동일한 구성으로 보이도록 부동산을 저축·투자에서 분리한다.
   const { savingsInvestmentTotal, realEstateTotal } = netWorth
     ? splitSavingsAndRealEstate(Number(netWorth.current.savings_total), savingsProducts)
     : { savingsInvestmentTotal: 0, realEstateTotal: 0 };
-  const usersQuery = useUsers();
-  const users = usersQuery.data;
   const currentUserId = useAuthStore((s) => s.userId);
 
   const createMutation = useMutation({
@@ -350,22 +346,9 @@ export default function DashboardPage() {
                     <div className="pt-4 border-t border-gray-100 dark:border-gray-800">
                       <p className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">최근 {sparklineData.length}개월 저축 추이</p>
                       <div className="h-12">
-                        <ResponsiveContainer width="100%" height="100%">
-                          <LineChart data={sparklineData} margin={{ top: 4, right: 4, bottom: 4, left: 4 }}>
-                            <Tooltip
-                              formatter={(value) => [formatKrw(Number(value)), "저축"]}
-                              contentStyle={{ fontSize: 12, borderRadius: 8 }}
-                            />
-                            <Line
-                              type="monotone"
-                              dataKey="savings"
-                              stroke={savingsTrendChartColor(isDark)}
-                              strokeWidth={2}
-                              dot={false}
-                              activeDot={{ r: 4 }}
-                            />
-                          </LineChart>
-                        </ResponsiveContainer>
+                        <Suspense fallback={<div className="h-12" />}>
+                          <SavingsTrendSparkline data={sparklineData} isDark={isDark} />
+                        </Suspense>
                       </div>
                     </div>
                   )}
@@ -484,15 +467,15 @@ export default function DashboardPage() {
         <Modal onClose={closeQuickAdd} title={quickAddPrefill ? "여유자금 저축 기록" : "내역 추가"}>
           <div className="p-6 overflow-y-auto">
             <QueryBoundary
-              queries={[categoriesQuery, accountsQuery, savingsProductsQuery, usersQuery]}
+              queries={[categoriesQuery, accountsQuery, bootstrap]}
               loadingFallback={<SkeletonCard rows={4} />}
               errorMessage="입력 양식을 불러오지 못했습니다."
             >
               <TransactionForm
                 categories={categoriesQuery.data!}
                 accounts={accountsQuery.data!}
-                savingsProducts={savingsProductsQuery.data!}
-                users={usersQuery.data!}
+                savingsProducts={bootstrap.data!.savings_products}
+                users={bootstrap.data!.users}
                 currentUserId={currentUserId ?? undefined}
                 layout="stack"
                 isNew

@@ -23,6 +23,8 @@ export default defineConfig({
               return "query-vendor";
             if (id.includes("@supabase/supabase-js")) return "supabase-vendor";
             if (id.includes("recharts")) return "chart-vendor";
+            if (id.includes("lucide-react")) return "icons-vendor";
+            if (/[\\/]axios(-retry)?[\\/]/.test(id)) return "http-vendor";
           }
           return undefined;
         },

@@ -61,6 +61,7 @@ export default function HouseholdSection() {
       void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.users });
       void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.me });
       void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.dashboardAll });
+      void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.dashboardBootstrap });
       void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.monthlyRetrospective });
       setRemoveSpouseOpen(false);
       setRemoveSpouseConfirmText("");

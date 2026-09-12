@@ -14,6 +14,7 @@ export default function CouplePhotoSection({ photoUrl }: { photoUrl: string | nu
   const invalidate = () => {
     void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.settings });
     void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.dashboardAll });
+    void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.dashboardBootstrap });
   };
 
   const uploadPhotoMutation = useMutation({

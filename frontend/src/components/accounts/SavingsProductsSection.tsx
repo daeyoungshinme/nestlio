@@ -106,10 +106,13 @@ export default function SavingsProductsSection({ users }: Props) {
   const { data: allData, isLoading, isError, error, refetch } = useSavingsProducts();
   const { data: goals } = useGoals();
 
-  const invalidate = () => queryClient.invalidateQueries({ queryKey: QUERY_KEYS.savingsProducts });
+  const invalidate = () => {
+    void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.savingsProducts });
+    void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.dashboardBootstrap });
+  };
 
   const { createMutation, updateMutation, removeMutation: deactivateMutation } = useCrudMutations({
-    invalidateKeys: [QUERY_KEYS.savingsProducts],
+    invalidateKeys: [QUERY_KEYS.savingsProducts, QUERY_KEYS.dashboardBootstrap],
     api: { create: createSavingsProduct, update: updateSavingsProduct, remove: deactivateSavingsProduct },
     messages: { create: "저축/투자 상품을 추가했습니다.", update: "저장했습니다.", remove: "비활성화했습니다." },
     onCreateSuccess: () => setFormTarget(null),
@@ -268,7 +271,7 @@ export default function SavingsProductsSection({ users }: Props) {
             return `growlio 계좌 ${created.length}개를 가져왔습니다. 합계 ${formatKrw(total)}`;
           }}
           existingGrowlioAccountIds={existingGrowlioAccountIds}
-          invalidateKeys={[QUERY_KEYS.savingsProducts]}
+          invalidateKeys={[QUERY_KEYS.savingsProducts, QUERY_KEYS.dashboardBootstrap]}
           onClose={() => setImportOpen(false)}
         />
       )}
@@ -479,7 +482,7 @@ function SavingsProductFormModal({
             getRowId={(account) => account.id}
             getRowLabel={(account) => account.name}
             getRowAmount={(account) => account.current_value_krw}
-            invalidateKeys={[QUERY_KEYS.savingsProducts]}
+            invalidateKeys={[QUERY_KEYS.savingsProducts, QUERY_KEYS.dashboardBootstrap]}
             onLinked={onClose}
           />
         )}

@@ -135,6 +135,29 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/dashboard/bootstrap": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Dashboard Bootstrap
+         * @description 대시보드 첫 화면에 필요한 settings/net-worth/financial-goals/savings-products/users를
+         *     한 번에 조회한다 — 모바일 등 고지연 환경에서 대시보드 마운트 시 발생하는 병렬 요청 수를
+         *     줄이기 위함. 각 리소스의 개별 엔드포인트(GET /settings 등)는 대시보드 밖 화면들이 계속
+         *     쓰므로 그대로 둔다.
+         */
+        get: operations["dashboard_bootstrap_api_v1_dashboard_bootstrap_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/dashboard/monthly-retrospective": {
         parameters: {
             query?: never;
@@ -2138,6 +2161,22 @@ export interface components {
             /** Benchmark Insurance Warn Pct */
             benchmark_insurance_warn_pct: number;
         };
+        /**
+         * DashboardBootstrapOut
+         * @description 대시보드 첫 화면에 필요한, 느리게 변하는 참조 데이터를 한 번에 묶어 조회한다 — 요청 수를
+         *     줄이기 위한 것으로 dashboard/cashflow-plan(기간별 캐시 키가 다름)과 events/notifications
+         *     (폴링 주기가 다름)는 여기 포함하지 않는다.
+         */
+        DashboardBootstrapOut: {
+            settings: components["schemas"]["SettingsOut"];
+            net_worth: components["schemas"]["NetWorthOut"];
+            /** Goals */
+            goals: components["schemas"]["FinancialGoalOut"][];
+            /** Savings Products */
+            savings_products: components["schemas"]["SavingsProductOut"][];
+            /** Users */
+            users: components["schemas"]["UserOut"][];
+        };
         /** DashboardOut */
         DashboardOut: {
             /**
@@ -3899,6 +3938,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["DashboardOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    dashboard_bootstrap_api_v1_dashboard_bootstrap_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DashboardBootstrapOut"];
                 };
             };
             /** @description Validation Error */

@@ -26,6 +26,7 @@ export default function AccountSection() {
       void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.me });
       void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.users });
       void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.dashboardAll });
+      void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.dashboardBootstrap });
       setDisplayNameEdit(null);
       toast("표시 이름을 저장했습니다.", "success");
     },
@@ -37,6 +38,7 @@ export default function AccountSection() {
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.users });
       void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.dashboardAll });
+      void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.dashboardBootstrap });
       void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.monthlyRetrospective });
       setSpouseDisplayNameEdit(null);
       toast("배우자 표시 이름을 저장했습니다.", "success");

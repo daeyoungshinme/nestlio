@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { fetchAccounts } from "@/api/accounts";
 import { fetchCategories } from "@/api/categories";
+import { fetchDashboardBootstrap } from "@/api/dashboardBootstrap";
 import { fetchGoals } from "@/api/goals";
 import { fetchLoans } from "@/api/loans";
 import { fetchNetWorth } from "@/api/netWorth";
@@ -97,6 +98,18 @@ export function useNetWorth(months = 12, options?: RefDataOptions) {
   return useQuery({
     queryKey: QUERY_KEYS.netWorth(months),
     queryFn: () => fetchNetWorth(months),
+    staleTime: STALE_TIME.MEDIUM,
+    ...options,
+  });
+}
+
+/** 대시보드 첫 화면 전용 — settings/net-worth/financial-goals/savings-products/users를
+ * 하나의 요청으로 묶어서 가져온다(고지연 환경에서 병렬 요청 수를 줄이기 위함). 다른 화면은
+ * 계속 위 개별 훅을 쓴다. */
+export function useDashboardBootstrap(options?: RefDataOptions) {
+  return useQuery({
+    queryKey: QUERY_KEYS.dashboardBootstrap,
+    queryFn: fetchDashboardBootstrap,
     staleTime: STALE_TIME.MEDIUM,
     ...options,
   });
