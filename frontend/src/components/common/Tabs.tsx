@@ -62,11 +62,12 @@ export default function Tabs<T extends string>({
         ref={scrollFadeRef}
         role="tablist"
         style={scrollFadeStyle}
-        className={`flex gap-1 bg-gray-100 dark:bg-gray-800 rounded-xl p-1 overflow-x-auto scrollbar-none [scroll-snap-type:x_mandatory] ${fullWidth ? "w-full sm:w-fit" : ""} ${className ?? ""}`}
+        className={`flex shrink-0 gap-1 bg-gray-100 dark:bg-gray-800 rounded-xl p-1 overflow-x-auto scrollbar-none [scroll-snap-type:x_mandatory] ${fullWidth ? "w-full sm:w-fit" : ""} ${className ?? ""}`}
       >
         {tabs.map((tab) => (
           <button
             key={tab}
+            type="button"
             role="tab"
             aria-selected={activeTab === tab}
             tabIndex={activeTab === tab ? 0 : -1}
@@ -92,11 +93,12 @@ export default function Tabs<T extends string>({
       ref={scrollFadeRef}
       role="tablist"
       style={scrollFadeStyle}
-      className={`flex gap-1 border-b border-gray-200 dark:border-gray-700 overflow-x-auto scrollbar-none ${className ?? ""}`}
+      className={`flex shrink-0 gap-1 border-b border-gray-200 dark:border-gray-700 overflow-x-auto scrollbar-none ${className ?? ""}`}
     >
       {tabs.map((tab) => (
         <button
           key={tab}
+          type="button"
           role="tab"
           aria-selected={activeTab === tab}
           tabIndex={activeTab === tab ? 0 : -1}
