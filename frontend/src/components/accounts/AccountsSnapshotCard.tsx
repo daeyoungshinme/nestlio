@@ -1,13 +1,11 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { lazy, Suspense, useState } from "react";
 import { RefreshCw } from "lucide-react";
 import Button from "@/components/common/Button";
 import Modal from "@/components/common/Modal";
 import SkeletonCard from "@/components/common/SkeletonCard";
 import ErrorState from "@/components/common/ErrorState";
 import CollapsibleGroup from "@/components/common/CollapsibleGroup";
-import AssetCompositionDonut from "@/components/accounts/AssetCompositionDonut";
-import NetWorthTrendChart from "@/components/accounts/NetWorthTrendChart";
 import { fetchGrowlioUnlinkedNetWorth } from "@/api/netWorth";
 import { syncAllSavingsProducts } from "@/api/savingsProducts";
 import { syncAllAccounts } from "@/api/accounts";
@@ -20,6 +18,9 @@ import { netWorthTextColor } from "@/utils/colors";
 import { extractErrorMessage } from "@/utils/error";
 import { toast } from "@/utils/toast";
 import type { GrowlioSyncAllOut, GrowlioSyncFailureOut } from "@/types";
+
+const AssetCompositionDonut = lazy(() => import("@/components/accounts/AssetCompositionDonut"));
+const NetWorthTrendChart = lazy(() => import("@/components/accounts/NetWorthTrendChart"));
 
 export default function AccountsSnapshotCard() {
   const queryClient = useQueryClient();
@@ -59,6 +60,7 @@ export default function AccountsSnapshotCard() {
       void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.savingsProducts });
       void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.loans });
       void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.netWorthAll });
+      void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.dashboardBootstrap });
 
       const fulfilled = results.filter(
         (r): r is PromiseFulfilledResult<GrowlioSyncAllOut> => r.status === "fulfilled",
@@ -133,11 +135,15 @@ export default function AccountsSnapshotCard() {
             </p>
           </div>
 
-          <AssetCompositionDonut
-            accounts={accountsTotal}
-            savingsInvestment={savingsInvestmentTotal}
-            realEstate={realEstateNetTotal}
-          />
+          <Suspense
+            fallback={<div className="shrink-0 self-start w-[156px] sm:w-[180px] lg:w-[198px] xl:w-[210px] h-[144px] sm:h-[164px] lg:h-[176px]" />}
+          >
+            <AssetCompositionDonut
+              accounts={accountsTotal}
+              savingsInvestment={savingsInvestmentTotal}
+              realEstate={realEstateNetTotal}
+            />
+          </Suspense>
         </div>
       </div>
 
@@ -145,7 +151,9 @@ export default function AccountsSnapshotCard() {
         header={<span className="text-sm font-medium text-gray-600 dark:text-gray-400">순자산 추이</span>}
         defaultOpen={false}
       >
-        <NetWorthTrendChart history={history} />
+        <Suspense fallback={<SkeletonCard rows={3} />}>
+          <NetWorthTrendChart history={history} />
+        </Suspense>
       </CollapsibleGroup>
 
       <div className="px-1">

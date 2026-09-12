@@ -184,6 +184,17 @@ export interface SurplusAllocationOut {
   investable_portion: string;
 }
 
+/** 대시보드 첫 화면에 필요한 참조 데이터(설정/순자산/목표/저축상품/유저)를 한 번에 묶어
+ * 조회하는 GET /dashboard/bootstrap의 응답. dashboard/cashflow-plan/events/notifications는
+ * 갱신 주기가 달라 포함하지 않는다. */
+export interface DashboardBootstrapOut {
+  settings: SettingsOut;
+  net_worth: NetWorthOut;
+  goals: FinancialGoalOut[];
+  savings_products: SavingsProductOut[];
+  users: UserOut[];
+}
+
 export interface MonthlyRetrospectiveOut {
   year_month: string;
   start: string;

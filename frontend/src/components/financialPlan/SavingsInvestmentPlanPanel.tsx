@@ -115,6 +115,7 @@ function ProductRow({
     void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.savingsProductsAnnualPlan(year) });
     void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.savingsProductAnnualPlanDetail(item.id, year) });
     void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.savingsProducts });
+    void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.dashboardBootstrap });
   };
 
   const { data: planDetail, isLoading: isPlanLoading } = useQuery({

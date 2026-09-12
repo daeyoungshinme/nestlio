@@ -38,6 +38,7 @@ export default function CoachingThresholdsSection({ thresholds }: { thresholds: 
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.settings });
       void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.dashboardAll });
+      void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.dashboardBootstrap });
       setThresholdEdits({});
       toast("코칭 임계값을 저장했습니다.", "success");
     },
