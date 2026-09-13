@@ -278,7 +278,7 @@ def check_all_goal_milestones(db: Session, today: date | None = None) -> int:
         try:
             if _celebrate_goal_milestone(db, goal, today):
                 sent += 1
-        except Exception:  # noqa: BLE001
+        except Exception:
             # 한 목표의 실패가 세션을 오염시켜 이후 _log_sent 커밋이 연쇄 실패하지 않도록 롤백.
             db.rollback()
             logger.exception("goal_milestone_alert_failed goal_id=%s", goal.id)
@@ -293,7 +293,7 @@ def check_all_categories_threshold(db: Session, year_month: str | None = None) -
         try:
             if _send_threshold_alert(db, row, year_month):
                 sent += 1
-        except Exception:  # noqa: BLE001
+        except Exception:
             db.rollback()
             logger.exception("threshold_alert_failed category_id=%s", row["category_id"])
     return sent

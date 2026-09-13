@@ -6,14 +6,13 @@ import Button from "@/components/common/Button";
 import CollapsibleGroup from "@/components/common/CollapsibleGroup";
 import ConfirmModal from "@/components/common/ConfirmModal";
 import EmptyState from "@/components/common/EmptyState";
-import ErrorState from "@/components/common/ErrorState";
 import FormInput from "@/components/common/FormInput";
 import GoalFormModal from "@/components/financialPlan/GoalFormModal";
 import { EMPTY_GOAL_DRAFT, draftFromGoal, toPayload, type Draft } from "@/components/financialPlan/goalDraft";
 import GoalProgressCard from "@/components/financialPlan/GoalProgressCard";
 import type { GoalProgressCardBadge, GoalProgressCardExtraDetail } from "@/components/financialPlan/GoalProgressCard";
 import GoalSectionHeader from "@/components/financialPlan/GoalSectionHeader";
-import SkeletonCard from "@/components/common/SkeletonCard";
+import QueryBoundary from "@/components/common/QueryBoundary";
 import Tabs from "@/components/common/Tabs";
 import { currentYearMonth, yearOf } from "@/utils/date";
 import { fetchDashboard } from "@/api/dashboard";
@@ -58,7 +57,7 @@ export default function GoalsTab() {
   const [progressDraft, setProgressDraft] = useState<Record<number, string>>({});
   const [monthlyTargetDraft, setMonthlyTargetDraft] = useState<Record<string, string>>({});
 
-  const { data, isLoading, isError, refetch } = useGoals();
+  const goalsQuery = useGoals();
   const { data: savingsProducts } = useSavingsProducts();
   const { data: accounts } = useAccounts();
   const { data: loans } = useLoans();
@@ -126,13 +125,9 @@ export default function GoalsTab() {
     onError: (err) => toast(extractErrorMessage(err), "error"),
   });
 
-  if (isError) {
-    return <ErrorState onRetry={() => void refetch()} />;
-  }
-  if (isLoading || !data) {
-    return <SkeletonCard rows={4} />;
-  }
-
+  return (
+    <QueryBoundary query={goalsQuery}>
+      {(data) => {
   const totalRequired = data.reduce((sum, g) => sum + Number(g.required_amount), 0);
   const totalMonthly = data.reduce((sum, g) => sum + Number(g.monthly_saving_amount), 0);
   const isSaving = createMutation.isPending || updateMutation.isPending;
@@ -484,5 +479,8 @@ export default function GoalsTab() {
         />
       )}
     </div>
+  );
+      }}
+    </QueryBoundary>
   );
 }

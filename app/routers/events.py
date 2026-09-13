@@ -17,7 +17,7 @@ from app.schemas.event import (
     EventOut,
     EventUpdateIn,
 )
-from app.services import event_service, recurring_service
+from app.services import event_calendar_service, event_service, recurring_service
 from app.services.event_service import ImportedEventReadOnlyError
 from app.services.google_auth import GoogleAuthError, GoogleNotConnectedError
 from app.utils.dates import month_bounds, today_kst
@@ -38,7 +38,7 @@ def import_google_events(
     df = date_from or default_from
     dt = date_to or default_to
     try:
-        return event_service.import_from_google(db, df, dt, current_user.id)
+        return event_calendar_service.import_from_google(db, df, dt, current_user.id)
     except GoogleNotConnectedError as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
     except GoogleAuthError as exc:

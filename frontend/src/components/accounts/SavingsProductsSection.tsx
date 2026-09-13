@@ -9,13 +9,12 @@ import type { AssetRowAction } from "@/components/accounts/AssetRow";
 import CollapsibleGroup from "@/components/common/CollapsibleGroup";
 import ConfirmModal from "@/components/common/ConfirmModal";
 import EmptyState from "@/components/common/EmptyState";
-import ErrorState from "@/components/common/ErrorState";
 import FormInput from "@/components/common/FormInput";
 import Modal from "@/components/common/Modal";
 import GrowlioImportModal from "@/components/common/GrowlioImportModal";
 import GrowlioLinkSection from "@/components/accounts/GrowlioLinkSection";
 import OwnerSelect from "@/components/common/OwnerSelect";
-import SkeletonCard from "@/components/common/SkeletonCard";
+import QueryBoundary from "@/components/common/QueryBoundary";
 import StatusBadge from "@/components/common/StatusBadge";
 import InlineStatsBar from "@/components/common/InlineStatsBar";
 import { GROUP_THRESHOLD } from "@/constants/accounts";
@@ -103,7 +102,7 @@ export default function SavingsProductsSection({ users }: Props) {
   const [importOpen, setImportOpen] = useState(false);
   const queryClient = useQueryClient();
 
-  const { data: allData, isLoading, isError, error, refetch } = useSavingsProducts();
+  const savingsProductsQuery = useSavingsProducts();
   const { data: goals } = useGoals();
 
   const invalidate = () => {
@@ -129,50 +128,10 @@ export default function SavingsProductsSection({ users }: Props) {
     onError: (err) => toast(extractErrorMessage(err), "error"),
   });
 
-  if (isError) {
-    return (
-      <ErrorState
-        title="저축/투자 상품을 불러오지 못했어요"
-        message={extractErrorMessage(error)}
-        onRetry={() => void refetch()}
-      />
-    );
-  }
-
-  if (isLoading || !allData) {
-    return <SkeletonCard rows={4} />;
-  }
-
-  // 부동산(product_type: "real_estate")은 별도 "부동산" 탭(RealEstateSection)에서 다루므로 여기서는 제외한다.
-  const data = allData.filter((p) => p.product_type !== "real_estate");
-
-  const existingGrowlioAccountIds = new Set(
-    data.filter((p): p is SavingsProductOut & { growlio_account_id: string } => !!p.growlio_account_id).map((p) => p.growlio_account_id)
-  );
-  const totalMonthly = data.reduce((sum, p) => sum + Number(p.monthly_saving_amount), 0);
-  const balanceByType = PRODUCT_TYPES.map((type) => ({
-    type,
-    rows: data.filter((p) => p.product_type === type),
-    total: data.filter((p) => p.product_type === type).reduce((sum, p) => sum + Number(p.current_balance), 0),
-  })).filter((entry) => entry.rows.length > 0);
-  const shouldGroup = data.length >= GROUP_THRESHOLD;
   const isSaving = createMutation.isPending || updateMutation.isPending;
 
   const goalsFor = (product: SavingsProductOut) =>
     goals?.filter((g) => g.funding_sources.some((fs) => fs.type === "savings_product" && fs.id === product.id)) ?? [];
-
-  const renderRow = (product: SavingsProductOut) => (
-    <SavingsProductRow
-      key={product.id}
-      product={product}
-      users={users}
-      linkedGoals={goalsFor(product)}
-      syncPending={syncMutation.isPending}
-      onSync={() => syncMutation.mutate(product.id)}
-      onEdit={() => setFormTarget(product)}
-      onDelete={() => setDeactivateTarget(product.id)}
-    />
-  );
 
   const handleSubmit = (draft: Draft) => {
     const payload = toSavingsProductPayload(draft);
@@ -184,98 +143,131 @@ export default function SavingsProductsSection({ users }: Props) {
   };
 
   return (
-    <div className="space-y-4">
-      <div className="flex justify-end gap-2 flex-wrap">
-        <Button size="sm" variant="secondary" icon={<Download size={14} />} onClick={() => setImportOpen(true)}>
-          growlio에서 가져오기
-        </Button>
-        <Button size="sm" icon={<Plus size={14} />} onClick={() => setFormTarget("new")}>
-          상품 추가
-        </Button>
-      </div>
+    <QueryBoundary query={savingsProductsQuery} errorMessage="저축/투자 상품을 불러오지 못했어요">
+      {(allData) => {
+        // 부동산(product_type: "real_estate")은 별도 "부동산" 탭(RealEstateSection)에서 다루므로 여기서는 제외한다.
+        const data = allData.filter((p) => p.product_type !== "real_estate");
 
-      {data.length === 0 ? (
-        <EmptyState title="등록된 저축/투자 상품이 없어요" compact />
-      ) : (
-        <div className="space-y-4">
-          <InlineStatsBar
-            items={[
-              { label: "월 저축액 합계", value: formatKrw(totalMonthly) },
-              ...(balanceByType.length > 1
-                ? balanceByType.map(({ type, total }) => ({
-                    label: savingsProductTypeLabel(type),
-                    value: formatKrw(total),
-                  }))
-                : []),
-            ]}
+        const existingGrowlioAccountIds = new Set(
+          data.filter((p): p is SavingsProductOut & { growlio_account_id: string } => !!p.growlio_account_id).map((p) => p.growlio_account_id)
+        );
+        const totalMonthly = data.reduce((sum, p) => sum + Number(p.monthly_saving_amount), 0);
+        const balanceByType = PRODUCT_TYPES.map((type) => ({
+          type,
+          rows: data.filter((p) => p.product_type === type),
+          total: data.filter((p) => p.product_type === type).reduce((sum, p) => sum + Number(p.current_balance), 0),
+        })).filter((entry) => entry.rows.length > 0);
+        const shouldGroup = data.length >= GROUP_THRESHOLD;
+
+        const renderRow = (product: SavingsProductOut) => (
+          <SavingsProductRow
+            key={product.id}
+            product={product}
+            users={users}
+            linkedGoals={goalsFor(product)}
+            syncPending={syncMutation.isPending}
+            onSync={() => syncMutation.mutate(product.id)}
+            onEdit={() => setFormTarget(product)}
+            onDelete={() => setDeactivateTarget(product.id)}
           />
+        );
 
-          {shouldGroup ? (
-            <div className="space-y-4">
-              {balanceByType.map(({ type, rows, total }) => (
-                <CollapsibleGroup
-                  key={type}
-                  header={
-                    <>
-                      <span className={`w-2 h-2 rounded-full shrink-0 ${savingsProductTypeDotClass(type)}`} />
-                      <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                        {savingsProductTypeLabel(type)} ({rows.length})
-                      </span>
-                    </>
-                  }
-                  amount={formatKrw(total)}
-                  defaultOpen
-                >
-                  {rows.map(renderRow)}
-                </CollapsibleGroup>
-              ))}
+        return (
+          <div className="space-y-4">
+            <div className="flex justify-end gap-2 flex-wrap">
+              <Button size="sm" variant="secondary" icon={<Download size={14} />} onClick={() => setImportOpen(true)}>
+                growlio에서 가져오기
+              </Button>
+              <Button size="sm" icon={<Plus size={14} />} onClick={() => setFormTarget("new")}>
+                상품 추가
+              </Button>
             </div>
-          ) : (
-            <div className="space-y-2">{data.map(renderRow)}</div>
-          )}
-        </div>
-      )}
 
-      {formTarget && (
-        <SavingsProductFormModal
-          initial={formTarget === "new" ? EMPTY_DRAFT : draftFromProduct(formTarget)}
-          product={formTarget === "new" ? null : formTarget}
-          title={formTarget === "new" ? "저축/투자 상품 추가" : "저축/투자 상품 수정"}
-          submitLabel={formTarget === "new" ? "추가" : "저장"}
-          submitting={isSaving}
-          users={users}
-          onClose={() => setFormTarget(null)}
-          onSubmit={handleSubmit}
-        />
-      )}
+            {data.length === 0 ? (
+              <EmptyState title="등록된 저축/투자 상품이 없어요" compact />
+            ) : (
+              <div className="space-y-4">
+                <InlineStatsBar
+                  items={[
+                    { label: "월 저축액 합계", value: formatKrw(totalMonthly) },
+                    ...(balanceByType.length > 1
+                      ? balanceByType.map(({ type, total }) => ({
+                          label: savingsProductTypeLabel(type),
+                          value: formatKrw(total),
+                        }))
+                      : []),
+                  ]}
+                />
 
-      {deactivateTarget !== null && (
-        <ConfirmModal
-          message="이 저축/투자 상품을 비활성화할까요?"
-          onConfirm={() => deactivateMutation.mutate(deactivateTarget)}
-          onCancel={() => setDeactivateTarget(null)}
-        />
-      )}
+                {shouldGroup ? (
+                  <div className="space-y-4">
+                    {balanceByType.map(({ type, rows, total }) => (
+                      <CollapsibleGroup
+                        key={type}
+                        header={
+                          <>
+                            <span className={`w-2 h-2 rounded-full shrink-0 ${savingsProductTypeDotClass(type)}`} />
+                            <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                              {savingsProductTypeLabel(type)} ({rows.length})
+                            </span>
+                          </>
+                        }
+                        amount={formatKrw(total)}
+                        defaultOpen
+                      >
+                        {rows.map(renderRow)}
+                      </CollapsibleGroup>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="space-y-2">{data.map(renderRow)}</div>
+                )}
+              </div>
+            )}
 
-      {importOpen && (
-        <GrowlioImportModal
-          title="투자 계좌 가져오기"
-          queryKey={QUERY_KEYS.growlioInvestmentAccounts}
-          fetchRows={() => fetchGrowlioAccounts().then((rows) => [...rows].sort((a, b) => a.name.localeCompare(b.name)))}
-          getRowId={(account) => account.id}
-          getRowAmount={(account) => account.current_value_krw}
-          renderRowMeta={(account) => ({ name: account.name, badge: growlioAssetTypeLabel(account.asset_type) })}
-          importRows={importGrowlioAccounts}
-          buildSuccessMessage={(created) => {
-            const total = created.reduce((sum, p) => sum + Number(p.current_balance), 0);
-            return `growlio 계좌 ${created.length}개를 가져왔습니다. 합계 ${formatKrw(total)}`;
-          }}
-          existingGrowlioAccountIds={existingGrowlioAccountIds}
-          invalidateKeys={[QUERY_KEYS.savingsProducts, QUERY_KEYS.dashboardBootstrap]}
-          onClose={() => setImportOpen(false)}
-        />
-      )}
-    </div>
+            {formTarget && (
+              <SavingsProductFormModal
+                initial={formTarget === "new" ? EMPTY_DRAFT : draftFromProduct(formTarget)}
+                product={formTarget === "new" ? null : formTarget}
+                title={formTarget === "new" ? "저축/투자 상품 추가" : "저축/투자 상품 수정"}
+                submitLabel={formTarget === "new" ? "추가" : "저장"}
+                submitting={isSaving}
+                users={users}
+                onClose={() => setFormTarget(null)}
+                onSubmit={handleSubmit}
+              />
+            )}
+
+            {deactivateTarget !== null && (
+              <ConfirmModal
+                message="이 저축/투자 상품을 비활성화할까요?"
+                onConfirm={() => deactivateMutation.mutate(deactivateTarget)}
+                onCancel={() => setDeactivateTarget(null)}
+              />
+            )}
+
+            {importOpen && (
+              <GrowlioImportModal
+                title="투자 계좌 가져오기"
+                queryKey={QUERY_KEYS.growlioInvestmentAccounts}
+                fetchRows={() => fetchGrowlioAccounts().then((rows) => [...rows].sort((a, b) => a.name.localeCompare(b.name)))}
+                getRowId={(account) => account.id}
+                getRowAmount={(account) => account.current_value_krw}
+                renderRowMeta={(account) => ({ name: account.name, badge: growlioAssetTypeLabel(account.asset_type) })}
+                importRows={importGrowlioAccounts}
+                buildSuccessMessage={(created) => {
+                  const total = created.reduce((sum, p) => sum + Number(p.current_balance), 0);
+                  return `growlio 계좌 ${created.length}개를 가져왔습니다. 합계 ${formatKrw(total)}`;
+                }}
+                existingGrowlioAccountIds={existingGrowlioAccountIds}
+                invalidateKeys={[QUERY_KEYS.savingsProducts, QUERY_KEYS.dashboardBootstrap]}
+                onClose={() => setImportOpen(false)}
+              />
+            )}
+          </div>
+        );
+      }}
+    </QueryBoundary>
   );
 }
 

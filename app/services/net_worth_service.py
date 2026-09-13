@@ -14,6 +14,7 @@ from app.services import (
     growlio_client,
     loan_service,
     real_estate_service,
+    savings_product_growlio_service,
     savings_product_service,
 )
 from app.utils.dates import now_kst, parse_year_month, shift_month, year_month_str
@@ -170,7 +171,7 @@ def refresh_stale_growlio_links(bearer_token: str, *, now: datetime | None = Non
             return
         for section, fn in (
             ("accounts", account_service.sync_all_accounts),
-            ("savings", savings_product_service.sync_all_from_growlio),
+            ("savings", savings_product_growlio_service.sync_all_from_growlio),
             ("real_estate", real_estate_service.sync_all_from_growlio),
         ):
             try:
@@ -178,9 +179,9 @@ def refresh_stale_growlio_links(bearer_token: str, *, now: datetime | None = Non
             except (growlio_client.GrowlioNotConfiguredError, growlio_client.GrowlioRequestError):
                 logger.info("opportunistic_growlio_sync_unavailable", exc_info=True)
                 return
-            except Exception:  # noqa: BLE001
+            except Exception:
                 logger.exception("opportunistic_growlio_sync_failed section=%s", section)
-    except Exception:  # noqa: BLE001 - fire-and-forget 백그라운드 작업, 절대 상위로 던지지 않는다
+    except Exception:  # fire-and-forget 백그라운드 작업, 절대 상위로 던지지 않는다
         logger.exception("opportunistic_growlio_sync_failed")
     finally:
         db.close()

@@ -29,8 +29,8 @@ _REAUTH_MESSAGE = (
 
 # 아래 두 함수는 app/services/CLAUDE.md의 "첫 인자는 항상 db" 규칙에 대한 예외다.
 # 스케줄러 잡(app/scheduler/jobs.py)과 동일하게 자체 SessionLocal()을 열고 닫는 패턴을 써서,
-# 이미 인자 없이 호출 중인 ~10곳의 호출부(notification_service, event_service,
-# google_calendar_service, gmail_service, app/routers/settings.py 등)를 건드리지 않는다.
+# 이미 인자 없이 호출 중인 ~10곳의 호출부(notification_service, event_calendar_service,
+# event_reminder_service, google_calendar_service, gmail_service, app/routers/settings.py 등)를 건드리지 않는다.
 
 
 def is_connected() -> bool:
