@@ -88,7 +88,7 @@ echo "[dev.sh] seeding default data (skips rows that already exist)..."
 
 if [ ! -d "frontend/node_modules" ]; then
   echo "[dev.sh] frontend/node_modules not found, installing frontend dependencies..."
-  (cd frontend && npm install --legacy-peer-deps)
+  (cd frontend && npm install)
 fi
 
 if [ ! -f "frontend/.env" ] && [ -f "frontend/.env.example" ]; then
