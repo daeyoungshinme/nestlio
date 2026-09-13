@@ -27,7 +27,7 @@ def list_items(db: Session, year: int, section: str | None = None) -> list[Annua
 
 def monthly_targets_for_month(db: Session, year_month: str) -> list[tuple[AnnualPlanItem, Decimal]]:
     """그 달에 값이 설정된 모든 AnnualPlanItem과 해당 월 목표금액 쌍을 반환한다 —
-    savings_product_service._monthly_targets_by_product_for_year와 동일 패턴. cashflow_plan_service가
+    savings_product_plan_service._monthly_targets_by_product_for_year와 동일 패턴. cashflow_plan_service가
     이번 달 계획에 값이 없는 항목을 연간계획 값으로 자동 채우는 폴백에 쓴다."""
     year = int(year_month[:4])
     return (
