@@ -28,6 +28,7 @@ export default function GoalPurposeSummary({ heading, purposes, activeLabel, onS
         {purposes.map((p) => (
           <button
             key={p.label}
+            type="button"
             onClick={() => onSelect(p.label)}
             className={[
               "flex flex-col items-center gap-1 rounded-xl px-1 py-2.5 text-center transition-colors border",

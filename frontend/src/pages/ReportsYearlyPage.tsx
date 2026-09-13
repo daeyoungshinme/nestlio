@@ -105,6 +105,7 @@ export default function ReportsYearlyPage() {
           <div className="space-y-6">
             <div className="flex items-center justify-center gap-4">
               <button
+                type="button"
                 onClick={() => setYear(data.prev_year)}
                 className={`${TOUCH_TARGET_MIN_MOBILE_ONLY} rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800`}
                 aria-label="이전 해"
@@ -113,6 +114,7 @@ export default function ReportsYearlyPage() {
               </button>
               <h1 className="text-xl font-bold text-gray-900 dark:text-gray-50">{data.year}년 연간 리포트</h1>
               <button
+                type="button"
                 onClick={() => setYear(data.next_year)}
                 className={`${TOUCH_TARGET_MIN_MOBILE_ONLY} rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800`}
                 aria-label="다음 해"

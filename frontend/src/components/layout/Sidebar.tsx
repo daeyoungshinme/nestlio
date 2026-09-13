@@ -51,6 +51,7 @@ export default function Sidebar() {
 
       <div className="space-y-1">
         <button
+          type="button"
           onClick={toggle}
           title={isDark ? "라이트 모드로 전환" : "다크 모드로 전환"}
           aria-label={isDark ? "라이트 모드로 전환" : "다크 모드로 전환"}
@@ -60,6 +61,7 @@ export default function Sidebar() {
           {isDark ? "라이트 모드" : "다크 모드"}
         </button>
         <button
+          type="button"
           onClick={() => void logout()}
           title="로그아웃"
           aria-label="로그아웃"

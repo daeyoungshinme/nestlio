@@ -37,6 +37,7 @@ export default function BottomNav() {
           </NavLink>
         ))}
         <button
+          type="button"
           onClick={() => setShowMore(true)}
           aria-current={isMoreActive ? "page" : undefined}
           className={`flex flex-col items-center justify-center gap-0.5 px-2 py-3 min-w-0 flex-1 ${TOUCH_TARGET_MIN_HEIGHT} text-xs font-medium transition-colors border-t-2 -mt-px ${
@@ -56,6 +57,7 @@ export default function BottomNav() {
             {BOTTOM_NAV_MORE_ITEMS.map(({ to, icon: Icon, label }) => (
               <button
                 key={to}
+                type="button"
                 onClick={() => {
                   setShowMore(false);
                   navigate(to);

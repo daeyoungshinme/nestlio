@@ -7,6 +7,7 @@
   "rules": {
     "react/rules-of-hooks": "error",
     "react/exhaustive-deps": "error",
+    "react/button-has-type": "error",
     "import/no-cycle": "error",
     "import/no-self-import": "error",
     "react/only-export-components": "off"
