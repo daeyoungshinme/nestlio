@@ -16,7 +16,7 @@ import ConfirmModal from "@/components/common/ConfirmModal";
 import Modal from "@/components/common/Modal";
 import MonthPicker from "@/components/common/MonthPicker";
 import { currentYearMonth, shiftYearMonth } from "@/utils/date";
-import ErrorState from "@/components/common/ErrorState";
+import QueryBoundary from "@/components/common/QueryBoundary";
 import SkeletonCard from "@/components/common/SkeletonCard";
 import SummaryCard from "@/components/common/SummaryCard";
 import {
@@ -56,7 +56,7 @@ export default function CashflowPlanTab({ view }: { view: "monthly" | "annual" }
   const nextYearMonth = shiftYearMonth(yearMonth, 1);
   const nextYearMonthLabel = formatYearMonth(nextYearMonth);
 
-  const { data, isLoading, isError, refetch } = useQuery({
+  const cashflowQuery = useQuery({
     queryKey: QUERY_KEYS.cashflowPlan(yearMonth),
     queryFn: () => fetchCashflowPlan(yearMonth),
   });
@@ -64,12 +64,7 @@ export default function CashflowPlanTab({ view }: { view: "monthly" | "annual" }
   const { data: categories } = useCategories("expense");
   // 반복거래 등록/가계부 즉시추가 모달은 수입 카테고리도 골라야 하므로 지출 전용인 위 categories와 별도로 전체를 받는다.
   const { data: allCategories } = useCategories();
-  const {
-    data: savingsPlanData,
-    isLoading: savingsLoading,
-    isError: savingsError,
-    refetch: refetchSavings,
-  } = useQuery({
+  const savingsPlanQuery = useQuery({
     queryKey: QUERY_KEYS.savingsProductsPlan(yearMonth),
     queryFn: () => fetchSavingsProductsPlan(yearMonth),
   });
@@ -183,21 +178,13 @@ export default function CashflowPlanTab({ view }: { view: "monthly" | "annual" }
     return <AnnualPlanPanel />;
   }
 
-  if (isError || savingsError) {
-    return (
-      <ErrorState
-        onRetry={() => {
-          void refetch();
-          void refetchSavings();
-        }}
-      />
-    );
-  }
-  if (isLoading || savingsLoading || !data) {
-    return <SkeletonCard rows={6} />;
-  }
+  return (
+    <QueryBoundary queries={[cashflowQuery, savingsPlanQuery]} loadingFallback={<SkeletonCard rows={6} />}>
+      {(() => {
+        const data = cashflowQuery.data!;
+        const savingsPlanData = savingsPlanQuery.data;
 
-  const summary = data.summary;
+        const summary = data.summary;
   const plannedSavingsInvestmentTotal = savingsPlanData
     ? Number(savingsPlanData.savings.planned) + Number(savingsPlanData.investment.planned)
     : 0;
@@ -410,5 +397,8 @@ export default function CashflowPlanTab({ view }: { view: "monthly" | "annual" }
         />
       )}
     </div>
+  );
+  })()}
+    </QueryBoundary>
   );
 }
