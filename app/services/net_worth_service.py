@@ -178,9 +178,9 @@ def refresh_stale_growlio_links(bearer_token: str, *, now: datetime | None = Non
             except (growlio_client.GrowlioNotConfiguredError, growlio_client.GrowlioRequestError):
                 logger.info("opportunistic_growlio_sync_unavailable", exc_info=True)
                 return
-            except Exception:  # noqa: BLE001
+            except Exception:
                 logger.exception("opportunistic_growlio_sync_failed section=%s", section)
-    except Exception:  # noqa: BLE001 - fire-and-forget 백그라운드 작업, 절대 상위로 던지지 않는다
+    except Exception:  # fire-and-forget 백그라운드 작업, 절대 상위로 던지지 않는다
         logger.exception("opportunistic_growlio_sync_failed")
     finally:
         db.close()

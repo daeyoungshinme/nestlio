@@ -233,26 +233,6 @@ def actuals_for_year(db: Session, year: int) -> dict[int, Decimal]:
     return dict(rows)
 
 
-def yearly_monthly_actuals(db: Session, year: int) -> list[Decimal]:
-    """저축/투자 상품에 연결된 거래의 월별 합계(1~12월, 상품 구분 없이 전체 합산) —
-    actuals_for_year와 동일한 매칭 규칙(Transaction.savings_product_id)을 월 단위로 적용한다.
-    app/services/annual_plan_service.py의 저축투자 축 월별 실적에 쓰인다."""
-    start, end = year_bounds(year)
-    rows = (
-        db.query(Transaction.transaction_date, Transaction.amount)
-        .filter(
-            Transaction.savings_product_id.isnot(None),
-            Transaction.transaction_date >= start,
-            Transaction.transaction_date <= end,
-        )
-        .all()
-    )
-    totals = {month: Decimal("0") for month in range(1, 13)}
-    for tx_date, amount in rows:
-        totals[tx_date.month] += amount or Decimal("0")
-    return [totals[month] for month in range(1, 13)]
-
-
 def compute_annual_plan_summary(
     db: Session, year: int, as_of: date, warn_pct: float | None = None, critical_pct: float | None = None
 ) -> dict:
