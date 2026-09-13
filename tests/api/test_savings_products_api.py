@@ -76,7 +76,7 @@ def test_sync_updates_balance(client, seeded_db):
     )
 
     with patch(
-        "app.services.savings_product_service.growlio_client.fetch_account_balances",
+        "app.services.savings_product_growlio_service.growlio_client.fetch_account_balances",
         return_value=[{"id": "growlio-acc-1", "name": "국민 자유적금", "asset_type": "DEPOSIT", "current_value_krw": 555000.0}],
     ):
         resp = client.post(f"/api/v1/savings-products/{product_id}/sync")
@@ -89,7 +89,7 @@ def test_sync_updates_balance(client, seeded_db):
 def test_list_growlio_accounts_proxies_client(client, seeded_db):
 
     with patch(
-        "app.services.savings_product_service.growlio_client.fetch_account_balances",
+        "app.services.savings_product_growlio_service.growlio_client.fetch_account_balances",
         return_value=[{"id": "growlio-acc-1", "name": "국민 자유적금", "asset_type": "DEPOSIT", "current_value_krw": 1.0}],
     ):
         resp = client.get("/api/v1/savings-products/growlio-accounts")
@@ -202,7 +202,7 @@ def test_upsert_product_annual_plan_missing_product_returns_404(client, seeded_d
 def test_growlio_import_creates_one_product_per_selected_account(client, seeded_db):
 
     with patch(
-        "app.services.savings_product_service.growlio_client.fetch_account_balances",
+        "app.services.savings_product_growlio_service.growlio_client.fetch_account_balances",
         return_value=[
             {"id": "growlio-acc-1", "name": "국민 자유적금", "asset_type": "DEPOSIT", "current_value_krw": 1234500.0},
             {"id": "growlio-acc-2", "name": "키움 증권", "asset_type": "STOCK_KIWOOM", "current_value_krw": 5000000.0},

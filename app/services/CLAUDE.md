@@ -58,9 +58,19 @@
 - `event_service.create_event`/`update_event`/`delete_event`는 저장 직후 `event_calendar_service.sync_to_google`/`remove_from_google`과 `event_reminder_service.notify_other_spouse`를 호출해야 하는데, 이 두 모듈이 반대로 `event_service.occurrences_in_range`를 참조하므로 core가 이 둘을 모듈 상단에서 import하면 순환 의존이 생긴다 — 위 "Google 연동 가드" 절의 지연 import 관례를 그대로 가져와 `create_event`/`update_event`/`delete_event` 함수 본문에서만 import한다.
 - 테스트 파일은 나누지 않았다(`tests/CLAUDE.md`에 명시) — `tests/test_event_service.py` 하나가 세 모듈을 모두 다룬다.
 
+## savings_product_service.py / savings_product_plan_service.py / savings_product_growlio_service.py
+
+`savings_product_service.py`는 원래 CRUD·연간계획 집계·growlio 동기화를 한 파일에 모두 담고 있었으나(501줄), 책임별로 3개 파일로 분리했다(`transaction_service`의 3분할과 동일한 동기).
+
+- `savings_product_service.py`: CRUD(`create_product`/`update_product`/`deactivate_product`/`adjust_balance`/`set_growlio_link`)와 조회(`list_products`, `get_emergency_fund_balance`)만 남는다.
+- `savings_product_plan_service.py`: 연간계획/실적 집계 함수들(`get_annual_plan`/`upsert_annual_plan`/`compute_plan_summary`/`compute_annual_plan_summary`/`actuals_for_month`/`actuals_for_year`/`trailing_average_actuals`)이 모여 있다. `PLAN_PRODUCT_TYPES`(부동산 제외 저축/투자 두 타입) 상수도 여기 있다.
+- `savings_product_growlio_service.py`: growlio 연동 함수들(`list_growlio_accounts`/`sync_from_growlio`/`sync_all_from_growlio`/`import_from_growlio`)이 모여 있다.
+- 세 파일 모두 상품 목록 조회가 필요하면 `savings_product_service.list_products(db)`를 그대로 재사용한다 — 별도 쿼리를 새로 만들지 않는다.
+- 테스트 파일은 나누지 않았다(`tests/CLAUDE.md`에 명시) — `tests/test_savings_product_service.py`가 세 모듈을 모두 다룬다.
+
 ## growlio 연동 공통 헬퍼 (growlio_client.py)
 
-`GrowlioNotConfiguredError`/`GrowlioRequestError`/`GrowlioSyncError`는 모두 `growlio_client.py`에 단일 정의되어 있다 — account_service/savings_product_service/real_estate_service는 여기서 import해서 쓰고 새로 정의하지 않는다. 라우터에서 이 예외들을 개별적으로 catch할 필요도 없다 — `app/main.py`가 `growlio_client.register_exception_handlers(app)`로 앱 전역에서 501/502/409로 매핑한다.
+`GrowlioNotConfiguredError`/`GrowlioRequestError`/`GrowlioSyncError`는 모두 `growlio_client.py`에 단일 정의되어 있다 — account_service/savings_product_growlio_service/real_estate_service는 여기서 import해서 쓰고 새로 정의하지 않는다. 라우터에서 이 예외들을 개별적으로 catch할 필요도 없다 — `app/main.py`가 `growlio_client.register_exception_handlers(app)`로 앱 전역에서 501/502/409로 매핑한다.
 
 가져오기(`import_from_growlio`)·동기화(`sync_*`) 로직을 새로 추가할 때는 아래 공용 헬퍼를 재사용한다:
 - `growlio_client.already_linked_growlio_ids(db, model)`: 이미 연동된 growlio 계좌 id 집합 (중복 가져오기 방지)
@@ -69,7 +79,7 @@
 
 각 서비스의 가져오기 루프 본문(생성할 모델 필드)은 도메인마다 달라(Account는 `account_type`, SavingsProduct는 `product_type`/`principal_amount`, RealEstate는 대출 페어링까지) 그대로 두고, 위 3개 헬퍼만 공유한다 — 전체 `import_from_growlio` 함수 자체를 억지로 통합하지 않는다.
 
-**전체 동기화(`sync_all_*`) 패턴**: `account_service.sync_all_accounts`/`savings_product_service.sync_all_from_growlio`/`real_estate_service.sync_all_from_growlio`가 공유하는 규칙 — growlio 목록은 (건별 `sync_account`/`sync_from_growlio`처럼 매번 재호출하지 않고) **1회만 조회**해 연동된 항목 전체에 매칭한다. 배우자 소유 등으로 매칭에 실패한 항목은 예외를 던져 전체를 중단시키지 않고 `{id, name, reason}` 형태로 `failed` 리스트에 담아 나머지 항목 동기화를 계속 진행하며, 반환 타입은 `tuple[동기화된_개수: int, failed: list[dict]]`로 통일한다. 새로운 growlio 연동 리소스 타입에 "전체 동기화"를 추가할 때도 이 시그니처와 부분 실패 처리 방식을 따른다.
+**전체 동기화(`sync_all_*`) 패턴**: `account_service.sync_all_accounts`/`savings_product_growlio_service.sync_all_from_growlio`/`real_estate_service.sync_all_from_growlio`가 공유하는 규칙 — growlio 목록은 (건별 `sync_account`/`sync_from_growlio`처럼 매번 재호출하지 않고) **1회만 조회**해 연동된 항목 전체에 매칭한다. 배우자 소유 등으로 매칭에 실패한 항목은 예외를 던져 전체를 중단시키지 않고 `{id, name, reason}` 형태로 `failed` 리스트에 담아 나머지 항목 동기화를 계속 진행하며, 반환 타입은 `tuple[동기화된_개수: int, failed: list[dict]]`로 통일한다. 새로운 growlio 연동 리소스 타입에 "전체 동기화"를 추가할 때도 이 시그니처와 부분 실패 처리 방식을 따른다.
 
 **기회주의적 갱신(`net_worth_service.refresh_stale_growlio_links`)**: `auto_sync_enabled`인데 `last_synced_at`이 `STALE_GROWLIO_LINK_AFTER`(12h)보다 오래된 SavingsProduct/Loan 연동이 있으면, `GET /net-worth`(대시보드·자산 화면이 공유) 응답 후 FastAPI `BackgroundTasks`로 위 `sync_all_*` 3종을 조용히 실행한다. 스케줄러에는 사용자 Supabase JWT가 없어(app/scheduler/CLAUDE.md) 예약 작업으로는 growlio 잔액 동기화를 못 하기 때문에 택한 방식이다. fire-and-forget이라 절대 raise하지 않고(요청 스코프 세션이 응답 후 닫히므로 자체 `SessionLocal()`을 연다), growlio 미설정/접속 실패면 조용히 중단한다.
 
@@ -79,7 +89,7 @@
 
 - `apply_monthly_targets(parent, monthly_targets, target_cls)`: year_month로 기존 월별 target 행을 매칭해 갱신/생성하고 빠진 월은 delete-orphan으로 삭제한다. `GoalMonthlyTarget.achieved_amount`처럼 target_amount 외의 컬럼이 있어도 기존 행은 그대로 재사용하므로 건드리지 않는다.
 - `elapsed_months(year, today)`: 그 해의 몇 월까지 실적을 집계할 수 있는지.
-- `budget_status(section, pct)` / `savings_status(pct)`: `utils/plan_status.status_from_pct`를 감싸는 임계값 판정 래퍼 — `budget_status`는 section이 `"income"`일 때만 invert(annual_plan_service/cashflow_plan_service가 공유), `savings_status`는 항상 invert(savings_product_service 전용).
+- `budget_status(section, pct)` / `savings_status(pct)`: `utils/plan_status.status_from_pct`를 감싸는 임계값 판정 래퍼 — `budget_status`는 section이 `"income"`일 때만 invert(annual_plan_service/cashflow_plan_service가 공유), `savings_status`는 항상 invert(savings_product_plan_service 전용).
 
 새 "부모 + 월별 target" 도메인을 추가할 때도 이 4개를 먼저 재사용할 수 있는지 확인한다.
 

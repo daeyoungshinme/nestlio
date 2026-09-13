@@ -17,7 +17,12 @@ from app.schemas.savings_product import (
     SavingsProductSyncAllOut,
     SavingsProductUpdateIn,
 )
-from app.services import coaching_settings_service, savings_product_service
+from app.services import (
+    coaching_settings_service,
+    savings_product_growlio_service,
+    savings_product_plan_service,
+    savings_product_service,
+)
 from app.utils.dates import now_kst, today_kst, year_month_str
 
 router = APIRouter(prefix="/savings-products", tags=["savings-products"])
@@ -34,7 +39,7 @@ def get_plan_summary(
 ):
     ym = year_month or year_month_str(today_kst())
     thresholds = coaching_settings_service.get_thresholds(db)
-    return savings_product_service.compute_plan_summary(
+    return savings_product_plan_service.compute_plan_summary(
         db, ym, thresholds["budget_warn_pct"], thresholds["budget_critical_pct"]
     )
 
@@ -43,7 +48,7 @@ def get_plan_summary(
 def get_annual_plan_summary(year: int | None = None, db: Session = Depends(get_db), _: User = Depends(get_current_user)):
     today = today_kst()
     thresholds = coaching_settings_service.get_thresholds(db)
-    return savings_product_service.compute_annual_plan_summary(
+    return savings_product_plan_service.compute_annual_plan_summary(
         db, year or today.year, as_of=today,
         warn_pct=thresholds["budget_warn_pct"], critical_pct=thresholds["budget_critical_pct"],
     )
@@ -53,7 +58,7 @@ def get_annual_plan_summary(year: int | None = None, db: Session = Depends(get_d
 def get_product_annual_plan(
     product_id: int, year: int, db: Session = Depends(get_db), _: User = Depends(get_current_user)
 ):
-    plan = savings_product_service.get_annual_plan(db, product_id, year)
+    plan = savings_product_plan_service.get_annual_plan(db, product_id, year)
     if plan is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "저축/투자 상품을 찾을 수 없습니다.")
     return plan
@@ -66,7 +71,7 @@ def upsert_product_annual_plan(
     db: Session = Depends(get_db),
     _: User = Depends(get_current_user),
 ):
-    plan = savings_product_service.upsert_annual_plan(
+    plan = savings_product_plan_service.upsert_annual_plan(
         db,
         product_id,
         payload.year,
@@ -76,13 +81,13 @@ def upsert_product_annual_plan(
     )
     if plan is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "저축/투자 상품을 찾을 수 없습니다.")
-    return savings_product_service.get_annual_plan(db, product_id, payload.year)
+    return savings_product_plan_service.get_annual_plan(db, product_id, payload.year)
 
 
 @router.get("/growlio-accounts", response_model=list[GrowlioAccountOut])
 def list_growlio_accounts(bearer_token: str = Depends(get_bearer_token), _: User = Depends(get_current_user)):
     """저축상품 연동 대상 선택을 위해 growlio 계좌 목록을 프록시로 조회한다."""
-    return savings_product_service.list_growlio_accounts(bearer_token)
+    return savings_product_growlio_service.list_growlio_accounts(bearer_token)
 
 
 @router.post("", response_model=SavingsProductOut, status_code=status.HTTP_201_CREATED)
@@ -144,7 +149,7 @@ def sync_product(
     bearer_token: str = Depends(get_bearer_token),
     _: User = Depends(get_current_user),
 ):
-    product = savings_product_service.sync_from_growlio(db, product_id, bearer_token, now=now_kst())
+    product = savings_product_growlio_service.sync_from_growlio(db, product_id, bearer_token, now=now_kst())
     if product is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "저축/투자 상품을 찾을 수 없습니다.")
     return product
@@ -156,7 +161,7 @@ def sync_all_products(
     bearer_token: str = Depends(get_bearer_token),
     _: User = Depends(get_current_user),
 ):
-    synced_count, failed = savings_product_service.sync_all_from_growlio(db, bearer_token, now=now_kst())
+    synced_count, failed = savings_product_growlio_service.sync_all_from_growlio(db, bearer_token, now=now_kst())
     return SavingsProductSyncAllOut(synced_count=synced_count, failed=failed)
 
 
@@ -168,7 +173,7 @@ def import_growlio_accounts(
     current_user: User = Depends(get_current_user),
 ):
     """선택한 growlio 계좌들을 각각 새 저축/투자 상품으로 일괄 가져온다 ('전체 선택' 가져오기)."""
-    return savings_product_service.import_from_growlio(
+    return savings_product_growlio_service.import_from_growlio(
         db, payload.growlio_account_ids, bearer_token, current_user.id, now=now_kst()
     )
 

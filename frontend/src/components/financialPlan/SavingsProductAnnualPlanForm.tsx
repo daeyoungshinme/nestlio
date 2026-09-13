@@ -26,7 +26,7 @@ interface Props {
  * SavingsProduct 하나에 대한 편집이므로). 적용 시작월~종료월 + "균등분배할 총액" +
  * AnnualPlanMonthlyGrid로 그 기간의 월별 목표금액을 입력한다. initialValues는 항상 "지금 유효한
  * 계획"으로 채워져서 들어온다(저장된 그리드가 없으면 monthly_saving_amount로 채운 기본값 —
- * savings_product_service.get_annual_plan 참고). */
+ * savings_product_plan_service.get_annual_plan 참고). */
 export default function SavingsProductAnnualPlanForm({
   year,
   initialValues,
