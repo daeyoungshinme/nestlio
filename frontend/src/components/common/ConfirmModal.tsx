@@ -53,12 +53,14 @@ export default function ConfirmModal({
         </div>
         <div className="flex gap-4 justify-end">
           <button
+            type="button"
             onClick={onCancel}
             className={`${TOUCH_TARGET_MIN} px-4 text-sm border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors`}
           >
             {cancelLabel}
           </button>
           <button
+            type="button"
             onClick={onConfirm}
             disabled={confirmDisabled}
             className={`${TOUCH_TARGET_MIN} px-4 text-sm font-medium rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${

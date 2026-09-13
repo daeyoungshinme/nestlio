@@ -90,6 +90,7 @@ export default function Header() {
         )}
       </div>
       <button
+        type="button"
         onClick={() => setShowInbox(true)}
         aria-label={unreadCount > 0 ? `알림, 읽지 않음 ${unreadCount}건` : "알림"}
         className={`relative ${TOUCH_TARGET_MIN} p-2 text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors`}
@@ -111,6 +112,7 @@ export default function Header() {
             {unreadCount > 0 && (
               <div className="flex justify-end px-4 pt-3">
                 <button
+                  type="button"
                   onClick={() => readAllMutation.mutate()}
                   className="text-xs font-medium text-primary-600 dark:text-primary-400 hover:underline"
                 >
@@ -165,6 +167,7 @@ export default function Header() {
                         {REACTION_EMOJIS.map((emoji) => (
                           <button
                             key={emoji}
+                            type="button"
                             onClick={() => reactMutation.mutate({ id: n.id, emoji })}
                             aria-label={`${emoji}로 응원하기`}
                             aria-pressed={myReaction?.emoji === emoji}

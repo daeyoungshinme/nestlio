@@ -54,6 +54,7 @@ export default function Modal({ children, onClose, title, size = "md", closeOnBa
               {title}
             </h2>
             <button
+              type="button"
               onClick={onClose}
               aria-label="닫기"
               className={`${TOUCH_TARGET_MIN_MOBILE_ONLY} p-2.5 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors`}

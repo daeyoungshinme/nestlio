@@ -88,6 +88,7 @@ export default function AssetRow({
             ) : (
               <button
                 key={i}
+                type="button"
                 onClick={action.onClick}
                 disabled={action.disabled}
                 title={action.label}

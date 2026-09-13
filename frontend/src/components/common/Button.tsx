@@ -35,10 +35,13 @@ export default function Button({
   children,
   disabled,
   className,
+  type = "button",
   ...rest
 }: Props) {
   return (
     <button
+      // eslint-disable-next-line react/button-has-type -- type은 ButtonHTMLAttributes["type"](button/submit/reset)로 좁혀져 있어 항상 유효하다. 정적 분석기가 변수값이라 못 따라갈 뿐이다.
+      type={type}
       disabled={disabled || loading}
       className={[
         "inline-flex items-center gap-1.5 rounded-lg transition-all active:scale-[0.97] active:opacity-80",

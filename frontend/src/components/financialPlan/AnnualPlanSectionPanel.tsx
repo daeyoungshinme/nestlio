@@ -78,6 +78,7 @@ export default function AnnualPlanSectionPanel({
             </Link>
           )}
           <button
+            type="button"
             onClick={onAddItem}
             className={`${TOUCH_TARGET_MIN_MOBILE_ONLY} p-2 text-gray-400 hover:text-primary-600 hover:bg-primary-50 dark:hover:bg-primary-950 rounded-lg transition-colors`}
             aria-label={`${label} 항목 추가`}

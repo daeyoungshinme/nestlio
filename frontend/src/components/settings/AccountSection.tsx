@@ -100,6 +100,7 @@ export default function AccountSection() {
       )}
       <div className="border-t border-gray-100 dark:border-gray-800 pt-3">
         <button
+          type="button"
           onClick={toggleTheme}
           aria-label={isDark ? "라이트 모드로 전환" : "다크 모드로 전환"}
           className="w-full flex items-center justify-between gap-3 px-3 py-2 rounded-lg text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"

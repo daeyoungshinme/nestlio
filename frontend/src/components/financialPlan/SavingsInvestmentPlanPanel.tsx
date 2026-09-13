@@ -196,6 +196,7 @@ function ProductRow({
         <div className="flex items-center gap-0.5 shrink-0">
           {product && !product.monthly_saving_amount_synced && (
             <button
+              type="button"
               onClick={() => setIsPlanModalOpen(true)}
               aria-label="월별 계획 편집"
               title="월별 계획 편집"

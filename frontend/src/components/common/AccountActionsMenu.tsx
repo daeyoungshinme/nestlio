@@ -46,6 +46,7 @@ export default function AccountActionsMenu({ items, ariaLabel = "더 보기" }: 
   return (
     <div className="relative" ref={containerRef}>
       <button
+        type="button"
         onClick={() => setIsOpen((v) => !v)}
         aria-label={ariaLabel}
         aria-haspopup="menu"
@@ -87,6 +88,7 @@ export default function AccountActionsMenu({ items, ariaLabel = "더 보기" }: 
             return (
               <button
                 key={i}
+                type="button"
                 role="menuitem"
                 disabled={item.disabled}
                 onClick={() => {

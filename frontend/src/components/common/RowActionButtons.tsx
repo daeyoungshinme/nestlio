@@ -25,6 +25,7 @@ export default function RowActionButtons({
     <div className="flex items-center gap-2 shrink-0">
       {onEdit && (
         <button
+          type="button"
           onClick={onEdit}
           aria-label={editLabel}
           className={`${TOUCH_TARGET_MIN_MOBILE_ONLY} p-2 text-gray-400 hover:text-primary-600 hover:bg-primary-50 dark:hover:bg-primary-950 rounded-lg transition-colors`}
@@ -34,6 +35,7 @@ export default function RowActionButtons({
       )}
       {onDelete && (
         <button
+          type="button"
           onClick={onDelete}
           aria-label={deleteLabel}
           disabled={deleteDisabled}
