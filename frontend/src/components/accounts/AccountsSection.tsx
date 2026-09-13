@@ -7,12 +7,11 @@ import AssetRow from "@/components/accounts/AssetRow";
 import CollapsibleGroup from "@/components/common/CollapsibleGroup";
 import ConfirmModal from "@/components/common/ConfirmModal";
 import EmptyState from "@/components/common/EmptyState";
-import ErrorState from "@/components/common/ErrorState";
 import FormInput from "@/components/common/FormInput";
 import GrowlioImportModal from "@/components/common/GrowlioImportModal";
 import Modal from "@/components/common/Modal";
 import OwnerSelect from "@/components/common/OwnerSelect";
-import SkeletonCard from "@/components/common/SkeletonCard";
+import QueryBoundary from "@/components/common/QueryBoundary";
 import InlineStatsBar from "@/components/common/InlineStatsBar";
 import { growlioAssetTypeLabel } from "@/constants/growlio";
 import { GROUP_THRESHOLD } from "@/constants/accounts";
@@ -70,7 +69,7 @@ export default function AccountsSection({ users }: Props) {
   const [importOpen, setImportOpen] = useState(false);
   const queryClient = useQueryClient();
 
-  const { data, isLoading, isError, error, refetch } = useAccounts();
+  const accountsQuery = useAccounts();
 
   const { createMutation, updateMutation, removeMutation: deactivateMutation } = useCrudMutations({
     invalidateKeys: [QUERY_KEYS.accounts],
@@ -109,135 +108,127 @@ export default function AccountsSection({ users }: Props) {
     }
   };
 
-  if (isError) {
-    return (
-      <ErrorState
-        title="계좌를 불러오지 못했어요"
-        message={extractErrorMessage(error)}
-        onRetry={() => void refetch()}
-      />
-    );
-  }
-
-  if (isLoading || !data) {
-    return <SkeletonCard rows={4} />;
-  }
-
-  const existingGrowlioAccountIds = new Set(
-    data.map((row) => row.account.growlio_account_id).filter((id): id is string => !!id)
-  );
-
-  const balanceByType = ACCOUNT_TYPES.map((type) => ({
-    type,
-    rows: data.filter((row) => row.account.account_type === type),
-    total: data
-      .filter((row) => row.account.account_type === type)
-      .reduce((sum, row) => sum + Number(row.balance), 0),
-  })).filter((entry) => entry.rows.length > 0);
-
-  const totalBalance = data.reduce((sum, row) => sum + Number(row.balance), 0);
-
-  const shouldGroup = data.length >= GROUP_THRESHOLD;
-
-  const renderRow = (row: AccountWithBalanceOut) => (
-    <AccountRow
-      key={row.account.id}
-      row={row}
-      users={users}
-      syncPending={syncMutation.isPending}
-      onSync={() => syncMutation.mutate(row.account.id)}
-      onEdit={() => setFormTarget(row)}
-      onDelete={() => setDeactivateTarget(row.account.id)}
-    />
-  );
-
   return (
-    <div className="space-y-6">
-      <div className="flex justify-end gap-2">
-        <Button size="sm" variant="secondary" icon={<Download size={14} />} onClick={() => setImportOpen(true)}>
-          growlio에서 가져오기
-        </Button>
-        <Button size="sm" icon={<Plus size={14} />} onClick={() => setFormTarget("new")}>
-          계좌 추가
-        </Button>
-      </div>
+    <QueryBoundary query={accountsQuery} errorMessage="계좌를 불러오지 못했어요">
+      {(data) => {
+        const existingGrowlioAccountIds = new Set(
+          data.map((row) => row.account.growlio_account_id).filter((id): id is string => !!id)
+        );
 
-      {data.length === 0 ? (
-        <EmptyState title="등록된 계좌가 없어요" compact />
-      ) : (
-        <>
-          <InlineStatsBar
-            items={[
-              { label: "전체 합계", value: formatKrw(totalBalance) },
-              ...(balanceByType.length > 1
-                ? balanceByType.map(({ type, total }) => ({ label: ACCOUNT_TYPE_LABEL[type], value: formatKrw(total) }))
-                : []),
-            ]}
+        const balanceByType = ACCOUNT_TYPES.map((type) => ({
+          type,
+          rows: data.filter((row) => row.account.account_type === type),
+          total: data
+            .filter((row) => row.account.account_type === type)
+            .reduce((sum, row) => sum + Number(row.balance), 0),
+        })).filter((entry) => entry.rows.length > 0);
+
+        const totalBalance = data.reduce((sum, row) => sum + Number(row.balance), 0);
+
+        const shouldGroup = data.length >= GROUP_THRESHOLD;
+
+        const renderRow = (row: AccountWithBalanceOut) => (
+          <AccountRow
+            key={row.account.id}
+            row={row}
+            users={users}
+            syncPending={syncMutation.isPending}
+            onSync={() => syncMutation.mutate(row.account.id)}
+            onEdit={() => setFormTarget(row)}
+            onDelete={() => setDeactivateTarget(row.account.id)}
           />
+        );
 
-          {shouldGroup ? (
-            <div className="space-y-4">
-              {balanceByType.map(({ type, rows, total }) => (
-                <CollapsibleGroup
-                  key={type}
-                  header={
-                    <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                      {ACCOUNT_TYPE_LABEL[type]} ({rows.length})
-                    </span>
-                  }
-                  amount={formatKrw(total)}
-                  defaultOpen
-                >
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">{rows.map(renderRow)}</div>
-                </CollapsibleGroup>
-              ))}
+        return (
+          <div className="space-y-6">
+            <div className="flex justify-end gap-2">
+              <Button size="sm" variant="secondary" icon={<Download size={14} />} onClick={() => setImportOpen(true)}>
+                growlio에서 가져오기
+              </Button>
+              <Button size="sm" icon={<Plus size={14} />} onClick={() => setFormTarget("new")}>
+                계좌 추가
+              </Button>
             </div>
-          ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">{data.map(renderRow)}</div>
-          )}
-        </>
-      )}
 
-      {formTarget && (
-        <AccountFormModal
-          initial={formTarget === "new" ? EMPTY_DRAFT : draftFromAccount(formTarget)}
-          title={formTarget === "new" ? "계좌 추가" : "계좌 수정"}
-          amountLabel={formTarget === "new" ? "초기 잔액" : "현재 잔액"}
-          submitLabel={formTarget === "new" ? "추가" : "저장"}
-          submitting={isSaving}
-          users={users}
-          onClose={() => setFormTarget(null)}
-          onSubmit={handleSubmit}
-        />
-      )}
+            {data.length === 0 ? (
+              <EmptyState title="등록된 계좌가 없어요" compact />
+            ) : (
+              <>
+                <InlineStatsBar
+                  items={[
+                    { label: "전체 합계", value: formatKrw(totalBalance) },
+                    ...(balanceByType.length > 1
+                      ? balanceByType.map(({ type, total }) => ({ label: ACCOUNT_TYPE_LABEL[type], value: formatKrw(total) }))
+                      : []),
+                  ]}
+                />
 
-      {deactivateTarget !== null && (
-        <ConfirmModal
-          message="이 계좌를 비활성화할까요?"
-          onConfirm={() => deactivateMutation.mutate(deactivateTarget)}
-          onCancel={() => setDeactivateTarget(null)}
-        />
-      )}
+                {shouldGroup ? (
+                  <div className="space-y-4">
+                    {balanceByType.map(({ type, rows, total }) => (
+                      <CollapsibleGroup
+                        key={type}
+                        header={
+                          <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                            {ACCOUNT_TYPE_LABEL[type]} ({rows.length})
+                          </span>
+                        }
+                        amount={formatKrw(total)}
+                        defaultOpen
+                      >
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">{rows.map(renderRow)}</div>
+                      </CollapsibleGroup>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">{data.map(renderRow)}</div>
+                )}
+              </>
+            )}
 
-      {importOpen && (
-        <GrowlioImportModal
-          title="growlio 계좌 가져오기"
-          queryKey={QUERY_KEYS.growlioBankAccounts}
-          fetchRows={fetchGrowlioAccounts}
-          getRowId={(account) => account.id}
-          getRowAmount={(account) => account.current_value_krw}
-          renderRowMeta={(account) => ({ name: account.name, badge: growlioAssetTypeLabel(account.asset_type) })}
-          importRows={importGrowlioAccounts}
-          buildSuccessMessage={(created) => {
-            const total = created.reduce((sum, account) => sum + Number(account.initial_balance), 0);
-            return `growlio 계좌 ${created.length}개를 가져왔습니다. 합계 ${formatKrw(total)}`;
-          }}
-          existingGrowlioAccountIds={existingGrowlioAccountIds}
-          invalidateKeys={[QUERY_KEYS.accounts]}
-          onClose={() => setImportOpen(false)}
-        />
-      )}
-    </div>
+            {formTarget && (
+              <AccountFormModal
+                initial={formTarget === "new" ? EMPTY_DRAFT : draftFromAccount(formTarget)}
+                title={formTarget === "new" ? "계좌 추가" : "계좌 수정"}
+                amountLabel={formTarget === "new" ? "초기 잔액" : "현재 잔액"}
+                submitLabel={formTarget === "new" ? "추가" : "저장"}
+                submitting={isSaving}
+                users={users}
+                onClose={() => setFormTarget(null)}
+                onSubmit={handleSubmit}
+              />
+            )}
+
+            {deactivateTarget !== null && (
+              <ConfirmModal
+                message="이 계좌를 비활성화할까요?"
+                onConfirm={() => deactivateMutation.mutate(deactivateTarget)}
+                onCancel={() => setDeactivateTarget(null)}
+              />
+            )}
+
+            {importOpen && (
+              <GrowlioImportModal
+                title="growlio 계좌 가져오기"
+                queryKey={QUERY_KEYS.growlioBankAccounts}
+                fetchRows={fetchGrowlioAccounts}
+                getRowId={(account) => account.id}
+                getRowAmount={(account) => account.current_value_krw}
+                renderRowMeta={(account) => ({ name: account.name, badge: growlioAssetTypeLabel(account.asset_type) })}
+                importRows={importGrowlioAccounts}
+                buildSuccessMessage={(created) => {
+                  const total = created.reduce((sum, account) => sum + Number(account.initial_balance), 0);
+                  return `growlio 계좌 ${created.length}개를 가져왔습니다. 합계 ${formatKrw(total)}`;
+                }}
+                existingGrowlioAccountIds={existingGrowlioAccountIds}
+                invalidateKeys={[QUERY_KEYS.accounts]}
+                onClose={() => setImportOpen(false)}
+              />
+            )}
+          </div>
+        );
+      }}
+    </QueryBoundary>
   );
 }
 

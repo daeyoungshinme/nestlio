@@ -6,11 +6,10 @@ import Button from "@/components/common/Button";
 import AssetRow from "@/components/accounts/AssetRow";
 import ConfirmModal from "@/components/common/ConfirmModal";
 import EmptyState from "@/components/common/EmptyState";
-import ErrorState from "@/components/common/ErrorState";
 import FormInput from "@/components/common/FormInput";
 import Modal from "@/components/common/Modal";
 import OwnerSelect from "@/components/common/OwnerSelect";
-import SkeletonCard from "@/components/common/SkeletonCard";
+import QueryBoundary from "@/components/common/QueryBoundary";
 import InlineStatsBar from "@/components/common/InlineStatsBar";
 import { createLoan, deactivateLoan, updateLoan } from "@/api/loans";
 import { QUERY_KEYS } from "@/constants/queryKeys";
@@ -19,7 +18,6 @@ import { useCrudMutations } from "@/hooks/useCrudMutations";
 import { useLoans } from "@/hooks/useReferenceData";
 import { accountsSectionLink } from "@/constants/routes";
 import { formatKrw, formatKrwPreview, formatSyncedAt, resolveOwnerLabel, toAmountInputValue } from "@/utils/format";
-import { extractErrorMessage } from "@/utils/error";
 import type { LoanOut, RepaymentMethod, UserOut } from "@/types";
 
 const REPAYMENT_METHOD_LABEL: Record<RepaymentMethod, string> = {
@@ -86,13 +84,7 @@ export default function LoansSection({ users }: Props) {
   const [formTarget, setFormTarget] = useState<"new" | LoanOut | null>(null);
   const [deactivateTarget, setDeactivateTarget] = useState<number | null>(null);
 
-  const {
-    data,
-    isLoading,
-    isError,
-    error,
-    refetch,
-  } = useLoans();
+  const loansQuery = useLoans();
 
   const { createMutation, updateMutation, removeMutation: deactivateMutation } = useCrudMutations({
     invalidateKeys: [QUERY_KEYS.loans],
@@ -103,21 +95,6 @@ export default function LoansSection({ users }: Props) {
     onRemoveSuccess: () => setDeactivateTarget(null),
   });
 
-  if (isError) {
-    return (
-      <ErrorState
-        title="대출을 불러오지 못했어요"
-        message={extractErrorMessage(error)}
-        onRetry={() => void refetch()}
-      />
-    );
-  }
-
-  if (isLoading || !data) {
-    return <SkeletonCard rows={4} />;
-  }
-
-  const totalMonthly = data.reduce((sum, l) => sum + Number(l.monthly_payment), 0);
   const isSaving = createMutation.isPending || updateMutation.isPending;
 
   const handleSubmit = (draft: Draft) => {
@@ -129,52 +106,60 @@ export default function LoansSection({ users }: Props) {
   };
 
   return (
-    <div className="space-y-4">
-      <div className="flex justify-end">
-        <Button size="sm" icon={<Plus size={14} />} onClick={() => setFormTarget("new")}>
-          대출 추가
-        </Button>
-      </div>
+    <QueryBoundary query={loansQuery} errorMessage="대출을 불러오지 못했어요">
+      {(data) => {
+        const totalMonthly = data.reduce((sum, l) => sum + Number(l.monthly_payment), 0);
 
-      {data.length === 0 ? (
-        <EmptyState title="등록된 대출이 없어요" compact />
-      ) : (
-        <div className="space-y-4">
-          <InlineStatsBar items={[{ label: "월납입금액 합계", value: formatKrw(totalMonthly), tone: "negative" }]} />
-          <div className="space-y-2">
-            {data.map((loan) => (
-              <LoanRow
-                key={loan.id}
-                loan={loan}
+        return (
+          <div className="space-y-4">
+            <div className="flex justify-end">
+              <Button size="sm" icon={<Plus size={14} />} onClick={() => setFormTarget("new")}>
+                대출 추가
+              </Button>
+            </div>
+
+            {data.length === 0 ? (
+              <EmptyState title="등록된 대출이 없어요" compact />
+            ) : (
+              <div className="space-y-4">
+                <InlineStatsBar items={[{ label: "월납입금액 합계", value: formatKrw(totalMonthly), tone: "negative" }]} />
+                <div className="space-y-2">
+                  {data.map((loan) => (
+                    <LoanRow
+                      key={loan.id}
+                      loan={loan}
+                      users={users}
+                      onEdit={() => setFormTarget(loan)}
+                      onDelete={() => setDeactivateTarget(loan.id)}
+                    />
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {formTarget && (
+              <LoanFormModal
+                initial={formTarget === "new" ? EMPTY_DRAFT : draftFromLoan(formTarget)}
+                title={formTarget === "new" ? "대출 추가" : "대출 수정"}
+                submitLabel={formTarget === "new" ? "추가" : "저장"}
+                submitting={isSaving}
                 users={users}
-                onEdit={() => setFormTarget(loan)}
-                onDelete={() => setDeactivateTarget(loan.id)}
+                onClose={() => setFormTarget(null)}
+                onSubmit={handleSubmit}
               />
-            ))}
+            )}
+
+            {deactivateTarget !== null && (
+              <ConfirmModal
+                message="이 대출을 비활성화할까요?"
+                onConfirm={() => deactivateMutation.mutate(deactivateTarget)}
+                onCancel={() => setDeactivateTarget(null)}
+              />
+            )}
           </div>
-        </div>
-      )}
-
-      {formTarget && (
-        <LoanFormModal
-          initial={formTarget === "new" ? EMPTY_DRAFT : draftFromLoan(formTarget)}
-          title={formTarget === "new" ? "대출 추가" : "대출 수정"}
-          submitLabel={formTarget === "new" ? "추가" : "저장"}
-          submitting={isSaving}
-          users={users}
-          onClose={() => setFormTarget(null)}
-          onSubmit={handleSubmit}
-        />
-      )}
-
-      {deactivateTarget !== null && (
-        <ConfirmModal
-          message="이 대출을 비활성화할까요?"
-          onConfirm={() => deactivateMutation.mutate(deactivateTarget)}
-          onCancel={() => setDeactivateTarget(null)}
-        />
-      )}
-    </div>
+        );
+      }}
+    </QueryBoundary>
   );
 }
 
