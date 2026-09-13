@@ -1,18 +1,10 @@
-import logging
 import uuid
-from datetime import date, datetime, timedelta
+from datetime import date, datetime
 
 from sqlalchemy.orm import Session
 
 from app.models.event import Event
-from app.models.notification_log import NotificationLog
-from app.models.recurring_expense import RecurringExpense
-from app.models.user import User
-from app.services import gmail_service, notification_settings_service
-from app.services.google_auth import GoogleNotConnectedError, is_connected
-from app.utils.dates import advance_due_date, now_kst, to_kst_naive
-
-logger = logging.getLogger("event_service")
+from app.utils.dates import advance_due_date, now_kst
 
 _MAX_OCCURRENCE_STEPS = 2000
 
@@ -21,7 +13,7 @@ class ImportedEventReadOnlyError(Exception):
     """Raised when an update/delete is attempted on a source='google_import' Event."""
 
 
-def _occurrences_in_range(event: Event, range_start: date, range_end: date) -> list[datetime]:
+def occurrences_in_range(event: Event, range_start: date, range_end: date) -> list[datetime]:
     """Expand a (possibly recurring) event into its occurrence datetimes within [range_start, range_end]."""
     if event.frequency == "once":
         d = event.start_at.date()
@@ -76,7 +68,7 @@ def list_events(db: Session, range_start: date, range_end: date) -> list[dict]:
     )
     results: list[dict] = []
     for event in candidates:
-        for occurrence_start in _occurrences_in_range(event, range_start, range_end):
+        for occurrence_start in occurrences_in_range(event, range_start, range_end):
             results.append(to_out_dict(event, occurrence_start))
     results.sort(key=lambda r: r["occurrence_start"])
     return results
@@ -100,6 +92,8 @@ def create_event(
     reminder_minutes_before: int | None = None,
     assignee_id: uuid.UUID | None = None,
 ) -> Event:
+    from app.services import event_calendar_service, event_reminder_service
+
     event = Event(
         title=title,
         description=description,
@@ -116,12 +110,14 @@ def create_event(
     db.add(event)
     db.commit()
     db.refresh(event)
-    _sync_to_google(db, event)
-    _notify_other_spouse(db, event, actor_id=created_by, action_label="새 일정이 등록되었습니다")
+    event_calendar_service.sync_to_google(db, event)
+    event_reminder_service.notify_other_spouse(db, event, actor_id=created_by, action_label="새 일정이 등록되었습니다")
     return event
 
 
 def update_event(db: Session, event_id: int, actor_id: uuid.UUID, **fields) -> Event | None:
+    from app.services import event_calendar_service, event_reminder_service
+
     event = db.get(Event, event_id)
     if event is None:
         return None
@@ -131,12 +127,14 @@ def update_event(db: Session, event_id: int, actor_id: uuid.UUID, **fields) -> E
         setattr(event, key, value)
     db.commit()
     db.refresh(event)
-    _sync_to_google(db, event)
-    _notify_other_spouse(db, event, actor_id=actor_id, action_label="일정이 변경되었습니다")
+    event_calendar_service.sync_to_google(db, event)
+    event_reminder_service.notify_other_spouse(db, event, actor_id=actor_id, action_label="일정이 변경되었습니다")
     return event
 
 
 def delete_event(db: Session, event_id: int, actor_id: uuid.UUID, now: datetime | None = None) -> bool:
+    from app.services import event_calendar_service, event_reminder_service
+
     now = now or now_kst()
     event = db.get(Event, event_id)
     if event is None:
@@ -146,10 +144,10 @@ def delete_event(db: Session, event_id: int, actor_id: uuid.UUID, now: datetime 
         # 사용자가 만든 것이 아니므로 google_calendar_service.delete_event를 호출해 실제로 지우지 않는다.
         event.dismissed_at = now
         db.commit()
-        _notify_other_spouse(db, event, actor_id=actor_id, action_label="Google 캘린더 일정이 목록에서 숨겨졌습니다")
+        event_reminder_service.notify_other_spouse(db, event, actor_id=actor_id, action_label="Google 캘린더 일정이 목록에서 숨겨졌습니다")
         return True
-    _remove_from_google(event)
-    _notify_other_spouse(db, event, actor_id=actor_id, action_label="일정이 삭제되었습니다")
+    event_calendar_service.remove_from_google(event)
+    event_reminder_service.notify_other_spouse(db, event, actor_id=actor_id, action_label="일정이 삭제되었습니다")
     db.delete(event)
     db.commit()
     return True
@@ -158,9 +156,9 @@ def delete_event(db: Session, event_id: int, actor_id: uuid.UUID, now: datetime 
 def set_completed(db: Session, event_id: int, completed: bool, now: datetime | None = None) -> Event | None:
     """완료 체크 토글 - google_import 일정도 허용한다(원본 내용 수정이 아니라 nestlio 로컬
     메타데이터일 뿐이므로 update_event의 ImportedEventReadOnlyError 가드를 적용하지 않는다).
-    구글 캘린더에는 완료 개념이 없어 _sync_to_google을 호출하지 않고, 체크박스 토글마다 배우자에게
-    메일이 가면 과도하므로 _notify_other_spouse도 호출하지 않는다(담당자 배정 자체는 create_event/
-    update_event가 이미 알린다)."""
+    구글 캘린더에는 완료 개념이 없어 event_calendar_service.sync_to_google을 호출하지 않고, 체크박스
+    토글마다 배우자에게 메일이 가면 과도하므로 event_reminder_service.notify_other_spouse도 호출하지
+    않는다(담당자 배정 자체는 create_event/update_event가 이미 알린다)."""
     now = now or now_kst()
     event = db.get(Event, event_id)
     if event is None:
@@ -169,258 +167,3 @@ def set_completed(db: Session, event_id: int, completed: bool, now: datetime | N
     db.commit()
     db.refresh(event)
     return event
-
-
-def _parse_google_event(item: dict) -> dict | None:
-    """Convert a raw Google Calendar event resource into Event-creation fields.
-    Returns None for items missing a usable start time (defensive - Google always
-    sends one for non-cancelled events, but guards against malformed payloads)."""
-    start = item.get("start")
-    end = item.get("end")
-    if not start:
-        return None
-
-    if "date" in start:
-        all_day = True
-        start_at = datetime.combine(date.fromisoformat(start["date"]), datetime.min.time())
-        end_at = None
-        if end and "date" in end:
-            # Google's all-day end date is exclusive (day after the last day) - invert that
-            # to match how nestlio itself stores/exports all-day events (see _event_body_for_event).
-            end_at = datetime.combine(date.fromisoformat(end["date"]) - timedelta(days=1), datetime.min.time())
-    elif "dateTime" in start:
-        all_day = False
-        start_at = to_kst_naive(datetime.fromisoformat(start["dateTime"]))
-        end_at = None
-        if end and "dateTime" in end:
-            end_at = to_kst_naive(datetime.fromisoformat(end["dateTime"]))
-    else:
-        return None
-
-    return {
-        "title": item.get("summary") or "(제목 없음)",
-        "description": item.get("description"),
-        "location": item.get("location"),
-        "all_day": all_day,
-        "start_at": start_at,
-        "end_at": end_at,
-        # Google already expands recurring events into individual instances for us
-        # (singleEvents=True in google_calendar_service.list_events), so each imported
-        # occurrence is stored as a flat one-off rather than re-deriving nestlio's own
-        # weekly/monthly recurrence rule from Google's RRULE.
-        "frequency": "once",
-        "recurrence_end_date": None,
-        "reminder_minutes_before": None,
-    }
-
-
-def import_from_google(db: Session, range_start: date, range_end: date, actor_id: uuid.UUID) -> dict:
-    """Pull events from the connected Google Calendar for [range_start, range_end] and
-    upsert them as read-only (source='google_import') Event rows. Idempotent: re-running
-    for the same range updates existing imported rows in place instead of duplicating them.
-    Rows the user has locally dismissed (dismissed_at set) are left untouched and counted
-    as skipped rather than being resurrected."""
-    if not is_connected():
-        raise GoogleNotConnectedError("Google 계정이 연결되어 있지 않습니다.")
-
-    from app.services import google_calendar_service  # lazy import: only needed when connected
-
-    # Events nestlio itself already pushed to Google must not be reimported. nestlio has two
-    # outbound paths: native Event rows (_sync_to_google -> Event.google_calendar_event_id) and
-    # the scheduler's recurring-expense reminders (jobs.py::_sync_upcoming_calendar_events ->
-    # RecurringExpense.calendar_event_id) - the latter includes recurring expenses linked to
-    # 재무목표/재무설계 plan items, which would otherwise show up twice (once as the existing
-    # "반복 내역 예정" card, once as a freshly imported event). Google expands recurring events
-    # into instances whose id is "{masterId}_{RECURRENCEID}", while nestlio stores the *master*
-    # id on both id columns above - so dedup on recurringEventId (falling back to id for
-    # non-recurring events) rather than raw id.
-    own_master_ids = {
-        row[0]
-        for row in db.query(Event.google_calendar_event_id)
-        .filter(Event.google_calendar_event_id.isnot(None))
-        .filter(Event.source == "native")
-    }
-    own_master_ids |= {
-        row[0]
-        for row in db.query(RecurringExpense.calendar_event_id)
-        .filter(RecurringExpense.calendar_event_id.isnot(None))
-    }
-
-    created = updated = skipped = 0
-    for item in google_calendar_service.list_events(range_start, range_end):
-        if item.get("status") == "cancelled":
-            continue
-        master_id = item.get("recurringEventId") or item.get("id")
-        if master_id in own_master_ids:
-            continue
-
-        try:
-            parsed = _parse_google_event(item)
-        except Exception:
-            # 구글 일정 하나가 예상 밖 포맷(예: 특이한 dateTime)이어도 그 달 전체 import를
-            # 중단시키지 않는다 - 해당 건만 건너뛰고 나머지는 계속 가져온다.
-            logger.warning("구글 일정 파싱 실패, 건너뜀 (id=%s)", item.get("id"), exc_info=True)
-            skipped += 1
-            continue
-        if parsed is None:
-            skipped += 1
-            continue
-
-        existing = (
-            db.query(Event)
-            .filter(Event.google_calendar_event_id == item["id"], Event.source == "google_import")
-            .first()
-        )
-        if existing:
-            if existing.dismissed_at is not None:
-                skipped += 1
-                continue
-            for key, value in parsed.items():
-                setattr(existing, key, value)
-            updated += 1
-        else:
-            db.add(
-                Event(
-                    **parsed,
-                    google_calendar_event_id=item["id"],
-                    source="google_import",
-                    created_by=actor_id,
-                )
-            )
-            created += 1
-
-    db.commit()
-    return {"created": created, "updated": updated, "skipped": skipped}
-
-
-def send_due_reminders(db: Session, now: datetime, window_minutes: int = 30) -> int:
-    """Send reminder emails for occurrences whose reminder time has arrived (or arrives within
-    `window_minutes`) and whose event is still upcoming. Meant to be called by a periodic
-    scheduler job — catch-up safe: a missed/delayed tick is recovered on the next run, and
-    NotificationLog dedup prevents duplicate sends."""
-    if not is_connected():
-        return 0
-    if not notification_settings_service.is_enabled(db, "event_reminder"):
-        return 0
-
-    sent = 0
-    candidates = db.query(Event).filter(Event.reminder_minutes_before.isnot(None)).all()
-    due_pairs = [
-        (event, occurrence) for event in candidates for occurrence in _due_occurrences(event, now, window_minutes)
-    ]
-    already_notified = _already_notified_pairs(db, {event.id for event, _ in due_pairs})
-    for event, occurrence in due_pairs:
-        if (event.id, occurrence.isoformat()) in already_notified:
-            continue
-        _send_reminder_email(db, event, occurrence)
-        _log_notified(db, event.id, occurrence)
-        sent += 1
-    return sent
-
-
-def _due_occurrences(event: Event, now: datetime, window_minutes: int) -> list[datetime]:
-    lead = timedelta(minutes=event.reminder_minutes_before)
-    range_start = now.date()
-    range_end = (now + lead + timedelta(days=1)).date()
-    due = []
-    for occurrence in _occurrences_in_range(event, range_start, range_end):
-        reminder_at = occurrence - lead
-        # 리마인더 시각이 도래했고(윈도우 안에 들어왔고) 일정 자체는 아직 미래면 발송 대상.
-        # 지난 틱이 밀려서 reminder_at이 now보다 과거여도 잡는다 — 중복은 dedup이 막는다.
-        if reminder_at <= now + timedelta(minutes=window_minutes) and now < occurrence:
-            due.append(occurrence)
-    return due
-
-
-def _already_notified_pairs(db: Session, event_ids: set[int]) -> set[tuple[int, str]]:
-    """(event_id, occurrence.isoformat()) 쌍을 한 번의 쿼리로 모아온다 — occurrence마다
-    개별 SELECT를 던지던 이전 방식(N+1)을 피하기 위함."""
-    if not event_ids:
-        return set()
-    rows = (
-        db.query(NotificationLog.related_id, NotificationLog.year_month)
-        .filter(
-            NotificationLog.notif_type == "event_reminder",
-            NotificationLog.related_id.in_(event_ids),
-        )
-        .all()
-    )
-    return {(related_id, year_month) for related_id, year_month in rows}
-
-
-def _log_notified(db: Session, event_id: int, occurrence: datetime) -> None:
-    db.add(
-        NotificationLog(
-            notif_type="event_reminder",
-            related_type="event",
-            related_id=event_id,
-            year_month=occurrence.isoformat(),
-            status="sent",
-        )
-    )
-    db.commit()
-
-
-def _send_reminder_email(db: Session, event: Event, occurrence: datetime) -> None:
-    body = _event_summary_text(event, occurrence)
-    try:
-        gmail_service.send_email(
-            f"[Nestlio] 일정 리마인더: {event.title}", body, to=notification_settings_service.get_recipients(db)
-        )
-    except Exception:  # best-effort 부수효과, 로그만 남기고 진행
-        logger.exception("일정 리마인더 이메일 발송 실패: %s", event.title)
-
-
-def _notify_other_spouse(db: Session, event: Event, actor_id: uuid.UUID, action_label: str) -> None:
-    """설정된 수신자 목록(notification_settings_service.get_recipients) 중 행위자 본인 이메일은
-    제외하고 보낸다 - 자기 자신에게 "방금 내가 한 행동" 메일을 보낼 필요는 없기 때문. 다른 발송
-    경로(notification_service)와 달리 이 함수만 행위자를 배제하는 이유가 여기 있다."""
-    if not is_connected():
-        return
-    actor = db.get(User, actor_id)
-    recipients = [email for email in notification_settings_service.get_recipients(db) if actor is None or email != actor.email]
-    if not recipients:
-        return
-    body = _event_summary_text(event, event.start_at, header=action_label)
-    try:
-        gmail_service.send_email(f"[Nestlio] {action_label}: {event.title}", body, to=recipients)
-    except Exception:  # best-effort 부수효과, 로그만 남기고 진행
-        logger.exception("일정 알림 이메일 발송 실패: %s", event.title)
-
-
-def _event_summary_text(event: Event, when: datetime, header: str | None = None) -> str:
-    lines = [header] if header else []
-    lines.append(event.title)
-    lines.append(f"일시: {when.strftime('%Y-%m-%d %H:%M')}")
-    if event.location:
-        lines.append(f"장소: {event.location}")
-    if event.description:
-        lines.append("")
-        lines.append(event.description)
-    return "\n".join(lines)
-
-
-def _sync_to_google(db: Session, event: Event) -> None:
-    if not is_connected():
-        return
-    from app.services import google_calendar_service  # lazy import: only needed when connected
-
-    try:
-        google_calendar_service.upsert_event(db, event)
-    except GoogleNotConnectedError:
-        pass
-    except Exception:  # best-effort 부수효과, 로그만 남기고 진행
-        logger.exception("캘린더 이벤트 동기화 실패: %s", event.title)
-
-
-def _remove_from_google(event: Event) -> None:
-    if not is_connected():
-        return
-    from app.services import google_calendar_service  # lazy import: only needed when connected
-
-    try:
-        google_calendar_service.delete_event(event)
-    except GoogleNotConnectedError:
-        pass
-    except Exception:  # best-effort 부수효과, 로그만 남기고 진행
-        logger.exception("캘린더 이벤트 삭제 실패: %s", event.title)

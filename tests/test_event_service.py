@@ -6,7 +6,7 @@ import pytest
 
 from app.models.event import Event
 from app.models.user import User
-from app.services import event_service
+from app.services import event_calendar_service, event_reminder_service, event_service
 from app.services.event_service import ImportedEventReadOnlyError
 from app.services.google_auth import GoogleNotConnectedError
 
@@ -25,10 +25,10 @@ def test_occurrences_once_within_and_outside_range(seeded_db):
         seeded_db["db"], created_by=user.id, title="병원", start_at=datetime(2026, 7, 15, 10, 0)
     )
 
-    assert event_service._occurrences_in_range(event, date(2026, 7, 1), date(2026, 7, 31)) == [
+    assert event_service.occurrences_in_range(event, date(2026, 7, 1), date(2026, 7, 31)) == [
         datetime(2026, 7, 15, 10, 0)
     ]
-    assert event_service._occurrences_in_range(event, date(2026, 8, 1), date(2026, 8, 31)) == []
+    assert event_service.occurrences_in_range(event, date(2026, 8, 1), date(2026, 8, 31)) == []
 
 
 def test_occurrences_weekly_expands_across_range(seeded_db):
@@ -41,7 +41,7 @@ def test_occurrences_weekly_expands_across_range(seeded_db):
         frequency="weekly",
     )
 
-    occurrences = event_service._occurrences_in_range(event, date(2026, 7, 1), date(2026, 7, 31))
+    occurrences = event_service.occurrences_in_range(event, date(2026, 7, 1), date(2026, 7, 31))
 
     assert occurrences == [
         datetime(2026, 7, 1, 9, 0),
@@ -63,7 +63,7 @@ def test_occurrences_monthly_stops_at_recurrence_end_date(seeded_db):
         recurrence_end_date=date(2026, 8, 15),
     )
 
-    occurrences = event_service._occurrences_in_range(event, date(2026, 6, 1), date(2026, 12, 31))
+    occurrences = event_service.occurrences_in_range(event, date(2026, 6, 1), date(2026, 12, 31))
 
     assert occurrences == [datetime(2026, 6, 1, 8, 0), datetime(2026, 7, 1, 8, 0), datetime(2026, 8, 1, 8, 0)]
 
@@ -186,8 +186,8 @@ def test_set_completed_allowed_on_imported_event(seeded_db):
     assert done.completed_at == datetime(2026, 7, 10, 12, 0)
 
 
-@patch("app.services.event_service.gmail_service.send_email")
-@patch("app.services.event_service.is_connected", return_value=True)
+@patch("app.services.event_reminder_service.gmail_service.send_email")
+@patch("app.services.event_reminder_service.is_connected", return_value=True)
 def test_create_event_notifies_other_spouse_only(mock_connected, mock_send, seeded_db):
     db, user = seeded_db["db"], seeded_db["user"]
     spouse2 = _spouse2(db)
@@ -199,8 +199,8 @@ def test_create_event_notifies_other_spouse_only(mock_connected, mock_send, seed
     assert kwargs["to"] == [spouse2.email]
 
 
-@patch("app.services.event_service.gmail_service.send_email")
-@patch("app.services.event_service.is_connected", return_value=True)
+@patch("app.services.event_reminder_service.gmail_service.send_email")
+@patch("app.services.event_reminder_service.is_connected", return_value=True)
 def test_send_due_reminders_is_deduped(mock_connected, mock_send, seeded_db):
     db, user = seeded_db["db"], seeded_db["user"]
     _spouse2(db)
@@ -214,8 +214,8 @@ def test_send_due_reminders_is_deduped(mock_connected, mock_send, seeded_db):
     mock_send.reset_mock()  # ignore the "event created" notification sent above
 
     now = datetime(2026, 7, 15, 9, 0)
-    first = event_service.send_due_reminders(db, now=now, window_minutes=15)
-    second = event_service.send_due_reminders(db, now=now, window_minutes=15)
+    first = event_reminder_service.send_due_reminders(db, now=now, window_minutes=15)
+    second = event_reminder_service.send_due_reminders(db, now=now, window_minutes=15)
 
     assert first == 1
     assert second == 0
@@ -223,8 +223,8 @@ def test_send_due_reminders_is_deduped(mock_connected, mock_send, seeded_db):
     assert event.id  # sanity: event row still intact
 
 
-@patch("app.services.event_service.gmail_service.send_email")
-@patch("app.services.event_service.is_connected", return_value=True)
+@patch("app.services.event_reminder_service.gmail_service.send_email")
+@patch("app.services.event_reminder_service.is_connected", return_value=True)
 def test_send_due_reminders_wide_window_catches_delayed_tick(mock_connected, mock_send, seeded_db):
     """리마인더 시각(09:00)을 겨냥한 cron 틱이 통째로 밀려도, 다음 틱이 30분 윈도우로
     소급해서 잡아야 한다 — GitHub Actions cron이 best-effort라서."""
@@ -236,12 +236,12 @@ def test_send_due_reminders_wide_window_catches_delayed_tick(mock_connected, moc
     mock_send.reset_mock()
 
     # 09:00 틱은 누락됐고 09:20에야 실행됨 — 15분 윈도우였다면 놓쳤을 것
-    late = event_service.send_due_reminders(db, now=datetime(2026, 7, 15, 9, 20), window_minutes=30)
+    late = event_reminder_service.send_due_reminders(db, now=datetime(2026, 7, 15, 9, 20), window_minutes=30)
     assert late == 1
 
 
-@patch("app.services.event_service.gmail_service.send_email")
-@patch("app.services.event_service.is_connected", return_value=False)
+@patch("app.services.event_reminder_service.gmail_service.send_email")
+@patch("app.services.event_reminder_service.is_connected", return_value=False)
 def test_no_notification_when_google_not_connected(mock_connected, mock_send, seeded_db):
     db, user = seeded_db["db"], seeded_db["user"]
     _spouse2(db)
@@ -251,15 +251,15 @@ def test_no_notification_when_google_not_connected(mock_connected, mock_send, se
     mock_send.assert_not_called()
 
 
-@patch("app.services.event_service.is_connected", return_value=False)
+@patch("app.services.event_calendar_service.is_connected", return_value=False)
 def test_import_from_google_requires_connection(mock_connected, seeded_db):
     db, user = seeded_db["db"], seeded_db["user"]
     with pytest.raises(GoogleNotConnectedError):
-        event_service.import_from_google(db, date(2026, 7, 1), date(2026, 7, 31), actor_id=user.id)
+        event_calendar_service.import_from_google(db, date(2026, 7, 1), date(2026, 7, 31), actor_id=user.id)
 
 
 @patch("app.services.google_calendar_service.list_events")
-@patch("app.services.event_service.is_connected", return_value=True)
+@patch("app.services.event_calendar_service.is_connected", return_value=True)
 def test_import_from_google_creates_readonly_events(mock_connected, mock_list, seeded_db):
     db, user = seeded_db["db"], seeded_db["user"]
     mock_list.return_value = [
@@ -271,7 +271,7 @@ def test_import_from_google_creates_readonly_events(mock_connected, mock_list, s
         }
     ]
 
-    result = event_service.import_from_google(db, date(2026, 7, 1), date(2026, 7, 31), actor_id=user.id)
+    result = event_calendar_service.import_from_google(db, date(2026, 7, 1), date(2026, 7, 31), actor_id=user.id)
 
     assert result == {"created": 1, "updated": 0, "skipped": 0}
     items = event_service.list_events(db, date(2026, 7, 1), date(2026, 7, 31))
@@ -281,7 +281,7 @@ def test_import_from_google_creates_readonly_events(mock_connected, mock_list, s
 
 
 @patch("app.services.google_calendar_service.list_events")
-@patch("app.services.event_service.is_connected", return_value=True)
+@patch("app.services.event_calendar_service.is_connected", return_value=True)
 def test_import_from_google_is_idempotent(mock_connected, mock_list, seeded_db):
     db, user = seeded_db["db"], seeded_db["user"]
     mock_list.return_value = [
@@ -292,7 +292,7 @@ def test_import_from_google_is_idempotent(mock_connected, mock_list, seeded_db):
             "end": {"dateTime": "2026-07-10T10:00:00+09:00"},
         }
     ]
-    first = event_service.import_from_google(db, date(2026, 7, 1), date(2026, 7, 31), actor_id=user.id)
+    first = event_calendar_service.import_from_google(db, date(2026, 7, 1), date(2026, 7, 31), actor_id=user.id)
 
     mock_list.return_value = [
         {
@@ -302,7 +302,7 @@ def test_import_from_google_is_idempotent(mock_connected, mock_list, seeded_db):
             "end": {"dateTime": "2026-07-10T10:30:00+09:00"},
         }
     ]
-    second = event_service.import_from_google(db, date(2026, 7, 1), date(2026, 7, 31), actor_id=user.id)
+    second = event_calendar_service.import_from_google(db, date(2026, 7, 1), date(2026, 7, 31), actor_id=user.id)
 
     assert first == {"created": 1, "updated": 0, "skipped": 0}
     assert second == {"created": 0, "updated": 1, "skipped": 0}
@@ -312,7 +312,7 @@ def test_import_from_google_is_idempotent(mock_connected, mock_list, seeded_db):
 
 
 @patch("app.services.google_calendar_service.list_events")
-@patch("app.services.event_service.is_connected", return_value=True)
+@patch("app.services.event_calendar_service.is_connected", return_value=True)
 def test_import_from_google_skips_own_recurring_event(mock_connected, mock_list, seeded_db):
     db, user = seeded_db["db"], seeded_db["user"]
     native = Event(
@@ -337,7 +337,7 @@ def test_import_from_google_skips_own_recurring_event(mock_connected, mock_list,
         }
     ]
 
-    result = event_service.import_from_google(db, date(2026, 7, 1), date(2026, 7, 31), actor_id=user.id)
+    result = event_calendar_service.import_from_google(db, date(2026, 7, 1), date(2026, 7, 31), actor_id=user.id)
 
     assert result == {"created": 0, "updated": 0, "skipped": 0}
     items = event_service.list_events(db, date(2026, 7, 1), date(2026, 7, 31))
@@ -345,7 +345,7 @@ def test_import_from_google_skips_own_recurring_event(mock_connected, mock_list,
 
 
 @patch("app.services.google_calendar_service.list_events")
-@patch("app.services.event_service.is_connected", return_value=True)
+@patch("app.services.event_calendar_service.is_connected", return_value=True)
 def test_import_from_google_skips_malformed_item_but_keeps_going(mock_connected, mock_list, seeded_db):
     db, user = seeded_db["db"], seeded_db["user"]
     mock_list.return_value = [
@@ -358,7 +358,7 @@ def test_import_from_google_skips_malformed_item_but_keeps_going(mock_connected,
         },
     ]
 
-    result = event_service.import_from_google(db, date(2026, 7, 1), date(2026, 7, 31), actor_id=user.id)
+    result = event_calendar_service.import_from_google(db, date(2026, 7, 1), date(2026, 7, 31), actor_id=user.id)
 
     assert result == {"created": 1, "updated": 0, "skipped": 1}
     items = event_service.list_events(db, date(2026, 7, 1), date(2026, 7, 31))
@@ -366,7 +366,7 @@ def test_import_from_google_skips_malformed_item_but_keeps_going(mock_connected,
 
 
 @patch("app.services.google_calendar_service.list_events")
-@patch("app.services.event_service.is_connected", return_value=True)
+@patch("app.services.event_calendar_service.is_connected", return_value=True)
 def test_import_from_google_all_day_end_date_inverts_google_exclusive_end(mock_connected, mock_list, seeded_db):
     db, user = seeded_db["db"], seeded_db["user"]
     mock_list.return_value = [
@@ -378,7 +378,7 @@ def test_import_from_google_all_day_end_date_inverts_google_exclusive_end(mock_c
         }
     ]
 
-    event_service.import_from_google(db, date(2026, 7, 1), date(2026, 7, 31), actor_id=user.id)
+    event_calendar_service.import_from_google(db, date(2026, 7, 1), date(2026, 7, 31), actor_id=user.id)
 
     items = event_service.list_events(db, date(2026, 7, 1), date(2026, 7, 31))
     assert items[0]["all_day"] is True
@@ -386,7 +386,7 @@ def test_import_from_google_all_day_end_date_inverts_google_exclusive_end(mock_c
 
 
 @patch("app.services.google_calendar_service.list_events")
-@patch("app.services.event_service.is_connected", return_value=True)
+@patch("app.services.event_calendar_service.is_connected", return_value=True)
 def test_import_from_google_skips_recurring_expense_pushed_event(mock_connected, mock_list, seeded_db):
     from app.services import recurring_service
 
@@ -407,7 +407,7 @@ def test_import_from_google_skips_recurring_expense_pushed_event(mock_connected,
         }
     ]
 
-    result = event_service.import_from_google(db, date(2026, 7, 1), date(2026, 7, 31), actor_id=user.id)
+    result = event_calendar_service.import_from_google(db, date(2026, 7, 1), date(2026, 7, 31), actor_id=user.id)
 
     assert result == {"created": 0, "updated": 0, "skipped": 0}
     items = event_service.list_events(db, date(2026, 7, 1), date(2026, 7, 31))
@@ -459,7 +459,7 @@ def test_delete_imported_event_is_soft_deleted_and_hidden_from_list(seeded_db):
 
 
 @patch("app.services.google_calendar_service.list_events")
-@patch("app.services.event_service.is_connected", return_value=True)
+@patch("app.services.event_calendar_service.is_connected", return_value=True)
 def test_dismissed_imported_event_does_not_revive_on_reimport(mock_connected, mock_list, seeded_db):
     db, user = seeded_db["db"], seeded_db["user"]
     mock_list.return_value = [
@@ -470,7 +470,7 @@ def test_dismissed_imported_event_does_not_revive_on_reimport(mock_connected, mo
             "end": {"dateTime": "2026-07-10T10:00:00+09:00"},
         }
     ]
-    first = event_service.import_from_google(db, date(2026, 7, 1), date(2026, 7, 31), actor_id=user.id)
+    first = event_calendar_service.import_from_google(db, date(2026, 7, 1), date(2026, 7, 31), actor_id=user.id)
     assert first == {"created": 1, "updated": 0, "skipped": 0}
 
     imported = event_service.list_events(db, date(2026, 7, 1), date(2026, 7, 31))[0]
@@ -480,7 +480,7 @@ def test_dismissed_imported_event_does_not_revive_on_reimport(mock_connected, mo
     assert deleted is True
 
     # 구글 원본 이벤트는 여전히 존재한다고 가정 - 같은 기간을 다시 import해도 되살아나면 안 된다.
-    second = event_service.import_from_google(db, date(2026, 7, 1), date(2026, 7, 31), actor_id=user.id)
+    second = event_calendar_service.import_from_google(db, date(2026, 7, 1), date(2026, 7, 31), actor_id=user.id)
 
     assert second == {"created": 0, "updated": 0, "skipped": 1}
     assert event_service.list_events(db, date(2026, 7, 1), date(2026, 7, 31)) == []
