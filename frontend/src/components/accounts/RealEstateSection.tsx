@@ -6,13 +6,12 @@ import Button from "@/components/common/Button";
 import AssetRow from "@/components/accounts/AssetRow";
 import ConfirmModal from "@/components/common/ConfirmModal";
 import EmptyState from "@/components/common/EmptyState";
-import ErrorState from "@/components/common/ErrorState";
 import FormInput from "@/components/common/FormInput";
 import GrowlioImportModal from "@/components/common/GrowlioImportModal";
 import GrowlioLinkSection from "@/components/accounts/GrowlioLinkSection";
 import Modal from "@/components/common/Modal";
 import OwnerSelect from "@/components/common/OwnerSelect";
-import SkeletonCard from "@/components/common/SkeletonCard";
+import QueryBoundary from "@/components/common/QueryBoundary";
 import StatusBadge from "@/components/common/StatusBadge";
 import InlineStatsBar from "@/components/common/InlineStatsBar";
 import {
@@ -81,7 +80,7 @@ export default function RealEstateSection({ users }: Props) {
   const [importOpen, setImportOpen] = useState(false);
   const queryClient = useQueryClient();
 
-  const { data: allData, isLoading, isError, error, refetch } = useSavingsProducts();
+  const savingsProductsQuery = useSavingsProducts();
   const { data: goals } = useGoals();
 
   const invalidate = () => {
@@ -110,27 +109,6 @@ export default function RealEstateSection({ users }: Props) {
     onError: (err) => toast(extractErrorMessage(err), "error"),
   });
 
-  if (isError) {
-    return (
-      <ErrorState
-        title="부동산을 불러오지 못했어요"
-        message={extractErrorMessage(error)}
-        onRetry={() => void refetch()}
-      />
-    );
-  }
-
-  if (isLoading || !allData) {
-    return <SkeletonCard rows={4} />;
-  }
-
-  const data = allData.filter((p) => p.product_type === "real_estate");
-
-  const existingGrowlioAccountIds = new Set(
-    data.filter((p): p is SavingsProductOut & { growlio_account_id: string } => !!p.growlio_account_id).map((p) => p.growlio_account_id)
-  );
-  const rowsWithGain = data.filter((p) => p.return_amount !== null);
-  const totalGain = rowsWithGain.reduce((sum, p) => sum + Number(p.return_amount), 0);
   const isSaving = createMutation.isPending || updateMutation.isPending;
 
   const goalsFor = (product: SavingsProductOut) =>
@@ -146,101 +124,115 @@ export default function RealEstateSection({ users }: Props) {
   };
 
   return (
-    <div className="space-y-4">
-      <div className="flex justify-end gap-2 flex-wrap">
-        <Button size="sm" variant="secondary" icon={<Download size={14} />} onClick={() => setImportOpen(true)}>
-          growlio에서 가져오기
-        </Button>
-        <Button size="sm" icon={<Plus size={14} />} onClick={() => setFormTarget("new")}>
-          부동산 추가
-        </Button>
-      </div>
+    <QueryBoundary query={savingsProductsQuery} errorMessage="부동산을 불러오지 못했어요">
+      {(allData) => {
+        const data = allData.filter((p) => p.product_type === "real_estate");
 
-      {data.length === 0 ? (
-        <EmptyState title="등록된 부동산이 없어요" compact />
-      ) : (
-        <div className="space-y-4">
-          {rowsWithGain.length > 0 && (
-            <InlineStatsBar
-              items={[
-                { label: "평가손익 합계", value: formatKrw(totalGain), tone: totalGain >= 0 ? "positive" : "negative" },
-              ]}
-            />
-          )}
+        const existingGrowlioAccountIds = new Set(
+          data.filter((p): p is SavingsProductOut & { growlio_account_id: string } => !!p.growlio_account_id).map((p) => p.growlio_account_id)
+        );
+        const rowsWithGain = data.filter((p) => p.return_amount !== null);
+        const totalGain = rowsWithGain.reduce((sum, p) => sum + Number(p.return_amount), 0);
 
-          <div className="space-y-2">
-            {data.map((product) => (
-              <RealEstateRow
-                key={product.id}
-                product={product}
+        return (
+          <div className="space-y-4">
+            <div className="flex justify-end gap-2 flex-wrap">
+              <Button size="sm" variant="secondary" icon={<Download size={14} />} onClick={() => setImportOpen(true)}>
+                growlio에서 가져오기
+              </Button>
+              <Button size="sm" icon={<Plus size={14} />} onClick={() => setFormTarget("new")}>
+                부동산 추가
+              </Button>
+            </div>
+
+            {data.length === 0 ? (
+              <EmptyState title="등록된 부동산이 없어요" compact />
+            ) : (
+              <div className="space-y-4">
+                {rowsWithGain.length > 0 && (
+                  <InlineStatsBar
+                    items={[
+                      { label: "평가손익 합계", value: formatKrw(totalGain), tone: totalGain >= 0 ? "positive" : "negative" },
+                    ]}
+                  />
+                )}
+
+                <div className="space-y-2">
+                  {data.map((product) => (
+                    <RealEstateRow
+                      key={product.id}
+                      product={product}
+                      users={users}
+                      linkedGoals={goalsFor(product)}
+                      syncPending={syncMutation.isPending}
+                      onSync={() => syncMutation.mutate(product.id)}
+                      onEdit={() => setFormTarget(product)}
+                      onDelete={() => setDeactivateTarget(product.id)}
+                    />
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {formTarget && (
+              <RealEstateFormModal
+                initial={formTarget === "new" ? EMPTY_DRAFT : draftFromProduct(formTarget)}
+                product={formTarget === "new" ? null : formTarget}
+                title={formTarget === "new" ? "부동산 추가" : "부동산 수정"}
+                submitLabel={formTarget === "new" ? "추가" : "저장"}
+                submitting={isSaving}
                 users={users}
-                linkedGoals={goalsFor(product)}
-                syncPending={syncMutation.isPending}
-                onSync={() => syncMutation.mutate(product.id)}
-                onEdit={() => setFormTarget(product)}
-                onDelete={() => setDeactivateTarget(product.id)}
+                onClose={() => setFormTarget(null)}
+                onSubmit={handleSubmit}
               />
-            ))}
+            )}
+
+            {deactivateTarget !== null && (
+              <ConfirmModal
+                message="이 부동산을 비활성화할까요?"
+                onConfirm={() => deactivateMutation.mutate(deactivateTarget)}
+                onCancel={() => setDeactivateTarget(null)}
+              />
+            )}
+
+            {importOpen && (
+              <GrowlioImportModal
+                title="부동산 가져오기"
+                queryKey={QUERY_KEYS.growlioRealEstateAccounts}
+                fetchRows={() => fetchGrowlioRealEstate().then((rows) => [...rows].sort((a, b) => a.name.localeCompare(b.name)))}
+                getRowId={(item) => item.id}
+                getRowAmount={(item) => item.market_value_krw}
+                renderRowMeta={(item) => ({
+                  name: item.name,
+                  badge: "부동산",
+                  subtext: item.address,
+                  amountNote: item.mortgage_balance_krw > 0 && (
+                    <span className="block text-[11px] text-amber-600 dark:text-amber-400">
+                      대출 {formatKrw(item.mortgage_balance_krw)}
+                    </span>
+                  ),
+                })}
+                importRows={importGrowlioRealEstate}
+                buildSuccessMessage={(results) => {
+                  const total = results.reduce(
+                    (sum: number, r: RealEstateImportResultOut) => sum + Number(r.savings_product.current_balance),
+                    0,
+                  );
+                  const loanCount = results.filter((r) => r.loan !== null).length;
+                  return (
+                    `growlio 계좌 ${results.length}개를 가져왔습니다. 합계 ${formatKrw(total)}` +
+                    (loanCount > 0 ? ` · 담보대출 ${loanCount}건도 함께 등록했어요.` : "")
+                  );
+                }}
+                existingGrowlioAccountIds={existingGrowlioAccountIds}
+                invalidateKeys={[QUERY_KEYS.savingsProducts, QUERY_KEYS.loans, QUERY_KEYS.dashboardBootstrap]}
+                onClose={() => setImportOpen(false)}
+              />
+            )}
           </div>
-        </div>
-      )}
-
-      {formTarget && (
-        <RealEstateFormModal
-          initial={formTarget === "new" ? EMPTY_DRAFT : draftFromProduct(formTarget)}
-          product={formTarget === "new" ? null : formTarget}
-          title={formTarget === "new" ? "부동산 추가" : "부동산 수정"}
-          submitLabel={formTarget === "new" ? "추가" : "저장"}
-          submitting={isSaving}
-          users={users}
-          onClose={() => setFormTarget(null)}
-          onSubmit={handleSubmit}
-        />
-      )}
-
-      {deactivateTarget !== null && (
-        <ConfirmModal
-          message="이 부동산을 비활성화할까요?"
-          onConfirm={() => deactivateMutation.mutate(deactivateTarget)}
-          onCancel={() => setDeactivateTarget(null)}
-        />
-      )}
-
-      {importOpen && (
-        <GrowlioImportModal
-          title="부동산 가져오기"
-          queryKey={QUERY_KEYS.growlioRealEstateAccounts}
-          fetchRows={() => fetchGrowlioRealEstate().then((rows) => [...rows].sort((a, b) => a.name.localeCompare(b.name)))}
-          getRowId={(item) => item.id}
-          getRowAmount={(item) => item.market_value_krw}
-          renderRowMeta={(item) => ({
-            name: item.name,
-            badge: "부동산",
-            subtext: item.address,
-            amountNote: item.mortgage_balance_krw > 0 && (
-              <span className="block text-[11px] text-amber-600 dark:text-amber-400">
-                대출 {formatKrw(item.mortgage_balance_krw)}
-              </span>
-            ),
-          })}
-          importRows={importGrowlioRealEstate}
-          buildSuccessMessage={(results) => {
-            const total = results.reduce(
-              (sum: number, r: RealEstateImportResultOut) => sum + Number(r.savings_product.current_balance),
-              0,
-            );
-            const loanCount = results.filter((r) => r.loan !== null).length;
-            return (
-              `growlio 계좌 ${results.length}개를 가져왔습니다. 합계 ${formatKrw(total)}` +
-              (loanCount > 0 ? ` · 담보대출 ${loanCount}건도 함께 등록했어요.` : "")
-            );
-          }}
-          existingGrowlioAccountIds={existingGrowlioAccountIds}
-          invalidateKeys={[QUERY_KEYS.savingsProducts, QUERY_KEYS.loans, QUERY_KEYS.dashboardBootstrap]}
-          onClose={() => setImportOpen(false)}
-        />
-      )}
-    </div>
+        );
+      }}
+    </QueryBoundary>
   );
 }
 
