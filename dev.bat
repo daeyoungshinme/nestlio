@@ -63,7 +63,7 @@ echo [dev.bat] seeding default data (skips rows that already exist)...
 if not exist "frontend\node_modules" (
   echo [dev.bat] frontend\node_modules not found, installing frontend dependencies...
   pushd frontend
-  call npm install --legacy-peer-deps
+  call npm install
   popd
 )
 
