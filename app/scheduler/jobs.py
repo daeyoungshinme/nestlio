@@ -3,7 +3,13 @@ import logging
 from collections.abc import Callable
 
 from app.database import SessionLocal
-from app.services import event_service, goal_service, net_worth_service, notification_service, recurring_service
+from app.services import (
+    event_reminder_service,
+    goal_service,
+    net_worth_service,
+    notification_service,
+    recurring_service,
+)
 from app.services.google_auth import GoogleNotConnectedError, is_connected
 from app.utils.dates import now_kst, today_kst
 
@@ -109,4 +115,4 @@ def event_reminder_check(db) -> None:
     유실된다. 중복 발송은 send_due_reminders의 NotificationLog dedup이 막는다."""
     if not is_connected():
         return
-    event_service.send_due_reminders(db, now=now_kst(), window_minutes=30)
+    event_reminder_service.send_due_reminders(db, now=now_kst(), window_minutes=30)

@@ -14,7 +14,7 @@
 - **테스트는 항상 이 파라미터에 고정 날짜를 명시적으로 넘겨 검증한다** — 이게 이 패턴의 핵심 목적이다. 자세한 활용법은 [tests/CLAUDE.md](../../tests/CLAUDE.md) 참고.
 - 서비스 경계에서 `today = today or today_kst()`처럼 폴백 기본값을 두는 것은 허용한다 — 라우터·스케줄러 호출부가 매번 명시하지 않아도 되게 하는 편의다. 다만 폴백에 의존하면 그 함수는 테스트 불가이므로, 새 함수를 추가할 때 실제 시간 판단(경계·경과월 계산 등)은 반드시 주입값으로 하고 폴백은 "인자 생략 시 오늘"의 얇은 방어로만 둔다.
 - 스케줄러 잡(`app/scheduler/jobs.py`)은 합법적 주입 지점이다 — 잡 함수가 `today=today_kst()` / `now=now_kst()`를 명시해 서비스에 넘긴다.
-- **시각은 항상 `app/utils/dates.py`의 `now_kst()`/`today_kst()`로 읽는다.** `datetime.now()`/`date.today()`를 직접 호출하지 않는다 — 앱은 naive datetime을 "KST 벽시계"로 취급하는데(`event_service`가 구글 일정을 KST naive로 저장), 배포 컨테이너 TZ는 UTC라 직접 호출하면 9시간 어긋난다. `render.yaml`이 `TZ=Asia/Seoul`을 주입해 이중으로 방어하지만, 코드에서도 헬퍼를 쓴다.
+- **시각은 항상 `app/utils/dates.py`의 `now_kst()`/`today_kst()`로 읽는다.** `datetime.now()`/`date.today()`를 직접 호출하지 않는다 — 앱은 naive datetime을 "KST 벽시계"로 취급하는데(`event_calendar_service`가 구글 일정을 KST naive로 저장), 배포 컨테이너 TZ는 UTC라 직접 호출하면 9시간 어긋난다. `render.yaml`이 `TZ=Asia/Seoul`을 주입해 이중으로 방어하지만, 코드에서도 헬퍼를 쓴다.
 
 ## Google 연동 가드 (google_auth / gmail_service / google_calendar_service / google_sheets_service)
 
@@ -47,6 +47,16 @@
 - `transaction_service.py`: CRUD(`create_transaction`/`update_transaction`/`delete_transaction`/`get_transaction`/`list_transactions`/`frequent_unique_transactions`)와 저축상품 연결 검증(`_validate_savings_link`), growlio push(`_push_growlio`)만 남는다.
 - `transaction_report_service.py`: 기간 집계 함수들(`period_totals`, `totals_by_user`/`totals_by_owner`, `category_breakdown`/`category_breakdown_by_owner`, `owner_spending_detail`, `rank_owner_contributions`, `monthly_trend`, `trailing_average_by_category`, `trailing_average_by_section`, `trailing_average_savings`, `category_monthly_trend`, `yearly_monthly_breakdown`, `yearly_totals`)이 모여 있다. `*_by_user`(`Transaction.user_id`, 누가 "기록했는지")와 `*_by_owner`(`Transaction.owner_user_id`, 실제 소비 주체 — 공통 지출은 `NULL`)는 서로 다른 축이다: 배우자가 서로 대신 입력해주는 경우가 있어 "부부별 지출" 표시(대시보드/연간리포트)는 `by_user`가 아니라 `by_owner` 계열을 쓴다. 새 집계 함수를 추가할 때 어느 축이 필요한지 먼저 확인한다.
 - `transaction_import_service.py`: CSV export/import 관련 상수(`CSV_HEADER`, `CSV_TYPE_LABELS`, `CSV_TYPE_BY_LABEL`)와 `export_csv`, `import_rows`, `import_csv`, `import_from_sheet_url`, `import_from_spreadsheet`가 있다. 헤더나 라벨을 바꿀 때는 세 상수를 함께 갱신한다. 행 파싱/생성 로직은 `import_rows(db, rows: list[list[str]], user_id)`에 모여 있고, `import_csv`(CSV 파일 문자열)와 `import_from_sheet_url`/`import_from_spreadsheet`(구글 시트, `google_sheets_service` 경유)는 모두 이미 셀 단위로 분리된 `rows`만 만들어 이 함수에 위임하는 얇은 래퍼다 — 카테고리/구분 매칭이나 skip 처리 로직을 바꿀 때는 `import_rows` 하나만 고치면 세 경로 모두에 반영된다.
+
+## event_service.py / event_calendar_service.py / event_reminder_service.py
+
+`event_service.py`는 원래 CRUD·구글 캘린더 연동·리마인더를 한 파일에 모두 담고 있었으나(426줄), 책임별로 3개 파일로 분리했다(`transaction_service`/`savings_product_service`의 분할과 동일한 동기).
+
+- `event_service.py`: CRUD(`create_event`/`update_event`/`delete_event`/`get_event`/`set_completed`)와 반복일정 전개(`occurrences_in_range`), `to_out_dict`, `ImportedEventReadOnlyError`만 남는다.
+- `event_calendar_service.py`: 구글 캘린더 연동(`import_from_google`/`sync_to_google`/`remove_from_google`/`_parse_google_event`)이 모여 있다.
+- `event_reminder_service.py`: 리마인더(`send_due_reminders`/`_due_occurrences`/`_already_notified_pairs`/`_log_notified`/`_send_reminder_email`)와 배우자 알림(`notify_other_spouse`)이 모여 있다. `_due_occurrences`는 `event_service.occurrences_in_range`를 그대로 재사용한다.
+- `event_service.create_event`/`update_event`/`delete_event`는 저장 직후 `event_calendar_service.sync_to_google`/`remove_from_google`과 `event_reminder_service.notify_other_spouse`를 호출해야 하는데, 이 두 모듈이 반대로 `event_service.occurrences_in_range`를 참조하므로 core가 이 둘을 모듈 상단에서 import하면 순환 의존이 생긴다 — 위 "Google 연동 가드" 절의 지연 import 관례를 그대로 가져와 `create_event`/`update_event`/`delete_event` 함수 본문에서만 import한다.
+- 테스트 파일은 나누지 않았다(`tests/CLAUDE.md`에 명시) — `tests/test_event_service.py` 하나가 세 모듈을 모두 다룬다.
 
 ## growlio 연동 공통 헬퍼 (growlio_client.py)
 

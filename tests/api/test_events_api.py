@@ -72,7 +72,7 @@ def test_list_events_includes_recurring_due_in_range(client, seeded_db):
 
 
 @patch("app.services.google_calendar_service.list_events")
-@patch("app.services.event_service.is_connected", return_value=True)
+@patch("app.services.event_calendar_service.is_connected", return_value=True)
 def test_import_google_events_creates_readonly_items(mock_connected, mock_list, client):
     mock_list.return_value = [
         {
@@ -96,13 +96,13 @@ def test_import_google_events_creates_readonly_items(mock_connected, mock_list, 
     assert items[0]["source"] == "google_import"
 
 
-@patch("app.services.event_service.is_connected", return_value=False)
+@patch("app.services.event_calendar_service.is_connected", return_value=False)
 def test_import_google_events_returns_400_when_not_connected(mock_connected, client):
     resp = client.post("/api/v1/events/import-google")
     assert resp.status_code == 400
 
 
-@patch("app.routers.events.event_service.import_from_google")
+@patch("app.routers.events.event_calendar_service.import_from_google")
 def test_import_google_events_returns_409_when_reauth_needed(mock_import, client):
     from app.services.google_auth import GoogleAuthError
 

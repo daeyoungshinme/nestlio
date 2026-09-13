@@ -25,7 +25,7 @@ def to_kst_naive(dt: datetime) -> datetime:
     """tz-aware datetime을 KST 벽시계 기준 naive로 변환한다.
 
     구글 캘린더가 주는 `dateTime`(오프셋 포함 ISO)을 앱의 "naive == KST" 컨벤션에 맞춰
-    저장할 때 쓴다 — `event_service._parse_google_event`. 각 서비스가 `ZoneInfo("Asia/Seoul")`을
+    저장할 때 쓴다 — `event_calendar_service._parse_google_event`. 각 서비스가 `ZoneInfo("Asia/Seoul")`을
     따로 만들지 않도록 여기 KST 하나로 모은다.
     """
     return dt.astimezone(KST).replace(tzinfo=None)
