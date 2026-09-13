@@ -250,7 +250,7 @@ def test_refresh_stale_growlio_links_runs_syncs_when_stale(seeded_db):
             side_effect=lambda *a, **k: calls.append("accounts") or (0, []),
         ),
         patch(
-            "app.services.net_worth_service.savings_product_service.sync_all_from_growlio",
+            "app.services.net_worth_service.savings_product_growlio_service.sync_all_from_growlio",
             side_effect=lambda *a, **k: calls.append("savings") or (1, []),
         ),
         patch(
@@ -270,7 +270,7 @@ def test_refresh_stale_growlio_links_noop_when_fresh(seeded_db):
     with (
         patch("app.database.SessionLocal", return_value=db),
         patch.object(db, "close"),
-        patch("app.services.net_worth_service.savings_product_service.sync_all_from_growlio", sync),
+        patch("app.services.net_worth_service.savings_product_growlio_service.sync_all_from_growlio", sync),
     ):
         net_worth_service.refresh_stale_growlio_links("token", now=NOW)
 
@@ -288,7 +288,7 @@ def test_refresh_stale_growlio_links_stops_quietly_when_growlio_unavailable(seed
             "app.services.net_worth_service.account_service.sync_all_accounts",
             side_effect=GrowlioRequestError("growlio 서버에 연결하지 못했습니다."),
         ),
-        patch("app.services.net_worth_service.savings_product_service.sync_all_from_growlio", later),
+        patch("app.services.net_worth_service.savings_product_growlio_service.sync_all_from_growlio", later),
     ):
         net_worth_service.refresh_stale_growlio_links("token", now=NOW)  # 예외 밖으로 안 던짐
 

@@ -6,8 +6,14 @@ from unittest.mock import patch
 import pytest
 
 from app.models.category import Category
-from app.services import goal_service, savings_product_service, transaction_service
-from app.services.growlio_client import GrowlioNotConfiguredError
+from app.services import (
+    goal_service,
+    savings_product_growlio_service,
+    savings_product_plan_service,
+    savings_product_service,
+    transaction_service,
+)
+from app.services.growlio_client import GrowlioNotConfiguredError, GrowlioSyncError
 
 _OWNER_ID = uuid.uuid4()
 
@@ -155,8 +161,8 @@ def test_deactivate_product_clears_growlio_link(db_session):
 def test_sync_from_growlio_without_link_raises(db_session):
     product = savings_product_service.create_product(db_session, "적금", Decimal("0"), Decimal("0"))
 
-    with pytest.raises(savings_product_service.GrowlioSyncError):
-        savings_product_service.sync_from_growlio(db_session, product.id, "token", now=datetime(2026, 8, 3))
+    with pytest.raises(GrowlioSyncError):
+        savings_product_growlio_service.sync_from_growlio(db_session, product.id, "token", now=datetime(2026, 8, 3))
 
 
 def test_sync_from_growlio_updates_balance_from_matching_account(db_session):
@@ -164,13 +170,13 @@ def test_sync_from_growlio_updates_balance_from_matching_account(db_session):
     savings_product_service.set_growlio_link(db_session, product.id, "growlio-acc-1", True)
 
     with patch(
-        "app.services.savings_product_service.growlio_client.fetch_account_balances",
+        "app.services.savings_product_growlio_service.growlio_client.fetch_account_balances",
         return_value=[
             {"id": "growlio-acc-1", "name": "국민 자유적금", "asset_type": "DEPOSIT", "current_value_krw": 1234500.0},
             {"id": "growlio-acc-2", "name": "다른 계좌", "asset_type": "STOCK_KIS", "current_value_krw": 999.0},
         ],
     ):
-        synced = savings_product_service.sync_from_growlio(
+        synced = savings_product_growlio_service.sync_from_growlio(
             db_session, product.id, "token", now=datetime(2026, 8, 3, 9, 0)
         )
 
@@ -184,11 +190,11 @@ def test_sync_from_growlio_no_matching_account_raises(db_session):
     savings_product_service.set_growlio_link(db_session, product.id, "growlio-acc-missing", True)
 
     with patch(
-        "app.services.savings_product_service.growlio_client.fetch_account_balances",
+        "app.services.savings_product_growlio_service.growlio_client.fetch_account_balances",
         return_value=[{"id": "growlio-acc-1", "name": "다른 계좌", "asset_type": "DEPOSIT", "current_value_krw": 1.0}],
     ):
-        with pytest.raises(savings_product_service.GrowlioSyncError):
-            savings_product_service.sync_from_growlio(db_session, product.id, "token", now=datetime(2026, 8, 3))
+        with pytest.raises(GrowlioSyncError):
+            savings_product_growlio_service.sync_from_growlio(db_session, product.id, "token", now=datetime(2026, 8, 3))
 
 
 def test_sync_from_growlio_propagates_not_configured_error(db_session):
@@ -196,11 +202,11 @@ def test_sync_from_growlio_propagates_not_configured_error(db_session):
     savings_product_service.set_growlio_link(db_session, product.id, "growlio-acc-1", True)
 
     with patch(
-        "app.services.savings_product_service.growlio_client.fetch_account_balances",
+        "app.services.savings_product_growlio_service.growlio_client.fetch_account_balances",
         side_effect=GrowlioNotConfiguredError("not configured"),
     ):
         with pytest.raises(GrowlioNotConfiguredError):
-            savings_product_service.sync_from_growlio(db_session, product.id, "token", now=datetime(2026, 8, 3))
+            savings_product_growlio_service.sync_from_growlio(db_session, product.id, "token", now=datetime(2026, 8, 3))
 
 
 def test_sync_all_from_growlio_syncs_every_linked_product_in_one_growlio_call(db_session):
@@ -210,13 +216,13 @@ def test_sync_all_from_growlio_syncs_every_linked_product_in_one_growlio_call(db
     savings_product_service.set_growlio_link(db_session, p2.id, "growlio-acc-2", True)
 
     with patch(
-        "app.services.savings_product_service.growlio_client.fetch_account_balances",
+        "app.services.savings_product_growlio_service.growlio_client.fetch_account_balances",
         return_value=[
             {"id": "growlio-acc-1", "name": "적금", "asset_type": "DEPOSIT", "current_value_krw": 1000000.0},
             {"id": "growlio-acc-2", "name": "펀드", "asset_type": "STOCK_KIS", "current_value_krw": 2000000.0},
         ],
     ) as mock_fetch:
-        synced_count, failed = savings_product_service.sync_all_from_growlio(
+        synced_count, failed = savings_product_growlio_service.sync_all_from_growlio(
             db_session, "token", now=datetime(2026, 8, 6, 9, 0)
         )
 
@@ -235,9 +241,9 @@ def test_sync_all_from_growlio_excludes_real_estate_products(db_session):
     db_session.commit()
 
     with patch(
-        "app.services.savings_product_service.growlio_client.fetch_account_balances", return_value=[]
+        "app.services.savings_product_growlio_service.growlio_client.fetch_account_balances", return_value=[]
     ) as mock_fetch:
-        synced_count, failed = savings_product_service.sync_all_from_growlio(db_session, "token", now=datetime(2026, 8, 6))
+        synced_count, failed = savings_product_growlio_service.sync_all_from_growlio(db_session, "token", now=datetime(2026, 8, 6))
 
     mock_fetch.assert_not_called()
     assert synced_count == 0
@@ -248,8 +254,8 @@ def test_sync_all_from_growlio_reports_unmatched_products_without_raising(db_ses
     product = savings_product_service.create_product(db_session, "배우자적금", Decimal("0"), Decimal("0"))
     savings_product_service.set_growlio_link(db_session, product.id, "growlio-acc-spouse", True)
 
-    with patch("app.services.savings_product_service.growlio_client.fetch_account_balances", return_value=[]):
-        synced_count, failed = savings_product_service.sync_all_from_growlio(db_session, "token", now=datetime(2026, 8, 6))
+    with patch("app.services.savings_product_growlio_service.growlio_client.fetch_account_balances", return_value=[]):
+        synced_count, failed = savings_product_growlio_service.sync_all_from_growlio(db_session, "token", now=datetime(2026, 8, 6))
 
     assert synced_count == 0
     assert len(failed) == 1
@@ -261,48 +267,48 @@ def test_sync_all_from_growlio_propagates_not_configured_error(db_session):
     savings_product_service.set_growlio_link(db_session, product.id, "growlio-acc-1", True)
 
     with patch(
-        "app.services.savings_product_service.growlio_client.fetch_account_balances",
+        "app.services.savings_product_growlio_service.growlio_client.fetch_account_balances",
         side_effect=GrowlioNotConfiguredError("not configured"),
     ):
         with pytest.raises(GrowlioNotConfiguredError):
-            savings_product_service.sync_all_from_growlio(db_session, "token", now=datetime(2026, 8, 6))
+            savings_product_growlio_service.sync_all_from_growlio(db_session, "token", now=datetime(2026, 8, 6))
 
 
 def test_list_growlio_accounts_excludes_bank_accounts(db_session):
     with patch(
-        "app.services.savings_product_service.growlio_client.fetch_account_balances",
+        "app.services.savings_product_growlio_service.growlio_client.fetch_account_balances",
         return_value=[
             {"id": "growlio-acc-1", "name": "국민은행 입출금", "asset_type": "BANK_ACCOUNT", "current_value_krw": 1500000.0},
             {"id": "growlio-acc-2", "name": "국민 자유적금", "asset_type": "DEPOSIT", "current_value_krw": 1234500.0},
         ],
     ):
-        accounts = savings_product_service.list_growlio_accounts("token")
+        accounts = savings_product_growlio_service.list_growlio_accounts("token")
 
     assert [a["id"] for a in accounts] == ["growlio-acc-2"]
 
 
 def test_list_growlio_accounts_excludes_real_estate(db_session):
     with patch(
-        "app.services.savings_product_service.growlio_client.fetch_account_balances",
+        "app.services.savings_product_growlio_service.growlio_client.fetch_account_balances",
         return_value=[
             {"id": "growlio-acc-1", "name": "강남 아파트", "asset_type": "REAL_ESTATE", "current_value_krw": 600000000.0},
             {"id": "growlio-acc-2", "name": "국민 자유적금", "asset_type": "DEPOSIT", "current_value_krw": 1234500.0},
         ],
     ):
-        accounts = savings_product_service.list_growlio_accounts("token")
+        accounts = savings_product_growlio_service.list_growlio_accounts("token")
 
     assert [a["id"] for a in accounts] == ["growlio-acc-2"]
 
 
 def test_import_from_growlio_skips_real_estate(db_session):
     with patch(
-        "app.services.savings_product_service.growlio_client.fetch_account_balances",
+        "app.services.savings_product_growlio_service.growlio_client.fetch_account_balances",
         return_value=[
             {"id": "growlio-acc-1", "name": "강남 아파트", "asset_type": "REAL_ESTATE", "current_value_krw": 600000000.0},
             {"id": "growlio-acc-2", "name": "국민 자유적금", "asset_type": "DEPOSIT", "current_value_krw": 1234500.0},
         ],
     ):
-        created = savings_product_service.import_from_growlio(
+        created = savings_product_growlio_service.import_from_growlio(
             db_session, ["growlio-acc-1", "growlio-acc-2"], "token", _OWNER_ID, now=datetime(2026, 8, 6)
         )
 
@@ -312,13 +318,13 @@ def test_import_from_growlio_skips_real_estate(db_session):
 
 def test_import_from_growlio_skips_bank_accounts(db_session):
     with patch(
-        "app.services.savings_product_service.growlio_client.fetch_account_balances",
+        "app.services.savings_product_growlio_service.growlio_client.fetch_account_balances",
         return_value=[
             {"id": "growlio-acc-1", "name": "국민은행 입출금", "asset_type": "BANK_ACCOUNT", "current_value_krw": 1500000.0},
             {"id": "growlio-acc-2", "name": "국민 자유적금", "asset_type": "DEPOSIT", "current_value_krw": 1234500.0},
         ],
     ):
-        created = savings_product_service.import_from_growlio(
+        created = savings_product_growlio_service.import_from_growlio(
             db_session, ["growlio-acc-1", "growlio-acc-2"], "token", _OWNER_ID, now=datetime(2026, 8, 6)
         )
 
@@ -328,13 +334,13 @@ def test_import_from_growlio_skips_bank_accounts(db_session):
 
 def test_import_from_growlio_creates_one_product_per_account_with_type_mapping(db_session):
     with patch(
-        "app.services.savings_product_service.growlio_client.fetch_account_balances",
+        "app.services.savings_product_growlio_service.growlio_client.fetch_account_balances",
         return_value=[
             {"id": "growlio-acc-1", "name": "국민 자유적금", "asset_type": "DEPOSIT", "current_value_krw": 1234500.0},
             {"id": "growlio-acc-2", "name": "키움 증권", "asset_type": "STOCK_KIWOOM", "current_value_krw": 5000000.0},
         ],
     ):
-        created = savings_product_service.import_from_growlio(
+        created = savings_product_growlio_service.import_from_growlio(
             db_session, ["growlio-acc-1", "growlio-acc-2"], "token", _OWNER_ID, now=datetime(2026, 8, 6, 9, 0)
         )
 
@@ -356,13 +362,13 @@ def test_import_from_growlio_skips_already_linked_accounts(db_session):
     savings_product_service.set_growlio_link(db_session, product.id, "growlio-acc-1", True)
 
     with patch(
-        "app.services.savings_product_service.growlio_client.fetch_account_balances",
+        "app.services.savings_product_growlio_service.growlio_client.fetch_account_balances",
         return_value=[
             {"id": "growlio-acc-1", "name": "국민 자유적금", "asset_type": "DEPOSIT", "current_value_krw": 1.0},
             {"id": "growlio-acc-2", "name": "키움 증권", "asset_type": "STOCK_KIWOOM", "current_value_krw": 2.0},
         ],
     ):
-        created = savings_product_service.import_from_growlio(
+        created = savings_product_growlio_service.import_from_growlio(
             db_session, ["growlio-acc-1", "growlio-acc-2"], "token", _OWNER_ID, now=datetime(2026, 8, 6)
         )
 
@@ -376,12 +382,12 @@ def test_import_from_growlio_reimports_account_after_link_deactivated(db_session
     savings_product_service.deactivate_product(db_session, product.id)
 
     with patch(
-        "app.services.savings_product_service.growlio_client.fetch_account_balances",
+        "app.services.savings_product_growlio_service.growlio_client.fetch_account_balances",
         return_value=[
             {"id": "growlio-acc-1", "name": "일반계좌", "asset_type": "DEPOSIT", "current_value_krw": 3.0},
         ],
     ):
-        created = savings_product_service.import_from_growlio(
+        created = savings_product_growlio_service.import_from_growlio(
             db_session, ["growlio-acc-1"], "token", _OWNER_ID, now=datetime(2026, 8, 6)
         )
 
@@ -401,7 +407,7 @@ def test_actuals_for_month_sums_transactions_linked_to_product(seeded_db):
         db, user.id, savings_category.id, "expense", Decimal("20000"), date(2026, 7, 20), savings_product_id=product.id
     )
 
-    actuals = savings_product_service.actuals_for_month(db, "2026-07")
+    actuals = savings_product_plan_service.actuals_for_month(db, "2026-07")
 
     assert actuals[product.id] == Decimal("50000")
 
@@ -418,7 +424,7 @@ def test_actuals_for_month_excludes_other_months(seeded_db):
         db, user.id, savings_category.id, "expense", Decimal("40000"), date(2026, 8, 1), savings_product_id=product.id
     )
 
-    actuals = savings_product_service.actuals_for_month(db, "2026-07")
+    actuals = savings_product_plan_service.actuals_for_month(db, "2026-07")
 
     assert actuals[product.id] == Decimal("30000")
 
@@ -427,7 +433,7 @@ def test_actuals_for_month_excludes_unlinked_transactions(seeded_db):
     db, user, food = seeded_db["db"], seeded_db["user"], seeded_db["food"]
     transaction_service.create_transaction(db, user.id, food.id, "expense", Decimal("10000"), date(2026, 7, 1))
 
-    actuals = savings_product_service.actuals_for_month(db, "2026-07")
+    actuals = savings_product_plan_service.actuals_for_month(db, "2026-07")
 
     assert actuals == {}
 
@@ -459,7 +465,7 @@ def test_actuals_for_month_separates_multiple_products(seeded_db):
         savings_product_id=investment_product.id,
     )
 
-    actuals = savings_product_service.actuals_for_month(db, "2026-07")
+    actuals = savings_product_plan_service.actuals_for_month(db, "2026-07")
 
     assert actuals[savings_product.id] == Decimal("30000")
     assert actuals[investment_product.id] == Decimal("70000")
@@ -473,7 +479,7 @@ def test_compute_plan_summary_matches_planned_and_actual_per_product(seeded_db):
         db, user.id, savings_category.id, "expense", Decimal("50000"), date(2026, 7, 1), savings_product_id=product.id
     )
 
-    summary = savings_product_service.compute_plan_summary(db, "2026-07")
+    summary = savings_product_plan_service.compute_plan_summary(db, "2026-07")
 
     item = next(i for i in summary["items"] if i["id"] == product.id)
     assert item["planned"] == Decimal("100000")
@@ -498,7 +504,7 @@ def test_trailing_average_actuals_averages_months_before_anchor(seeded_db):
         db, user.id, savings_category.id, "expense", Decimal("999999"), date(2026, 7, 1), savings_product_id=product.id
     )
 
-    avg = savings_product_service.trailing_average_actuals(db, "2026-07", months=2)
+    avg = savings_product_plan_service.trailing_average_actuals(db, "2026-07", months=2)
 
     assert avg[product.id] == Decimal("50000")  # (40000+60000)/2
 
@@ -511,7 +517,7 @@ def test_compute_plan_summary_includes_suggested_monthly_saving_amount(seeded_db
         db, user.id, savings_category.id, "expense", Decimal("80000"), date(2026, 6, 10), savings_product_id=product.id
     )
 
-    summary = savings_product_service.compute_plan_summary(db, "2026-07")
+    summary = savings_product_plan_service.compute_plan_summary(db, "2026-07")
 
     item = next(i for i in summary["items"] if i["id"] == product.id)
     assert item["suggested_monthly_saving_amount"] == Decimal("80000") / 3
@@ -523,7 +529,7 @@ def test_compute_plan_summary_excludes_real_estate_products(seeded_db):
         db, "아파트", Decimal("500000000"), Decimal("0"), product_type="real_estate"
     )
 
-    summary = savings_product_service.compute_plan_summary(db, "2026-07")
+    summary = savings_product_plan_service.compute_plan_summary(db, "2026-07")
 
     assert summary["items"] == []
     assert summary["savings"]["pct"] is None
@@ -542,7 +548,7 @@ def test_actuals_for_year_sums_transactions_within_year(seeded_db):
         db, user.id, savings_category.id, "expense", Decimal("20000"), date(2026, 8, 20), savings_product_id=product.id
     )
 
-    actuals = savings_product_service.actuals_for_year(db, 2026)
+    actuals = savings_product_plan_service.actuals_for_year(db, 2026)
 
     assert actuals[product.id] == Decimal("50000")
 
@@ -559,7 +565,7 @@ def test_actuals_for_year_excludes_other_years(seeded_db):
         db, user.id, savings_category.id, "expense", Decimal("40000"), date(2027, 1, 1), savings_product_id=product.id
     )
 
-    actuals = savings_product_service.actuals_for_year(db, 2026)
+    actuals = savings_product_plan_service.actuals_for_year(db, 2026)
 
     assert actuals[product.id] == Decimal("30000")
 
@@ -568,7 +574,7 @@ def test_compute_annual_plan_summary_uses_elapsed_months_for_target_to_date(seed
     db = seeded_db["db"]
     product = savings_product_service.create_product(db, "적금", Decimal("0"), Decimal("100000"))
 
-    summary = savings_product_service.compute_annual_plan_summary(db, 2026, as_of=date(2026, 8, 15))
+    summary = savings_product_plan_service.compute_annual_plan_summary(db, 2026, as_of=date(2026, 8, 15))
 
     item = next(i for i in summary["items"] if i["id"] == product.id)
     assert summary["elapsed_months"] == 8
@@ -580,7 +586,7 @@ def test_compute_annual_plan_summary_past_year_uses_full_12_months(seeded_db):
     db = seeded_db["db"]
     savings_product_service.create_product(db, "적금", Decimal("0"), Decimal("100000"))
 
-    summary = savings_product_service.compute_annual_plan_summary(db, 2025, as_of=date(2026, 8, 15))
+    summary = savings_product_plan_service.compute_annual_plan_summary(db, 2025, as_of=date(2026, 8, 15))
 
     assert summary["elapsed_months"] == 12
 
@@ -589,7 +595,7 @@ def test_compute_annual_plan_summary_future_year_has_zero_elapsed_months(seeded_
     db = seeded_db["db"]
     savings_product_service.create_product(db, "적금", Decimal("0"), Decimal("100000"))
 
-    summary = savings_product_service.compute_annual_plan_summary(db, 2027, as_of=date(2026, 8, 15))
+    summary = savings_product_plan_service.compute_annual_plan_summary(db, 2027, as_of=date(2026, 8, 15))
 
     assert summary["elapsed_months"] == 0
     assert summary["savings"]["target_to_date"] == Decimal("0")
@@ -606,11 +612,11 @@ def test_compute_annual_plan_summary_catches_up_after_a_skipped_month(seeded_db)
         db, user.id, savings_category.id, "expense", Decimal("200000"), date(2026, 2, 10), savings_product_id=product.id
     )
 
-    monthly_summary = savings_product_service.compute_plan_summary(db, "2026-01")
+    monthly_summary = savings_product_plan_service.compute_plan_summary(db, "2026-01")
     monthly_item = next(i for i in monthly_summary["items"] if i["id"] == product.id)
     assert monthly_item["status"] == "critical"
 
-    annual_summary = savings_product_service.compute_annual_plan_summary(db, 2026, as_of=date(2026, 2, 20))
+    annual_summary = savings_product_plan_service.compute_annual_plan_summary(db, 2026, as_of=date(2026, 2, 20))
     annual_item = next(i for i in annual_summary["items"] if i["id"] == product.id)
     assert annual_item["target_to_date"] == Decimal("200000")
     assert annual_item["actual"] == Decimal("200000")
@@ -624,7 +630,7 @@ def test_compute_annual_plan_summary_group_annual_pct_uses_full_year_target(seed
     db, user = seeded_db["db"], seeded_db["user"]
     savings_category = _add_savings_category(db)
     product = savings_product_service.create_product(db, "적금", Decimal("0"), Decimal("0"))
-    savings_product_service.upsert_annual_plan(
+    savings_product_plan_service.upsert_annual_plan(
         db,
         product.id,
         2026,
@@ -639,7 +645,7 @@ def test_compute_annual_plan_summary_group_annual_pct_uses_full_year_target(seed
         db, user.id, savings_category.id, "expense", Decimal("400000"), date(2026, 1, 10), savings_product_id=product.id
     )
 
-    summary = savings_product_service.compute_annual_plan_summary(db, 2026, as_of=date(2026, 1, 31))
+    summary = savings_product_plan_service.compute_annual_plan_summary(db, 2026, as_of=date(2026, 1, 31))
 
     assert summary["savings"]["target_to_date"] == Decimal("100000")
     assert summary["savings"]["annual_target"] == Decimal("1200000")
@@ -653,7 +659,7 @@ def test_compute_annual_plan_summary_excludes_real_estate_products(seeded_db):
         db, "아파트", Decimal("500000000"), Decimal("0"), product_type="real_estate"
     )
 
-    summary = savings_product_service.compute_annual_plan_summary(db, 2026, as_of=date(2026, 8, 15))
+    summary = savings_product_plan_service.compute_annual_plan_summary(db, 2026, as_of=date(2026, 8, 15))
 
     assert summary["items"] == []
     assert summary["savings"]["pct"] is None
@@ -663,7 +669,7 @@ def test_compute_annual_plan_summary_excludes_real_estate_products(seeded_db):
 def test_get_annual_plan_defaults_to_monthly_saving_amount_when_unset(db_session):
     product = savings_product_service.create_product(db_session, "적금", Decimal("0"), Decimal("100000"))
 
-    plan = savings_product_service.get_annual_plan(db_session, product.id, 2026)
+    plan = savings_product_plan_service.get_annual_plan(db_session, product.id, 2026)
 
     assert plan["start_month"] == "2026-01"
     assert plan["end_month"] == "2026-12"
@@ -671,13 +677,13 @@ def test_get_annual_plan_defaults_to_monthly_saving_amount_when_unset(db_session
 
 
 def test_get_annual_plan_returns_none_for_missing_product(db_session):
-    assert savings_product_service.get_annual_plan(db_session, 999, 2026) is None
+    assert savings_product_plan_service.get_annual_plan(db_session, 999, 2026) is None
 
 
 def test_upsert_annual_plan_creates_and_reflects_in_get(db_session):
     product = savings_product_service.create_product(db_session, "적금", Decimal("0"), Decimal("100000"))
 
-    savings_product_service.upsert_annual_plan(
+    savings_product_plan_service.upsert_annual_plan(
         db_session,
         product.id,
         2026,
@@ -686,7 +692,7 @@ def test_upsert_annual_plan_creates_and_reflects_in_get(db_session):
         [{"year_month": f"2026-{m:02d}", "target_amount": Decimal("200000")} for m in range(6, 13)],
     )
 
-    plan = savings_product_service.get_annual_plan(db_session, product.id, 2026)
+    plan = savings_product_plan_service.get_annual_plan(db_session, product.id, 2026)
     assert plan["start_month"] == "2026-06"
     assert plan["end_month"] == "2026-12"
     assert len(plan["monthly_targets"]) == 7
@@ -696,7 +702,7 @@ def test_upsert_annual_plan_creates_and_reflects_in_get(db_session):
 def test_upsert_annual_plan_replaces_months_dropped_from_period(db_session):
     """적용 기간을 좁혀 다시 저장하면 빠진 달의 행은 delete-orphan으로 삭제된다."""
     product = savings_product_service.create_product(db_session, "적금", Decimal("0"), Decimal("0"))
-    savings_product_service.upsert_annual_plan(
+    savings_product_plan_service.upsert_annual_plan(
         db_session,
         product.id,
         2026,
@@ -705,7 +711,7 @@ def test_upsert_annual_plan_replaces_months_dropped_from_period(db_session):
         [{"year_month": f"2026-{m:02d}", "target_amount": Decimal("50000")} for m in range(1, 13)],
     )
 
-    savings_product_service.upsert_annual_plan(
+    savings_product_plan_service.upsert_annual_plan(
         db_session,
         product.id,
         2026,
@@ -714,12 +720,12 @@ def test_upsert_annual_plan_replaces_months_dropped_from_period(db_session):
         [{"year_month": f"2026-{m:02d}", "target_amount": Decimal("50000")} for m in range(1, 4)],
     )
 
-    plan = savings_product_service.get_annual_plan(db_session, product.id, 2026)
+    plan = savings_product_plan_service.get_annual_plan(db_session, product.id, 2026)
     assert [t["year_month"] for t in plan["monthly_targets"]] == ["2026-01", "2026-02", "2026-03"]
 
 
 def test_upsert_annual_plan_returns_none_for_missing_product(db_session):
-    assert savings_product_service.upsert_annual_plan(db_session, 999, 2026, "2026-01", "2026-12", []) is None
+    assert savings_product_plan_service.upsert_annual_plan(db_session, 999, 2026, "2026-01", "2026-12", []) is None
 
 
 def test_compute_plan_summary_uses_grid_target_when_configured(seeded_db):
@@ -728,14 +734,14 @@ def test_compute_plan_summary_uses_grid_target_when_configured(seeded_db):
     db, user = seeded_db["db"], seeded_db["user"]
     savings_category = _add_savings_category(db)
     product = savings_product_service.create_product(db, "적금", Decimal("0"), Decimal("100000"))
-    savings_product_service.upsert_annual_plan(
+    savings_product_plan_service.upsert_annual_plan(
         db, product.id, 2026, "2026-01", "2026-12", [{"year_month": "2026-07", "target_amount": Decimal("300000")}]
     )
     transaction_service.create_transaction(
         db, user.id, savings_category.id, "expense", Decimal("50000"), date(2026, 7, 1), savings_product_id=product.id
     )
 
-    summary = savings_product_service.compute_plan_summary(db, "2026-07")
+    summary = savings_product_plan_service.compute_plan_summary(db, "2026-07")
 
     item = next(i for i in summary["items"] if i["id"] == product.id)
     assert item["planned"] == Decimal("300000")
@@ -744,11 +750,11 @@ def test_compute_plan_summary_uses_grid_target_when_configured(seeded_db):
 def test_compute_plan_summary_falls_back_to_monthly_saving_amount_for_unconfigured_month(seeded_db):
     db = seeded_db["db"]
     product = savings_product_service.create_product(db, "적금", Decimal("0"), Decimal("100000"))
-    savings_product_service.upsert_annual_plan(
+    savings_product_plan_service.upsert_annual_plan(
         db, product.id, 2026, "2026-01", "2026-12", [{"year_month": "2026-07", "target_amount": Decimal("300000")}]
     )
 
-    summary = savings_product_service.compute_plan_summary(db, "2026-08")
+    summary = savings_product_plan_service.compute_plan_summary(db, "2026-08")
 
     item = next(i for i in summary["items"] if i["id"] == product.id)
     assert item["planned"] == Decimal("100000")
@@ -758,11 +764,11 @@ def test_compute_annual_plan_summary_uses_grid_targets_and_falls_back_per_month(
     db = seeded_db["db"]
     product = savings_product_service.create_product(db, "적금", Decimal("0"), Decimal("100000"))
     # 1월만 그리드로 다르게 지정, 나머지 달은 monthly_saving_amount로 폴백
-    savings_product_service.upsert_annual_plan(
+    savings_product_plan_service.upsert_annual_plan(
         db, product.id, 2026, "2026-01", "2026-01", [{"year_month": "2026-01", "target_amount": Decimal("500000")}]
     )
 
-    summary = savings_product_service.compute_annual_plan_summary(db, 2026, as_of=date(2026, 3, 15))
+    summary = savings_product_plan_service.compute_annual_plan_summary(db, 2026, as_of=date(2026, 3, 15))
 
     item = next(i for i in summary["items"] if i["id"] == product.id)
     # target_to_date(경과 3개월) = 1월 500000(그리드) + 2월 100000 + 3월 100000(폴백)
@@ -773,8 +779,8 @@ def test_compute_annual_plan_summary_uses_grid_targets_and_falls_back_per_month(
 
 def test_import_from_growlio_propagates_not_configured_error(db_session):
     with patch(
-        "app.services.savings_product_service.growlio_client.fetch_account_balances",
+        "app.services.savings_product_growlio_service.growlio_client.fetch_account_balances",
         side_effect=GrowlioNotConfiguredError("not configured"),
     ):
         with pytest.raises(GrowlioNotConfiguredError):
-            savings_product_service.import_from_growlio(db_session, ["growlio-acc-1"], "token", _OWNER_ID, now=datetime(2026, 8, 6))
+            savings_product_growlio_service.import_from_growlio(db_session, ["growlio-acc-1"], "token", _OWNER_ID, now=datetime(2026, 8, 6))

@@ -14,6 +14,7 @@ from app.services import (
     growlio_client,
     loan_service,
     real_estate_service,
+    savings_product_growlio_service,
     savings_product_service,
 )
 from app.utils.dates import now_kst, parse_year_month, shift_month, year_month_str
@@ -170,7 +171,7 @@ def refresh_stale_growlio_links(bearer_token: str, *, now: datetime | None = Non
             return
         for section, fn in (
             ("accounts", account_service.sync_all_accounts),
-            ("savings", savings_product_service.sync_all_from_growlio),
+            ("savings", savings_product_growlio_service.sync_all_from_growlio),
             ("real_estate", real_estate_service.sync_all_from_growlio),
         ):
             try:
