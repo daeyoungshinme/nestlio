@@ -20,7 +20,7 @@ import {
 import Tabs from "@/components/common/Tabs";
 import ProgressBar from "@/components/common/ProgressBar";
 import SkeletonCard from "@/components/common/SkeletonCard";
-import ErrorState from "@/components/common/ErrorState";
+import QueryBoundary from "@/components/common/QueryBoundary";
 import SummaryCards from "@/components/common/SummaryCards";
 import EmptyState from "@/components/common/EmptyState";
 import { fetchCategoryTrend, fetchYearlyReport } from "@/api/reports";
@@ -29,7 +29,6 @@ import { QUERY_KEYS } from "@/constants/queryKeys";
 import { STALE_TIME } from "@/constants/queryConfig";
 import { TOUCH_TARGET_MIN_MOBILE_ONLY } from "@/constants/uiSizes";
 import { formatKrw, formatKrwCompact, formatPercent, formatYearMonth, formatMonthOnly } from "@/utils/format";
-import { extractErrorMessage } from "@/utils/error";
 import { incomeExpenseChartColor, planStatusBarClass, planStatusTextClass } from "@/utils/colors";
 import { useThemeStore } from "@/stores/themeStore";
 import type { CategoryBenchmarkRowOut } from "@/types";
@@ -69,13 +68,7 @@ export default function ReportsYearlyPage() {
         ? "shared"
         : users?.find((u) => u.display_name === ownerTab)?.id;
 
-  const {
-    data,
-    isLoading,
-    isError,
-    error,
-    refetch,
-  } = useQuery({
+  const yearlyReportQuery = useQuery({
     queryKey: QUERY_KEYS.yearlyReport(year, ownerParam),
     queryFn: () => fetchYearlyReport(year, ownerParam),
     staleTime: STALE_TIME.MEDIUM,
@@ -86,26 +79,6 @@ export default function ReportsYearlyPage() {
     staleTime: STALE_TIME.MEDIUM,
   });
 
-  if (isError) {
-    return (
-      <ErrorState
-        message={extractErrorMessage(error, "연간 리포트를 불러오지 못했습니다.")}
-        onRetry={() => void refetch()}
-      />
-    );
-  }
-
-  if (isLoading || !data) {
-    return <SkeletonCard rows={4} />;
-  }
-
-  const monthlyData = data.monthly.map((row) => ({
-    name: formatMonthOnly(row.year_month),
-    수입: Number(row.income),
-    지출: Number(row.expense),
-  }));
-  const pieData = data.breakdown.map((row) => ({ name: row.name, value: Number(row.amount), color: row.color }));
-
   const trendData = trend?.months.map((month, i) => {
     const row: Record<string, string | number> = { name: formatYearMonth(month) };
     for (const series of trend.series) {
@@ -115,158 +88,175 @@ export default function ReportsYearlyPage() {
   });
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-center gap-4">
-        <button
-          onClick={() => setYear(data.prev_year)}
-          className={`${TOUCH_TARGET_MIN_MOBILE_ONLY} rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800`}
-          aria-label="이전 해"
-        >
-          <ChevronLeft size={18} />
-        </button>
-        <h1 className="text-xl font-bold text-gray-900 dark:text-gray-50">{data.year}년 연간 리포트</h1>
-        <button
-          onClick={() => setYear(data.next_year)}
-          className={`${TOUCH_TARGET_MIN_MOBILE_ONLY} rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800`}
-          aria-label="다음 해"
-        >
-          <ChevronRight size={18} />
-        </button>
-      </div>
+    <QueryBoundary
+      query={yearlyReportQuery}
+      errorMessage="연간 리포트를 불러오지 못했습니다."
+      loadingFallback={<SkeletonCard rows={4} />}
+    >
+      {(data) => {
+        const monthlyData = data.monthly.map((row) => ({
+          name: formatMonthOnly(row.year_month),
+          수입: Number(row.income),
+          지출: Number(row.expense),
+        }));
+        const pieData = data.breakdown.map((row) => ({ name: row.name, value: Number(row.amount), color: row.color }));
 
-      <SummaryCards totals={data.totals} />
+        return (
+          <div className="space-y-6">
+            <div className="flex items-center justify-center gap-4">
+              <button
+                onClick={() => setYear(data.prev_year)}
+                className={`${TOUCH_TARGET_MIN_MOBILE_ONLY} rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800`}
+                aria-label="이전 해"
+              >
+                <ChevronLeft size={18} />
+              </button>
+              <h1 className="text-xl font-bold text-gray-900 dark:text-gray-50">{data.year}년 연간 리포트</h1>
+              <button
+                onClick={() => setYear(data.next_year)}
+                className={`${TOUCH_TARGET_MIN_MOBILE_ONLY} rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800`}
+                aria-label="다음 해"
+              >
+                <ChevronRight size={18} />
+              </button>
+            </div>
 
-      <div className="card">
-        <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">월별 수입/지출</h3>
-        <div className="h-[220px] sm:h-[260px]">
-          <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={monthlyData}>
-              <CartesianGrid strokeDasharray="3 3" className="stroke-gray-200 dark:stroke-gray-700" />
-              <XAxis dataKey="name" tick={{ fontSize: 12 }} tickFormatter={MONTH_TICK_FORMATTER} interval={0} />
-              <YAxis tick={{ fontSize: 12 }} tickFormatter={(v) => formatKrwCompact(Number(v))} width={70} />
-              <Tooltip formatter={(v) => formatKrw(Number(v))} />
-              <Legend />
-              <Bar dataKey="수입" fill={incomeExpenseChartColor("income", isDark)} radius={[4, 4, 0, 0]} />
-              <Bar dataKey="지출" fill={incomeExpenseChartColor("expense", isDark)} radius={[4, 4, 0, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
-      </div>
+            <SummaryCards totals={data.totals} />
 
-      <Tabs tabs={ownerTabs} activeTab={ownerTab} onChange={setOwnerTab} variant="pill" />
+            <div className="card">
+              <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">월별 수입/지출</h3>
+              <div className="h-[220px] sm:h-[260px]">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={monthlyData}>
+                    <CartesianGrid strokeDasharray="3 3" className="stroke-gray-200 dark:stroke-gray-700" />
+                    <XAxis dataKey="name" tick={{ fontSize: 12 }} tickFormatter={MONTH_TICK_FORMATTER} interval={0} />
+                    <YAxis tick={{ fontSize: 12 }} tickFormatter={(v) => formatKrwCompact(Number(v))} width={70} />
+                    <Tooltip formatter={(v) => formatKrw(Number(v))} />
+                    <Legend />
+                    <Bar dataKey="수입" fill={incomeExpenseChartColor("income", isDark)} radius={[4, 4, 0, 0]} />
+                    <Bar dataKey="지출" fill={incomeExpenseChartColor("expense", isDark)} radius={[4, 4, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
 
-      <div className="card">
-        <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">
-          카테고리별 지출{ownerTab !== ALL_OWNERS_TAB ? ` · ${ownerTab}` : ""}
-        </h3>
-        {pieData.length === 0 ? (
-          <EmptyState icon={PieChartIcon} title="이 해에 지출 내역이 없어요" compact />
-        ) : (
-          <>
-            <div className="h-[220px] sm:h-[260px]">
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie data={pieData} dataKey="value" nameKey="name" innerRadius={60} outerRadius={100}>
+            <Tabs tabs={ownerTabs} activeTab={ownerTab} onChange={setOwnerTab} variant="pill" />
+
+            <div className="card">
+              <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">
+                카테고리별 지출{ownerTab !== ALL_OWNERS_TAB ? ` · ${ownerTab}` : ""}
+              </h3>
+              {pieData.length === 0 ? (
+                <EmptyState icon={PieChartIcon} title="이 해에 지출 내역이 없어요" compact />
+              ) : (
+                <>
+                  <div className="h-[220px] sm:h-[260px]">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <PieChart>
+                        <Pie data={pieData} dataKey="value" nameKey="name" innerRadius={60} outerRadius={100}>
+                          {pieData.map((entry, i) => (
+                            <Cell key={i} fill={entry.color} />
+                          ))}
+                        </Pie>
+                        <Tooltip formatter={(v) => formatKrw(Number(v))} />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  </div>
+                  <div className="flex flex-row flex-wrap justify-center gap-x-3 gap-y-1 mt-2">
                     {pieData.map((entry, i) => (
-                      <Cell key={i} fill={entry.color} />
+                      <div key={i} className="flex items-center gap-1">
+                        <span
+                          className="inline-block w-2.5 h-2.5 rounded-sm shrink-0"
+                          style={{ backgroundColor: entry.color }}
+                        />
+                        <span className="text-xs text-gray-600 dark:text-gray-400">
+                          {entry.name} {formatKrw(entry.value)}
+                        </span>
+                      </div>
                     ))}
-                  </Pie>
-                  <Tooltip formatter={(v) => formatKrw(Number(v))} />
-                </PieChart>
-              </ResponsiveContainer>
+                  </div>
+                </>
+              )}
             </div>
-            <div className="flex flex-row flex-wrap justify-center gap-x-3 gap-y-1 mt-2">
-              {pieData.map((entry, i) => (
-                <div key={i} className="flex items-center gap-1">
-                  <span
-                    className="inline-block w-2.5 h-2.5 rounded-sm shrink-0"
-                    style={{ backgroundColor: entry.color }}
-                  />
-                  <span className="text-xs text-gray-600 dark:text-gray-400">
-                    {entry.name} {formatKrw(entry.value)}
-                  </span>
+
+            <div className="card">
+              <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1">
+                가구 평균 대비 지출 비교{ownerTab !== ALL_OWNERS_TAB ? ` · ${ownerTab}` : ""}
+              </h3>
+              <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
+                {ownerTab !== ALL_OWNERS_TAB
+                  ? "가구 소득 대비 이 몫의 지출 비중이에요. 공식 통계가 아닌 일반적인 가이드라인 참고값이에요."
+                  : "공식 통계가 아닌 일반적인 가이드라인 참고값이에요. 설정에서 조정할 수 있어요."}
+              </p>
+              {data.benchmark.length === 0 ? (
+                <EmptyState
+                  icon={Scale}
+                  title="카테고리에 표준 카테고리를 지정하면 비교해드려요"
+                  compact
+                  action={{ label: "카테고리 관리로 이동", onClick: () => navigate("/categories") }}
+                />
+              ) : (
+                <div className="space-y-3">
+                  {data.benchmark.map((row) => (
+                    <CategoryBenchmarkRow key={row.group} row={row} />
+                  ))}
                 </div>
-              ))}
+              )}
             </div>
-          </>
-        )}
-      </div>
 
-      <div className="card">
-        <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1">
-          가구 평균 대비 지출 비교{ownerTab !== ALL_OWNERS_TAB ? ` · ${ownerTab}` : ""}
-        </h3>
-        <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
-          {ownerTab !== ALL_OWNERS_TAB
-            ? "가구 소득 대비 이 몫의 지출 비중이에요. 공식 통계가 아닌 일반적인 가이드라인 참고값이에요."
-            : "공식 통계가 아닌 일반적인 가이드라인 참고값이에요. 설정에서 조정할 수 있어요."}
-        </p>
-        {data.benchmark.length === 0 ? (
-          <EmptyState
-            icon={Scale}
-            title="카테고리에 표준 카테고리를 지정하면 비교해드려요"
-            compact
-            action={{ label: "카테고리 관리로 이동", onClick: () => navigate("/categories") }}
-          />
-        ) : (
-          <div className="space-y-3">
-            {data.benchmark.map((row) => (
-              <CategoryBenchmarkRow key={row.group} row={row} />
-            ))}
+            <div className="card">
+              <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">카테고리별 소비 추이 (최근 {CATEGORY_TREND_MONTHS}개월)</h3>
+              {isTrendLoading || !trend || !trendData ? (
+                <SkeletonCard rows={2} />
+              ) : trend.series.length === 0 ? (
+                <EmptyState icon={TrendingUp} title="최근 지출 내역이 없어요" compact />
+              ) : (
+                <div className="h-[240px] sm:h-[280px]">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <LineChart data={trendData} margin={{ bottom: 16 }}>
+                      <CartesianGrid strokeDasharray="3 3" className="stroke-gray-200 dark:stroke-gray-700" />
+                      <XAxis
+                        dataKey="name"
+                        tick={{ fontSize: 12 }}
+                        tickFormatter={TREND_TICK_FORMATTER}
+                        interval={0}
+                        angle={-30}
+                        textAnchor="end"
+                        height={40}
+                      />
+                      <YAxis tick={{ fontSize: 12 }} tickFormatter={(v) => formatKrwCompact(Number(v))} width={70} />
+                      <Tooltip formatter={(v) => formatKrw(Number(v))} />
+                      <Legend
+                        onClick={(e) => toggleSeries(String(e.value))}
+                        wrapperStyle={{ cursor: "pointer" }}
+                        formatter={(value) => (
+                          <span
+                            className={`inline-block py-1 px-0.5 ${hiddenSeries.has(value) ? "line-through opacity-40" : ""}`}
+                          >
+                            {value}
+                          </span>
+                        )}
+                      />
+                      {trend.series.map((series) => (
+                        <Line
+                          key={series.category_id ?? "other"}
+                          type="monotone"
+                          dataKey={series.name}
+                          stroke={series.color}
+                          strokeWidth={2}
+                          dot={{ r: 3 }}
+                          hide={hiddenSeries.has(series.name)}
+                        />
+                      ))}
+                    </LineChart>
+                  </ResponsiveContainer>
+                </div>
+              )}
+            </div>
           </div>
-        )}
-      </div>
-
-      <div className="card">
-        <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">카테고리별 소비 추이 (최근 {CATEGORY_TREND_MONTHS}개월)</h3>
-        {isTrendLoading || !trend || !trendData ? (
-          <SkeletonCard rows={2} />
-        ) : trend.series.length === 0 ? (
-          <EmptyState icon={TrendingUp} title="최근 지출 내역이 없어요" compact />
-        ) : (
-          <div className="h-[240px] sm:h-[280px]">
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={trendData} margin={{ bottom: 16 }}>
-                <CartesianGrid strokeDasharray="3 3" className="stroke-gray-200 dark:stroke-gray-700" />
-                <XAxis
-                  dataKey="name"
-                  tick={{ fontSize: 12 }}
-                  tickFormatter={TREND_TICK_FORMATTER}
-                  interval={0}
-                  angle={-30}
-                  textAnchor="end"
-                  height={40}
-                />
-                <YAxis tick={{ fontSize: 12 }} tickFormatter={(v) => formatKrwCompact(Number(v))} width={70} />
-                <Tooltip formatter={(v) => formatKrw(Number(v))} />
-                <Legend
-                  onClick={(e) => toggleSeries(String(e.value))}
-                  wrapperStyle={{ cursor: "pointer" }}
-                  formatter={(value) => (
-                    <span
-                      className={`inline-block py-1 px-0.5 ${hiddenSeries.has(value) ? "line-through opacity-40" : ""}`}
-                    >
-                      {value}
-                    </span>
-                  )}
-                />
-                {trend.series.map((series) => (
-                  <Line
-                    key={series.category_id ?? "other"}
-                    type="monotone"
-                    dataKey={series.name}
-                    stroke={series.color}
-                    strokeWidth={2}
-                    dot={{ r: 3 }}
-                    hide={hiddenSeries.has(series.name)}
-                  />
-                ))}
-              </LineChart>
-            </ResponsiveContainer>
-          </div>
-        )}
-      </div>
-    </div>
+        );
+      }}
+    </QueryBoundary>
   );
 }
 
