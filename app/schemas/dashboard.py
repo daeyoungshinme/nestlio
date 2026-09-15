@@ -11,7 +11,7 @@ from app.schemas.financial_goal import FinancialGoalOut
 from app.schemas.net_worth import NetWorthOut
 from app.schemas.savings_product import SavingsProductOut
 from app.schemas.settings import SettingsOut
-from app.schemas.transaction import PaymentMethod
+from app.schemas.transaction import PaymentMethodOut
 from app.schemas.user import UserOut
 
 
@@ -25,7 +25,7 @@ class OwnerOverspendHighlightOut(BaseModel):
 
 
 class PaymentMethodAmountOut(BaseModel):
-    payment_method: PaymentMethod | None
+    payment_method: PaymentMethodOut | None
     amount: Decimal
 
 
