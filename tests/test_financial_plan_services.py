@@ -2,7 +2,7 @@
 서비스라 test_csv_and_accounts.py처럼 한 파일에 묶어 다룬다."""
 from decimal import Decimal
 
-from app.services import goal_service, loan_service, savings_product_service
+from app.services import goal_progress_service, goal_service, loan_service, savings_product_service
 
 
 def test_goal_create_update_delete(seeded_db):
@@ -31,7 +31,9 @@ def test_goal_progress_pct(seeded_db):
     db = seeded_db["db"]
 
     def progress_pct(goal):
-        return goal_service.compute_progress_pct(goal_service.compute_current_amount(db, goal), goal.required_amount)
+        return goal_progress_service.compute_progress_pct(
+            goal_progress_service.compute_current_amount(db, goal), goal.required_amount
+        )
 
     goal = goal_service.create_goal(
         db, 1, "내집마련", 40, Decimal("500000000"), Decimal("1500000"), Decimal("125000000")

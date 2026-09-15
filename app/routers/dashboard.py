@@ -11,6 +11,7 @@ from app.services import (
     coaching_settings_service,
     couple_photo_service,
     dashboard_service,
+    goal_progress_service,
     goal_service,
     net_worth_service,
     notification_settings_service,
@@ -63,7 +64,7 @@ def dashboard_bootstrap(
             "current": net_worth_service.compute_current(db),
             "history": net_worth_service.list_history(db, 12),
         },
-        "goals": [goal_service.to_out(db, goal, today) for goal in goal_service.list_goals(db)],
+        "goals": [goal_progress_service.to_out(db, goal, today) for goal in goal_service.list_goals(db)],
         "savings_products": savings_product_service.list_products(db),
         "users": user_service.list_users(db),
     }

@@ -36,7 +36,7 @@ class GoalMonthlyTargetOut(BaseModel):
     achieved_amount: Decimal
     is_achieved: bool
     # True면 achieved_amount가 연동된 저축상품/계좌의 거래내역에서 매번 다시 계산된 값이라
-    # 수정할 수 없다(goal_service.compute_linked_monthly_achieved 참고) — kind="goal"이면서
+    # 수정할 수 없다(goal_progress_service.compute_linked_monthly_achieved 참고) — kind="goal"이면서
     # funding_sources가 있는 목표만 해당. False면 사용자가 PATCH .../monthly-targets/{year_month}로
     # 직접 입력한 값 그대로다.
     is_auto_computed: bool = False
