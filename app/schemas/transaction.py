@@ -1,9 +1,9 @@
 import uuid
 from datetime import date, datetime
 from decimal import Decimal
-from typing import Literal
+from typing import Annotated, Literal
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, BeforeValidator, ConfigDict
 
 from app.schemas.account import AccountOut
 from app.schemas.category import CategoryOut
@@ -14,6 +14,19 @@ from app.schemas.user import UserOut
 PaymentMethod = Literal["cash", "credit_card", "debit_card", "transfer", "other"]
 
 
+def _unknown_payment_method_to_other(v: object) -> object:
+    if isinstance(v, str) and v not in ("cash", "credit_card", "debit_card", "transfer", "other"):
+        return "other"
+    return v
+
+
+# DB의 payment_method 컬럼은 여전히 자유텍스트 String(50)이라, 이 필드를 Literal로 좁히기 전에
+# 다른 값으로 저장된 기존 거래가 있으면 응답 직렬화가 실패한다(422가 아니라 500) — 출력 전용으로
+# 미지 값을 "other"로 폴백한다. 입력 검증(TransactionCreateIn 등)은 여전히 PaymentMethod로
+# 엄격하게 막는다.
+PaymentMethodOut = Annotated[PaymentMethod, BeforeValidator(_unknown_payment_method_to_other)]
+
+
 class TransactionOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -22,7 +35,7 @@ class TransactionOut(BaseModel):
     amount: Decimal
     transaction_date: date
     description: str | None = None
-    payment_method: PaymentMethod | None = None
+    payment_method: PaymentMethodOut | None = None
     account_id: int | None = None
     savings_product_id: int | None = None
     category: CategoryOut
