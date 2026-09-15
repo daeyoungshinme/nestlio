@@ -5,7 +5,14 @@ from unittest.mock import patch
 import pytest
 
 from app.models.category import Category
-from app.services import account_service, goal_service, loan_service, savings_product_service, transaction_service
+from app.services import (
+    account_service,
+    goal_progress_service,
+    goal_service,
+    loan_service,
+    savings_product_service,
+    transaction_service,
+)
 from app.services.growlio_client import GrowlioNotConfiguredError
 
 
@@ -14,8 +21,8 @@ def test_create_goal_uses_manual_current_amount_when_unlinked(seeded_db):
     goal = goal_service.create_goal(
         db, 1, "내집마련", 40, Decimal("100000000"), Decimal("500000"), Decimal("1000000")
     )
-    assert goal_service.compute_current_amount(db, goal) == Decimal("1000000")
-    assert goal_service.funding_source_breakdown(db, goal) == []
+    assert goal_progress_service.compute_current_amount(db, goal) == Decimal("1000000")
+    assert goal_progress_service.funding_source_breakdown(db, goal) == []
 
 
 def test_linked_goal_current_amount_follows_product_balance(seeded_db):
@@ -31,12 +38,12 @@ def test_linked_goal_current_amount_follows_product_balance(seeded_db):
         current_amount=Decimal("999"),  # 연동 상태에서는 무시되고 상품 잔액이 쓰인다
         funding_sources=[{"type": "savings_product", "id": product.id}],
     )
-    assert goal_service.compute_current_amount(db, goal) == Decimal("3000000")
-    assert [fs["name"] for fs in goal_service.funding_source_breakdown(db, goal)] == ["청약통장"]
+    assert goal_progress_service.compute_current_amount(db, goal) == Decimal("3000000")
+    assert [fs["name"] for fs in goal_progress_service.funding_source_breakdown(db, goal)] == ["청약통장"]
 
     savings_product_service.adjust_balance(db, product.id, Decimal("500000"))
     db.refresh(goal)
-    assert goal_service.compute_current_amount(db, goal) == Decimal("3500000")
+    assert goal_progress_service.compute_current_amount(db, goal) == Decimal("3500000")
 
 
 def test_goal_linked_to_multiple_products_sums_their_balances(seeded_db):
@@ -55,8 +62,8 @@ def test_goal_linked_to_multiple_products_sums_their_balances(seeded_db):
             {"type": "savings_product", "id": product_b.id},
         ],
     )
-    assert goal_service.compute_current_amount(db, goal) == Decimal("3500000")
-    breakdown = goal_service.funding_source_breakdown(db, goal)
+    assert goal_progress_service.compute_current_amount(db, goal) == Decimal("3500000")
+    breakdown = goal_progress_service.funding_source_breakdown(db, goal)
     assert {fs["id"] for fs in breakdown} == {product_a.id, product_b.id}
     assert {fs["name"] for fs in breakdown} == {"남편 적금", "아내 적금"}
 
@@ -73,7 +80,7 @@ def test_unlinking_goal_falls_back_to_manual_amount(seeded_db):
         Decimal("200000"),
         funding_sources=[{"type": "savings_product", "id": product.id}],
     )
-    assert goal_service.compute_current_amount(db, goal) == Decimal("2000000")
+    assert goal_progress_service.compute_current_amount(db, goal) == Decimal("2000000")
 
     updated = goal_service.update_goal(
         db,
@@ -86,8 +93,8 @@ def test_unlinking_goal_falls_back_to_manual_amount(seeded_db):
         current_amount=Decimal("1500000"),
         funding_sources=[],
     )
-    assert goal_service.compute_current_amount(db, updated) == Decimal("1500000")
-    assert goal_service.funding_source_breakdown(db, updated) == []
+    assert goal_progress_service.compute_current_amount(db, updated) == Decimal("1500000")
+    assert goal_progress_service.funding_source_breakdown(db, updated) == []
 
 
 # --- 저축상품 월 계획액 동기화: 목표에 연동된 상품은 monthly_saving_amount를 목표에서 물려받는다 ---
@@ -218,7 +225,7 @@ def test_linked_account_balance_is_added(seeded_db):
         Decimal("200000"),
         funding_sources=[{"type": "account", "id": account.id}],
     )
-    assert goal_service.compute_current_amount(db, goal) == Decimal("1000000")
+    assert goal_progress_service.compute_current_amount(db, goal) == Decimal("1000000")
 
 
 def test_linked_loan_balance_is_subtracted(seeded_db):
@@ -239,8 +246,8 @@ def test_linked_loan_balance_is_subtracted(seeded_db):
             {"type": "loan", "id": loan.id},
         ],
     )
-    assert goal_service.compute_current_amount(db, goal) == Decimal("2000000")
-    breakdown = {fs["type"]: fs["amount"] for fs in goal_service.funding_source_breakdown(db, goal)}
+    assert goal_progress_service.compute_current_amount(db, goal) == Decimal("2000000")
+    breakdown = {fs["type"]: fs["amount"] for fs in goal_progress_service.funding_source_breakdown(db, goal)}
     assert breakdown["loan"] == Decimal("-1000000")
 
 
@@ -268,33 +275,33 @@ def test_mixed_funding_sources_match_net_worth_scope(seeded_db):
     )
 
     net_worth = net_worth_service.compute_current(db)
-    assert goal_service.compute_current_amount(db, goal) == net_worth["net_worth"]
+    assert goal_progress_service.compute_current_amount(db, goal) == net_worth["net_worth"]
 
 
 def test_compute_months_remaining_none_without_target_date():
-    assert goal_service.compute_months_remaining(date(2026, 1, 1), None) is None
+    assert goal_progress_service.compute_months_remaining(date(2026, 1, 1), None) is None
 
 
 def test_compute_months_remaining_counts_whole_months():
-    assert goal_service.compute_months_remaining(date(2026, 1, 15), date(2027, 7, 1)) == 18
+    assert goal_progress_service.compute_months_remaining(date(2026, 1, 15), date(2027, 7, 1)) == 18
 
 
 def test_compute_months_remaining_clamps_to_zero_when_target_date_passed():
-    assert goal_service.compute_months_remaining(date(2026, 6, 1), date(2026, 1, 1)) == 0
+    assert goal_progress_service.compute_months_remaining(date(2026, 6, 1), date(2026, 1, 1)) == 0
 
 
 def test_compute_suggested_monthly_amount_none_when_no_months_remaining():
-    assert goal_service.compute_suggested_monthly_amount(Decimal("0"), Decimal("1000000"), None) is None
-    assert goal_service.compute_suggested_monthly_amount(Decimal("0"), Decimal("1000000"), 0) is None
+    assert goal_progress_service.compute_suggested_monthly_amount(Decimal("0"), Decimal("1000000"), None) is None
+    assert goal_progress_service.compute_suggested_monthly_amount(Decimal("0"), Decimal("1000000"), 0) is None
 
 
 def test_compute_suggested_monthly_amount_divides_remaining_by_months():
-    result = goal_service.compute_suggested_monthly_amount(Decimal("200000"), Decimal("2000000"), 6)
+    result = goal_progress_service.compute_suggested_monthly_amount(Decimal("200000"), Decimal("2000000"), 6)
     assert result == Decimal("300000")
 
 
 def test_compute_suggested_monthly_amount_clamps_to_zero_when_already_met():
-    result = goal_service.compute_suggested_monthly_amount(Decimal("3000000"), Decimal("2000000"), 6)
+    result = goal_progress_service.compute_suggested_monthly_amount(Decimal("3000000"), Decimal("2000000"), 6)
     assert result == Decimal("0")
 
 
@@ -310,7 +317,7 @@ def test_to_out_includes_derived_fields_when_target_date_set(seeded_db):
         current_amount=Decimal("0"),
         target_date=date(2026, 7, 1),
     )
-    out = goal_service.to_out(db, goal, today=date(2026, 1, 1))
+    out = goal_progress_service.to_out(db, goal, today=date(2026, 1, 1))
     assert out["target_date"] == date(2026, 7, 1)
     assert out["months_remaining"] == 6
     assert out["suggested_monthly_amount"] == Decimal("200000")
@@ -319,7 +326,7 @@ def test_to_out_includes_derived_fields_when_target_date_set(seeded_db):
 def test_to_out_derived_fields_are_none_without_target_date(seeded_db):
     db = seeded_db["db"]
     goal = goal_service.create_goal(db, 1, "여행자금", None, Decimal("1200000"), Decimal("0"))
-    out = goal_service.to_out(db, goal, today=date(2026, 1, 1))
+    out = goal_progress_service.to_out(db, goal, today=date(2026, 1, 1))
     assert out["target_date"] is None
     assert out["months_remaining"] is None
     assert out["suggested_monthly_amount"] is None
@@ -329,31 +336,31 @@ def test_to_out_derived_fields_are_none_without_target_date(seeded_db):
 
 def test_eta_this_month_when_already_met():
     assert (
-        goal_service.compute_eta_year_month(date(2026, 3, 15), Decimal("1200000"), Decimal("1000000"), Decimal("100000"))
+        goal_progress_service.compute_eta_year_month(date(2026, 3, 15), Decimal("1200000"), Decimal("1000000"), Decimal("100000"))
         == "2026-03"
     )
 
 
 def test_eta_none_when_no_monthly_saving_and_unmet():
     assert (
-        goal_service.compute_eta_year_month(date(2026, 3, 1), Decimal("0"), Decimal("1000000"), Decimal("0")) is None
+        goal_progress_service.compute_eta_year_month(date(2026, 3, 1), Decimal("0"), Decimal("1000000"), Decimal("0")) is None
     )
 
 
 def test_eta_ceils_remaining_months():
     # 남은 250,000 / 월 100,000 -> 2.5 -> 3개월 -> 2026-01 + 3 = 2026-04
     assert (
-        goal_service.compute_eta_year_month(date(2026, 1, 1), Decimal("750000"), Decimal("1000000"), Decimal("100000"))
+        goal_progress_service.compute_eta_year_month(date(2026, 1, 1), Decimal("750000"), Decimal("1000000"), Decimal("100000"))
         == "2026-04"
     )
 
 
 def test_ahead_behind_positive_when_eta_before_target():
     # ETA 2026-04, 목표일 2026-07 -> 3개월 빠름
-    assert goal_service.compute_ahead_behind_months("2026-04", date(2026, 7, 20)) == 3
-    assert goal_service.compute_ahead_behind_months("2026-10", date(2026, 7, 20)) == -3
-    assert goal_service.compute_ahead_behind_months(None, date(2026, 7, 20)) is None
-    assert goal_service.compute_ahead_behind_months("2026-04", None) is None
+    assert goal_progress_service.compute_ahead_behind_months("2026-04", date(2026, 7, 20)) == 3
+    assert goal_progress_service.compute_ahead_behind_months("2026-10", date(2026, 7, 20)) == -3
+    assert goal_progress_service.compute_ahead_behind_months(None, date(2026, 7, 20)) is None
+    assert goal_progress_service.compute_ahead_behind_months("2026-04", None) is None
 
 
 def test_to_out_includes_eta_fields(seeded_db):
@@ -362,7 +369,7 @@ def test_to_out_includes_eta_fields(seeded_db):
         db, 1, "여행자금", None, Decimal("1000000"), Decimal("100000"),
         current_amount=Decimal("750000"), target_date=date(2026, 7, 1),
     )
-    out = goal_service.to_out(db, goal, today=date(2026, 1, 1))
+    out = goal_progress_service.to_out(db, goal, today=date(2026, 1, 1))
     assert out["eta_year_month"] == "2026-04"
     assert out["ahead_behind_months"] == 3
 
@@ -424,7 +431,7 @@ def test_create_challenge_defaults_to_active(seeded_db):
 def test_regular_goal_has_no_effective_status(seeded_db):
     db = seeded_db["db"]
     goal = goal_service.create_goal(db, 1, "내집마련", 40, Decimal("100000000"), Decimal("500000"))
-    assert goal_service.effective_status(goal, today=date(2026, 8, 15)) is None
+    assert goal_progress_service.effective_status(goal, today=date(2026, 8, 15)) is None
 
 
 def test_update_challenge_progress_below_target_stays_active(seeded_db):
@@ -439,7 +446,7 @@ def test_update_challenge_progress_below_target_stays_active(seeded_db):
 
     assert updated.status == "active"
     assert updated.completed_at is None
-    assert goal_service.compute_progress_pct(Decimal("150000"), Decimal("300000")) == Decimal("50")
+    assert goal_progress_service.compute_progress_pct(Decimal("150000"), Decimal("300000")) == Decimal("50")
 
 
 def test_update_challenge_progress_reaching_target_succeeds(seeded_db):
@@ -459,13 +466,13 @@ def test_update_challenge_progress_reaching_target_succeeds(seeded_db):
 def test_challenge_effective_status_active_within_period(seeded_db):
     db, user = seeded_db["db"], seeded_db["user"]
     challenge = _create_challenge(db, user, start=date(2026, 8, 1), end=date(2026, 8, 31))
-    assert goal_service.effective_status(challenge, today=date(2026, 8, 15)) == "active"
+    assert goal_progress_service.effective_status(challenge, today=date(2026, 8, 15)) == "active"
 
 
 def test_challenge_effective_status_expired_after_end_date(seeded_db):
     db, user = seeded_db["db"], seeded_db["user"]
     challenge = _create_challenge(db, user, start=date(2026, 8, 1), end=date(2026, 8, 31))
-    assert goal_service.effective_status(challenge, today=date(2026, 9, 1)) == "expired"
+    assert goal_progress_service.effective_status(challenge, today=date(2026, 9, 1)) == "expired"
 
 
 def test_challenge_effective_status_succeeded_ignores_end_date(seeded_db):
@@ -476,7 +483,7 @@ def test_challenge_effective_status_succeeded_ignores_end_date(seeded_db):
         current_amount=Decimal("100000"), target_date=challenge.target_date,
         start_date=challenge.start_date, now=NOW,
     )
-    assert goal_service.effective_status(challenge, today=date(2026, 9, 1)) == "succeeded"
+    assert goal_progress_service.effective_status(challenge, today=date(2026, 9, 1)) == "succeeded"
 
 
 def test_delete_challenge(seeded_db):
@@ -567,7 +574,7 @@ def test_update_monthly_target_achieved_marks_month_as_achieved_in_to_out(seeded
     )
     goal_service.update_monthly_target_achieved(db, goal.id, "2026-09", Decimal("100000"))
     db.refresh(goal)
-    out = goal_service.to_out(db, goal, today=date(2026, 9, 1))
+    out = goal_progress_service.to_out(db, goal, today=date(2026, 9, 1))
     assert out["current_amount"] == Decimal("100000")
     assert out["monthly_targets"] == [
         {
@@ -640,11 +647,11 @@ def test_unlinked_goal_current_amount_uses_monthly_targets_when_plan_exists(seed
     )
     # required_amount는 월별 계획 합계로 덮어쓰지 않고 요청값 그대로 유지된다.
     assert goal.required_amount == Decimal("300000")
-    assert goal_service.compute_current_amount(db, goal) == Decimal("0")
+    assert goal_progress_service.compute_current_amount(db, goal) == Decimal("0")
 
     goal_service.update_monthly_target_achieved(db, goal.id, "2026-09", Decimal("100000"))
     db.refresh(goal)
-    assert goal_service.compute_current_amount(db, goal) == Decimal("100000")
+    assert goal_progress_service.compute_current_amount(db, goal) == Decimal("100000")
 
 
 def test_unlinked_goal_without_monthly_targets_still_uses_manual_amount(seeded_db):
@@ -655,7 +662,7 @@ def test_unlinked_goal_without_monthly_targets_still_uses_manual_amount(seeded_d
         db, 1, "내집마련", 40, Decimal("100000000"), Decimal("500000"), current_amount=Decimal("1000000")
     )
     assert goal.monthly_targets == []
-    assert goal_service.compute_current_amount(db, goal) == Decimal("1000000")
+    assert goal_progress_service.compute_current_amount(db, goal) == Decimal("1000000")
 
 
 def test_compute_linked_monthly_achieved_sums_account_transactions_by_income_expense(seeded_db):
@@ -681,7 +688,7 @@ def test_compute_linked_monthly_achieved_sums_account_transactions_by_income_exp
     # 이 계좌와 무관한 거래(다른 카테고리, account_id 없음)는 집계에서 제외된다.
     transaction_service.create_transaction(db, user.id, food.id, "expense", Decimal("999999"), date(2026, 9, 15))
 
-    result = goal_service.compute_linked_monthly_achieved(db, goal, ["2026-09"])
+    result = goal_progress_service.compute_linked_monthly_achieved(db, goal, ["2026-09"])
     assert result == {"2026-09": Decimal("250000")}
 
 
@@ -716,7 +723,7 @@ def test_compute_linked_monthly_achieved_savings_product_deposits_always_add(see
         savings_product_id=product.id,
     )
 
-    result = goal_service.compute_linked_monthly_achieved(db, goal, ["2026-09"])
+    result = goal_progress_service.compute_linked_monthly_achieved(db, goal, ["2026-09"])
     assert result == {"2026-09": Decimal("100000")}
 
 
@@ -739,7 +746,7 @@ def test_to_out_marks_linked_goal_monthly_targets_as_auto_computed(seeded_db):
     )
     db.refresh(goal)
 
-    out = goal_service.to_out(db, goal, today=date(2026, 9, 1))
+    out = goal_progress_service.to_out(db, goal, today=date(2026, 9, 1))
     assert out["monthly_targets"] == [
         {
             "year_month": "2026-09",

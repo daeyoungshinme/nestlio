@@ -13,7 +13,7 @@ from app.schemas.financial_goal import (
     GoalMonthlyTargetAchievedIn,
     GrowlioGoalSettingsOut,
 )
-from app.services import goal_service, notification_service
+from app.services import goal_progress_service, goal_service, notification_service
 from app.utils.dates import now_kst, today_kst
 
 router = APIRouter(prefix="/financial-goals", tags=["financial-goals"])
@@ -29,7 +29,7 @@ def get_growlio_goal(bearer_token: str = Depends(get_bearer_token), _: User = De
 @router.get("", response_model=list[FinancialGoalOut])
 def list_goals(db: Session = Depends(get_db), _: User = Depends(get_current_user)):
     today = today_kst()
-    return [goal_service.to_out(db, goal, today) for goal in goal_service.list_goals(db)]
+    return [goal_progress_service.to_out(db, goal, today) for goal in goal_service.list_goals(db)]
 
 
 @router.post("", response_model=FinancialGoalOut, status_code=status.HTTP_201_CREATED)
@@ -64,7 +64,7 @@ def create_goal(
         notification_service.check_and_celebrate_goal_milestone(db, goal.id, today)
     except Exception:
         logger.exception("목표 달성 축하 알림 처리 실패 (목표는 정상 저장됨)")
-    return goal_service.to_out(db, goal, today)
+    return goal_progress_service.to_out(db, goal, today)
 
 
 @router.put("/{goal_id}", response_model=FinancialGoalOut)
@@ -101,7 +101,7 @@ def update_goal(
         notification_service.check_and_celebrate_goal_milestone(db, goal.id, today)
     except Exception:
         logger.exception("목표 달성 축하 알림 처리 실패 (목표는 정상 저장됨)")
-    return goal_service.to_out(db, goal, today)
+    return goal_progress_service.to_out(db, goal, today)
 
 
 @router.patch("/{goal_id}/monthly-targets/{year_month}", response_model=FinancialGoalOut)
@@ -123,7 +123,7 @@ def update_monthly_target(
         notification_service.check_and_celebrate_goal_milestone(db, goal.id, today)
     except Exception:
         logger.exception("목표 달성 축하 알림 처리 실패 (월별 목표는 정상 저장됨)")
-    return goal_service.to_out(db, goal, today)
+    return goal_progress_service.to_out(db, goal, today)
 
 
 @router.delete("/{goal_id}", status_code=status.HTTP_204_NO_CONTENT)

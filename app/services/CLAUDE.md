@@ -68,6 +68,15 @@
 - 세 파일 모두 상품 목록 조회가 필요하면 `savings_product_service.list_products(db)`를 그대로 재사용한다 — 별도 쿼리를 새로 만들지 않는다.
 - 테스트 파일은 나누지 않았다(`tests/CLAUDE.md`에 명시) — `tests/test_savings_product_service.py`가 세 모듈을 모두 다룬다.
 
+## goal_service.py / goal_progress_service.py
+
+`goal_service.py`는 원래 CRUD·챌린지 동기화·진행률/ETA 계산을 한 파일에 모두 담고 있었으나(454줄), 책임별로 2개 파일로 분리했다(`transaction_service`/`savings_product_service`의 분할과 동일한 동기이지만, growlio 연동이 `fetch_growlio_goal_settings` 단일 함수뿐이라 3분할은 하지 않았다).
+
+- `goal_service.py`: CRUD(`create_goal`/`update_goal`/`delete_goal`/`list_goals`/`get_goal`/`update_monthly_target_achieved`), 챌린지 상태 동기화(`sync_challenge_statuses`, `_apply_challenge_completion`), 연동 관리(`_apply_funding_sources`, `_sync_funding_product_monthly_amount`), `fetch_growlio_goal_settings`, 예외 클래스(`MonthlyTargetNotFoundError`, `DuplicateFundingSourceProductError`)만 남는다.
+- `goal_progress_service.py`: 진행률/ETA 계산 함수들(`funding_source_breakdown`/`current_amount_from_breakdown`/`compute_current_amount`/`compute_linked_monthly_achieved`/`compute_progress_pct`/`effective_status`/`compute_months_remaining`/`compute_suggested_monthly_amount`/`compute_eta_year_month`/`compute_ahead_behind_months`/`to_out`)이 모여 있다. 순수하게 읽기 전용이라 DB를 쓰지 않는다(`compute_current_amount` 등이 조회는 하지만 커밋하지 않음).
+- `goal_service.py`가 `_apply_challenge_completion`(완료 판정)에서 `goal_progress_service.compute_current_amount`를 호출하는 단방향 의존이다 — `goal_progress_service`는 `goal_service`를 참조하지 않는다.
+- 테스트 파일은 나누지 않았다(`tests/CLAUDE.md`에 명시) — `tests/test_goal_service.py`/`tests/test_financial_plan_services.py`가 두 모듈을 모두 다룬다.
+
 ## growlio 연동 공통 헬퍼 (growlio_client.py)
 
 `GrowlioNotConfiguredError`/`GrowlioRequestError`/`GrowlioSyncError`는 모두 `growlio_client.py`에 단일 정의되어 있다 — account_service/savings_product_growlio_service/real_estate_service는 여기서 import해서 쓰고 새로 정의하지 않는다. 라우터에서 이 예외들을 개별적으로 catch할 필요도 없다 — `app/main.py`가 `growlio_client.register_exception_handlers(app)`로 앱 전역에서 501/502/409로 매핑한다.
