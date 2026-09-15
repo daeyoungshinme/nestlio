@@ -77,6 +77,15 @@
 - `goal_service.py`가 `_apply_challenge_completion`(완료 판정)에서 `goal_progress_service.compute_current_amount`를 호출하는 단방향 의존이다 — `goal_progress_service`는 `goal_service`를 참조하지 않는다.
 - 테스트 파일은 나누지 않았다(`tests/CLAUDE.md`에 명시) — `tests/test_goal_service.py`/`tests/test_financial_plan_services.py`가 두 모듈을 모두 다룬다.
 
+## notification_service.py / notification_inbox_service.py
+
+`notification_service.py`는 원래 발송/알림 판정 로직과 인박스(읽음/반응) 로직을 한 파일에 모두 담고 있었으나(425줄), 책임별로 2개 파일로 분리했다(`goal_service`와 동일한 2분할 동기 — growlio류 연동이 없어 이쪽도 3분할 대상이 아니다).
+
+- `notification_service.py`: 이메일 발송/알림 판정 로직(`send_weekly_summary`/`send_monthly_summary`/`check_and_alert_budget_threshold`/`check_and_celebrate_goal_milestone`/`check_all_goal_milestones`/`check_all_categories_threshold`)과 dedup 헬퍼(`_already_sent`/`_log_sent`)만 남는다. 위 "알림 dedup" 절이 설명하는 `NotificationLog` 기반 dedup이 여기 있다.
+- `notification_inbox_service.py`(신규): 알림 목록/읽음/반응 CRUD(`list_notifications`/`add_reaction`/`remove_reaction`/`unread_count`/`mark_read`/`mark_all_read`), `REACTION_EMOJIS` 상수, 예외 클래스(`NotificationError`, `NotificationNotFoundError`, `InvalidReactionError`)가 모여 있다.
+- 두 모듈 사이에 의존 관계는 없다(서로 import하지 않음) — 알림을 "발송"하는 것과 발송된 알림을 "조회/읽음 처리"하는 것은 완전히 분리된 관심사다.
+- 테스트 파일은 나누지 않았다(`tests/CLAUDE.md`에 명시) — `tests/test_notification_service.py`가 두 모듈을 모두 다룬다.
+
 ## growlio 연동 공통 헬퍼 (growlio_client.py)
 
 `GrowlioNotConfiguredError`/`GrowlioRequestError`/`GrowlioSyncError`는 모두 `growlio_client.py`에 단일 정의되어 있다 — account_service/savings_product_growlio_service/real_estate_service는 여기서 import해서 쓰고 새로 정의하지 않는다. 라우터에서 이 예외들을 개별적으로 catch할 필요도 없다 — `app/main.py`가 `growlio_client.register_exception_handlers(app)`로 앱 전역에서 501/502/409로 매핑한다.
