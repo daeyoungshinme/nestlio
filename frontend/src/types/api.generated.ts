@@ -2199,6 +2199,8 @@ export interface components {
             owner_totals: components["schemas"]["OwnerTotalsOut"][];
             /** Expense Breakdown */
             expense_breakdown: components["schemas"]["CategoryAmountOut"][];
+            /** Payment Method Breakdown */
+            payment_method_breakdown: components["schemas"]["PaymentMethodAmountOut"][];
             /** Owner Overspend Highlights */
             owner_overspend_highlights: components["schemas"]["OwnerOverspendHighlightOut"][];
             /** Category Benchmarks */
@@ -3007,6 +3009,13 @@ export interface components {
             /** Savings Investment */
             savings_investment: string;
         };
+        /** PaymentMethodAmountOut */
+        PaymentMethodAmountOut: {
+            /** Payment Method */
+            payment_method: ("cash" | "credit_card" | "debit_card" | "transfer" | "other") | null;
+            /** Amount */
+            amount: string;
+        };
         /**
          * RealEstateImportResultOut
          * @description growlio 부동산 계좌 하나를 가져오거나 동기화한 결과 — 자산 항목(저축/투자 상품)과
@@ -3446,7 +3455,7 @@ export interface components {
             /** Description */
             description?: string | null;
             /** Payment Method */
-            payment_method?: string | null;
+            payment_method?: ("cash" | "credit_card" | "debit_card" | "transfer" | "other") | null;
             /** Account Id */
             account_id?: number | null;
             /** Savings Product Id */
@@ -3479,7 +3488,7 @@ export interface components {
             /** Description */
             description?: string | null;
             /** Payment Method */
-            payment_method?: string | null;
+            payment_method?: ("cash" | "credit_card" | "debit_card" | "transfer" | "other") | null;
             /** Account Id */
             account_id?: number | null;
             /** Savings Product Id */
@@ -3520,7 +3529,7 @@ export interface components {
             /** Description */
             description?: string | null;
             /** Payment Method */
-            payment_method?: string | null;
+            payment_method?: ("cash" | "credit_card" | "debit_card" | "transfer" | "other") | null;
             /** Account Id */
             account_id?: number | null;
             /** Savings Product Id */

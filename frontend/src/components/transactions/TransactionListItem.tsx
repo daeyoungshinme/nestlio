@@ -1,5 +1,6 @@
 import Badge from "@/components/common/Badge";
 import RowActionButtons from "@/components/common/RowActionButtons";
+import { PAYMENT_METHOD_LABEL } from "@/constants/transactions";
 import { transactionAmountTextColor } from "@/utils/colors";
 import { formatDate, formatKrw } from "@/utils/format";
 import type { TransactionOut, UserOut } from "@/types";
@@ -34,6 +35,11 @@ export default function TransactionListItem({
           {!hideCategoryBadge && <Badge type={tx.category.type} label={tx.category.name} />}
           {tx.savings_product && (
             <span className="text-xs text-gray-400 dark:text-gray-500">→ {tx.savings_product.name}</span>
+          )}
+          {tx.payment_method && (
+            <span className="text-xs text-gray-400 dark:text-gray-500">
+              {PAYMENT_METHOD_LABEL[tx.payment_method]}
+            </span>
           )}
           {showUser && (
             <span className="text-xs text-gray-400 dark:text-gray-500">{ownerLabel}</span>

@@ -50,6 +50,24 @@ def period_totals(db: Session, date_from: date, date_to: date) -> dict:
     return totals
 
 
+def payment_method_breakdown(db: Session, date_from: date, date_to: date) -> list[dict]:
+    """기간 내 지출을 결제수단별로 합산한다. `payment_method`가 비어 있는(미입력) 거래는
+    "미입력"을 뜻하는 `None` 키 한 줄로 묶어 반환한다."""
+    rows = (
+        db.query(Transaction.payment_method, func.sum(Transaction.amount))
+        .filter(
+            *_period_expense_filters(date_from, date_to),
+            Transaction.type == "expense",
+        )
+        .group_by(Transaction.payment_method)
+        .all()
+    )
+    return [
+        {"payment_method": payment_method, "amount": amount or Decimal("0")}
+        for payment_method, amount in rows
+    ]
+
+
 def totals_by_user(db: Session, date_from: date, date_to: date) -> list[dict]:
     """Income/expense/savings totals per user for a date range, for spouse contribution comparison.
     Only includes users with at least one transaction in the range."""

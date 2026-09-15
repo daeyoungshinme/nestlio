@@ -10,6 +10,7 @@ import MonthlyRetrospectiveCard from "@/components/dashboard/MonthlyRetrospectiv
 import TodayScheduleCard from "@/components/dashboard/TodayScheduleCard";
 import CoupleContributionCard from "@/components/dashboard/CoupleContributionCard";
 import SpendingFocusCard from "@/components/dashboard/SpendingFocusCard";
+import PaymentMethodBreakdownCard from "@/components/dashboard/PaymentMethodBreakdownCard";
 import InvestSurplusCard from "@/components/dashboard/InvestSurplusCard";
 import SavingsTrendSparkline from "@/components/dashboard/SavingsTrendSparkline";
 import GoalProgressCard from "@/components/financialPlan/GoalProgressCard";
@@ -430,6 +431,8 @@ export default function DashboardPage() {
         ownerOverspendHighlights={data.owner_overspend_highlights}
         categoryBenchmarks={data.category_benchmarks}
       />
+
+      <PaymentMethodBreakdownCard paymentMethodBreakdown={data.payment_method_breakdown} />
 
       <button
         type="button"

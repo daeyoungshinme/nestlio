@@ -11,6 +11,8 @@ from app.schemas.common import KrwAmount, TotalsOut
 from app.schemas.savings_product import SavingsProductOut
 from app.schemas.user import UserOut
 
+PaymentMethod = Literal["cash", "credit_card", "debit_card", "transfer", "other"]
+
 
 class TransactionOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
@@ -20,7 +22,7 @@ class TransactionOut(BaseModel):
     amount: Decimal
     transaction_date: date
     description: str | None = None
-    payment_method: str | None = None
+    payment_method: PaymentMethod | None = None
     account_id: int | None = None
     savings_product_id: int | None = None
     category: CategoryOut
@@ -39,7 +41,7 @@ class TransactionCreateIn(BaseModel):
     category_id: int
     transaction_date: date
     description: str | None = None
-    payment_method: str | None = None
+    payment_method: PaymentMethod | None = None
     account_id: int | None = None
     savings_product_id: int | None = None
     owner_user_id: uuid.UUID | None = None
