@@ -162,6 +162,11 @@ export interface OwnerOverspendHighlightOut {
   delta: string;
 }
 
+export interface PaymentMethodAmountOut {
+  payment_method: PaymentMethod | null;
+  amount: string;
+}
+
 export interface DashboardOut {
   period: DashboardPeriod;
   start: string;
@@ -169,6 +174,7 @@ export interface DashboardOut {
   totals: TotalsOut;
   owner_totals: OwnerTotalsOut[];
   expense_breakdown: CategoryAmountOut[];
+  payment_method_breakdown: PaymentMethodAmountOut[];
   owner_overspend_highlights: OwnerOverspendHighlightOut[];
   category_benchmarks: CategoryBenchmarkRowOut[];
   trend: TrendRowOut[];
@@ -207,13 +213,15 @@ export interface MonthlyRetrospectiveOut {
 
 export type TransactionType = "income" | "expense";
 
+export type PaymentMethod = "cash" | "credit_card" | "debit_card" | "transfer" | "other";
+
 export interface TransactionOut {
   id: number;
   type: TransactionType;
   amount: string;
   transaction_date: string;
   description: string | null;
-  payment_method: string | null;
+  payment_method: PaymentMethod | null;
   account_id: number | null;
   savings_product_id: number | null;
   category: CategoryOut;
@@ -231,7 +239,7 @@ export interface TransactionCreateIn {
   category_id: number;
   transaction_date: string;
   description?: string | null;
-  payment_method?: string | null;
+  payment_method?: PaymentMethod | null;
   account_id?: number | null;
   savings_product_id?: number | null;
   owner_user_id?: string | null;

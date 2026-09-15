@@ -14,6 +14,7 @@ import { STALE_TIME } from "@/constants/queryConfig";
 import { INLINE_BUTTON_OFFSET, INPUT_SM, LABEL_SM } from "@/constants/inputStyles";
 import { TOUCH_TARGET_COMPACT_MOBILE_ONLY } from "@/constants/uiSizes";
 import { EXPENSE_TYPE_FILTER_OPTIONS } from "@/components/transactions/TransactionFilterBar";
+import { PAYMENT_METHOD_OPTIONS } from "@/constants/transactions";
 import { categoryTypeBadgeStyle } from "@/utils/colors";
 import { currentDateIso } from "@/utils/date";
 import { formatKrw, formatKrwPreview, toAmountInputValue } from "@/utils/format";
@@ -21,6 +22,7 @@ import type {
   CategoryOut,
   AccountWithBalanceOut,
   CashflowPlanItemOut,
+  PaymentMethod,
   SavingsProductOut,
   TransactionCreateIn,
   TransactionOut,
@@ -68,7 +70,7 @@ export interface TransactionFormValues {
   category_id: string;
   transaction_date: string;
   description: string;
-  payment_method: string;
+  payment_method: PaymentMethod | "";
   account_id: string;
   savings_product_id: string;
   owner_user_id: string;
@@ -439,6 +441,26 @@ export default function TransactionForm({
                 </select>
               </div>
 
+              {uiType === "expense" && (
+                <div>
+                  <label className={`block mb-1 font-medium ${LABEL_SM}`}>결제수단</label>
+                  <select
+                    className={`${INPUT_SM} w-full`}
+                    value={values.payment_method}
+                    onChange={(e) =>
+                      setValues((v) => ({ ...v, payment_method: e.target.value as PaymentMethod | "" }))
+                    }
+                  >
+                    <option value="">(선택 안 함)</option>
+                    {PAYMENT_METHOD_OPTIONS.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
               {users.length > 1 && (
                 <OwnerSelect
                   value={values.owner_user_id}
@@ -466,6 +488,24 @@ export default function TransactionForm({
               ))}
             </select>
           </div>
+
+          {uiType === "expense" && (
+            <div>
+              <label className={`block mb-1 font-medium ${LABEL_SM}`}>결제수단</label>
+              <select
+                className={`${INPUT_SM} w-32`}
+                value={values.payment_method}
+                onChange={(e) => setValues((v) => ({ ...v, payment_method: e.target.value as PaymentMethod | "" }))}
+              >
+                <option value="">(선택 안 함)</option>
+                {PAYMENT_METHOD_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
 
           {users.length > 1 && (
             <OwnerSelect
