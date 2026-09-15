@@ -6,7 +6,13 @@ from unittest.mock import patch
 import pytest
 
 from app.models.user import User
-from app.services import cashflow_plan_service, goal_service, notification_service, notification_settings_service
+from app.services import (
+    cashflow_plan_service,
+    goal_service,
+    notification_inbox_service,
+    notification_service,
+    notification_settings_service,
+)
 
 
 @patch("app.services.notification_service.is_connected", return_value=True)
@@ -43,7 +49,7 @@ def test_weekly_summary_logs_even_when_google_not_connected(mock_send, mock_conn
 
     assert sent is True
     mock_send.assert_not_called()
-    [log] = notification_service.list_notifications(db, user.id)
+    [log] = notification_inbox_service.list_notifications(db, user.id)
     assert log["notif_type"] == "email_weekly"
 
 
@@ -104,7 +110,7 @@ def test_threshold_alert_logs_even_when_google_not_connected(mock_send, mock_con
 
     assert sent is True
     mock_send.assert_not_called()
-    [log] = notification_service.list_notifications(db, user.id)
+    [log] = notification_inbox_service.list_notifications(db, user.id)
     assert log["notif_type"] == "threshold_alert"
 
 
@@ -163,7 +169,7 @@ def test_goal_milestone_logs_even_when_google_not_connected(mock_send, mock_conn
 
     assert sent is True
     mock_send.assert_not_called()
-    [log] = notification_service.list_notifications(db, user.id)
+    [log] = notification_inbox_service.list_notifications(db, user.id)
     assert log["notif_type"] == "goal_milestone"
 
 
@@ -259,7 +265,7 @@ def test_challenge_success_logs_even_when_google_not_connected(mock_send, mock_c
 
     assert sent is True
     mock_send.assert_not_called()
-    [log] = notification_service.list_notifications(db, user.id)
+    [log] = notification_inbox_service.list_notifications(db, user.id)
     assert log["notif_type"] == "challenge_success"
 
 
@@ -346,38 +352,38 @@ def test_list_notifications_reflects_read_state_independently_per_user(mock_send
     spouse = _second_user(db)
     notification_service.send_weekly_summary(db, today=date(2026, 7, 29))
 
-    [log] = notification_service.list_notifications(db, user.id)
+    [log] = notification_inbox_service.list_notifications(db, user.id)
     assert log["is_read"] is False
-    assert notification_service.unread_count(db, user.id) == 1
+    assert notification_inbox_service.unread_count(db, user.id) == 1
 
-    notification_service.mark_read(db, user.id, log["id"], now=datetime(2026, 7, 29, 12, 0))
+    notification_inbox_service.mark_read(db, user.id, log["id"], now=datetime(2026, 7, 29, 12, 0))
 
-    [log_after] = notification_service.list_notifications(db, user.id)
+    [log_after] = notification_inbox_service.list_notifications(db, user.id)
     assert log_after["is_read"] is True
-    assert notification_service.unread_count(db, user.id) == 0
+    assert notification_inbox_service.unread_count(db, user.id) == 0
 
     # the other spouse's read state is unaffected
-    [spouse_view] = notification_service.list_notifications(db, spouse.id)
+    [spouse_view] = notification_inbox_service.list_notifications(db, spouse.id)
     assert spouse_view["is_read"] is False
-    assert notification_service.unread_count(db, spouse.id) == 1
+    assert notification_inbox_service.unread_count(db, spouse.id) == 1
 
 
 @patch("app.services.notification_service.gmail_service.send_email")
 def test_mark_read_is_idempotent(mock_send, seeded_db):
     db, user = seeded_db["db"], seeded_db["user"]
     notification_service.send_weekly_summary(db, today=date(2026, 7, 29))
-    [log] = notification_service.list_notifications(db, user.id)
+    [log] = notification_inbox_service.list_notifications(db, user.id)
 
-    notification_service.mark_read(db, user.id, log["id"])
-    notification_service.mark_read(db, user.id, log["id"])  # should not raise / double-insert
+    notification_inbox_service.mark_read(db, user.id, log["id"])
+    notification_inbox_service.mark_read(db, user.id, log["id"])  # should not raise / double-insert
 
-    assert notification_service.unread_count(db, user.id) == 0
+    assert notification_inbox_service.unread_count(db, user.id) == 0
 
 
 def test_mark_read_unknown_id_raises(seeded_db):
     db, user = seeded_db["db"], seeded_db["user"]
-    with pytest.raises(notification_service.NotificationNotFoundError):
-        notification_service.mark_read(db, user.id, 999999)
+    with pytest.raises(notification_inbox_service.NotificationNotFoundError):
+        notification_inbox_service.mark_read(db, user.id, 999999)
 
 
 @patch("app.services.notification_service.gmail_service.send_email")
@@ -386,12 +392,12 @@ def test_mark_all_read(mock_send, seeded_db):
     notification_service.send_weekly_summary(db, today=date(2026, 7, 29))
     notification_service.send_monthly_summary(db, today=date(2026, 8, 3))
 
-    marked = notification_service.mark_all_read(db, user.id)
-    marked_again = notification_service.mark_all_read(db, user.id)
+    marked = notification_inbox_service.mark_all_read(db, user.id)
+    marked_again = notification_inbox_service.mark_all_read(db, user.id)
 
     assert marked == 2
     assert marked_again == 0
-    assert notification_service.unread_count(db, user.id) == 0
+    assert notification_inbox_service.unread_count(db, user.id) == 0
 
 
 @patch("app.services.notification_service.gmail_service.send_email")
@@ -401,12 +407,12 @@ def test_add_reaction_and_list_notifications_includes_it(mock_connected, mock_se
     spouse = _second_user(db)
     goal = goal_service.create_goal(db, 1, "내집마련", 40, Decimal("1000000"), Decimal("100000"), Decimal("250000"))  # 25%
     notification_service.check_and_celebrate_goal_milestone(db, goal.id)
-    [log] = notification_service.list_notifications(db, user.id)
+    [log] = notification_inbox_service.list_notifications(db, user.id)
     assert log["reactions"] == []
 
-    notification_service.add_reaction(db, spouse.id, log["id"], "🎉", "축하해요!")
+    notification_inbox_service.add_reaction(db, spouse.id, log["id"], "🎉", "축하해요!")
 
-    [log_after] = notification_service.list_notifications(db, user.id)
+    [log_after] = notification_inbox_service.list_notifications(db, user.id)
     assert len(log_after["reactions"]) == 1
     reaction = log_after["reactions"][0]
     assert reaction["emoji"] == "🎉"
@@ -418,12 +424,12 @@ def test_add_reaction_and_list_notifications_includes_it(mock_connected, mock_se
 def test_add_reaction_overwrites_previous_reaction_from_same_user(mock_send, seeded_db):
     db, user = seeded_db["db"], seeded_db["user"]
     notification_service.send_weekly_summary(db, today=date(2026, 7, 29))
-    [log] = notification_service.list_notifications(db, user.id)
+    [log] = notification_inbox_service.list_notifications(db, user.id)
 
-    notification_service.add_reaction(db, user.id, log["id"], "🎉")
-    notification_service.add_reaction(db, user.id, log["id"], "👏")
+    notification_inbox_service.add_reaction(db, user.id, log["id"], "🎉")
+    notification_inbox_service.add_reaction(db, user.id, log["id"], "👏")
 
-    [log_after] = notification_service.list_notifications(db, user.id)
+    [log_after] = notification_inbox_service.list_notifications(db, user.id)
     assert len(log_after["reactions"]) == 1
     assert log_after["reactions"][0]["emoji"] == "👏"
 
@@ -432,26 +438,26 @@ def test_add_reaction_overwrites_previous_reaction_from_same_user(mock_send, see
 def test_add_reaction_rejects_unknown_emoji(mock_send, seeded_db):
     db, user = seeded_db["db"], seeded_db["user"]
     notification_service.send_weekly_summary(db, today=date(2026, 7, 29))
-    [log] = notification_service.list_notifications(db, user.id)
+    [log] = notification_inbox_service.list_notifications(db, user.id)
 
-    with pytest.raises(notification_service.InvalidReactionError):
-        notification_service.add_reaction(db, user.id, log["id"], "😈")
+    with pytest.raises(notification_inbox_service.InvalidReactionError):
+        notification_inbox_service.add_reaction(db, user.id, log["id"], "😈")
 
 
 def test_add_reaction_unknown_notification_raises(seeded_db):
     db, user = seeded_db["db"], seeded_db["user"]
-    with pytest.raises(notification_service.NotificationNotFoundError):
-        notification_service.add_reaction(db, user.id, 999999, "🎉")
+    with pytest.raises(notification_inbox_service.NotificationNotFoundError):
+        notification_inbox_service.add_reaction(db, user.id, 999999, "🎉")
 
 
 @patch("app.services.notification_service.gmail_service.send_email")
 def test_remove_reaction(mock_send, seeded_db):
     db, user = seeded_db["db"], seeded_db["user"]
     notification_service.send_weekly_summary(db, today=date(2026, 7, 29))
-    [log] = notification_service.list_notifications(db, user.id)
-    notification_service.add_reaction(db, user.id, log["id"], "🎉")
+    [log] = notification_inbox_service.list_notifications(db, user.id)
+    notification_inbox_service.add_reaction(db, user.id, log["id"], "🎉")
 
-    notification_service.remove_reaction(db, user.id, log["id"])
+    notification_inbox_service.remove_reaction(db, user.id, log["id"])
 
-    [log_after] = notification_service.list_notifications(db, user.id)
+    [log_after] = notification_inbox_service.list_notifications(db, user.id)
     assert log_after["reactions"] == []
