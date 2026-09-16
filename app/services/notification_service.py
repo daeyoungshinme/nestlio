@@ -14,6 +14,7 @@ from app.services import (
     coaching_engine,
     email_templates,
     gmail_service,
+    goal_progress_service,
     goal_service,
     milestone_service,
     notification_settings_service,
@@ -231,8 +232,8 @@ def _celebrate_goal_milestone(db: Session, goal, today: date | None = None) -> b
     if goal is None or not goal.required_amount:
         return False
     is_challenge = goal.kind == "challenge"
-    current_amount = goal_service.compute_current_amount(db, goal)
-    progress_pct = goal_service.compute_progress_pct(current_amount, goal.required_amount)
+    current_amount = goal_progress_service.compute_current_amount(db, goal)
+    progress_pct = goal_progress_service.compute_progress_pct(current_amount, goal.required_amount)
     milestone = milestone_service.highest_crossed(progress_pct, milestones=(100,) if is_challenge else milestone_service.MILESTONES)
     if milestone is None:
         return False
