@@ -1,3 +1,4 @@
+import { memo } from "react";
 import { Crown } from "lucide-react";
 import ProgressBar from "@/components/common/ProgressBar";
 import StatusBadge from "@/components/common/StatusBadge";
@@ -15,7 +16,7 @@ function ownerKey(ownerUserId: string | null): string {
   return ownerUserId ?? "shared";
 }
 
-export default function CoupleContributionCard({ title, ownerTotals, totalOwnerSavings }: Props) {
+function CoupleContributionCard({ title, ownerTotals, totalOwnerSavings }: Props) {
   if (ownerTotals.length === 0) return null;
 
   // 저축 기여도 기준 랭킹 — 각자 저축액이 부부 합산 저축액에서 차지하는 비중을 진행바로,
@@ -64,3 +65,5 @@ export default function CoupleContributionCard({ title, ownerTotals, totalOwnerS
     </div>
   );
 }
+
+export default memo(CoupleContributionCard);

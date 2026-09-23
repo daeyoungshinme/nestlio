@@ -1,5 +1,5 @@
 import { useNavigate } from "react-router-dom";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { ChevronLeft, ChevronRight, PieChart as PieChartIcon, Scale, TrendingUp } from "lucide-react";
 import {
@@ -79,13 +79,32 @@ export default function ReportsYearlyPage() {
     staleTime: STALE_TIME.MEDIUM,
   });
 
-  const trendData = trend?.months.map((month, i) => {
-    const row: Record<string, string | number> = { name: formatYearMonth(month) };
-    for (const series of trend.series) {
-      row[series.name] = Number(series.amounts[i]);
-    }
-    return row;
-  });
+  const trendData = useMemo(
+    () =>
+      trend?.months.map((month, i) => {
+        const row: Record<string, string | number> = { name: formatYearMonth(month) };
+        for (const series of trend.series) {
+          row[series.name] = Number(series.amounts[i]);
+        }
+        return row;
+      }),
+    [trend],
+  );
+
+  const yearlyData = yearlyReportQuery.data;
+  const monthlyData = useMemo(
+    () =>
+      yearlyData?.monthly.map((row) => ({
+        name: formatMonthOnly(row.year_month),
+        수입: Number(row.income),
+        지출: Number(row.expense),
+      })) ?? [],
+    [yearlyData],
+  );
+  const pieData = useMemo(
+    () => yearlyData?.breakdown.map((row) => ({ name: row.name, value: Number(row.amount), color: row.color })) ?? [],
+    [yearlyData],
+  );
 
   return (
     <QueryBoundary
@@ -93,15 +112,7 @@ export default function ReportsYearlyPage() {
       errorMessage="연간 리포트를 불러오지 못했습니다."
       loadingFallback={<SkeletonCard rows={4} />}
     >
-      {(data) => {
-        const monthlyData = data.monthly.map((row) => ({
-          name: formatMonthOnly(row.year_month),
-          수입: Number(row.income),
-          지출: Number(row.expense),
-        }));
-        const pieData = data.breakdown.map((row) => ({ name: row.name, value: Number(row.amount), color: row.color }));
-
-        return (
+      {(data) => (
           <div className="space-y-6">
             <div className="flex items-center justify-center gap-4">
               <button
@@ -256,8 +267,7 @@ export default function ReportsYearlyPage() {
               )}
             </div>
           </div>
-        );
-      }}
+      )}
     </QueryBoundary>
   );
 }

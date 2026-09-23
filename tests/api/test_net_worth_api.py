@@ -54,10 +54,17 @@ def test_get_growlio_unlinked_net_worth_returns_summary(client):
 
 
 def test_get_growlio_unlinked_net_worth_not_configured_returns_zero(client):
-
-    with patch(
-        "app.services.net_worth_service.growlio_client.fetch_account_balances",
-        side_effect=GrowlioNotConfiguredError("growlio 연동이 설정되지 않았습니다."),
+    # 두 growlio 호출이 동시에 나가므로(net_worth_service.compute_growlio_unlinked) 둘 다
+    # mock해야 한다 — 하나만 mock하면 나머지가 실제 httpx 호출을 시도해 테스트가 느려진다.
+    with (
+        patch(
+            "app.services.net_worth_service.growlio_client.fetch_account_balances",
+            side_effect=GrowlioNotConfiguredError("growlio 연동이 설정되지 않았습니다."),
+        ),
+        patch(
+            "app.services.net_worth_service.growlio_client.fetch_real_estate_items",
+            side_effect=GrowlioNotConfiguredError("growlio 연동이 설정되지 않았습니다."),
+        ),
     ):
         resp = client.get("/api/v1/net-worth/growlio-unlinked")
 
@@ -68,10 +75,15 @@ def test_get_growlio_unlinked_net_worth_not_configured_returns_zero(client):
 
 
 def test_get_growlio_unlinked_net_worth_request_failure_returns_zero(client):
-
-    with patch(
-        "app.services.net_worth_service.growlio_client.fetch_account_balances",
-        side_effect=GrowlioRequestError("growlio 서버에 연결하지 못했습니다."),
+    with (
+        patch(
+            "app.services.net_worth_service.growlio_client.fetch_account_balances",
+            side_effect=GrowlioRequestError("growlio 서버에 연결하지 못했습니다."),
+        ),
+        patch(
+            "app.services.net_worth_service.growlio_client.fetch_real_estate_items",
+            side_effect=GrowlioRequestError("growlio 서버에 연결하지 못했습니다."),
+        ),
     ):
         resp = client.get("/api/v1/net-worth/growlio-unlinked")
 

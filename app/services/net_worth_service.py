@@ -1,4 +1,5 @@
 import logging
+from concurrent.futures import ThreadPoolExecutor
 from datetime import date, datetime, timedelta
 from decimal import Decimal
 
@@ -82,8 +83,13 @@ def compute_growlio_unlinked(db: Session, bearer_token: str) -> dict:
     조용히 0건으로 처리한다 (transaction_service.push_savings_transaction_to_growlio와 동일한 방침).
     """
     try:
-        accounts = growlio_client.fetch_account_balances(bearer_token)
-        real_estate_items = growlio_client.fetch_real_estate_items(bearer_token)
+        # 두 growlio 호출을 동시에 보내 growlio가 느릴 때(콜드스타트 등) 최악의 대기시간을
+        # 순차 실행(타임아웃 2회분)의 절반으로 줄인다.
+        with ThreadPoolExecutor(max_workers=2) as executor:
+            accounts_future = executor.submit(growlio_client.fetch_account_balances, bearer_token)
+            real_estate_future = executor.submit(growlio_client.fetch_real_estate_items, bearer_token)
+            accounts = accounts_future.result()
+            real_estate_items = real_estate_future.result()
     except (growlio_client.GrowlioNotConfiguredError, growlio_client.GrowlioRequestError):
         logger.warning("growlio_unlinked_fetch_failed", exc_info=True)
         accounts, real_estate_items = [], []

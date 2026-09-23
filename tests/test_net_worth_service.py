@@ -175,9 +175,18 @@ def test_compute_growlio_unlinked_returns_zero_when_everything_already_linked(se
 def test_compute_growlio_unlinked_returns_zero_when_growlio_unreachable(seeded_db):
     db = seeded_db["db"]
 
-    with patch(
-        "app.services.net_worth_service.growlio_client.fetch_account_balances",
-        side_effect=GrowlioRequestError("growlio 서버에 연결하지 못했습니다."),
+    # 두 growlio 호출이 동시에 나가므로(net_worth_service.compute_growlio_unlinked), 같은 서버가
+    # 대상인 실패 시나리오를 재현하려면 둘 다 mock해야 한다 — 하나만 mock하면 나머지가 실제
+    # httpx 호출을 시도해 테스트가 느려지거나 불안정해진다.
+    with (
+        patch(
+            "app.services.net_worth_service.growlio_client.fetch_account_balances",
+            side_effect=GrowlioRequestError("growlio 서버에 연결하지 못했습니다."),
+        ),
+        patch(
+            "app.services.net_worth_service.growlio_client.fetch_real_estate_items",
+            side_effect=GrowlioRequestError("growlio 서버에 연결하지 못했습니다."),
+        ),
     ):
         breakdown = net_worth_service.compute_growlio_unlinked(db, "token")
 
@@ -188,9 +197,15 @@ def test_compute_growlio_unlinked_returns_zero_when_growlio_unreachable(seeded_d
 def test_compute_growlio_unlinked_returns_zero_when_not_configured(seeded_db):
     db = seeded_db["db"]
 
-    with patch(
-        "app.services.net_worth_service.growlio_client.fetch_account_balances",
-        side_effect=GrowlioNotConfiguredError("growlio 연동이 설정되지 않았습니다."),
+    with (
+        patch(
+            "app.services.net_worth_service.growlio_client.fetch_account_balances",
+            side_effect=GrowlioNotConfiguredError("growlio 연동이 설정되지 않았습니다."),
+        ),
+        patch(
+            "app.services.net_worth_service.growlio_client.fetch_real_estate_items",
+            side_effect=GrowlioNotConfiguredError("growlio 연동이 설정되지 않았습니다."),
+        ),
     ):
         breakdown = net_worth_service.compute_growlio_unlinked(db, "token")
 
