@@ -1,3 +1,4 @@
+import { memo } from "react";
 import ProgressBar from "@/components/common/ProgressBar";
 import { PAYMENT_METHOD_LABEL } from "@/constants/transactions";
 import { insightSeverityStyle } from "@/utils/colors";
@@ -13,7 +14,7 @@ interface Props {
  * 기준선이다 — 데이터가 쌓인 뒤 정식 코칭 인사이트로 승격할 때 설정 가능한 임계값으로 옮긴다. */
 const CREDIT_CARD_RATIO_NOTICE_PCT = 50;
 
-export default function PaymentMethodBreakdownCard({ paymentMethodBreakdown: rawBreakdown }: Props) {
+function PaymentMethodBreakdownCard({ paymentMethodBreakdown: rawBreakdown }: Props) {
   const rows = (rawBreakdown ?? []).filter((row) => Number(row.amount) > 0);
   const total = rows.reduce((sum, row) => sum + Number(row.amount), 0);
   if (total <= 0) return null;
@@ -55,3 +56,5 @@ export default function PaymentMethodBreakdownCard({ paymentMethodBreakdown: raw
     </div>
   );
 }
+
+export default memo(PaymentMethodBreakdownCard);

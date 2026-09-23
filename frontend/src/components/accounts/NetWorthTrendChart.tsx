@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import EmptyState from "@/components/common/EmptyState";
 import { formatKrw, formatKrwCompact, formatYearMonth } from "@/utils/format";
@@ -13,6 +14,15 @@ interface Props {
 export default function NetWorthTrendChart({ history }: Props) {
   const isDark = useThemeStore((s) => s.isDark);
 
+  const chartData = useMemo(
+    () =>
+      history.map((row) => ({
+        name: formatYearMonth(row.year_month),
+        순자산: Number(row.net_worth),
+      })),
+    [history],
+  );
+
   if (history.length < 2) {
     return (
       <EmptyState
@@ -24,10 +34,6 @@ export default function NetWorthTrendChart({ history }: Props) {
     );
   }
 
-  const chartData = history.map((row) => ({
-    name: formatYearMonth(row.year_month),
-    순자산: Number(row.net_worth),
-  }));
   // "2026년 7월" 같은 긴 한글 라벨을 좁은 화면에 다 찍으면 겹치므로, 개수가 많을 때는
   // 최대 6개 정도만 균등 간격으로 남기고 나머지는 건너뛴다.
   const tickInterval = chartData.length > 6 ? Math.ceil(chartData.length / 6) - 1 : 0;

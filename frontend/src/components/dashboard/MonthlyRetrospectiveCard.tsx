@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { memo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { ChevronDown } from "lucide-react";
 import SkeletonCard from "@/components/common/SkeletonCard";
@@ -7,7 +7,7 @@ import { QUERY_KEYS } from "@/constants/queryKeys";
 import { STALE_TIME } from "@/constants/queryConfig";
 import { formatKrw, formatYearMonth } from "@/utils/format";
 
-export default function MonthlyRetrospectiveCard() {
+function MonthlyRetrospectiveCard() {
   const [open, setOpen] = useState(false);
   const { data, isLoading, isError } = useQuery({
     queryKey: QUERY_KEYS.monthlyRetrospective,
@@ -74,3 +74,5 @@ export default function MonthlyRetrospectiveCard() {
     </div>
   );
 }
+
+export default memo(MonthlyRetrospectiveCard);

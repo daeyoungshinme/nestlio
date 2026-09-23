@@ -1,3 +1,4 @@
+import { memo } from "react";
 import { Link } from "react-router-dom";
 import ProgressBar from "@/components/common/ProgressBar";
 import { insightSeverityStyle } from "@/utils/colors";
@@ -10,7 +11,7 @@ interface Props {
   categoryBenchmarks: CategoryBenchmarkRowOut[];
 }
 
-export default function SpendingFocusCard({
+function SpendingFocusCard({
   ownerOverspendHighlights: rawOwnerOverspendHighlights,
   categoryBenchmarks: rawCategoryBenchmarks,
 }: Props) {
@@ -64,3 +65,5 @@ export default function SpendingFocusCard({
     </div>
   );
 }
+
+export default memo(SpendingFocusCard);
