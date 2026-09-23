@@ -95,3 +95,19 @@ jobs:
         run: |
           curl -fsS --retry 2 --retry-delay 15 --retry-all-errors --max-time 170 -X POST "$APP_URL/internal/jobs/event-reminder-check" \
             -H "X-Internal-Job-Secret: $INTERNAL_JOB_SECRET"
+
+      # growlio(자산관리 앱)는 Render 무료 티어라 15분 미사용 시 슬립하는데 nestlio처럼
+      # self-ping하는 워크플로가 없어, nestlio -> growlio 호출(계좌/부동산 동기화 등)이
+      # growlio_client.py의 5초 타임아웃보다 긴 콜드스타트에 걸려 느려지거나 실패한다.
+      # 이 잡이 이미 15분 간격으로 도는 김에 growlio도 함께 깨워둔다. 실패해도(시크릿 미설정
+      # 포함) 다른 잡을 막지 않는 best-effort라 || true로 무시한다.
+      - name: warm_up_growlio
+        if: github.event.schedule == '*/15 * * * *' || github.event_name == 'workflow_dispatch'
+        env:
+          GROWLIO_APP_URL: ${{ secrets.GROWLIO_APP_URL }}
+        run: |
+          if [ -z "$GROWLIO_APP_URL" ]; then
+            echo "GROWLIO_APP_URL secret not set, skipping growlio warm-up"
+          else
+            curl -fsS --max-time 10 "$GROWLIO_APP_URL/health" || echo "growlio warm-up failed (ignored)"
+          fi
