@@ -116,9 +116,10 @@ api.interceptors.response.use(
         toast("배우자에 의해 가구에서 제외되었습니다. 다시 로그인해 주세요.", "error");
         window.dispatchEvent(new CustomEvent(APP_EVENTS.sessionExpired));
       }
-    } else if (status != null && status >= 500) {
-      toast("서버 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.", "error");
     }
+    // 5xx는 여기서 전역 토스트하지 않는다 — 쿼리는 QueryBoundary가 화면 안에서, 뮤테이션은 각자의
+    // onError(없으면 main.tsx의 MutationCache 폴백)가 한 번씩 알린다. 여기서도 띄우면 저장 실패마다
+    // 토스트가 2개, 재시도(retry: 1)·주기 refetch(알림 60초 폴링)마다 반복 토스트가 뜬다.
 
     return Promise.reject(error);
   },

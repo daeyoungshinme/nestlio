@@ -42,9 +42,10 @@ def _google_auth_test_db(monkeypatch, db_session):
     unpatched, is_connected()/get_credentials() would hit the real DATABASE_URL (the
     production Supabase Postgres shared with growlio in local dev) on every call, instead
     of this test's isolated in-memory DB. Route it at the same engine db_session uses."""
-    monkeypatch.setattr(
-        "app.services.google_auth.SessionLocal", sessionmaker(bind=db_session.get_bind())
-    )
+    test_session_factory = sessionmaker(bind=db_session.get_bind())
+    monkeypatch.setattr("app.services.google_auth.SessionLocal", test_session_factory)
+    # 스케줄러 잡(app/scheduler/jobs.py)도 같은 이유로 자체 SessionLocal()을 연다.
+    monkeypatch.setattr("app.scheduler.jobs.SessionLocal", test_session_factory)
 
 
 @pytest.fixture()

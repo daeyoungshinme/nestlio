@@ -151,6 +151,7 @@ export default function CashflowPlanTab({ view }: { view: "monthly" | "annual" }
     onMutate: (row) => setApplyingCategoryId(row.category_id),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.cashflowPlan(nextYearMonth) });
+      void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.dashboardAll });
       toast(`${nextYearMonthLabel} 예산에 반영했습니다.`, "success");
     },
     onError: (err) => toast(extractErrorMessage(err), "error"),
@@ -169,6 +170,7 @@ export default function CashflowPlanTab({ view }: { view: "monthly" | "annual" }
       }),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.cashflowPlan(nextYearMonth) });
+      void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.dashboardAll });
       toast(`${nextYearMonthLabel} 계획에 반영했습니다.`, "success");
     },
     onError: (err) => toast(extractErrorMessage(err), "error"),

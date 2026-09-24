@@ -257,8 +257,6 @@ export default function TransactionsPage() {
         {showRecurringSheet && (
           <RecurringManageSheet
             categories={categoriesQuery.data!}
-            dateFrom={month.dateFrom}
-            dateTo={month.dateTo}
             onClose={() => setShowRecurringSheet(false)}
           />
         )}

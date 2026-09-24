@@ -1,13 +1,12 @@
-from datetime import date
 from decimal import Decimal
 
 from app.services import goal_service, transaction_service
-from app.utils.dates import month_bounds, shift_month, year_month_str
+from app.utils.dates import month_bounds, shift_month, today_kst, year_month_str
 
 
 def test_dashboard_today_returns_totals_and_insights(client, seeded_db):
     db, user, food = seeded_db["db"], seeded_db["user"], seeded_db["food"]
-    today = date.today()
+    today = today_kst()
     transaction_service.create_transaction(db, user.id, food.id, "income", Decimal("100000"), today)
 
     resp = client.get("/api/v1/dashboard", params={"period": "today", "date": today.isoformat()})
@@ -46,7 +45,7 @@ def test_dashboard_category_benchmarks_flags_categories_over_guideline(client, s
     db, user, food = seeded_db["db"], seeded_db["user"], seeded_db["food"]
     food.benchmark_group = "food"
     db.commit()
-    today = date.today()
+    today = today_kst()
     transaction_service.create_transaction(db, user.id, food.id, "income", Decimal("1000000"), today)
     transaction_service.create_transaction(db, user.id, food.id, "expense", Decimal("200000"), today)
 
@@ -75,7 +74,7 @@ def test_dashboard_includes_savings_streak_by_default(client):
 def test_dashboard_savings_streak_reflects_consecutive_goal_pace_months(client, seeded_db):
     db, user, food = seeded_db["db"], seeded_db["user"], seeded_db["food"]
     goal_service.create_goal(db, 1, "여행자금", None, Decimal("10000000"), Decimal("500000"))
-    today = date.today()
+    today = today_kst()
     transaction_service.create_transaction(db, user.id, food.id, "income", Decimal("2000000"), today)
     transaction_service.create_transaction(db, user.id, food.id, "expense", Decimal("1000000"), today)
 
@@ -106,7 +105,7 @@ def test_dashboard_bootstrap_combines_reference_data(client, seeded_db):
 
 def test_monthly_retrospective_summarizes_previous_completed_month(client, seeded_db):
     db, user, food = seeded_db["db"], seeded_db["user"], seeded_db["food"]
-    prev_start, _ = month_bounds(shift_month(date.today(), -1))
+    prev_start, _ = month_bounds(shift_month(today_kst(), -1))
     transaction_service.create_transaction(db, user.id, food.id, "income", Decimal("50000"), prev_start)
     transaction_service.create_transaction(db, user.id, food.id, "expense", Decimal("20000"), prev_start)
 

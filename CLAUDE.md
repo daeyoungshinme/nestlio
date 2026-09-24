@@ -22,7 +22,7 @@
 - DB 세션은 `app/database.py`의 `get_db()` 의존성으로 요청 스코프에서 얻는다 (`Depends(get_db)`).
 - 설정값은 `app/config.py`의 모듈 전역 `settings` 인스턴스 하나를 어디서든 import해서 쓴다. 코칭엔진 임계값(저축률, 고정비 비율, 예산 경고/위험 %, 재량지출/부채 비율, 표준 카테고리별 지출 벤치마크 등)도 여기 있다.
 - 부부 전용 앱이라 로컬 `users`는 최대 2명(`app/services/user_service.py`의 `MAX_HOUSEHOLD_USERS`)으로 제한된다. 공개 회원가입 폼은 없지만, 인증된(Supabase JWT가 유효한) 요청이면 인원 상한에 도달하기 전까지는 첫 요청에서 바로 Supabase 사용자가 로컬 `User` 행으로 자동 미러링된다(`app/dependencies.py`의 `get_current_user`) — growlio처럼 같은 Supabase 프로젝트를 공유하는 계정도 이 두 자리 안에서는 초대 없이 로그인만으로 등록된다. 상한에 도달한 뒤에는 더 이상 새 계정이 생기지 않고 403이 반환된다. `app/services/invite_service.py`의 배우자 초대는 여전히 쓸 수 있지만 필수 경로는 아니다 — 표시 이름을 미리 지정해 초대장을 보내는 보조 수단으로, 초대 수락 시(`accept_invite`) 요청자의 검증된 JWT(`sub`/`email`)와 초대 이메일이 일치해야 표시 이름과 함께 `User` 행이 생성된다(클라이언트가 body로 보낸 `user_id`는 신뢰하지 않는다).
-- 배우자 제거(`user_service.remove_user`)는 하드 삭제가 아니라 `removed_at`/`removed_by_id`를 채우는 소프트 삭제다 — `transactions` 등 8개 테이블이 `user_id`를 FK로 참조해 하드 삭제는 FK 위반을 일으킨다. 제거된 행은 `list_users()`에서 제외돼 가구 정원이 다시 열리지만 과거 거래내역 등은 원래 이름 그대로 남는다. 본인 계정은 이 방법으로 제거할 수 없다(`CannotRemoveSelfError`). 제거된 계정으로 들어온 요청은 `get_current_user`가 401이 아니라 403(`user_service.REMOVED_USER_DETAIL`)으로 거부한다 — Supabase 세션 자체는 여전히 유효해 401이면 프론트가 `refreshSession()`을 성공시킨 뒤 재요청이 조용히 실패해 로그아웃으로 이어지지 않기 때문. `frontend/src/api/client.ts`가 이 detail 문자열을 정확히 매칭해 자동 로그아웃하므로, 문구를 바꾸면 프론트도 함께 바꿔야 한다.
+- 배우자 제거(`user_service.remove_user`)는 하드 삭제가 아니라 `removed_at`/`removed_by_id`를 채우는 소프트 삭제다 — `transactions` 등 13개 테이블이 `users.id`를 FK로 참조해 하드 삭제는 FK 위반을 일으킨다. 제거된 행은 `list_users()`에서 제외돼 가구 정원이 다시 열리지만 과거 거래내역 등은 원래 이름 그대로 남는다. 본인 계정은 이 방법으로 제거할 수 없다(`CannotRemoveSelfError`). 제거된 계정으로 들어온 요청은 `get_current_user`가 401이 아니라 403(`user_service.REMOVED_USER_DETAIL`)으로 거부한다 — Supabase 세션 자체는 여전히 유효해 401이면 프론트가 `refreshSession()`을 성공시킨 뒤 재요청이 조용히 실패해 로그아웃으로 이어지지 않기 때문. `frontend/src/api/client.ts`가 이 detail 문자열을 정확히 매칭해 자동 로그아웃하므로, 문구를 바꾸면 프론트도 함께 바꿔야 한다.
 
 ## 디렉토리별 컨벤션 (routers / schemas / models / utils)
 
@@ -35,7 +35,8 @@
 ## 실행 / 커맨드
 
 - 로컬 프론트엔드만 실행: `cd frontend && npm run dev` (Vite, 5273 포트, `/api` 요청을 8899로 프록시)
-- 개발(소스 수정 즉시 반영, HMR): `dev.sh` 인자 없이 실행 (Windows: `dev.bat`) — 백엔드(uvicorn `--reload`)와 프론트(Vite dev 서버)를 동시에 띄운다. `http://localhost:5273`으로 접속하면 프론트/백엔드 코드 수정이 재빌드·재기동 없이 바로 반영된다.
+- 개발(소스 수정 즉시 반영, HMR): `dev.sh` 인자 없이 실행 (Windows: `dev.bat`) — 백엔드(uvicorn `--reload`)와 프론트(Vite dev 서버)를 동시에 띄운다. `http://localhost:5273`으로 접속하면 프론트/백엔드 코드 수정이 재빌드·재기동 없이 바로 반영된다. `dev.sh`도 Windows(Git Bash) 전용이다(`powershell.exe`/`taskkill`/`.venv/Scripts` 사용).
+- 마이그레이션/시드: `dev.sh migrate` (Windows: `dev.bat migrate`, `run`과 함께 줄 수 있음) — 로컬 `DATABASE_URL`은 대개 운영과 공유하는 Supabase Postgres라, 인자 없이 실행하면 `alembic upgrade head`/`scripts/seed_data.py`를 **건너뛴다**(머지 안 된 로컬 마이그레이션이 운영 DB에 적용되는 사고 방지). 운영 DB는 배포(`render.yaml`의 `alembic upgrade head`)가 head로 맞추므로 평소엔 필요 없다.
 - 배포 스냅샷 실행: `dev.sh run` (Windows: `dev.bat run`) — `frontend/dist`를 정적 빌드한 뒤 uvicorn 단일 프로세스(8899 포트)로 서빙한다. 프론트 수정 시 재빌드가 필요하다 (구 `run.sh`/`run.bat`은 이 모드로 통합됨).
 - 의존성 설치: 런타임은 `pip install -r requirements.txt`, 테스트/개발은 여기에 `-r requirements-dev.txt`를 더한다 (`pytest` 등 테스트 전용 의존성은 프로덕션 이미지에 넣지 않는다)
 - pre-commit 훅: `pre-commit install` 로 활성화(`.pre-commit-config.yaml` — ruff-check `--fix`, oxlint, 기본 위생 훅). CI 를 대체하지 않고 CI 왕복을 줄이는 용도. 포매터 전면 재정렬은 하지 않는다.

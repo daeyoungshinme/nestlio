@@ -12,7 +12,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from app.database import Base, SessionLocal, engine
+from app.database import SessionLocal
 from app.models.cashflow_plan_item import CashflowPlanItem
 from app.models.category import Category
 from app.models.savings_product import SavingsProduct
@@ -141,7 +141,6 @@ def seed_savings_products(db):
 
 
 def main():
-    Base.metadata.create_all(bind=engine)  # no-op if alembic already applied
     db = SessionLocal()
     try:
         seed_categories(db)

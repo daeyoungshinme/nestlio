@@ -18,7 +18,7 @@ import { extractErrorMessage } from "@/utils/error";
 import { formatKrw, formatKrwPreview, toAmountInputValue } from "@/utils/format";
 import { toast } from "@/utils/toast";
 import {
-  EMPTY_CHALLENGE_DRAFT,
+  emptyChallengeDraft,
   EMPTY_GOAL_DRAFT,
   toYearMonth,
   type Draft,
@@ -87,7 +87,7 @@ export default function GoalFormModal({
         onChange={(tab) => {
           const nextKind = GOAL_KIND_TAB_TO_KIND[tab];
           setDraft((d) => ({
-            ...(nextKind === "challenge" ? EMPTY_CHALLENGE_DRAFT : EMPTY_GOAL_DRAFT),
+            ...(nextKind === "challenge" ? emptyChallengeDraft() : EMPTY_GOAL_DRAFT),
             name: d.name,
           }));
         }}

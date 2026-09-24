@@ -3,8 +3,10 @@ setlocal enabledelayedexpansion
 cd /d "%~dp0"
 
 set "MODE=dev"
+set "MIGRATE=0"
 for %%A in (%*) do (
   if /i "%%A"=="run" set "MODE=run"
+  if /i "%%A"=="migrate" set "MIGRATE=1"
 )
 
 set "BACKEND_PORT=8899"
@@ -42,20 +44,23 @@ if not exist ".env" (
 echo [dev.bat] installing dependencies (runtime + dev/test)...
 "%PYTHON%" -m pip install -q -r requirements.txt -r requirements-dev.txt
 
-if not exist "data" mkdir data
-
-echo [dev.bat] running database migrations...
-"%PYTHON%" -m alembic upgrade head
-if errorlevel 1 (
-  echo [dev.bat] ERROR: alembic upgrade failed.
-  echo [dev.bat]        Set a real DATABASE_URL in .env - nestlio shares growlio's Supabase
-  echo [dev.bat]        Postgres ^(copy that project's connection string, sync psycopg2 driver^).
-  exit /b 1
+rem DATABASE_URL은 대개 운영과 공유하는 Supabase Postgres라, 마이그레이션/시드는 명시적으로
+rem "migrate" 인자를 줄 때만 돌린다 - 머지 안 된 로컬 마이그레이션이 운영 DB에 적용되는 사고 방지.
+rem 운영 DB는 배포(render.yaml의 alembic upgrade head)가 항상 head로 맞춘다.
+if "%MIGRATE%"=="1" (
+  echo [dev.bat] running database migrations against DATABASE_URL ^(shared with production^)...
+  "%PYTHON%" -m alembic upgrade head
+  if errorlevel 1 (
+    echo [dev.bat] ERROR: alembic upgrade failed.
+    echo [dev.bat]        Set a real DATABASE_URL in .env - nestlio shares growlio's Supabase
+    echo [dev.bat]        Postgres ^(copy that project's connection string, sync psycopg2 driver^).
+    exit /b 1
+  )
+  echo [dev.bat] seeding default data ^(skips rows that already exist^)...
+  "%PYTHON%" scripts\seed_data.py
+) else (
+  echo [dev.bat] skipping migrations/seed ^(pass "migrate" to apply them - DATABASE_URL is shared with production^)
 )
-
-rem seed_data.py is idempotent (skips rows that already exist) - just run it every time.
-echo [dev.bat] seeding default data (skips rows that already exist)...
-"%PYTHON%" scripts\seed_data.py
 
 if not exist "frontend\node_modules" (
   echo [dev.bat] frontend\node_modules not found, installing frontend dependencies...

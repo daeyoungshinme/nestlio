@@ -21,11 +21,11 @@ import { QUERY_KEYS } from "@/constants/queryKeys";
 import { formatKrw, pctOf } from "@/utils/format";
 import { extractErrorMessage } from "@/utils/error";
 import { worseStatus } from "@/utils/colors";
+import { currentYear } from "@/utils/date";
 import { toast } from "@/utils/toast";
 import type { AnnualPlanItemOut, CashflowSection } from "@/types";
 import type { AnnualPlanItemFormValues } from "@/components/financialPlan/AnnualPlanItemForm";
 
-const currentYear = () => new Date().getFullYear();
 
 interface ItemModalState {
   section: CashflowSection;

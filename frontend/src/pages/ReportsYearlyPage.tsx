@@ -30,6 +30,7 @@ import { STALE_TIME } from "@/constants/queryConfig";
 import { TOUCH_TARGET_MIN_MOBILE_ONLY } from "@/constants/uiSizes";
 import { formatKrw, formatKrwCompact, formatPercent, formatYearMonth, formatMonthOnly } from "@/utils/format";
 import { incomeExpenseChartColor, planStatusBarClass, planStatusTextClass } from "@/utils/colors";
+import { currentYear } from "@/utils/date";
 import { useThemeStore } from "@/stores/themeStore";
 import type { CategoryBenchmarkRowOut } from "@/types";
 
@@ -42,7 +43,7 @@ const TREND_TICK_FORMATTER = (value: string) => value.replace(/^\d+년\s*/, "");
 
 export default function ReportsYearlyPage() {
   const navigate = useNavigate();
-  const [year, setYear] = useState(new Date().getFullYear());
+  const [year, setYear] = useState(currentYear());
   const [ownerTab, setOwnerTab] = useState(ALL_OWNERS_TAB);
   const [hiddenSeries, setHiddenSeries] = useState<Set<string>>(new Set());
   const isDark = useThemeStore((s) => s.isDark);

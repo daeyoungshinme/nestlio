@@ -3,7 +3,6 @@ import Modal from "@/components/common/Modal";
 import RecurringForm, { buildRecurringPayload } from "@/components/transactions/RecurringForm";
 import type { RecurringFormValues } from "@/components/transactions/RecurringForm";
 import { linkCashflowPlanRecurring } from "@/api/cashflowPlan";
-import { QUERY_KEYS } from "@/constants/queryKeys";
 import { useRecurringMutations } from "@/hooks/useRecurringMutations";
 import { extractErrorMessage } from "@/utils/error";
 import { toast } from "@/utils/toast";
@@ -19,9 +18,7 @@ interface Props {
 }
 
 export default function CashflowPlanRecurringLinkModal({ item, categories, onClose, onLinked }: Props) {
-  const { createMutation: createRecurringMutation } = useRecurringMutations({
-    extraInvalidateKeys: [QUERY_KEYS.eventsAll],
-  });
+  const { createMutation: createRecurringMutation } = useRecurringMutations();
   const linkRecurringMutation = useMutation({
     mutationFn: (vars: { itemId: number; payload: { recurring_expense_id: number } }) =>
       linkCashflowPlanRecurring(vars.itemId, vars.payload),

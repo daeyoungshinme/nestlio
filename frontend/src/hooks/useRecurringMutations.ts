@@ -7,9 +7,16 @@ import { extractErrorMessage } from "@/utils/error";
 import { toast } from "@/utils/toast";
 import type { RecurringCreateIn, RecurringOut, RecurringUpdateIn } from "@/types";
 
+/** 반복 내역이 바뀌면 함께 낡는 캐시 — 캘린더의 recurring_due 배지(모든 월), 현금흐름계획의
+ * 연결 배지(`recurring_active`)·예산, 이를 읽는 대시보드 코칭. 호출부마다 고르던 것을 여기로 고정한다. */
+const RECURRING_RELATED_KEYS: QueryKey[] = [
+  QUERY_KEYS.recurring,
+  QUERY_KEYS.eventsAll,
+  QUERY_KEYS.cashflowPlanAll,
+  QUERY_KEYS.dashboardAll,
+];
+
 interface Options {
-  /** Invalidated in addition to QUERY_KEYS.recurring on every successful create/update/deactivate/reactivate. */
-  extraInvalidateKeys?: QueryKey[];
   messages?: { create?: string; update?: string; remove?: string; reactivate?: string };
   onCreateSuccess?: (item: RecurringOut) => void;
   onUpdateSuccess?: (item: RecurringOut) => void;
@@ -23,7 +30,6 @@ interface Options {
  * `RecurringForm`의 `buildRecurringPayload`를 함께 쓴다. 재활성화는 useCrudMutations의
  * create/update/remove 3종 고정 계약에 맞지 않아 별도 mutation으로 손으로 추가한다. */
 export function useRecurringMutations({
-  extraInvalidateKeys = [],
   messages,
   onCreateSuccess,
   onUpdateSuccess,
@@ -35,7 +41,7 @@ export function useRecurringMutations({
     RecurringUpdateIn,
     RecurringOut
   >({
-    invalidateKeys: [QUERY_KEYS.recurring, ...extraInvalidateKeys],
+    invalidateKeys: RECURRING_RELATED_KEYS,
     api: { create: createRecurring, update: updateRecurring, remove: deactivateRecurring },
     messages,
     onCreateSuccess,
