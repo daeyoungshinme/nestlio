@@ -42,9 +42,11 @@ def test_update_goal_not_found(client, seeded_db):
 def test_create_and_list_challenge(client, seeded_db):
     # effective_status는 엔드포인트가 실제 오늘과 target_date를 비교해 계산하므로(주입 불가),
     # "아직 진행 중"을 검증하려면 target_date가 오늘 이후여야 한다 — 고정 날짜는 시간이 지나면 만료된다.
-    from datetime import date, timedelta
+    from datetime import timedelta
 
-    today = date.today()
+    from app.utils.dates import today_kst
+
+    today = today_kst()
     resp = client.post(
         "/api/v1/financial-goals",
         json={
