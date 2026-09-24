@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import Tabs from "@/components/common/Tabs";
 import MonthPicker from "@/components/common/MonthPicker";
 import DayPicker from "@/components/common/DayPicker";
@@ -25,9 +25,8 @@ import QuickAddFab from "@/components/common/QuickAddFab";
 import TransactionForm from "@/components/transactions/TransactionForm";
 import { fetchDashboard } from "@/api/dashboard";
 import { fetchCashflowPlan } from "@/api/cashflowPlan";
-import { createTransaction } from "@/api/transactions";
 import { useAuthStore } from "@/stores/authStore";
-import { useInvalidateTransactionRelated } from "@/hooks/useInvalidateTransactionRelated";
+import { useCreateTransaction } from "@/hooks/useInvalidateTransactionRelated";
 import { useAccounts, useCategories, useDashboardBootstrap } from "@/hooks/useReferenceData";
 import { QUERY_KEYS } from "@/constants/queryKeys";
 import { STALE_TIME } from "@/constants/queryConfig";
@@ -75,7 +74,6 @@ export default function DashboardPage() {
   const [quickAddPrefill, setQuickAddPrefill] = useState<Record<string, string> | null>(null);
   const [showMore, setShowMore] = useState(false);
   const isDark = useThemeStore((s) => s.isDark);
-  const invalidateAll = useInvalidateTransactionRelated();
 
   const anchor = period === "month" ? yearMonth : period === "week" ? week : day;
 
@@ -129,15 +127,10 @@ export default function DashboardPage() {
     : { savingsInvestmentTotal: 0, realEstateTotal: 0 };
   const currentUserId = useAuthStore((s) => s.userId);
 
-  const createMutation = useMutation({
-    mutationFn: createTransaction,
-    onSuccess: () => {
-      invalidateAll();
-      setShowQuickAdd(false);
-      setQuickAddPrefill(null);
-      toast("내역을 추가했습니다.", "success");
-    },
-    onError: (err) => toast(extractErrorMessage(err), "error"),
+  const createMutation = useCreateTransaction(() => {
+    setShowQuickAdd(false);
+    setQuickAddPrefill(null);
+    toast("내역을 추가했습니다.", "success");
   });
 
   const closeQuickAdd = () => {

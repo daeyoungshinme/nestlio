@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  amountInputPreview,
   formatKrw,
   formatKrwCompact,
   formatKrwPreview,
@@ -130,5 +131,17 @@ describe("resolveOwnerLabel", () => {
 
   it("returns 공통 when users is undefined", () => {
     expect(resolveOwnerLabel("u1", undefined)).toBe("공통");
+  });
+});
+
+describe("amountInputPreview", () => {
+  it("previews positive amounts typed into a number input", () => {
+    expect(amountInputPreview("5000000")).toBe("5,000,000원 (500만원)");
+  });
+
+  it("hides the preview for empty, zero, negative or non-numeric input", () => {
+    for (const value of ["", "0", "-100", "abc"]) {
+      expect(amountInputPreview(value)).toBeUndefined();
+    }
   });
 });

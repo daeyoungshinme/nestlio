@@ -15,7 +15,7 @@ import { isGrowlioLinkedInvestment } from "@/constants/growlio";
 import { syncTargetsToPeriod } from "@/utils/monthRange";
 import { currentDateIso } from "@/utils/date";
 import { extractErrorMessage } from "@/utils/error";
-import { formatKrw, formatKrwPreview, toAmountInputValue } from "@/utils/format";
+import { amountInputPreview, formatKrw, toAmountInputValue } from "@/utils/format";
 import { toast } from "@/utils/toast";
 import {
   emptyChallengeDraft,
@@ -178,7 +178,7 @@ export default function GoalFormModal({
             value={draft.required_amount}
             onChange={(e) => setDraft((d) => ({ ...d, required_amount: e.target.value }))}
             className="w-full"
-            preview={Number(draft.required_amount) > 0 ? formatKrwPreview(Number(draft.required_amount)) : undefined}
+            preview={amountInputPreview(draft.required_amount)}
           />
           <div className="grid grid-cols-2 gap-3">
             <FormInput
@@ -205,7 +205,7 @@ export default function GoalFormModal({
               value={draft.current_amount}
               onChange={(e) => setDraft((d) => ({ ...d, current_amount: e.target.value }))}
               className="w-full"
-              preview={Number(draft.current_amount) > 0 ? formatKrwPreview(Number(draft.current_amount)) : undefined}
+              preview={amountInputPreview(draft.current_amount)}
             />
           )}
           <Button type="submit" loading={submitting} className="mt-2">
@@ -312,7 +312,7 @@ export default function GoalFormModal({
           value={draft.required_amount}
           onChange={(e) => setDraft((d) => ({ ...d, required_amount: e.target.value }))}
           className="w-full"
-          preview={Number(draft.required_amount) > 0 ? formatKrwPreview(Number(draft.required_amount)) : undefined}
+          preview={amountInputPreview(draft.required_amount)}
         />
         <CollapsibleGroup
           header={<span className="text-sm font-medium text-gray-700 dark:text-gray-300">연동 항목</span>}
@@ -379,7 +379,7 @@ export default function GoalFormModal({
             value={draft.current_amount}
             onChange={(e) => setDraft((d) => ({ ...d, current_amount: e.target.value }))}
             className="w-full"
-            preview={Number(draft.current_amount) > 0 ? formatKrwPreview(Number(draft.current_amount)) : undefined}
+            preview={amountInputPreview(draft.current_amount)}
           />
         )}
         {draft.target_date !== "" && (
@@ -429,9 +429,7 @@ export default function GoalFormModal({
           value={draft.monthly_saving_amount}
           onChange={(e) => setDraft((d) => ({ ...d, monthly_saving_amount: e.target.value }))}
           className="w-full"
-          preview={
-            Number(draft.monthly_saving_amount) > 0 ? formatKrwPreview(Number(draft.monthly_saving_amount)) : undefined
-          }
+          preview={amountInputPreview(draft.monthly_saving_amount)}
         />
         <Button type="submit" loading={submitting} className="mt-2">
           {submitLabel}

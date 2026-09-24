@@ -27,6 +27,13 @@ export function formatKrwPreview(n: number): string {
   return `${exact} (${formatKrwCompact(n)})`;
 }
 
+/** 금액 입력칸(`<input type="number">`의 문자열 값) 아래에 붙는 미리보기. 0 이하·빈 값·숫자가 아니면
+ * undefined라 `FormInput`의 `preview`에 그대로 넘기면 미리보기가 숨겨진다. */
+export function amountInputPreview(value: string): string | undefined {
+  const n = Number(value);
+  return n > 0 ? formatKrwPreview(n) : undefined;
+}
+
 /** Decimal 문자열("500000.00")을 number input value용 정수 문자열로 정규화. KRW 전제라 소수점 제거 */
 export function toAmountInputValue(value: string | number | null | undefined): string {
   if (value === null || value === undefined || value === "") return "0";

@@ -6,7 +6,7 @@ import CategoryPicker from "@/components/common/CategoryPicker";
 import { INPUT_SM, LABEL_SM } from "@/constants/inputStyles";
 import { TOUCH_TARGET_COMPACT_MOBILE_ONLY } from "@/constants/uiSizes";
 import { recurringSelectedChipClass } from "@/utils/colors";
-import { formatKrwPreview, toAmountInputValue } from "@/utils/format";
+import { amountInputPreview, toAmountInputValue } from "@/utils/format";
 import type { CategoryOut, RecurringFrequency, RecurringOut, TransactionType } from "@/types";
 
 export interface RecurringFormValues {
@@ -130,7 +130,7 @@ export default function RecurringForm({ categories, initial, submitLabel, submit
         value={values.amount}
         onChange={(e) => setValues((v) => ({ ...v, amount: e.target.value }))}
         required
-        preview={Number(values.amount) > 0 ? formatKrwPreview(Number(values.amount)) : undefined}
+        preview={amountInputPreview(values.amount)}
       />
       <div>
         <label className={`block mb-1 font-medium ${LABEL_SM}`}>주기</label>

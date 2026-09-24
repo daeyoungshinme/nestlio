@@ -1,13 +1,10 @@
-import { useMutation } from "@tanstack/react-query";
 import Modal from "@/components/common/Modal";
 import SkeletonCard from "@/components/common/SkeletonCard";
 import TransactionForm from "@/components/transactions/TransactionForm";
-import { createTransaction } from "@/api/transactions";
 import { useAuthStore } from "@/stores/authStore";
-import { useInvalidateTransactionRelated } from "@/hooks/useInvalidateTransactionRelated";
+import { useCreateTransaction } from "@/hooks/useInvalidateTransactionRelated";
 import { useAccounts, useSavingsProducts, useUsers } from "@/hooks/useReferenceData";
 import { currentDateIso } from "@/utils/date";
-import { extractErrorMessage } from "@/utils/error";
 import { toast } from "@/utils/toast";
 import type { CashflowPlanItemOut, CategoryOut } from "@/types";
 
@@ -17,26 +14,20 @@ interface Props {
   categories: CategoryOut[];
   onClose: () => void;
   /** 거래 등록이 끝난 뒤 호출 — 부모가 현금흐름계획/예산 쿼리를 무효화한다
-   * (거래 목록/대시보드 등은 이 컴포넌트가 useInvalidateTransactionRelated로 직접 처리). */
+   * (거래 목록/대시보드 등은 useCreateTransaction이 직접 처리). */
   onAdded: () => void;
 }
 
 export default function CashflowPlanQuickAddModal({ item, categories, onClose, onAdded }: Props) {
-  const invalidateTxRelated = useInvalidateTransactionRelated();
   const { data: accounts } = useAccounts();
   const { data: savingsProducts } = useSavingsProducts();
   const { data: users } = useUsers();
   const currentUserId = useAuthStore((s) => s.userId);
 
-  const quickAddMutation = useMutation({
-    mutationFn: createTransaction,
-    onSuccess: () => {
-      onAdded();
-      invalidateTxRelated();
-      onClose();
-      toast("가계부에 추가했습니다.", "success");
-    },
-    onError: (err) => toast(extractErrorMessage(err), "error"),
+  const quickAddMutation = useCreateTransaction(() => {
+    onAdded();
+    onClose();
+    toast("가계부에 추가했습니다.", "success");
   });
 
   return (
