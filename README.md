@@ -13,6 +13,7 @@ cp .env.example .env      # DATABASE_URL 등 채우기 (growlio와 공유하는 
 
 `dev.sh` 는 백엔드(uvicorn `--reload`)와 프론트(Vite dev 서버)를 함께 띄운다 —
 `http://localhost:5273` 접속. `dev.sh run` 은 `frontend/dist` 정적 빌드 후 단일 프로세스(8899)로 서빙.
+마이그레이션/시드는 `dev.sh migrate` 로만 돌린다(`DATABASE_URL` 이 운영과 공유 DB라 기본 실행에서는 건너뜀).
 
 ## 개발 문서
 

@@ -35,7 +35,8 @@
 ## 실행 / 커맨드
 
 - 로컬 프론트엔드만 실행: `cd frontend && npm run dev` (Vite, 5273 포트, `/api` 요청을 8899로 프록시)
-- 개발(소스 수정 즉시 반영, HMR): `dev.sh` 인자 없이 실행 (Windows: `dev.bat`) — 백엔드(uvicorn `--reload`)와 프론트(Vite dev 서버)를 동시에 띄운다. `http://localhost:5273`으로 접속하면 프론트/백엔드 코드 수정이 재빌드·재기동 없이 바로 반영된다.
+- 개발(소스 수정 즉시 반영, HMR): `dev.sh` 인자 없이 실행 (Windows: `dev.bat`) — 백엔드(uvicorn `--reload`)와 프론트(Vite dev 서버)를 동시에 띄운다. `http://localhost:5273`으로 접속하면 프론트/백엔드 코드 수정이 재빌드·재기동 없이 바로 반영된다. `dev.sh`도 Windows(Git Bash) 전용이다(`powershell.exe`/`taskkill`/`.venv/Scripts` 사용).
+- 마이그레이션/시드: `dev.sh migrate` (Windows: `dev.bat migrate`, `run`과 함께 줄 수 있음) — 로컬 `DATABASE_URL`은 대개 운영과 공유하는 Supabase Postgres라, 인자 없이 실행하면 `alembic upgrade head`/`scripts/seed_data.py`를 **건너뛴다**(머지 안 된 로컬 마이그레이션이 운영 DB에 적용되는 사고 방지). 운영 DB는 배포(`render.yaml`의 `alembic upgrade head`)가 head로 맞추므로 평소엔 필요 없다.
 - 배포 스냅샷 실행: `dev.sh run` (Windows: `dev.bat run`) — `frontend/dist`를 정적 빌드한 뒤 uvicorn 단일 프로세스(8899 포트)로 서빙한다. 프론트 수정 시 재빌드가 필요하다 (구 `run.sh`/`run.bat`은 이 모드로 통합됨).
 - 의존성 설치: 런타임은 `pip install -r requirements.txt`, 테스트/개발은 여기에 `-r requirements-dev.txt`를 더한다 (`pytest` 등 테스트 전용 의존성은 프로덕션 이미지에 넣지 않는다)
 - pre-commit 훅: `pre-commit install` 로 활성화(`.pre-commit-config.yaml` — ruff-check `--fix`, oxlint, 기본 위생 훅). CI 를 대체하지 않고 CI 왕복을 줄이는 용도. 포매터 전면 재정렬은 하지 않는다.
