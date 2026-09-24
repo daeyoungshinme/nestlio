@@ -79,6 +79,7 @@ export default function CoachingThresholdsSection({ thresholds }: { thresholds: 
                 key={key}
                 label={label}
                 type="number"
+                inputMode="numeric"
                 min={0}
                 max={999}
                 step={1}

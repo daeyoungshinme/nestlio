@@ -6,6 +6,9 @@ import ReactDOM from "react-dom/client";
 import App from "./App";
 import "./index.css";
 import { DEFAULT_GC_TIME, PERSIST_CACHE_KEY, PERSIST_QUERY_KEYS, STALE_TIME } from "./constants/queryConfig";
+import { installNumberInputWheelGuard } from "./utils/numberInputWheel";
+
+installNumberInputWheelGuard();
 
 const queryClient = new QueryClient({
   defaultOptions: {

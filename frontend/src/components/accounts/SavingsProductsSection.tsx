@@ -26,7 +26,7 @@ import {
   syncSavingsProduct,
   updateSavingsProduct,
 } from "@/api/savingsProducts";
-import { QUERY_KEYS } from "@/constants/queryKeys";
+import { ASSET_RELATED_KEYS, QUERY_KEYS } from "@/constants/queryKeys";
 import { useCrudMutations } from "@/hooks/useCrudMutations";
 import { useGoals, useSavingsProducts } from "@/hooks/useReferenceData";
 import { planViewLink } from "@/constants/routes";
@@ -106,12 +106,11 @@ export default function SavingsProductsSection({ users }: Props) {
   const { data: goals } = useGoals();
 
   const invalidate = () => {
-    void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.savingsProducts });
-    void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.dashboardBootstrap });
+    ASSET_RELATED_KEYS.forEach((key) => void queryClient.invalidateQueries({ queryKey: key }));
   };
 
   const { createMutation, updateMutation, removeMutation: deactivateMutation } = useCrudMutations({
-    invalidateKeys: [QUERY_KEYS.savingsProducts, QUERY_KEYS.dashboardBootstrap],
+    invalidateKeys: ASSET_RELATED_KEYS,
     api: { create: createSavingsProduct, update: updateSavingsProduct, remove: deactivateSavingsProduct },
     messages: { create: "저축/투자 상품을 추가했습니다.", update: "저장했습니다.", remove: "비활성화했습니다." },
     onCreateSuccess: () => setFormTarget(null),
@@ -260,7 +259,7 @@ export default function SavingsProductsSection({ users }: Props) {
                   return `growlio 계좌 ${created.length}개를 가져왔습니다. 합계 ${formatKrw(total)}`;
                 }}
                 existingGrowlioAccountIds={existingGrowlioAccountIds}
-                invalidateKeys={[QUERY_KEYS.savingsProducts, QUERY_KEYS.dashboardBootstrap]}
+                invalidateKeys={ASSET_RELATED_KEYS}
                 onClose={() => setImportOpen(false)}
               />
             )}
@@ -474,7 +473,7 @@ function SavingsProductFormModal({
             getRowId={(account) => account.id}
             getRowLabel={(account) => account.name}
             getRowAmount={(account) => account.current_value_krw}
-            invalidateKeys={[QUERY_KEYS.savingsProducts, QUERY_KEYS.dashboardBootstrap]}
+            invalidateKeys={ASSET_RELATED_KEYS}
             onLinked={onClose}
           />
         )}

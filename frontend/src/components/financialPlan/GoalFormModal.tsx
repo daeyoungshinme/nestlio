@@ -274,6 +274,7 @@ export default function GoalFormModal({
           <FormInput
             label="순위"
             type="number"
+            inputMode="numeric"
             value={draft.priority}
             onChange={(e) => setDraft((d) => ({ ...d, priority: e.target.value }))}
             className="w-full"
@@ -297,6 +298,7 @@ export default function GoalFormModal({
           <FormInput
             label="필요한 나이 (목표일 대신 나이로 정할 때)"
             type="number"
+            inputMode="numeric"
             value={draft.target_age}
             onChange={(e) => setDraft((d) => ({ ...d, target_age: e.target.value }))}
             className="w-full"
@@ -395,6 +397,7 @@ export default function GoalFormModal({
               <FormInput
                 label="현재 나이"
                 type="number"
+                inputMode="numeric"
                 value={currentAge}
                 onChange={(e) => setCurrentAge(e.target.value)}
                 className="w-24"
