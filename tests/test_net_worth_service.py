@@ -308,3 +308,25 @@ def test_refresh_stale_growlio_links_stops_quietly_when_growlio_unavailable(seed
         net_worth_service.refresh_stale_growlio_links("token", now=NOW)  # 예외 밖으로 안 던짐
 
     later.assert_not_called()
+
+
+def test_refresh_stale_growlio_links_fetches_growlio_accounts_once_for_accounts_and_savings(seeded_db):
+    """계좌·저축상품 동기화가 같은 GET /external/accounts를 쓰므로 한 번만 호출해야 한다
+    (growlio 콜드스타트 중엔 호출 1번이 타임아웃 1번)."""
+    db = seeded_db["db"]
+    _linked_product(db, synced_at=None)
+    account = account_service.create_account(db, "연동통장", "bank", Decimal("0"))
+    account.growlio_account_id = "g-bank-1"
+    db.commit()
+    fetch = MagicMock(return_value=[])
+    with (
+        patch("app.database.SessionLocal", return_value=db),
+        patch.object(db, "close"),
+        patch("app.services.net_worth_service.growlio_client.fetch_account_balances", fetch),
+        patch("app.services.account_service.growlio_client.fetch_account_balances", fetch),
+        patch("app.services.savings_product_growlio_service.growlio_client.fetch_account_balances", fetch),
+        patch("app.services.net_worth_service.real_estate_service.sync_all_from_growlio", return_value=(0, [])),
+    ):
+        net_worth_service.refresh_stale_growlio_links("token", now=NOW)
+
+    fetch.assert_called_once_with("token")

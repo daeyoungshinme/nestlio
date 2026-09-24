@@ -194,7 +194,7 @@ def _send_threshold_alert(db: Session, row: dict, year_month: str) -> bool:
 def check_and_alert_budget_threshold(db: Session, category_id: int, year_month: str | None = None) -> bool:
     """Send an alert if this category just crossed the warn/critical budget threshold this month."""
     year_month = year_month or year_month_str(today_kst())
-    rows = budget_service.budget_vs_actual(db, year_month)
+    rows = budget_service.budget_vs_actual(db, year_month, with_suggested=False)
     row = next((r for r in rows if r["category_id"] == category_id), None)
     if row is None:
         return False

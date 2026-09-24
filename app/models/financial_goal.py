@@ -42,11 +42,13 @@ class FinancialGoal(Base):
     created_by_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
     updated_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), onupdate=func.now())
 
+    # 컬렉션 두 개를 모두 joined로 걸면 목표당 (funding_sources × monthly_targets) 행이 곱으로
+    # 불어나므로 selectin(컬렉션별 IN 쿼리 1회)으로 로드한다.
     funding_sources: Mapped[list["GoalFundingSource"]] = relationship(
-        lazy="joined", order_by="GoalFundingSource.id", cascade="all, delete-orphan"
+        lazy="selectin", order_by="GoalFundingSource.id", cascade="all, delete-orphan"
     )
     monthly_targets: Mapped[list["GoalMonthlyTarget"]] = relationship(
-        lazy="joined", order_by="GoalMonthlyTarget.year_month", cascade="all, delete-orphan"
+        lazy="selectin", order_by="GoalMonthlyTarget.year_month", cascade="all, delete-orphan"
     )
 
     # current_amount/progress_pct는 연동된 계좌 잔액이 거래내역 기반 파생값이라 DB 세션 없이는

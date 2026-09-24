@@ -1,4 +1,5 @@
 import uuid
+from collections.abc import Callable
 from datetime import datetime
 from decimal import Decimal
 
@@ -149,17 +150,25 @@ def sync_account(db: Session, account_id: int, bearer_token: str, *, now: dateti
     return account
 
 
-def sync_all_accounts(db: Session, bearer_token: str, *, now: datetime) -> tuple[int, list[dict]]:
+def sync_all_accounts(
+    db: Session,
+    bearer_token: str,
+    *,
+    now: datetime,
+    fetch_accounts: Callable[[], list[dict]] | None = None,
+) -> tuple[int, list[dict]]:
     """연동된 계좌를 모두 한 번에 동기화한다 (자산현황 "전체 동기화").
 
     growlio 목록은 1회만 조회해 여러 계좌에 매칭한다 - 건별 sync_account처럼 계좌마다
     growlio를 재호출하지 않는다. 배우자 소유 등으로 매칭이 안 되는 계좌는 예외를 던지지
-    않고 failed 목록에 담아 나머지 계좌 동기화를 계속 진행한다.
+    않고 failed 목록에 담아 나머지 계좌 동기화를 계속 진행한다. `fetch_accounts`는 같은
+    growlio 계좌 목록을 쓰는 다른 동기화와 조회 1회를 공유하려는 호출부용이다
+    (net_worth_service.refresh_stale_growlio_links).
     """
     linked_accounts = [a for a in list_accounts(db) if a.growlio_account_id]
     if not linked_accounts:
         return 0, []
-    growlio_accounts = growlio_client.fetch_account_balances(bearer_token)
+    growlio_accounts = fetch_accounts() if fetch_accounts else growlio_client.fetch_account_balances(bearer_token)
     balances = balances_for(db, [a.id for a in linked_accounts])  # 계좌마다 current_balance()를 재조회하지 않도록 배치
     synced_count, failed = growlio_client.sync_linked_rows(
         linked_accounts,

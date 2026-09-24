@@ -1,3 +1,4 @@
+import functools
 import logging
 from concurrent.futures import ThreadPoolExecutor
 from datetime import date, datetime, timedelta
@@ -172,12 +173,19 @@ def refresh_stale_growlio_links(bearer_token: str, *, now: datetime | None = Non
 
     now = now or now_kst()
     db = SessionLocal()
+    # 계좌·저축상품 동기화가 같은 growlio 계좌 목록(GET /external/accounts)을 쓰므로 1회만 조회해
+    # 공유한다 — growlio 콜드스타트 중엔 호출 1번이 타임아웃 1번이다. 연동 대상이 없으면 두
+    # 함수 모두 호출하지 않으므로 조회도 일어나지 않는다(lazy).
+    fetch_accounts = functools.cache(lambda: growlio_client.fetch_account_balances(bearer_token))
     try:
         if not _has_stale_growlio_links(db, now):
             return
         for section, fn in (
-            ("accounts", account_service.sync_all_accounts),
-            ("savings", savings_product_growlio_service.sync_all_from_growlio),
+            ("accounts", functools.partial(account_service.sync_all_accounts, fetch_accounts=fetch_accounts)),
+            (
+                "savings",
+                functools.partial(savings_product_growlio_service.sync_all_from_growlio, fetch_accounts=fetch_accounts),
+            ),
             ("real_estate", real_estate_service.sync_all_from_growlio),
         ):
             try:
