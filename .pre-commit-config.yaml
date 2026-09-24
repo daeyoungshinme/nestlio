@@ -7,7 +7,7 @@
 # CI 를 대체하지 않는다 — CI 가 여전히 최종 게이트다. 포매터 전면 재정렬은 하지 않는다
 # (CLAUDE.md 방침). ruff-check 의 --fix 는 이 repo 가 select 한 규칙(F/I/B/UP/C4)의
 # 안전한 자동수정(미사용 import 제거, import 정렬 등)만 건드리며 CI 가 요구하는 것과 동일하다.
-exclude: '^(frontend/src/types/api\.generated\.ts|migrations/versions/_archive/)'
+exclude: '^frontend/src/types/api\.generated\.ts$'
 
 repos:
   - repo: https://github.com/astral-sh/ruff-pre-commit
