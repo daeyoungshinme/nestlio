@@ -21,7 +21,9 @@
 
 ## 세션 패턴
 
-- 각 잡 함수는 요청 스코프 `get_db()`가 아니라 **자체적으로 `SessionLocal()`을 열고 `finally`에서 닫는다**. 새 잡을 추가할 때도 이 패턴을 따른다 (외부 HTTP 호출로 트리거되므로 요청 스코프 세션이 없음).
+- 외부 HTTP 호출로 트리거되므로 요청 스코프 `get_db()`가 없다. 새 잡은 기본적으로 **`@_job("실패 로그 문구")` 데코레이터**를 쓴다 — 자체 `SessionLocal()`을 열어 `db` 하나를 넘기고, 예외는 로그를 남긴 뒤 **다시 던지며**(엔드포인트가 500 → GitHub Actions가 실패로 표시), `finally`에서 세션을 닫는다.
+- 여러 단계를 독립적으로 돌리고 실패를 모아 한 번에 보고해야 하는 잡(`daily_threshold_safety_net`)만 직접 세션을 관리한다. 이때 실패한 단계 뒤에는 `db.rollback()`을 해야 다음 단계가 `PendingRollbackError`로 연쇄 실패하지 않는다.
+- 테스트는 `tests/test_scheduler_jobs.py` — `conftest.py`가 `app.scheduler.jobs.SessionLocal`을 테스트 DB로 돌린다.
 
 ## Google 연동 가드
 
@@ -36,7 +38,11 @@
 
 ## 새 잡 추가 체크리스트
 
-1. `jobs.py`에 함수 작성 — 자체 DB 세션 열고 닫기, 외부 연동은 `is_connected()` 가드
-2. 잡 내부 예외가 요청 전체를 죽이지 않도록 처리 (필요 시 try/except)
+1. `jobs.py`에 `@_job(...)` 함수 작성, 외부 연동은 `is_connected()` 가드. 예외는 삼키지 말고 전파한다(실패가 Actions에 보여야 함) — 한 항목 실패가 나머지를 막으면 안 되는 루프만 항목 단위로 잡고 롤백한다.
+2. **멱등하게** 만든다 — curl이 `--retry 2 --retry-all-errors --max-time 170`이라 느리거나 부분 실패(500)한 잡은 첫 실행이 아직 도는 중에 다시 호출될 수 있다. 기존 잡은 `notification_log_service.already_sent`/스냅샷 upsert/`next_due_date` 전진으로 중복을 막는다.
 3. `app/routers/internal_jobs.py`의 `JOB_REGISTRY`에 `"job-name": job_function` 추가
-4. `.github/workflows/scheduled-jobs.yml`에 필요한 cron 트리거(UTC 환산)와 curl 스텝 추가
+4. `.github/workflows/scheduled-jobs.yml`에 필요한 cron 트리거(UTC 환산)와 curl 스텝 추가. 요일/날짜 조건은 `TZ=Asia/Seoul date`로 KST 기준 판정한다(cron이 밀려 UTC 자정을 넘겨도 흔들리지 않게). `concurrency.group`이 cron별로 나뉘어 있으니 새 cron도 자동으로 자기 그룹을 갖는다.
+
+## 운영 주의
+
+- GitHub은 **60일간 저장소 활동이 없으면 예약(schedule) 워크플로를 자동 비활성화**한다 — 모든 잡이 조용히 멈춘다. 오래 커밋이 없었다면 Actions 탭에서 "nestlio scheduled jobs"가 활성 상태인지 확인한다.

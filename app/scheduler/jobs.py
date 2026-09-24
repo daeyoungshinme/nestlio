@@ -92,6 +92,9 @@ def daily_threshold_safety_net() -> None:
             try:
                 step()
             except Exception:
+                # 실패한 단계가 세션을 오염시키면(부분 flush 등) 다음 단계가 PendingRollbackError로
+                # 연쇄 실패해 원인 하나가 에러 3개로 보이므로 롤백하고 넘어간다.
+                db.rollback()
                 logger.exception("안전망 체크 실패: %s", step_name)
                 errors.append(step_name)
     finally:

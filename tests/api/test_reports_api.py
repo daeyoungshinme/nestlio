@@ -3,6 +3,7 @@ from decimal import Decimal
 
 from app.models.user import User
 from app.services import transaction_service
+from app.utils.dates import today_kst
 
 
 def test_yearly_report_returns_monthly_and_breakdown(client, seeded_db):
@@ -92,7 +93,7 @@ def test_yearly_report_rejects_invalid_owner_param(client):
 
 def test_category_trend_returns_trailing_months_with_series(client, seeded_db):
     db, user, food = seeded_db["db"], seeded_db["user"], seeded_db["food"]
-    transaction_service.create_transaction(db, user.id, food.id, "expense", Decimal("40000"), date.today())
+    transaction_service.create_transaction(db, user.id, food.id, "expense", Decimal("40000"), today_kst())
 
     resp = client.get("/api/v1/reports/category-trend", params={"months": 3})
 

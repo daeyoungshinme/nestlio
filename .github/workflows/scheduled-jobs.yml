@@ -19,10 +19,12 @@ on:
     - cron: "*/15 * * * *"
   workflow_dispatch: {}
 
-# 느린 event_reminder_check(*/15)가 다음 틱과 겹치지 않게 직렬화한다. 진행 중인 실행은
-# 죽이지 않고(요약 이메일 발송 중 취소 방지) 뒤 실행이 대기하도록 cancel-in-progress: false.
+# 같은 cron끼리만 직렬화한다(느린 event_reminder_check(*/15)가 다음 틱과 겹치지 않게). 진행 중인
+# 실행은 죽이지 않고(요약 이메일 발송 중 취소 방지) 뒤 실행이 대기하도록 cancel-in-progress: false.
+# 그룹을 cron별로 나누는 이유: GitHub은 그룹당 "대기 중" 실행을 1개만 유지하고 새로 들어온 실행이
+# 기존 대기 실행을 취소한다 — 단일 그룹이면 22:00/23:00/23:05 잡이 */15 틱과 겹칠 때 조용히 유실된다.
 concurrency:
-  group: ${{ github.workflow }}
+  group: ${{ github.workflow }}-${{ github.event.schedule || 'manual' }}
   cancel-in-progress: false
 
 permissions:
@@ -54,34 +56,37 @@ jobs:
           curl -fsS --retry 2 --retry-delay 15 --retry-all-errors --max-time 170 -X POST "$APP_URL/internal/jobs/daily-due-date-check" \
             -H "X-Internal-Job-Secret: $INTERNAL_JOB_SECRET"
 
-      - name: weekly_summary_email (Sun 23:00 UTC = Mon 08:00 KST)
+      # 요일/말일 판정은 실행 시점의 KST 날짜로 한다 — cron 실행이 수십 분 밀려 UTC 자정을 넘겨도
+      # KST로는 여전히 "월요일 08시대 / 1일 08시대"라 판정이 흔들리지 않는다. 재실행돼도
+      # 서버 쪽 already_sent/스냅샷 upsert가 중복을 막는다.
+      - name: weekly_summary_email (Mon 08:00 KST = Sun 23:00 UTC)
         if: github.event.schedule == '0 23 * * *' || github.event_name == 'workflow_dispatch'
         run: |
-          if [ "$(date -u +%u)" = "7" ] || [ -n "$FORCE_RUN" ]; then
+          if [ "$(TZ=Asia/Seoul date +%u)" = "1" ] || [ -n "$FORCE_RUN" ]; then
             curl -fsS --retry 2 --retry-delay 15 --retry-all-errors --max-time 170 -X POST "$APP_URL/internal/jobs/weekly-summary-email" \
               -H "X-Internal-Job-Secret: $INTERNAL_JOB_SECRET"
           else
-            echo "not Sunday UTC, skipping weekly_summary_email"
+            echo "not Monday KST, skipping weekly_summary_email"
           fi
 
-      - name: monthly_summary_email (last UTC day of month 23:00 = 1st 08:00 KST)
+      - name: monthly_summary_email (1st 08:00 KST = last day of month 23:00 UTC)
         if: github.event.schedule == '0 23 * * *' || github.event_name == 'workflow_dispatch'
         run: |
-          if [ "$(date -u -d '+1 day' +%d)" = "01" ] || [ -n "$FORCE_RUN" ]; then
+          if [ "$(TZ=Asia/Seoul date +%d)" = "01" ] || [ -n "$FORCE_RUN" ]; then
             curl -fsS --retry 2 --retry-delay 15 --retry-all-errors --max-time 170 -X POST "$APP_URL/internal/jobs/monthly-summary-email" \
               -H "X-Internal-Job-Secret: $INTERNAL_JOB_SECRET"
           else
-            echo "tomorrow (UTC) is not the 1st, skipping monthly_summary_email"
+            echo "not the 1st (KST), skipping monthly_summary_email"
           fi
 
-      - name: monthly_net_worth_snapshot (last UTC day of month 23:05 = 1st 08:05 KST)
+      - name: monthly_net_worth_snapshot (1st 08:05 KST = last day of month 23:05 UTC)
         if: github.event.schedule == '5 23 * * *' || github.event_name == 'workflow_dispatch'
         run: |
-          if [ "$(date -u -d '+1 day' +%d)" = "01" ] || [ -n "$FORCE_RUN" ]; then
+          if [ "$(TZ=Asia/Seoul date +%d)" = "01" ] || [ -n "$FORCE_RUN" ]; then
             curl -fsS --retry 2 --retry-delay 15 --retry-all-errors --max-time 170 -X POST "$APP_URL/internal/jobs/monthly-net-worth-snapshot" \
               -H "X-Internal-Job-Secret: $INTERNAL_JOB_SECRET"
           else
-            echo "tomorrow (UTC) is not the 1st, skipping monthly_net_worth_snapshot"
+            echo "not the 1st (KST), skipping monthly_net_worth_snapshot"
           fi
 
       - name: daily_threshold_safety_net
