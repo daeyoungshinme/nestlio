@@ -10,14 +10,6 @@ export function formatKrw(value: string | number | null | undefined): string {
   return `${KRW_FORMATTER.format(n)}원`;
 }
 
-/** "12345.00" | 12345 -> "12,345" (통화 단위 없이) */
-export function formatNumber(value: string | number | null | undefined): string {
-  if (value === null || value === undefined) return "0";
-  const n = typeof value === "string" ? Number(value) : value;
-  if (Number.isNaN(n)) return "0";
-  return KRW_FORMATTER.format(n);
-}
-
 /** 억원/만원 단위 축약 표기. 예: 150_000_000 -> "1.50억원", 5_000_000 -> "500만원", 3_000 -> "3,000원" */
 export function formatKrwCompact(n: number): string {
   if (Math.abs(n) >= 1e8) return `${(n / 1e8).toFixed(2)}억원`;

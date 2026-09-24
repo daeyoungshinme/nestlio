@@ -6,7 +6,7 @@ import CategoryPicker from "@/components/common/CategoryPicker";
 import FormInput from "@/components/common/FormInput";
 import OwnerSelect from "@/components/common/OwnerSelect";
 import { INPUT_SM, LABEL_SM } from "@/constants/inputStyles";
-import { syncTargetsToPeriod } from "@/utils/monthRange";
+import { buildYearMonthRange, syncTargetsToPeriod } from "@/utils/monthRange";
 import { formatKrwPreview, formatMonthOnly } from "@/utils/format";
 import type { AnnualPlanItemMonthlyTargetIn, CashflowSection, CategoryOut, UserOut } from "@/types";
 
@@ -63,7 +63,7 @@ export default function AnnualPlanItemForm({
     section === "income"
       ? categories.filter((c) => c.kind === "income")
       : categories.filter((c) => c.kind === "expense" && c.type === section);
-  const monthOptions = Array.from({ length: 12 }, (_, i) => `${year}-${String(i + 1).padStart(2, "0")}`);
+  const monthOptions = buildYearMonthRange(`${year}-01`, `${year}-12`);
 
   const changeStartMonth = (next: string) => {
     setStartMonth(next);

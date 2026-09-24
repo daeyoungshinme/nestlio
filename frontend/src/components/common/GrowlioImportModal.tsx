@@ -8,6 +8,7 @@ import StatusBadge from "@/components/common/StatusBadge";
 import { formatKrw } from "@/utils/format";
 import { extractErrorMessage } from "@/utils/error";
 import { toast } from "@/utils/toast";
+import { formErrorTextClass } from "@/utils/colors";
 
 interface RowMeta {
   name: string;
@@ -95,7 +96,7 @@ export default function GrowlioImportModal<TRow, TResult>({
       <div className="p-6 overflow-y-auto flex flex-col gap-3">
         {isLoading && <p className="text-xs text-gray-400">growlio 계좌를 불러오는 중…</p>}
         {isError && (
-          <p className="text-xs text-red-500">{extractErrorMessage(error, "growlio 계좌를 불러오지 못했습니다.")}</p>
+          <p className={`text-xs ${formErrorTextClass()}`}>{extractErrorMessage(error, "growlio 계좌를 불러오지 못했습니다.")}</p>
         )}
         {rows && importable.length === 0 && (
           <p className="text-xs text-gray-400">가져올 수 있는 growlio 계좌가 없어요.</p>

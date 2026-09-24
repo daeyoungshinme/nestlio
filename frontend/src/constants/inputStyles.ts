@@ -7,11 +7,9 @@ export const INPUT_SM = BASE + " px-3 py-2 text-sm min-h-[44px]";
 export const INPUT_MD = BASE + " px-3 py-2.5 text-base min-h-[44px]";
 export const LABEL_SM = "text-xs text-gray-500 dark:text-gray-400";
 export const LABEL_MD = "text-sm font-medium text-gray-700 dark:text-gray-300";
-export const SELECT_SM = INPUT_SM;
 export const TEXTAREA_SM = INPUT_SM + " resize-none";
 
 export const FORM_LABEL = `block ${LABEL_MD} mb-1`;
-export const HINT_TEXT = "text-xs text-gray-400 dark:text-gray-500";
 
 /** type="color" 스와치 전용 — INPUT_SM은 padding/텍스트 크기가 포함돼 있어 고정 크기 색상
  *  스와치에는 그대로 못 쓴다(레이아웃이 깨짐). */

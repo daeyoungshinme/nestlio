@@ -13,5 +13,3 @@ export const SECTIONS = [
 export const SAVINGS_INVESTMENT_LABEL = "저축·투자" as const;
 
 export type SectionLabel = (typeof SECTIONS)[number]["label"] | typeof SAVINGS_INVESTMENT_LABEL;
-
-export const SECTION_LABELS = [...SECTIONS.map((s) => s.label), SAVINGS_INVESTMENT_LABEL] as SectionLabel[];

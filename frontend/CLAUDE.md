@@ -49,6 +49,9 @@ cd frontend && npm run generate:api-types
 `app/schemas/*.py` 를 바꾼 PR은 `npm run generate:api-types` 를 돌려 갱신된
 `api.generated.ts` 를 함께 커밋해야 한다 — 안 하면 `api-types-drift` 잡이
 `git diff --exit-code` 로 실패한다. `types/index.ts` 는 그 diff를 보고 사람이 맞춘다.
+사람이 맞추는 걸 잊으면 `src/types/apiDrift.check.ts`(타입 전용, 런타임 코드 없음)가 손 타입과
+생성 타입의 **필드 이름**이 어긋날 때 `tsc`(=`npm run build`)를 실패시킨다. 손 타입을 새로
+추가하면 그 파일 목록에도 한 줄 추가한다.
 
 ### 테스트
 ```bash
@@ -118,7 +121,7 @@ stores/{authStore,themeStore}.ts — Zustand, React Query 캐시와 무관한 �
 **Absolute Rules** (성격이 다른 실수를 반복하지 않기 위해 고정):
 - 색상/상태 로직(`ok`/`warn`/`critical`, `info`/`warning`/`critical`, 카테고리 fixed/variable, 수입/지출)은 항상 `utils/colors.ts`의 함수를 통해서만 가져온다. 컴포넌트에 `status === "critical" ? "text-red-600" : ...` 같은 조건부 색상 문자열을 직접 쓰지 않는다.
 - 앱 accent 는 `tailwind.config.ts` 의 `primary` 토큰(emerald 계열)이다. 인터랙티브 크롬(버튼·링크·hover·아이콘·배지)에 raw `emerald-*`/`indigo-*` 클래스를 쓰지 않는다 — `primary-*` 토큰이나 `utils/colors.ts` 헬퍼를 쓴다. CI `frontend` 잡의 grep 가드가 `colors.ts` 밖의 raw `emerald-`/`indigo-` 를 실패시킨다.
-- 금액은 항상 `Decimal` 문자열(백엔드 응답 그대로)로 다루고, 표시 시점에만 `utils/format.ts`의 `formatKrw`/`formatNumber`를 거친다. 중간에 `parseFloat` 등으로 임의 반올림하지 않는다.
+- 금액은 항상 `Decimal` 문자열(백엔드 응답 그대로)로 다루고, 표시 시점에만 `utils/format.ts`의 `formatKrw`/`formatKrwCompact`를 거친다. 중간에 `parseFloat` 등으로 임의 반올림하지 않는다.
 - 터치 타겟: 단독 액션 버튼(수정/삭제 아이콘 버튼 등)은 `constants/uiSizes.ts`의 `TOUCH_TARGET_MIN`(44px), 배지/탭처럼 조밀하게 나열되는 요소는 `TOUCH_TARGET_COMPACT_MOBILE_ONLY`(36px)를 사용한다.
 - 입력 필드 스타일은 `constants/inputStyles.ts`의 `INPUT_SM`/`INPUT_MD`/`LABEL_SM`/`LABEL_MD`를 재사용한다 (직접 border/rounded 조합을 새로 쓰지 않는다).
 - 다크모드는 growlio와 동일하게 `<html>`의 `.dark` 클래스 기반(`darkMode: "class"`)이다. `stores/themeStore.ts`가 최초 진입 시 `localStorage` 저장값이 없으면 `prefers-color-scheme`을 따르고, 이후에는 토글 값을 우선한다.
