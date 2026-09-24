@@ -308,3 +308,25 @@ def test_refresh_stale_growlio_links_stops_quietly_when_growlio_unavailable(seed
         net_worth_service.refresh_stale_growlio_links("token", now=NOW)  # 예외 밖으로 안 던짐
 
     later.assert_not_called()
+
+
+def test_refresh_stale_growlio_links_rolls_back_after_unexpected_section_error(seeded_db):
+    """한 섹션이 예상 밖 예외로 실패하면 세션을 롤백한 뒤 다음 섹션을 계속 진행한다."""
+    db = seeded_db["db"]
+    _linked_product(db, synced_at=None)
+    later = MagicMock(return_value=(0, []))
+    with (
+        patch("app.database.SessionLocal", return_value=db),
+        patch.object(db, "close"),
+        patch.object(db, "rollback") as rollback,
+        patch(
+            "app.services.net_worth_service.account_service.sync_all_accounts",
+            side_effect=RuntimeError("boom"),
+        ),
+        patch("app.services.net_worth_service.savings_product_growlio_service.sync_all_from_growlio", later),
+        patch("app.services.net_worth_service.real_estate_service.sync_all_from_growlio", later),
+    ):
+        net_worth_service.refresh_stale_growlio_links("token", now=NOW)
+
+    rollback.assert_called_once()
+    assert later.call_count == 2

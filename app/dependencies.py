@@ -96,7 +96,10 @@ def get_current_user(
     sub = payload.get("sub")
     if not sub:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token payload")
-    user_id = uuid.UUID(sub)
+    try:
+        user_id = uuid.UUID(sub)
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token payload") from exc
     user = db.get(User, user_id)
     if user is not None and user.removed_at is not None:
         # 배우자에게서 제거된 계정 - Supabase 세션 자체는 여전히 유효하므로 401이 아니라
