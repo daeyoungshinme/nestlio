@@ -13,14 +13,42 @@ from app.services import user_service
 from app.utils.dates import month_bounds, shift_month, today_kst, year_bounds, year_month_str
 
 
-def _period_expense_filters(date_from: date, date_to: date):
-    """집계 쿼리 공통 필터: 기간 내 + 저축상품 연결이 아닌(=순수 수입/지출) 거래.
-    `db.query(...).filter(*_period_expense_filters(a, b), 추가조건)` 형태로 쓴다."""
+def _period_filters(date_from: date, date_to: date):
+    """기간 내 거래 필터 (저축상품 연결 여부 무관)."""
     return (
         Transaction.transaction_date >= date_from,
         Transaction.transaction_date <= date_to,
-        Transaction.savings_product_id.is_(None),
     )
+
+
+def _period_expense_filters(date_from: date, date_to: date):
+    """집계 쿼리 공통 필터: 기간 내 + 저축상품 연결이 아닌(=순수 수입/지출) 거래.
+    `db.query(...).filter(*_period_expense_filters(a, b), 추가조건)` 형태로 쓴다."""
+    return (*_period_filters(date_from, date_to), Transaction.savings_product_id.is_(None))
+
+
+def _empty_totals() -> dict:
+    return {
+        "income": Decimal("0"),
+        "expense": Decimal("0"),
+        "fixed": Decimal("0"),
+        "variable": Decimal("0"),
+        "irregular": Decimal("0"),
+    }
+
+
+def _category_row(cat_id, name, color, cat_type, is_discretionary, is_debt, benchmark_group, amount) -> dict:
+    """category_breakdown 계열이 공통으로 반환하는 카테고리별 합계 행."""
+    return {
+        "category_id": cat_id,
+        "name": name,
+        "color": color,
+        "type": cat_type,
+        "is_discretionary": is_discretionary,
+        "is_debt": is_debt,
+        "benchmark_group": benchmark_group,
+        "amount": amount or Decimal("0"),
+    }
 
 
 def period_totals(db: Session, date_from: date, date_to: date) -> dict:
@@ -34,13 +62,7 @@ def period_totals(db: Session, date_from: date, date_to: date) -> dict:
         .group_by(Transaction.type, Category.type)
         .all()
     )
-    totals = {
-        "income": Decimal("0"),
-        "expense": Decimal("0"),
-        "fixed": Decimal("0"),
-        "variable": Decimal("0"),
-        "irregular": Decimal("0"),
-    }
+    totals = _empty_totals()
     for tx_type, cat_type, amount in rows:
         amount = amount or Decimal("0")
         totals[tx_type] = totals.get(tx_type, Decimal("0")) + amount
@@ -68,36 +90,13 @@ def payment_method_breakdown(db: Session, date_from: date, date_to: date) -> lis
     ]
 
 
-def totals_by_user(db: Session, date_from: date, date_to: date) -> list[dict]:
-    """Income/expense/savings totals per user for a date range, for spouse contribution comparison.
-    Only includes users with at least one transaction in the range."""
-    rows = (
-        db.query(User.id, User.display_name, Transaction.type, func.sum(Transaction.amount))
-        .join(Transaction, Transaction.user_id == User.id)
-        .filter(
-            *_period_expense_filters(date_from, date_to),
-        )
-        .group_by(User.id, Transaction.type)
-        .all()
-    )
-    by_user: dict[uuid.UUID, dict] = {}
-    for user_id, display_name, tx_type, amount in rows:
-        entry = by_user.setdefault(
-            user_id,
-            {"user_id": user_id, "display_name": display_name, "income": Decimal("0"), "expense": Decimal("0")},
-        )
-        entry[tx_type] = amount or Decimal("0")
-    result = list(by_user.values())
-    for entry in result:
-        entry["savings"] = entry["income"] - entry["expense"]
-    return sorted(result, key=lambda r: r["display_name"])
 
 
 def totals_by_owner(db: Session, date_from: date, date_to: date) -> list[dict]:
     """Income/expense/savings/savings_investment totals per owner (Transaction.owner_user_id
     — who a transaction actually belongs to, tagged explicitly on entry; NULL = "공통" shared
-    expense) for a date range. Unlike totals_by_user (which groups by user_id, the person who
-    *recorded* the transaction), this reflects the real spending/earning party. Always includes
+    expense) for a date range. Unlike Transaction.user_id (the person who *recorded* the
+    transaction), this reflects the real spending/earning party. Always includes
     every active household user plus the shared bucket, even with zero transactions in range,
     so spouses can be compared side by side at a glance."""
     income_expense_rows = (
@@ -111,8 +110,7 @@ def totals_by_owner(db: Session, date_from: date, date_to: date) -> list[dict]:
     savings_investment_rows = (
         db.query(Transaction.owner_user_id, func.sum(Transaction.amount))
         .filter(
-            Transaction.transaction_date >= date_from,
-            Transaction.transaction_date <= date_to,
+            *_period_filters(date_from, date_to),
             Transaction.savings_product_id.isnot(None),
         )
         .group_by(Transaction.owner_user_id)
@@ -180,19 +178,7 @@ def _category_breakdown_base_query(db: Session, date_from: date, date_to: date, 
 
 
 def _rows_to_category_amounts(rows) -> list[dict]:
-    return [
-        {
-            "category_id": r[0],
-            "name": r[1],
-            "color": r[2],
-            "type": r[3],
-            "is_discretionary": r[4],
-            "is_debt": r[5],
-            "benchmark_group": r[6],
-            "amount": r[7],
-        }
-        for r in rows
-    ]
+    return [_category_row(*r) for r in rows]
 
 
 def category_breakdown(
@@ -252,20 +238,9 @@ def _category_breakdown_by_owner_batch(
         .all()
     )
     by_owner: dict[uuid.UUID | Literal["shared"], list[dict]] = {}
-    for owner_id, cat_id, name, color, cat_type, is_discretionary, is_debt, benchmark_group, amount in rows:
+    for owner_id, *category_fields in rows:
         owner_key: uuid.UUID | Literal["shared"] = "shared" if owner_id is None else owner_id
-        by_owner.setdefault(owner_key, []).append(
-            {
-                "category_id": cat_id,
-                "name": name,
-                "color": color,
-                "type": cat_type,
-                "is_discretionary": is_discretionary,
-                "is_debt": is_debt,
-                "benchmark_group": benchmark_group,
-                "amount": amount or Decimal("0"),
-            }
-        )
+        by_owner.setdefault(owner_key, []).append(_category_row(*category_fields))
     return by_owner
 
 
@@ -348,16 +323,7 @@ def owner_spending_detail(
 def _monthly_totals_map(db: Session, month_starts: list[date]) -> dict[str, dict]:
     """period_totals(), batched into a single query, grouped by calendar month.
     `month_starts` must be the first-of-month dates to report on (need not be contiguous)."""
-    result = {
-        year_month_str(m): {
-            "income": Decimal("0"),
-            "expense": Decimal("0"),
-            "fixed": Decimal("0"),
-            "variable": Decimal("0"),
-            "irregular": Decimal("0"),
-        }
-        for m in month_starts
-    }
+    result = {year_month_str(m): _empty_totals() for m in month_starts}
     if not month_starts:
         return result
     range_start = min(month_starts)
@@ -399,6 +365,7 @@ def _category_breakdown_by_month(db: Session, month_starts: list[date], type_: s
             Category.type,
             Category.is_discretionary,
             Category.is_debt,
+            Category.benchmark_group,
             Transaction.amount,
         )
         .join(Category, Transaction.category_id == Category.id)
@@ -408,22 +375,11 @@ def _category_breakdown_by_month(db: Session, month_starts: list[date], type_: s
         )
         .all()
     )
-    for tx_date, cat_id, name, color, cat_type, is_discretionary, is_debt, amount in rows:
+    for tx_date, cat_id, *category_fields, amount in rows:
         bucket = by_month.get(year_month_str(tx_date))
         if bucket is None:
             continue
-        entry = bucket.setdefault(
-            cat_id,
-            {
-                "category_id": cat_id,
-                "name": name,
-                "color": color,
-                "type": cat_type,
-                "is_discretionary": is_discretionary,
-                "is_debt": is_debt,
-                "amount": Decimal("0"),
-            },
-        )
+        entry = bucket.setdefault(cat_id, _category_row(cat_id, *category_fields, Decimal("0")))
         entry["amount"] += amount or Decimal("0")
     return {ym: sorted(bucket.values(), key=lambda r: r["amount"], reverse=True) for ym, bucket in by_month.items()}
 
@@ -432,18 +388,13 @@ def monthly_trend(db: Session, months: int = 6, anchor: date | None = None) -> l
     """Income/expense totals for the trailing `months` calendar months, oldest first."""
     anchor = anchor or today_kst()
     month_starts = [shift_month(anchor, -offset) for offset in range(months - 1, -1, -1)]
+    return _monthly_rows(db, month_starts)
+
+
+def _monthly_rows(db: Session, month_starts: list[date]) -> list[dict]:
+    """month_starts 순서대로 월별 합계 행(year_month + income/expense/fixed/variable/irregular/savings)."""
     totals_by_month = _monthly_totals_map(db, month_starts)
-    return [
-        {
-            "year_month": ym,
-            "income": totals_by_month[ym]["income"],
-            "expense": totals_by_month[ym]["expense"],
-            "fixed": totals_by_month[ym]["fixed"],
-            "variable": totals_by_month[ym]["variable"],
-            "irregular": totals_by_month[ym]["irregular"],
-        }
-        for ym in (year_month_str(m) for m in month_starts)
-    ]
+    return [{"year_month": ym, **totals_by_month[ym]} for ym in (year_month_str(m) for m in month_starts)]
 
 
 def trailing_average_by_category(db: Session, anchor: date, months: int = 3, type_: str = "expense") -> dict[int, Decimal]:
@@ -457,13 +408,6 @@ def trailing_average_by_category(db: Session, anchor: date, months: int = 3, typ
     return {cat_id: total / months for cat_id, total in totals.items()}
 
 
-def trailing_average_savings(db: Session, anchor: date, months: int = 3) -> Decimal:
-    """Average household net savings (income-expense) over the `months` immediately before
-    anchor's month (excludes anchor's month)."""
-    month_starts = [shift_month(anchor, -offset) for offset in range(1, months + 1)]
-    totals_by_month = _monthly_totals_map(db, month_starts)
-    total = sum((totals["savings"] for totals in totals_by_month.values()), Decimal("0"))
-    return total / months
 
 
 def trailing_average_by_section(db: Session, anchor: date, months: int = 3) -> dict[str, Decimal]:
@@ -525,20 +469,7 @@ def category_monthly_trend(
 def yearly_monthly_breakdown(db: Session, year: int) -> list[dict]:
     """Jan-Dec totals for a specific calendar year (unlike monthly_trend, which is
     a trailing window ending at an anchor date)."""
-    month_starts = [date(year, month, 1) for month in range(1, 13)]
-    totals_by_month = _monthly_totals_map(db, month_starts)
-    return [
-        {
-            "year_month": ym,
-            "income": totals_by_month[ym]["income"],
-            "expense": totals_by_month[ym]["expense"],
-            "fixed": totals_by_month[ym]["fixed"],
-            "variable": totals_by_month[ym]["variable"],
-            "irregular": totals_by_month[ym]["irregular"],
-            "savings": totals_by_month[ym]["savings"],
-        }
-        for ym in (year_month_str(m) for m in month_starts)
-    ]
+    return _monthly_rows(db, [date(year, month, 1) for month in range(1, 13)])
 
 
 def yearly_totals(db: Session, year: int) -> dict:
