@@ -4,9 +4,11 @@ set -euo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")"
 
 MODE="dev"
+MIGRATE=0
 for arg in "$@"; do
   case "$arg" in
     run) MODE="run" ;;
+    migrate) MIGRATE=1 ;;
   esac
 done
 
@@ -69,19 +71,23 @@ fi
 echo "[dev.sh] installing dependencies (runtime + dev/test)..."
 "$PYTHON" -m pip install -q -r requirements.txt -r requirements-dev.txt
 
-mkdir -p data
-
-echo "[dev.sh] running database migrations..."
-if ! "$PYTHON" -m alembic upgrade head; then
-  echo "[dev.sh] ERROR: alembic upgrade failed." >&2
-  echo "[dev.sh]        Set a real DATABASE_URL in .env — nestlio shares growlio's Supabase" >&2
-  echo "[dev.sh]        Postgres (copy that project's connection string, sync psycopg2 driver)." >&2
-  exit 1
+# DATABASE_URL은 대개 운영과 공유하는 Supabase Postgres라, 마이그레이션/시드는 명시적으로
+# "migrate" 인자를 줄 때만 돌린다 — 머지 안 된 로컬 마이그레이션이 운영 DB에 적용되는 사고 방지.
+# 운영 DB는 배포(render.yaml의 alembic upgrade head)가 항상 head로 맞춘다.
+if [ "$MIGRATE" = "1" ]; then
+  echo "[dev.sh] running database migrations against DATABASE_URL (shared with production)..."
+  if ! "$PYTHON" -m alembic upgrade head; then
+    echo "[dev.sh] ERROR: alembic upgrade failed." >&2
+    echo "[dev.sh]        Set a real DATABASE_URL in .env — nestlio shares growlio's Supabase" >&2
+    echo "[dev.sh]        Postgres (copy that project's connection string, sync psycopg2 driver)." >&2
+    exit 1
+  fi
+  # seed_data.py는 idempotent다 (이미 있는 행은 건너뜀).
+  echo "[dev.sh] seeding default data (skips rows that already exist)..."
+  "$PYTHON" scripts/seed_data.py
+else
+  echo "[dev.sh] skipping migrations/seed (pass \"migrate\" to apply them — DATABASE_URL is shared with production)"
 fi
-
-# seed_data.py는 idempotent다 (이미 있는 행은 건너뜀) — 매 실행마다 그냥 돌린다.
-echo "[dev.sh] seeding default data (skips rows that already exist)..."
-"$PYTHON" scripts/seed_data.py
 
 if [ ! -d "frontend/node_modules" ]; then
   echo "[dev.sh] frontend/node_modules not found, installing frontend dependencies..."

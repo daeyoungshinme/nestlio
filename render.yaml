@@ -19,6 +19,7 @@ services:
       # production이면 config.py의 시동 검증이 필수 시크릿 누락 시 부팅을 막는다(fail-fast).
       - key: APP_ENV
         value: production
+      # .python-version(CI의 setup-python이 읽는 정본)과 함께 올린다.
       - key: PYTHON_VERSION
         value: 3.11.9
       - key: NODE_VERSION
