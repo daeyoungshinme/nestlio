@@ -43,7 +43,7 @@ def dashboard_bootstrap(
     background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     bearer_token: str = Depends(get_bearer_token),
-    _: User = Depends(get_current_user),
+    user: User = Depends(get_current_user),
 ):
     """대시보드 첫 화면에 필요한 settings/net-worth/financial-goals/savings-products/users를
     한 번에 조회한다 — 모바일 등 고지연 환경에서 대시보드 마운트 시 발생하는 병렬 요청 수를
@@ -51,14 +51,14 @@ def dashboard_bootstrap(
     쓰므로 그대로 둔다."""
     today = today_kst()
     # GET /net-worth와 동일한 기회주의적 growlio 갱신 후크(app/services/CLAUDE.md 참고).
-    background_tasks.add_task(net_worth_service.refresh_stale_growlio_links, bearer_token, now=now_kst())
+    background_tasks.add_task(net_worth_service.refresh_stale_growlio_links, bearer_token, user.id, now=now_kst())
     return {
         "settings": {
             "google_connected": is_connected(),
             "notify_emails": notification_settings_service.get_recipients(db),
             "coaching_thresholds": coaching_settings_service.get_thresholds(db),
             "notification_prefs": notification_settings_service.get_prefs(db),
-            "couple_photo_url": couple_photo_service.get_photo_url(),
+            "couple_photo_url": couple_photo_service.photo_url_for_display(),
         },
         "net_worth": {
             "current": net_worth_service.compute_current(db),

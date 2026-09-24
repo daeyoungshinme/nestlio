@@ -90,7 +90,10 @@ growlio_client.register_exception_handlers(app)
 def serve_couple_photo():
     # 인증 없이 서빙 — <img src>는 Authorization 헤더를 못 보내고, 기존 StaticFiles 마운트도
     # 비인증이었으므로 동작을 그대로 유지한다.
-    result = couple_photo_service.get_photo_bytes()
+    try:
+        result = couple_photo_service.get_photo_bytes()
+    except couple_photo_service.PhotoStorageError:
+        raise HTTPException(status_code=502) from None
     if result is None:
         raise HTTPException(status_code=404)
     content, content_type = result

@@ -191,3 +191,31 @@ def test_sync_all_from_growlio_propagates_not_configured_error(db_session):
     ):
         with pytest.raises(GrowlioNotConfiguredError):
             real_estate_service.sync_all_from_growlio(db_session, "token", now=datetime(2026, 8, 12))
+
+
+def test_sync_all_from_growlio_background_mode_respects_auto_sync_and_owner(db_session):
+    """백그라운드 갱신(auto_sync_only + owner_user_id): 자동 동기화를 끈 짝 대출의 직접 입력 잔액은
+    유지하고, 다른 사용자(배우자) 소유 부동산은 growlio 조회 대상에서 뺀다."""
+    with _patch_fetch([_GROWLIO_ITEM]):
+        [(product, loan)] = real_estate_service.import_from_growlio(
+            db_session, ["growlio-re-1"], "token", _OWNER_ID, now=datetime(2026, 8, 11)
+        )
+    loan.auto_sync_enabled = False
+    loan.balance = Decimal("123")
+    db_session.commit()
+
+    updated_item = {**_GROWLIO_ITEM, "market_value_krw": 850000000.0, "mortgage_balance_krw": 280000000.0}
+    with _patch_fetch([updated_item]):
+        synced_count, _ = real_estate_service.sync_all_from_growlio(
+            db_session, "token", now=datetime(2026, 8, 12), auto_sync_only=True, owner_user_id=_OWNER_ID
+        )
+    assert synced_count == 1
+    assert product.current_balance == Decimal("850000000.0")
+    assert loan.balance == Decimal("123")
+
+    with _patch_fetch([updated_item]) as mock_fetch:
+        synced_count, failed = real_estate_service.sync_all_from_growlio(
+            db_session, "token", now=datetime(2026, 8, 13), auto_sync_only=True, owner_user_id=uuid.uuid4()
+        )
+    mock_fetch.assert_not_called()
+    assert (synced_count, failed) == (0, [])

@@ -149,20 +149,24 @@ def generate_due_transactions(db: Session, today: date | None = None) -> list[Tr
                 if recurring.end_date and recurring.next_due_date > recurring.end_date:
                     recurring.is_active = False
                     break
+                # 다음 기한을 먼저 전진시켜 두면 create_transaction의 commit이 거래와 기한 전진을 한
+                # 트랜잭션으로 저장한다. 거래만 커밋되고 전진은 뒤 항목의 commit에 얹혀 있으면, 뒤 항목
+                # 실패 시 rollback이 전진만 되돌려 다음 실행에서 같은 기한이 이중 기장된다.
+                due_date = recurring.next_due_date
+                recurring.next_due_date = advance_recurring_date(
+                    due_date, recurring.frequency, recurring.day_of_month, recurring.days_of_month
+                )
                 tx = create_transaction(
                     db,
                     user_id=recurring.created_by,
                     category_id=recurring.category_id,
                     type_=recurring.type,
                     amount=recurring.amount,
-                    transaction_date=recurring.next_due_date,
+                    transaction_date=due_date,
                     description=recurring.name,
                     recurring_expense_id=recurring.id,
                 )
                 created.append(tx)
-                recurring.next_due_date = advance_recurring_date(
-                    recurring.next_due_date, recurring.frequency, recurring.day_of_month, recurring.days_of_month
-                )
         except Exception:
             # idempotent per due date — a failed recurring is simply retried on the next run,
             # so one bad item shouldn't block the rest of due_items from being posted. Roll back

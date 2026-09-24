@@ -2,6 +2,7 @@ from datetime import date, datetime, timedelta
 from decimal import Decimal
 from unittest.mock import MagicMock, patch
 
+from app.models.user import User
 from app.services import account_service, loan_service, net_worth_service, savings_product_service
 from app.services.growlio_client import GrowlioNotConfiguredError, GrowlioRequestError
 
@@ -218,137 +219,161 @@ def test_compute_growlio_unlinked_returns_zero_when_not_configured(seeded_db):
 NOW = datetime(2026, 7, 15, 12, 0, 0)
 
 
-def _linked_product(db, *, synced_at):
-    p = savings_product_service.create_product(db, "연동적금", Decimal("0"), Decimal("0"), "investment")
-    p.growlio_account_id = "growlio-1"
-    p.auto_sync_enabled = True
+def _linked_product(db, *, synced_at, growlio_id="growlio-1", owner_user_id=None, auto_sync=True, balance="0"):
+    p = savings_product_service.create_product(db, f"연동-{growlio_id}", Decimal(balance), Decimal("0"), "investment")
+    p.growlio_account_id = growlio_id
+    p.auto_sync_enabled = auto_sync
+    p.owner_user_id = owner_user_id
     p.last_synced_at = synced_at
     db.commit()
     return p
 
 
+def _refresh(db, user_id, **patches):
+    """자체 SessionLocal()을 테스트 세션으로 돌려 refresh_stale_growlio_links를 실행한다."""
+    with (
+        patch("app.database.SessionLocal", return_value=db),
+        patch.object(db, "close"),
+    ):
+        net_worth_service.refresh_stale_growlio_links("token", user_id, now=NOW)
+
+
 def test_has_stale_growlio_links_true_when_never_synced(seeded_db):
-    db = seeded_db["db"]
+    db, user = seeded_db["db"], seeded_db["user"]
     _linked_product(db, synced_at=None)
-    assert net_worth_service._has_stale_growlio_links(db, NOW) is True
+    assert net_worth_service._has_stale_growlio_links(db, NOW, user.id) is True
 
 
 def test_has_stale_growlio_links_true_when_older_than_window(seeded_db):
-    db = seeded_db["db"]
-    _linked_product(db, synced_at=NOW - net_worth_service.STALE_GROWLIO_LINK_AFTER - timedelta(minutes=1))
-    assert net_worth_service._has_stale_growlio_links(db, NOW) is True
+    db, user = seeded_db["db"], seeded_db["user"]
+    _linked_product(db, synced_at=NOW - timedelta(hours=13))
+    assert net_worth_service._has_stale_growlio_links(db, NOW, user.id) is True
 
 
 def test_has_stale_growlio_links_false_when_recently_synced(seeded_db):
-    db = seeded_db["db"]
+    db, user = seeded_db["db"], seeded_db["user"]
     _linked_product(db, synced_at=NOW - timedelta(hours=1))
-    assert net_worth_service._has_stale_growlio_links(db, NOW) is False
+    assert net_worth_service._has_stale_growlio_links(db, NOW, user.id) is False
 
 
 def test_has_stale_growlio_links_false_without_auto_sync_flag(seeded_db):
-    db = seeded_db["db"]
-    p = _linked_product(db, synced_at=None)
-    p.auto_sync_enabled = False
+    db, user = seeded_db["db"], seeded_db["user"]
+    _linked_product(db, synced_at=None, auto_sync=False)
+    assert net_worth_service._has_stale_growlio_links(db, NOW, user.id) is False
+
+
+def test_has_stale_growlio_links_ignores_spouse_owned_items(seeded_db):
+    """호출자 JWT로는 배우자 항목이 growlio에서 매칭되지 않아 영원히 stale로 남는다 — 이걸 세면
+    배우자가 아닌 쪽이 화면을 열 때마다 growlio를 호출한다."""
+    db, user = seeded_db["db"], seeded_db["user"]
+    spouse = User(email="spouse2@example.com", display_name="Spouse 2")
+    db.add(spouse)
     db.commit()
-    assert net_worth_service._has_stale_growlio_links(db, NOW) is False
+    _linked_product(db, synced_at=None, owner_user_id=spouse.id)
+    assert net_worth_service._has_stale_growlio_links(db, NOW, user.id) is False
+    assert net_worth_service._has_stale_growlio_links(db, NOW, spouse.id) is True
 
 
-def test_refresh_stale_growlio_links_runs_syncs_when_stale(seeded_db):
-    db = seeded_db["db"]
+def test_has_stale_growlio_links_counts_loan_only_via_auto_synced_property(seeded_db):
+    db, user = seeded_db["db"], seeded_db["user"]
+    prop = _linked_product(db, synced_at=NOW, growlio_id="re-1", auto_sync=False)
+    prop.product_type = "real_estate"
+    loan = loan_service.create_loan(db, "담보대출", Decimal("100"), Decimal("0"), None, None, None, None)
+    loan.growlio_account_id = "re-1"
+    loan.auto_sync_enabled = True
+    db.commit()
+    # 짝 부동산이 자동 동기화 대상이 아니면 백그라운드로는 대출을 갱신할 방법이 없다 → stale로 세지 않음
+    assert net_worth_service._has_stale_growlio_links(db, NOW, user.id) is False
+
+    prop.auto_sync_enabled = True
+    db.commit()
+    assert net_worth_service._has_stale_growlio_links(db, NOW, user.id) is True
+
+
+def test_refresh_stale_growlio_links_runs_filtered_syncs_and_skips_bank_accounts(seeded_db):
+    db, user = seeded_db["db"], seeded_db["user"]
     _linked_product(db, synced_at=None)
-    calls = []
+    savings = MagicMock(return_value=(1, []))
+    real_estate = MagicMock(return_value=(0, []))
+    accounts = MagicMock(return_value=(0, []))
     with (
-        patch("app.database.SessionLocal", return_value=db),
-        patch.object(db, "close"),
-        patch(
-            "app.services.net_worth_service.account_service.sync_all_accounts",
-            side_effect=lambda *a, **k: calls.append("accounts") or (0, []),
-        ),
-        patch(
-            "app.services.net_worth_service.savings_product_growlio_service.sync_all_from_growlio",
-            side_effect=lambda *a, **k: calls.append("savings") or (1, []),
-        ),
-        patch(
-            "app.services.net_worth_service.real_estate_service.sync_all_from_growlio",
-            side_effect=lambda *a, **k: calls.append("real_estate") or (0, []),
-        ),
+        patch("app.services.account_service.sync_all_accounts", accounts),
+        patch("app.services.net_worth_service.savings_product_growlio_service.sync_all_from_growlio", savings),
+        patch("app.services.net_worth_service.real_estate_service.sync_all_from_growlio", real_estate),
     ):
-        net_worth_service.refresh_stale_growlio_links("token", now=NOW)
+        _refresh(db, user.id)
 
-    assert calls == ["accounts", "savings", "real_estate"]
+    accounts.assert_not_called()
+    for sync in (savings, real_estate):
+        sync.assert_called_once_with(db, "token", now=NOW, auto_sync_only=True, owner_user_id=user.id)
+
+
+def test_refresh_stale_growlio_links_keeps_manual_balances_and_bank_accounts(seeded_db):
+    """자동 동기화를 끈 상품의 직접 입력 잔액과 연동 은행 계좌의 initial_balance는 백그라운드
+    갱신이 건드리지 않는다 — auto_sync 켜진 다른 상품이 stale이라 갱신이 돌더라도."""
+    db, user = seeded_db["db"], seeded_db["user"]
+    auto = _linked_product(db, synced_at=None, growlio_id="g-auto")
+    manual = _linked_product(db, synced_at=None, growlio_id="g-manual", auto_sync=False, balance="777")
+    account = account_service.create_account(db, "연동통장", "bank", Decimal("1000"))
+    account.growlio_account_id = "g-bank"
+    db.commit()
+    growlio_accounts = [
+        {"id": gid, "name": gid, "asset_type": "investment", "current_value_krw": 5000}
+        for gid in ("g-auto", "g-manual", "g-bank")
+    ]
+    with (
+        patch("app.services.growlio_client.fetch_account_balances", return_value=growlio_accounts) as fetch,
+        patch("app.services.growlio_client.fetch_real_estate_items", return_value=[]),
+    ):
+        _refresh(db, user.id)
+
+    db.expire_all()
+    assert auto.current_balance == Decimal("5000")
+    assert manual.current_balance == Decimal("777")
+    assert account.initial_balance == Decimal("1000")
+    fetch.assert_called_once_with("token")
 
 
 def test_refresh_stale_growlio_links_noop_when_fresh(seeded_db):
-    db = seeded_db["db"]
+    db, user = seeded_db["db"], seeded_db["user"]
     _linked_product(db, synced_at=NOW - timedelta(hours=1))
     sync = MagicMock(return_value=(0, []))
-    with (
-        patch("app.database.SessionLocal", return_value=db),
-        patch.object(db, "close"),
-        patch("app.services.net_worth_service.savings_product_growlio_service.sync_all_from_growlio", sync),
-    ):
-        net_worth_service.refresh_stale_growlio_links("token", now=NOW)
+    with patch("app.services.net_worth_service.savings_product_growlio_service.sync_all_from_growlio", sync):
+        _refresh(db, user.id)
 
     sync.assert_not_called()
 
 
 def test_refresh_stale_growlio_links_stops_quietly_when_growlio_unavailable(seeded_db):
-    db = seeded_db["db"]
+    db, user = seeded_db["db"], seeded_db["user"]
     _linked_product(db, synced_at=None)
     later = MagicMock(return_value=(0, []))
     with (
-        patch("app.database.SessionLocal", return_value=db),
-        patch.object(db, "close"),
         patch(
-            "app.services.net_worth_service.account_service.sync_all_accounts",
+            "app.services.net_worth_service.savings_product_growlio_service.sync_all_from_growlio",
             side_effect=GrowlioRequestError("growlio 서버에 연결하지 못했습니다."),
         ),
-        patch("app.services.net_worth_service.savings_product_growlio_service.sync_all_from_growlio", later),
+        patch("app.services.net_worth_service.real_estate_service.sync_all_from_growlio", later),
     ):
-        net_worth_service.refresh_stale_growlio_links("token", now=NOW)  # 예외 밖으로 안 던짐
+        _refresh(db, user.id)  # 예외 밖으로 안 던짐
 
     later.assert_not_called()
 
 
-def test_refresh_stale_growlio_links_fetches_growlio_accounts_once_for_accounts_and_savings(seeded_db):
-    """계좌·저축상품 동기화가 같은 GET /external/accounts를 쓰므로 한 번만 호출해야 한다
-    (growlio 콜드스타트 중엔 호출 1번이 타임아웃 1번)."""
-    db = seeded_db["db"]
-    _linked_product(db, synced_at=None)
-    account = account_service.create_account(db, "연동통장", "bank", Decimal("0"))
-    account.growlio_account_id = "g-bank-1"
-    db.commit()
-    fetch = MagicMock(return_value=[])
-    with (
-        patch("app.database.SessionLocal", return_value=db),
-        patch.object(db, "close"),
-        patch("app.services.net_worth_service.growlio_client.fetch_account_balances", fetch),
-        patch("app.services.account_service.growlio_client.fetch_account_balances", fetch),
-        patch("app.services.savings_product_growlio_service.growlio_client.fetch_account_balances", fetch),
-        patch("app.services.net_worth_service.real_estate_service.sync_all_from_growlio", return_value=(0, [])),
-    ):
-        net_worth_service.refresh_stale_growlio_links("token", now=NOW)
-
-    fetch.assert_called_once_with("token")
-
-
 def test_refresh_stale_growlio_links_rolls_back_after_unexpected_section_error(seeded_db):
     """한 섹션이 예상 밖 예외로 실패하면 세션을 롤백한 뒤 다음 섹션을 계속 진행한다."""
-    db = seeded_db["db"]
+    db, user = seeded_db["db"], seeded_db["user"]
     _linked_product(db, synced_at=None)
     later = MagicMock(return_value=(0, []))
     with (
-        patch("app.database.SessionLocal", return_value=db),
-        patch.object(db, "close"),
         patch.object(db, "rollback") as rollback,
         patch(
-            "app.services.net_worth_service.account_service.sync_all_accounts",
+            "app.services.net_worth_service.savings_product_growlio_service.sync_all_from_growlio",
             side_effect=RuntimeError("boom"),
         ),
-        patch("app.services.net_worth_service.savings_product_growlio_service.sync_all_from_growlio", later),
         patch("app.services.net_worth_service.real_estate_service.sync_all_from_growlio", later),
     ):
-        net_worth_service.refresh_stale_growlio_links("token", now=NOW)
+        _refresh(db, user.id)
 
     rollback.assert_called_once()
-    assert later.call_count == 2
+    later.assert_called_once()

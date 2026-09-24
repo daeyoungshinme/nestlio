@@ -118,6 +118,35 @@ def test_generate_due_transactions_is_idempotent_on_rerun(seeded_db):
     assert count == 1
 
 
+def test_generate_due_transactions_later_failure_does_not_repost_earlier_item(seeded_db):
+    """앞 항목의 거래와 기한 전진은 함께 커밋돼야 한다 — 뒤 항목 실패의 rollback이 앞 항목의
+    기한 전진만 되돌리면 다음 실행에서 같은 기한이 이중 기장된다."""
+    from unittest.mock import patch
+
+    from app.services import transaction_service
+
+    db, user, rent = seeded_db["db"], seeded_db["user"], seeded_db["rent"]
+    for name in ("월세", "관리비"):
+        recurring_service.create_recurring(
+            db, name=name, category_id=rent.id, amount=Decimal("100"),
+            frequency="monthly", start_date=date(2026, 7, 1), created_by=user.id,
+        )
+
+    real_create = transaction_service.create_transaction
+
+    def fail_for_second(db_, **kwargs):
+        if kwargs["description"] == "관리비":
+            raise RuntimeError("boom")
+        return real_create(db_, **kwargs)
+
+    with patch("app.services.recurring_service.create_transaction", side_effect=fail_for_second):
+        recurring_service.generate_due_transactions(db, today=date(2026, 7, 1))
+    recurring_service.generate_due_transactions(db, today=date(2026, 7, 1))  # 다음 실행(재시도)
+
+    posted = [t.description for t in db.query(Transaction).order_by(Transaction.id).all()]
+    assert sorted(posted) == ["관리비", "월세"]
+
+
 def test_generate_due_transactions_catches_up_multiple_missed_periods(seeded_db):
     db, user, rent = seeded_db["db"], seeded_db["user"], seeded_db["rent"]
     recurring_service.create_recurring(

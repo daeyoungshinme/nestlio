@@ -1,5 +1,5 @@
-import functools
 import logging
+import uuid
 from concurrent.futures import ThreadPoolExecutor
 from datetime import date, datetime, timedelta
 from decimal import Decimal
@@ -133,28 +133,30 @@ def compute_growlio_unlinked(db: Session, bearer_token: str) -> dict:
     }
 
 
-def _has_stale_growlio_links(db: Session, now: datetime) -> bool:
+def _has_stale_growlio_links(db: Session, now: datetime, user_id: uuid.UUID) -> bool:
+    """백그라운드 갱신이 실제로 새로고칠 수 있는 항목 중 오래된 게 있는가. 호출자 JWT로는 배우자
+    소유 항목이 growlio에서 매칭되지 않으므로(동기화해도 last_synced_at이 안 바뀜) 호출자 소유 또는
+    공동(NULL) 소유만 본다 — 안 그러면 배우자 항목 때문에 매 화면 로드마다 growlio를 호출한다.
+    담보대출은 짝 부동산 동기화를 통해서만 갱신되므로 짝 부동산도 자동 동기화 대상일 때만 센다."""
     cutoff = now - STALE_GROWLIO_LINK_AFTER
     product_stale = or_(SavingsProduct.last_synced_at.is_(None), SavingsProduct.last_synced_at < cutoff)
-    if (
-        db.query(SavingsProduct.id)
-        .filter(
-            SavingsProduct.is_active.is_(True),
-            SavingsProduct.auto_sync_enabled.is_(True),
-            SavingsProduct.growlio_account_id.isnot(None),
-            product_stale,
-        )
-        .first()
-        is not None
-    ):
+    product_target = (
+        SavingsProduct.is_active.is_(True),
+        SavingsProduct.auto_sync_enabled.is_(True),
+        SavingsProduct.growlio_account_id.isnot(None),
+        or_(SavingsProduct.owner_user_id.is_(None), SavingsProduct.owner_user_id == user_id),
+    )
+    if db.query(SavingsProduct.id).filter(*product_target, product_stale).first() is not None:
         return True
     loan_stale = or_(Loan.last_synced_at.is_(None), Loan.last_synced_at < cutoff)
     return (
         db.query(Loan.id)
+        .join(SavingsProduct, SavingsProduct.growlio_account_id == Loan.growlio_account_id)
         .filter(
             Loan.is_active.is_(True),
             Loan.auto_sync_enabled.is_(True),
-            Loan.growlio_account_id.isnot(None),
+            SavingsProduct.product_type == "real_estate",
+            *product_target,
             loan_stale,
         )
         .first()
@@ -162,34 +164,31 @@ def _has_stale_growlio_links(db: Session, now: datetime) -> bool:
     )
 
 
-def refresh_stale_growlio_links(bearer_token: str, *, now: datetime | None = None) -> None:
+def refresh_stale_growlio_links(bearer_token: str, user_id: uuid.UUID, *, now: datetime | None = None) -> None:
     """auto_sync_enabled 연동 잔액이 STALE_GROWLIO_LINK_AFTER보다 오래됐으면 growlio에서 조용히
     새로고침한다. 화면 로드 시 FastAPI BackgroundTasks로 호출된다 — 응답을 막지 않고, growlio
     미설정/접속 실패는 무시한다. 스케줄러에는 사용자 JWT가 없어(app/scheduler/CLAUDE.md) 예약
     작업 대신 이 "화면 로드 시 기회주의적 갱신" 방식을 쓴다.
+
+    auto_sync_enabled인 저축/투자·부동산(+짝 대출)만, 그리고 호출자(`user_id`) 또는 공동 소유만
+    갱신한다 — 사용자가 자동 동기화를 끄고 직접 입력한 잔액은 덮어쓰지 않는다. 은행 계좌는 제외한다:
+    계좌 잔액은 가계부 거래로 파생되고 growlio 동기화는 initial_balance를 역산해 재기준하므로
+    (models/account.py 주석) 사용자가 누르는 수동 동기화로만 한다.
 
     요청 스코프 세션(get_db)은 응답 후 닫히므로 자체 세션을 연다 — 스케줄러 job과 같은 패턴."""
     from app.database import SessionLocal
 
     now = now or now_kst()
     db = SessionLocal()
-    # 계좌·저축상품 동기화가 같은 growlio 계좌 목록(GET /external/accounts)을 쓰므로 1회만 조회해
-    # 공유한다 — growlio 콜드스타트 중엔 호출 1번이 타임아웃 1번이다. 연동 대상이 없으면 두
-    # 함수 모두 호출하지 않으므로 조회도 일어나지 않는다(lazy).
-    fetch_accounts = functools.cache(lambda: growlio_client.fetch_account_balances(bearer_token))
     try:
-        if not _has_stale_growlio_links(db, now):
+        if not _has_stale_growlio_links(db, now, user_id):
             return
         for section, fn in (
-            ("accounts", functools.partial(account_service.sync_all_accounts, fetch_accounts=fetch_accounts)),
-            (
-                "savings",
-                functools.partial(savings_product_growlio_service.sync_all_from_growlio, fetch_accounts=fetch_accounts),
-            ),
+            ("savings", savings_product_growlio_service.sync_all_from_growlio),
             ("real_estate", real_estate_service.sync_all_from_growlio),
         ):
             try:
-                fn(db, bearer_token, now=now)
+                fn(db, bearer_token, now=now, auto_sync_only=True, owner_user_id=user_id)
             except (growlio_client.GrowlioNotConfiguredError, growlio_client.GrowlioRequestError):
                 logger.info("opportunistic_growlio_sync_unavailable", exc_info=True)
                 return

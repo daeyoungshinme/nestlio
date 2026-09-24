@@ -131,3 +131,20 @@ def test_test_weekly_email_returns_409_when_pref_disabled(mock_is_connected, cli
     )
     resp = client.post("/api/v1/settings/test-weekly-email")
     assert resp.status_code == 409
+
+
+@patch("app.routers.settings.is_connected", return_value=False)
+def test_get_settings_survives_photo_storage_outage(mock_is_connected, client):
+    """사진 스토리지 장애(네트워크·5xx)가 설정 화면 전체를 500으로 만들지 않고 "사진 없음"으로 내려간다."""
+    from app.services import couple_photo_service
+
+    with patch.object(
+        couple_photo_service, "get_photo_url", side_effect=couple_photo_service.PhotoStorageError("down")
+    ):
+        resp = client.get("/api/v1/settings")
+        bootstrap = client.get("/api/v1/dashboard/bootstrap")
+
+    assert resp.status_code == 200
+    assert resp.json()["couple_photo_url"] is None
+    assert bootstrap.status_code == 200
+    assert bootstrap.json()["settings"]["couple_photo_url"] is None

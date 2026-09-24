@@ -142,16 +142,22 @@ def export_csv(
 
 
 @router.post("/import", response_model=ImportResultOut)
-async def import_csv(
+def import_csv(
     file: UploadFile = File(...),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    raw = await file.read()
+    # async def가 아니라 def — 가져오기 전체가 동기 DB 작업이라 이벤트 루프를 막지 않게 스레드풀에서 돈다.
+    raw = file.file.read()
     try:
         text = raw.decode("utf-8-sig")
     except UnicodeDecodeError:
-        text = raw.decode("cp949")
+        try:
+            text = raw.decode("cp949")
+        except UnicodeDecodeError:
+            raise HTTPException(
+                status.HTTP_400_BAD_REQUEST, "CSV 파일 인코딩을 읽을 수 없습니다. UTF-8 또는 CP949로 저장해 주세요."
+            ) from None
     return transaction_import_service.import_csv(db, text, current_user.id)
 
 
