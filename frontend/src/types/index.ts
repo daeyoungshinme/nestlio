@@ -18,10 +18,6 @@ export interface InviteOut {
   email_sent: boolean | null;
 }
 
-export interface InviteCreateIn {
-  email: string;
-}
-
 export interface InviteAcceptIn {
   display_name: string;
 }
@@ -109,16 +105,8 @@ export interface TotalsOut {
   savings: string;
 }
 
-export interface UserTotalsOut {
-  user_id: string;
-  display_name: string;
-  income: string;
-  expense: string;
-  savings: string;
-}
-
-/** owner_user_id(거래가 실제로 속한 사람, null이면 "공통") 기준 집계 - user_id(기록자) 기준인
- * UserTotalsOut과는 다른 축이다. */
+/** owner_user_id(거래가 실제로 속한 사람, null이면 "공통") 기준 집계 - user_id(기록자) 기준과는
+ * 다른 축이다. */
 export interface OwnerTotalsOut {
   owner_user_id: string | null;
   display_name: string;

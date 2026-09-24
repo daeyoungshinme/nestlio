@@ -3,7 +3,6 @@ import {
   formatKrw,
   formatKrwCompact,
   formatKrwPreview,
-  formatNumber,
   formatPercent,
   formatYearMonth,
   pctOf,
@@ -52,12 +51,6 @@ describe("formatKrwPreview", () => {
 
   it("appends the 억원 abbreviation for amounts at or above 1억", () => {
     expect(formatKrwPreview(150000000)).toBe("150,000,000원 (1.50억원)");
-  });
-});
-
-describe("formatNumber", () => {
-  it("formats without the currency suffix", () => {
-    expect(formatNumber("1234567")).toBe("1,234,567");
   });
 });
 

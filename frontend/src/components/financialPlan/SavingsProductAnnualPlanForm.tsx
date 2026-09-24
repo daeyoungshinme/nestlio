@@ -4,7 +4,7 @@ import AnnualPlanMonthlyGrid from "@/components/financialPlan/AnnualPlanMonthlyG
 import Button from "@/components/common/Button";
 import FormInput from "@/components/common/FormInput";
 import { INPUT_SM, LABEL_SM } from "@/constants/inputStyles";
-import { syncTargetsToPeriod } from "@/utils/monthRange";
+import { buildYearMonthRange, syncTargetsToPeriod } from "@/utils/monthRange";
 import { formatKrwPreview, formatMonthOnly } from "@/utils/format";
 import type { SavingsProductAnnualPlanMonthlyTargetIn } from "@/types";
 
@@ -42,7 +42,7 @@ export default function SavingsProductAnnualPlanForm({
   const existingTotal = initialValues.monthly_targets.reduce((sum, t) => sum + (Number(t.target_amount) || 0), 0);
   const [totalDraft, setTotalDraft] = useState(existingTotal > 0 ? String(existingTotal) : "");
 
-  const monthOptions = Array.from({ length: 12 }, (_, i) => `${year}-${String(i + 1).padStart(2, "0")}`);
+  const monthOptions = buildYearMonthRange(`${year}-01`, `${year}-12`);
 
   const changeStartMonth = (next: string) => {
     setStartMonth(next);

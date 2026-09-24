@@ -13,7 +13,7 @@ export function currentWeekAnchor(): string {
   return currentDateIso();
 }
 
-export function shiftWeekAnchor(dateIso: string, deltaWeeks: number): string {
+function shiftWeekAnchor(dateIso: string, deltaWeeks: number): string {
   return shiftDateIso(dateIso, deltaWeeks * 7);
 }
 

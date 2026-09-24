@@ -6,10 +6,15 @@ function pad2(n: number): string {
   return String(n).padStart(2, "0");
 }
 
+/** Date -> "YYYY-MM-DD" (로컬 시간 기준) */
+export function toDateIso(d: Date): string {
+  return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+}
+
 /** 오늘 날짜 "YYYY-MM-DD" (로컬). */
 export function currentDateIso(): string {
   const d = new Date();
-  return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+  return toDateIso(d);
 }
 
 /** 이번 달 "YYYY-MM" (로컬). */
@@ -27,7 +32,7 @@ export function currentYear(): number {
 export function shiftDateIso(dateIso: string, deltaDays: number): string {
   const [y, m, day] = dateIso.split("-").map(Number);
   const d = new Date(y, m - 1, day + deltaDays);
-  return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+  return toDateIso(d);
 }
 
 /** "YYYY-MM" 또는 "YYYY-MM-DD"에서 연도(number). `Number(s.slice(0, 4))`를 손으로 쓰지 않는다. */

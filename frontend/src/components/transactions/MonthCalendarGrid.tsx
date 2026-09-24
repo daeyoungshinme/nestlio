@@ -1,6 +1,6 @@
 import { Fragment, useMemo } from "react";
 import type { ReactNode } from "react";
-import { currentDateIso } from "@/utils/date";
+import { currentDateIso, toDateIso } from "@/utils/date";
 
 export interface MonthGridCell {
   date: string;
@@ -27,7 +27,7 @@ function buildGrid(yearMonth: string): Omit<MonthGridCell, "isToday">[] {
   for (let i = 0; i < cellCount; i++) {
     const d = new Date(y, m - 1, i - leading + 1);
     cells.push({
-      date: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`,
+      date: toDateIso(d),
       day: d.getDate(),
       inCurrentMonth: d.getMonth() === m - 1,
     });
