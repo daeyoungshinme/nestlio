@@ -12,8 +12,11 @@ pydantic==2.13.5
 pydantic-settings==2.15.0
 python-multipart==0.0.32
 pyjwt==2.14.0
+# cryptography: 직접 import하진 않지만 PyJWT가 JWKS(RS256/ES256) 서명 검증에 쓴다 — 빼면 인증이 깨진다.
 cryptography==50.0.1
 google-auth==2.58.0
-google-auth-oauthlib==1.4.1
 google-api-python-client==2.200.0
+# app/services/google_auth.py가 google.auth.transport.requests로 직접 쓴다 — 지금은 google-api-core가
+# 전이 의존성으로 끌어오지만 직접 import하는 패키지라 명시적으로 핀한다.
+requests==2.34.2
 httpx==0.28.1

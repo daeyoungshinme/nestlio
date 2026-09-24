@@ -57,6 +57,6 @@
 - growlio 연동(계좌·부동산 잔액 조회/동기화, 저축·투자 거래 입출금 반영, 재무목표 프리필): `GROWLIO_API_BASE_URL` — 비어 있으면 연동 기능 전체가 꺼진다
 - 부부 사진 저장용 Supabase Storage: `SUPABASE_SERVICE_ROLE_KEY`, `SUPABASE_STORAGE_BUCKET`, `MAX_UPLOAD_SIZE_MB` — 백엔드가 `/media/couple-photo`에서 프록시로 서빙한다(`app/services/couple_photo_service.py`, `app/main.py`). 둘 중 하나라도 비어 있으면 "사진 없음"으로 동작한다.
 - 예약 작업 인증: `INTERNAL_JOB_SECRET` — GitHub Actions가 `/internal/jobs/{job_name}` 호출 시 `X-Internal-Job-Secret` 헤더로 보낸다.
-- Google OAuth: `GOOGLE_OAUTH_CLIENT_ID`, `GOOGLE_OAUTH_CLIENT_SECRET` — 토큰 자체는 파일이 아니라 Postgres `household.google_oauth_tokens`에 저장되며(재배포/재시작에도 유지), `scripts/google_auth_setup.py`로 최초 1회 로컬에서 연결한다.
+- Google OAuth: `GOOGLE_OAUTH_CLIENT_ID`, `GOOGLE_OAUTH_CLIENT_SECRET` — 토큰 자체는 파일이 아니라 Postgres `household.google_oauth_tokens`에 저장되며(재배포/재시작에도 유지), `scripts/google_auth_setup.py`로 최초 1회 로컬에서 연결한다(이 스크립트가 쓰는 `google-auth-oauthlib`는 `requirements-dev.txt`에 있다).
 
 프론트엔드 전용 컨벤션(디렉토리 구조, growlio 디자인 시스템 이식 규칙 등)은 [frontend/CLAUDE.md](frontend/CLAUDE.md) 참고.

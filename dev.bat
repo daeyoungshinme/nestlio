@@ -3,17 +3,14 @@ setlocal enabledelayedexpansion
 cd /d "%~dp0"
 
 set "MODE=dev"
-set "KEEP_PORT=0"
 for %%A in (%*) do (
   if /i "%%A"=="run" set "MODE=run"
-  if /i "%%A"=="--keep-port" set "KEEP_PORT=1"
 )
 
 set "BACKEND_PORT=8899"
 set "FRONTEND_PORT=5273"
 
 rem 포트가 사용 중이면(대개 이미 떠 있는 개발 서버) 죽이지 않고 다음 빈 포트로 넘어간다.
-rem 남아 있는 --keep-port 인자는 하위호환용 no-op이다.
 set "ORIG_BACKEND_PORT=%BACKEND_PORT%"
 call :find_free_port %BACKEND_PORT% BACKEND_PORT
 if not "!BACKEND_PORT!"=="!ORIG_BACKEND_PORT!" (
