@@ -38,6 +38,7 @@
 - DB 쓰기는 전혀 없다. 대부분의 함수는 순수 계산 함수로, 입력은 이미 조회된 집계값들이고 출력은 `Insight` dataclass다 — 이 함수들은 파라미터화 테스트로 경계값을 촘촘히 검증한다(`tests/test_coaching_engine.py`).
 - 다만 `emergency_fund_context`/`compute_surplus_allocation`/`compute_insights` 3개는 예외로, `db: Session`을 받아 직접 조회(`savings_product_service.get_emergency_fund_balance`, `transaction_report_service.monthly_trend` 등)까지 겸하는 "DB-aware 래퍼"다 — 호출부(`app/routers/dashboard.py`)가 매번 재조회하지 않도록 조회와 순수 계산을 한데 묶어놓은 것이며, 새 순수 계산 함수를 추가할 때 이 3개까지 순수 함수로 착각하지 않는다.
 - 임계값(경고/위험 기준)은 하드코딩하지 않고 `app/config.py`의 `settings`에서 가져온다.
+- 예산 경고/위험 %는 가구가 설정 화면에서 바꿀 수 있으므로 예산 상태를 계산하는 곳(계획 화면 라우터, 예산 알림 메일)은 `coaching_settings_service.budget_thresholds(db)`로 꺼내 `budget_vs_actual` 등에 넘긴다 — 인자를 생략하면 env 기본값이 쓰여 화면과 알림 판정이 어긋난다.
 - 새 룰 추가 시 순수 계산 함수는 동일하게 파라미터화 테스트로 경계값을 검증한다.
 
 ## transaction_service.py / transaction_report_service.py / transaction_import_service.py

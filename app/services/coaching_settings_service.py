@@ -54,6 +54,14 @@ def get_thresholds(db: Session) -> dict[str, float]:
     return result
 
 
+def budget_thresholds(db: Session) -> tuple[float, float]:
+    """가구가 설정한 (예산 경고 %, 예산 위험 %). 예산 상태(ok/warn/critical)를 계산하는 모든 곳 —
+    계획 화면 라우터와 예산 알림 메일 — 이 같은 값을 쓰도록 한 곳에서 꺼낸다(알림만 env 기본값을
+    쓰면 화면은 "정상"인데 "주의" 메일이 오는 식으로 어긋난다)."""
+    thresholds = get_thresholds(db)
+    return thresholds["budget_warn_pct"], thresholds["budget_critical_pct"]
+
+
 def set_thresholds(db: Session, values: dict[str, float], updated_by: uuid.UUID) -> dict[str, float]:
     for field in THRESHOLD_FIELDS:
         if field not in values:

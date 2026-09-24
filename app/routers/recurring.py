@@ -69,7 +69,8 @@ def run_now(db: Session = Depends(get_db), _: User = Depends(get_current_user)):
 
 @router.post("/{recurring_id}/deactivate", status_code=status.HTTP_204_NO_CONTENT)
 def deactivate(recurring_id: int, db: Session = Depends(get_db), _: User = Depends(get_current_user)):
-    recurring_service.deactivate_recurring(db, recurring_id)
+    if not recurring_service.deactivate_recurring(db, recurring_id):
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "고정지출을 찾을 수 없습니다.")
 
 
 @router.post("/{recurring_id}/reactivate", response_model=RecurringOut)

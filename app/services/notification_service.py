@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 from app.services import (
     budget_service,
     coaching_engine,
+    coaching_settings_service,
     email_templates,
     gmail_service,
     goal_progress_service,
@@ -167,7 +168,8 @@ def check_and_alert_budget_threshold(db: Session, category_id: int, year_month: 
     이미 저장된 거래까지 500으로 응답된다."""
     try:
         year_month = year_month or year_month_str(today_kst())
-        rows = budget_service.budget_vs_actual(db, year_month, with_suggested=False)
+        warn_pct, critical_pct = coaching_settings_service.budget_thresholds(db)
+        rows = budget_service.budget_vs_actual(db, year_month, warn_pct, critical_pct, with_suggested=False)
         row = next((r for r in rows if r["category_id"] == category_id), None)
         if row is None:
             return False
@@ -249,7 +251,8 @@ def check_all_goal_milestones(db: Session, today: date | None = None) -> int:
 
 def check_all_categories_threshold(db: Session, year_month: str | None = None) -> int:
     year_month = year_month or year_month_str(today_kst())
-    rows = budget_service.budget_vs_actual(db, year_month)
+    warn_pct, critical_pct = coaching_settings_service.budget_thresholds(db)
+    rows = budget_service.budget_vs_actual(db, year_month, warn_pct, critical_pct)
     sent = 0
     for row in rows:
         try:

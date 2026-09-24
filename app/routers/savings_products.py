@@ -38,19 +38,16 @@ def get_plan_summary(
     year_month: str | None = None, db: Session = Depends(get_db), _: User = Depends(get_current_user)
 ):
     ym = year_month or year_month_str(today_kst())
-    thresholds = coaching_settings_service.get_thresholds(db)
-    return savings_product_plan_service.compute_plan_summary(
-        db, ym, thresholds["budget_warn_pct"], thresholds["budget_critical_pct"]
-    )
+    warn_pct, critical_pct = coaching_settings_service.budget_thresholds(db)
+    return savings_product_plan_service.compute_plan_summary(db, ym, warn_pct, critical_pct)
 
 
 @router.get("/annual-plan", response_model=SavingsProductAnnualPlanListOut)
 def get_annual_plan_summary(year: int | None = None, db: Session = Depends(get_db), _: User = Depends(get_current_user)):
     today = today_kst()
-    thresholds = coaching_settings_service.get_thresholds(db)
+    warn_pct, critical_pct = coaching_settings_service.budget_thresholds(db)
     return savings_product_plan_service.compute_annual_plan_summary(
-        db, year or today.year, as_of=today,
-        warn_pct=thresholds["budget_warn_pct"], critical_pct=thresholds["budget_critical_pct"],
+        db, year or today.year, as_of=today, warn_pct=warn_pct, critical_pct=critical_pct
     )
 
 

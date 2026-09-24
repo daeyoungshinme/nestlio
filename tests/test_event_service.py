@@ -241,6 +241,39 @@ def test_send_due_reminders_wide_window_catches_delayed_tick(mock_connected, moc
 
 
 @patch("app.services.event_reminder_service.gmail_service.send_email")
+@patch("app.services.event_reminder_service.is_connected", return_value=True)
+def test_send_due_reminders_retries_after_send_failure(mock_connected, mock_send, seeded_db):
+    """Gmail 일시 장애로 실패한 리마인더는 "보냄"으로 기록되지 않아 다음 틱에 다시 보낸다."""
+    db, user = seeded_db["db"], seeded_db["user"]
+    _spouse2(db)
+    event_service.create_event(
+        db, created_by=user.id, title="병원", start_at=datetime(2026, 7, 15, 10, 0), reminder_minutes_before=60
+    )
+    mock_send.reset_mock()
+    mock_send.side_effect = RuntimeError("gmail down")
+    assert event_reminder_service.send_due_reminders(db, now=datetime(2026, 7, 15, 9, 0)) == 0
+
+    mock_send.side_effect = None
+    assert event_reminder_service.send_due_reminders(db, now=datetime(2026, 7, 15, 9, 15)) == 1
+
+
+@patch("app.services.event_reminder_service.gmail_service.send_email")
+@patch("app.services.event_reminder_service.is_connected", return_value=True)
+def test_send_due_reminders_skips_dismissed_events(mock_connected, mock_send, seeded_db):
+    db, user = seeded_db["db"], seeded_db["user"]
+    _spouse2(db)
+    event = event_service.create_event(
+        db, created_by=user.id, title="병원", start_at=datetime(2026, 7, 15, 10, 0), reminder_minutes_before=60
+    )
+    event.dismissed_at = datetime(2026, 7, 14)
+    db.commit()
+    mock_send.reset_mock()
+
+    assert event_reminder_service.send_due_reminders(db, now=datetime(2026, 7, 15, 9, 0)) == 0
+    mock_send.assert_not_called()
+
+
+@patch("app.services.event_reminder_service.gmail_service.send_email")
 @patch("app.services.event_reminder_service.is_connected", return_value=False)
 def test_no_notification_when_google_not_connected(mock_connected, mock_send, seeded_db):
     db, user = seeded_db["db"], seeded_db["user"]

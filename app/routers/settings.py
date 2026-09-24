@@ -18,7 +18,7 @@ from app.services import (
     notification_settings_service,
 )
 from app.services.gmail_service import GmailSendError
-from app.services.google_auth import is_connected
+from app.services.google_auth import GoogleAuthError, is_connected
 
 router = APIRouter(prefix="/settings", tags=["settings"])
 
@@ -108,6 +108,9 @@ def _run_test_email(db: Session, *, setting_key: str, label: str, send) -> dict:
         sent = send(db, force=True)
     except GmailSendError as exc:
         raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc)) from None
+    except GoogleAuthError as exc:
+        # 토큰 만료·revoke — 재연결 안내 문구를 그대로 보여준다(500이면 원인을 알 수 없다).
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from None
     return {"sent": sent, "message": f"{label} 요약 이메일을 발송했습니다." if sent else "발송하지 못했습니다."}
 
 
