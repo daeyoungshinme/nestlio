@@ -37,12 +37,12 @@ export const EMPTY_GOAL_DRAFT: Draft = {
   monthly_targets: [],
 };
 
-export const EMPTY_CHALLENGE_DRAFT: Draft = {
-  ...EMPTY_GOAL_DRAFT,
-  kind: "challenge",
-  start_date: currentDateIso(),
-  target_date: currentDateIso(),
-};
+/** 챌린지 기본값의 시작/종료일은 "지금" 오늘이어야 하므로 모듈 로드 시점에 고정하지 않고 매번 만든다 —
+ * 탭을 자정 넘게 열어두면(퍼시스트 캐시로 흔함) 상수는 어제 날짜를 기본값으로 내놓는다. */
+export function emptyChallengeDraft(): Draft {
+  const today = currentDateIso();
+  return { ...EMPTY_GOAL_DRAFT, kind: "challenge", start_date: today, target_date: today };
+}
 
 /** "YYYY-MM-DD" -> "YYYY-MM" (GoalMonthlyTargetEditor에 넘길 시작월/종료월 계산용). */
 export function toYearMonth(isoDate: string): string {

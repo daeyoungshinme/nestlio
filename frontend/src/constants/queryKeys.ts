@@ -68,7 +68,8 @@ export const QUERY_KEYS = {
 
 /** 계좌/대출/저축·투자 상품/부동산 중 하나라도 바뀌면 함께 무효화해야 하는 캐시 묶음.
  * 순자산(net-worth)과 대시보드 번들은 이 자산들의 합계이고, 재무목표 진행률은 연결된 상품
- * 잔액을 따라가므로 자산 섹션마다 따로 고르지 않고 이 목록을 그대로 쓴다. */
+ * 잔액을 따라가므로 자산 섹션마다 따로 고르지 않고 이 목록을 그대로 쓴다. 대시보드 본문
+ * (`dashboardAll`)도 목표 페이스·비상금 잔액·잉여자금 배분 코칭이 이 값들을 읽으므로 포함한다. */
 export const ASSET_RELATED_KEYS: QueryKey[] = [
   QUERY_KEYS.accounts,
   QUERY_KEYS.loans,
@@ -76,4 +77,5 @@ export const ASSET_RELATED_KEYS: QueryKey[] = [
   QUERY_KEYS.netWorthAll,
   QUERY_KEYS.dashboardBootstrap,
   QUERY_KEYS.financialGoals,
+  QUERY_KEYS.dashboardAll,
 ];

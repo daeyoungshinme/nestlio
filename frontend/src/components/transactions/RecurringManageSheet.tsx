@@ -6,6 +6,7 @@ import Button from "@/components/common/Button";
 import CollapsibleGroup from "@/components/common/CollapsibleGroup";
 import ConfirmModal from "@/components/common/ConfirmModal";
 import EmptyState from "@/components/common/EmptyState";
+import QueryBoundary from "@/components/common/QueryBoundary";
 import Modal from "@/components/common/Modal";
 import RowActionButtons from "@/components/common/RowActionButtons";
 import RecurringForm, { buildRecurringPayload } from "@/components/transactions/RecurringForm";
@@ -32,8 +33,6 @@ function scheduleLabel(item: RecurringOut): string {
 
 interface Props {
   categories: CategoryOut[];
-  dateFrom: string;
-  dateTo: string;
   onClose: () => void;
 }
 
@@ -72,11 +71,11 @@ function RecurringRow({
   );
 }
 
-export default function RecurringManageSheet({ categories, dateFrom, dateTo, onClose }: Props) {
+export default function RecurringManageSheet({ categories, onClose }: Props) {
   const [formTarget, setFormTarget] = useState<"new" | RecurringOut | null>(null);
   const [deactivateTarget, setDeactivateTarget] = useState<RecurringOut | null>(null);
 
-  const { data, isLoading } = useQuery({
+  const recurringQuery = useQuery({
     queryKey: QUERY_KEYS.recurring,
     queryFn: () => fetchRecurring({ include_inactive: true }),
   });
@@ -87,7 +86,6 @@ export default function RecurringManageSheet({ categories, dateFrom, dateTo, onC
     removeMutation: deactivateMutation,
     reactivateMutation,
   } = useRecurringMutations({
-    extraInvalidateKeys: [QUERY_KEYS.events(dateFrom, dateTo)],
     messages: {
       create: "반복 내역을 등록했습니다.",
       update: "수정했습니다.",
@@ -109,8 +107,9 @@ export default function RecurringManageSheet({ categories, dateFrom, dateTo, onC
   };
 
   const showingForm = formTarget !== null;
-  const activeItems = useMemo(() => (data?.items ?? []).filter((item) => item.is_active), [data]);
-  const inactiveItems = useMemo(() => (data?.items ?? []).filter((item) => !item.is_active), [data]);
+  const items = recurringQuery.data?.items;
+  const activeItems = useMemo(() => (items ?? []).filter((item) => item.is_active), [items]);
+  const inactiveItems = useMemo(() => (items ?? []).filter((item) => !item.is_active), [items]);
 
   return (
     <>
@@ -143,11 +142,15 @@ export default function RecurringManageSheet({ categories, dateFrom, dateTo, onC
               반복 내역 추가
             </Button>
 
-            {isLoading && <p className="text-sm text-gray-400 dark:text-gray-500 py-4 text-center">불러오는 중...</p>}
-
-            {!isLoading && (data?.items.length ?? 0) === 0 && (
-              <EmptyState title="등록된 반복 내역이 없습니다" compact />
-            )}
+            {/* 조회 실패를 "등록된 반복 내역이 없습니다"로 보여주면 중복 등록을 유발하므로 에러는 따로 표시한다. */}
+            <QueryBoundary
+              query={recurringQuery}
+              compact
+              errorMessage="반복 내역을 불러오지 못했어요"
+              loadingFallback={<p className="text-sm text-gray-400 dark:text-gray-500 py-4 text-center">불러오는 중...</p>}
+            >
+              {(data) => (data.items.length === 0 ? <EmptyState title="등록된 반복 내역이 없습니다" compact /> : null)}
+            </QueryBoundary>
 
             <div className="divide-y divide-gray-100 dark:divide-gray-800">
               {activeItems.map((item) => (

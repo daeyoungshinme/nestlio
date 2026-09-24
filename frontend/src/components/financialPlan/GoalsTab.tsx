@@ -14,7 +14,7 @@ import type { GoalProgressCardBadge, GoalProgressCardExtraDetail } from "@/compo
 import GoalSectionHeader from "@/components/financialPlan/GoalSectionHeader";
 import QueryBoundary from "@/components/common/QueryBoundary";
 import Tabs from "@/components/common/Tabs";
-import { currentYearMonth, yearOf } from "@/utils/date";
+import { currentYearMonth } from "@/utils/date";
 import { fetchDashboard } from "@/api/dashboard";
 import { createGoal, deleteGoal, updateGoal, updateGoalMonthlyTarget } from "@/api/goals";
 import { INLINE_BUTTON_OFFSET } from "@/constants/inputStyles";
@@ -50,7 +50,6 @@ function crossedMilestone(oldPct: number, newPct: number, kind: GoalKind): numbe
  * 계획)과는 별개의 독립 탭이다: 개별 목표는 각자 다른 기간(목표일)을 기준으로 한 "전체 목표
  * 설정 → 월별 계획 → 월별 달성 확인" 루프를 갖기 때문(frontend/CLAUDE.md 참고). */
 export default function GoalsTab() {
-  const yearMonth = currentYearMonth();
   const [formTarget, setFormTarget] = useState<"new-goal" | FinancialGoalOut | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<number | null>(null);
   const [sortOption, setSortOption] = useState<GoalSortLabel>("우선순위순");
@@ -69,16 +68,15 @@ export default function GoalsTab() {
     staleTime: STALE_TIME.SHORT,
   });
 
-  const year = yearOf(yearMonth);
   const { createMutation, updateMutation, removeMutation: deleteMutation, invalidate } = useCrudMutations({
     // 목표에 연동된 저축상품의 월 계획액이 목표 저장 시 함께 갱신되므로(app/services/goal_service.py::
-    // _sync_funding_product_monthly_amount), 저축상품 관련 쿼리도 함께 무효화한다.
+    // _sync_funding_product_monthly_amount), 저축상품 관련 쿼리도 함께 무효화한다(savingsProducts는
+    // 계획·연간계획 키의 공통 프리픽스). 대시보드 본문의 목표 페이스·잉여자금 코칭도 목표를 읽는다.
     invalidateKeys: [
       QUERY_KEYS.financialGoals,
       QUERY_KEYS.savingsProducts,
-      QUERY_KEYS.savingsProductsPlan(yearMonth),
-      QUERY_KEYS.savingsProductsAnnualPlan(year),
       QUERY_KEYS.dashboardBootstrap,
+      QUERY_KEYS.dashboardAll,
     ],
     api: { create: createGoal, update: updateGoal, remove: deleteGoal },
     messages: { create: "추가했습니다.", update: "저장했습니다.", remove: "삭제했습니다." },
