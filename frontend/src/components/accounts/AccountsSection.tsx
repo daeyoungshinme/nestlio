@@ -24,7 +24,7 @@ import {
   syncAccount,
   updateAccount,
 } from "@/api/accounts";
-import { QUERY_KEYS } from "@/constants/queryKeys";
+import { ASSET_RELATED_KEYS, QUERY_KEYS } from "@/constants/queryKeys";
 import { useCrudMutations } from "@/hooks/useCrudMutations";
 import { useAccounts } from "@/hooks/useReferenceData";
 import { formatKrw, formatKrwPreview, formatSyncedAt, resolveOwnerLabel, toAmountInputValue } from "@/utils/format";
@@ -72,7 +72,7 @@ export default function AccountsSection({ users }: Props) {
   const accountsQuery = useAccounts();
 
   const { createMutation, updateMutation, removeMutation: deactivateMutation } = useCrudMutations({
-    invalidateKeys: [QUERY_KEYS.accounts],
+    invalidateKeys: ASSET_RELATED_KEYS,
     api: { create: createAccount, update: updateAccount, remove: deactivateAccount },
     messages: { create: "계좌를 추가했습니다.", update: "저장했습니다.", remove: "계좌를 비활성화했습니다." },
     onCreateSuccess: () => setFormTarget(null),
@@ -83,7 +83,7 @@ export default function AccountsSection({ users }: Props) {
   const syncMutation = useMutation({
     mutationFn: syncAccount,
     onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.accounts });
+      ASSET_RELATED_KEYS.forEach((key) => void queryClient.invalidateQueries({ queryKey: key }));
       toast("growlio 잔액을 동기화했습니다.", "success");
     },
     onError: (err) => toast(extractErrorMessage(err), "error"),
@@ -221,7 +221,7 @@ export default function AccountsSection({ users }: Props) {
                   return `growlio 계좌 ${created.length}개를 가져왔습니다. 합계 ${formatKrw(total)}`;
                 }}
                 existingGrowlioAccountIds={existingGrowlioAccountIds}
-                invalidateKeys={[QUERY_KEYS.accounts]}
+                invalidateKeys={ASSET_RELATED_KEYS}
                 onClose={() => setImportOpen(false)}
               />
             )}

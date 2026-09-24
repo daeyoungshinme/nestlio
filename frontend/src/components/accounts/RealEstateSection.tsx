@@ -20,7 +20,7 @@ import {
   updateSavingsProduct,
 } from "@/api/savingsProducts";
 import { fetchGrowlioRealEstate, importGrowlioRealEstate, syncRealEstate } from "@/api/realEstate";
-import { QUERY_KEYS } from "@/constants/queryKeys";
+import { ASSET_RELATED_KEYS, QUERY_KEYS } from "@/constants/queryKeys";
 import { useCrudMutations } from "@/hooks/useCrudMutations";
 import { useGoals, useSavingsProducts } from "@/hooks/useReferenceData";
 import {
@@ -84,12 +84,11 @@ export default function RealEstateSection({ users }: Props) {
   const { data: goals } = useGoals();
 
   const invalidate = () => {
-    void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.savingsProducts });
-    void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.dashboardBootstrap });
+    ASSET_RELATED_KEYS.forEach((key) => void queryClient.invalidateQueries({ queryKey: key }));
   };
 
   const { createMutation, updateMutation, removeMutation: deactivateMutation } = useCrudMutations({
-    invalidateKeys: [QUERY_KEYS.savingsProducts, QUERY_KEYS.dashboardBootstrap],
+    invalidateKeys: ASSET_RELATED_KEYS,
     api: { create: createSavingsProduct, update: updateSavingsProduct, remove: deactivateSavingsProduct },
     messages: { create: "부동산을 추가했습니다.", update: "저장했습니다.", remove: "비활성화했습니다." },
     onCreateSuccess: () => setFormTarget(null),
@@ -98,12 +97,11 @@ export default function RealEstateSection({ users }: Props) {
   });
 
   // 부동산은 시세뿐 아니라 짝이 되는 담보대출 잔액도 함께 갱신되므로(app/services/real_estate_service.py),
-  // 동기화 성공 시 저축/투자 쿼리뿐 아니라 대출 쿼리도 함께 무효화한다.
+  // 동기화 성공 시 대출 쿼리까지 포함된 ASSET_RELATED_KEYS를 무효화한다.
   const syncMutation = useMutation({
     mutationFn: syncRealEstate,
     onSuccess: () => {
-      void invalidate();
-      void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.loans });
+      invalidate();
       toast("growlio 시세/담보대출을 동기화했습니다.", "success");
     },
     onError: (err) => toast(extractErrorMessage(err), "error"),
@@ -225,7 +223,7 @@ export default function RealEstateSection({ users }: Props) {
                   );
                 }}
                 existingGrowlioAccountIds={existingGrowlioAccountIds}
-                invalidateKeys={[QUERY_KEYS.savingsProducts, QUERY_KEYS.loans, QUERY_KEYS.dashboardBootstrap]}
+                invalidateKeys={ASSET_RELATED_KEYS}
                 onClose={() => setImportOpen(false)}
               />
             )}
@@ -389,7 +387,7 @@ function RealEstateFormModal({
             getRowId={(item) => item.id}
             getRowLabel={(item) => item.name}
             getRowAmount={(item) => item.market_value_krw}
-            invalidateKeys={[QUERY_KEYS.savingsProducts, QUERY_KEYS.dashboardBootstrap]}
+            invalidateKeys={ASSET_RELATED_KEYS}
             onLinked={onClose}
           />
         )}

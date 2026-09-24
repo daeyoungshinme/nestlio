@@ -187,6 +187,7 @@ export default function RecurringForm({ categories, initial, submitLabel, submit
       <FormInput
         label="리마인더 (일 전)"
         type="number"
+        inputMode="numeric"
         min={0}
         value={values.reminder_days_before}
         onChange={(e) => setValues((v) => ({ ...v, reminder_days_before: e.target.value }))}
