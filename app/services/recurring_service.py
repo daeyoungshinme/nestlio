@@ -102,11 +102,14 @@ def update_recurring(db: Session, recurring_id: int, **fields) -> RecurringExpen
     return recurring
 
 
-def deactivate_recurring(db: Session, recurring_id: int) -> None:
+def deactivate_recurring(db: Session, recurring_id: int) -> bool:
+    """비활성화했으면 True, 없는 고정지출이면 False(라우터가 404로 바꾼다)."""
     recurring = db.get(RecurringExpense, recurring_id)
-    if recurring is not None:
-        recurring.is_active = False
-        db.commit()
+    if recurring is None:
+        return False
+    recurring.is_active = False
+    db.commit()
+    return True
 
 
 def reactivate_recurring(db: Session, recurring_id: int, today: date | None = None) -> RecurringExpense | None:

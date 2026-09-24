@@ -28,7 +28,7 @@ from app.services import (
 )
 from app.services.google_auth import GoogleNotConnectedError
 from app.services.google_sheets_service import GoogleSheetsReadError
-from app.utils.dates import month_bounds, today_kst
+from app.utils.dates import month_bounds, today_kst, year_month_str
 
 router = APIRouter(prefix="/transactions", tags=["transactions"])
 logger = logging.getLogger("transactions")
@@ -84,7 +84,10 @@ def create_transaction(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
     if payload.type == "expense":
         try:
-            notification_service.check_and_alert_budget_threshold(db, payload.category_id)
+            # 과거 날짜로 입력한 지출이면 그 달 예산을 본다(이번 달 기준이면 엉뚱한 달을 검사한다).
+            notification_service.check_and_alert_budget_threshold(
+                db, payload.category_id, year_month_str(payload.transaction_date)
+            )
         except Exception:
             logger.exception("예산 초과 알림 발송 실패 (거래는 정상 저장됨)")
     if tx.growlio_sync_failed:

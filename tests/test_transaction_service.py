@@ -732,6 +732,32 @@ def test_update_transaction_pushes_withdrawal_then_deposit_symmetrically(seeded_
     mock_push.assert_any_call("token-abc", "growlio-acct-1", "DEPOSIT", Decimal("80000"), date(2026, 7, 2))
 
 
+def test_update_transaction_memo_only_edit_skips_balance_and_growlio(seeded_db):
+    """수정 폼은 모든 필드를 다시 보낸다 — 금액·상품·날짜가 그대로면 잔액조정/growlio 출금+입금을 하지 않는다."""
+    db, user = seeded_db["db"], seeded_db["user"]
+    savings_category, product = _add_savings_category_and_product(db, growlio_account_id="growlio-acct-1")
+    with patch.object(growlio_client, "push_transaction"):
+        tx = transaction_service.create_transaction(
+            db, user.id, savings_category.id, "expense", Decimal("50000"), date(2026, 7, 1),
+            savings_product_id=product.id, bearer_token="token-abc",
+        )
+    db.refresh(product)
+    balance_before = product.current_balance
+
+    with patch.object(growlio_client, "push_transaction") as mock_push:
+        transaction_service.update_transaction(
+            db, tx.id, bearer_token="token-abc",
+            amount=Decimal("50000"), type="expense", category_id=savings_category.id,
+            transaction_date=date(2026, 7, 1), description="메모만 수정", payment_method=None,
+            account_id=None, savings_product_id=product.id,
+        )
+
+    mock_push.assert_not_called()
+    db.refresh(product)
+    assert product.current_balance == balance_before
+    assert tx.description == "메모만 수정"
+
+
 def test_delete_transaction_pushes_withdrawal(seeded_db):
     db, user = seeded_db["db"], seeded_db["user"]
     savings_category, product = _add_savings_category_and_product(db, growlio_account_id="growlio-acct-1")

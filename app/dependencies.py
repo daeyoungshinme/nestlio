@@ -32,6 +32,11 @@ def _get_jwks_client() -> PyJWKClient:
     return _jwks_client
 
 
+class AuthUnavailableError(Exception):
+    """JWKS(서명 공개키)를 못 받아와 토큰을 검증할 수 없는 상태 — 토큰이 잘못된 게 아니라 Supabase
+    쪽 장애다. 401로 응답하면 프론트가 세션 갱신 → 재요청 → 로그아웃으로 이어지므로 503으로 구분한다."""
+
+
 def verify_supabase_token(token: str) -> dict:
     """Supabase가 발급한 JWT를 JWKS로 검증하고 claims를 반환한다. 유효하지 않으면 ValueError."""
     try:
@@ -46,6 +51,9 @@ def verify_supabase_token(token: str) -> dict:
         )
     except jwt.ExpiredSignatureError as exc:
         raise ValueError("expired token") from exc
+    except jwt.PyJWKClientConnectionError as exc:
+        logger.warning("jwks_unreachable detail=%s", str(exc))
+        raise AuthUnavailableError from exc
     except jwt.PyJWTError as exc:
         logger.warning(
             "token_verification_failed error_type=%s detail=%s", type(exc).__name__, str(exc)
@@ -59,6 +67,18 @@ def _extract_bearer_token(authorization: str | None) -> str:
     return authorization.removeprefix("Bearer ").strip()
 
 
+def _verify_or_http_error(token: str) -> dict:
+    try:
+        return verify_supabase_token(token)
+    except ValueError as exc:
+        raise _token_error(exc) from None
+    except AuthUnavailableError:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="인증 서버에 연결하지 못했습니다. 잠시 후 다시 시도해 주세요.",
+        ) from None
+
+
 def _token_error(exc: ValueError) -> HTTPException:
     # verify_supabase_token이 raise ValueError("expired token") / ValueError("invalid token")로
     # 구분해서 던지므로, 만료는 별도 문구로 응답한다 - 만료는 재로그인하면 그만인 정상적인 상황이라
@@ -69,11 +89,7 @@ def _token_error(exc: ValueError) -> HTTPException:
 
 def get_token_payload(authorization: str | None = Header(default=None)) -> dict:
     """DB 조회 없이 JWT claims만 필요한 엔드포인트를 위한 가벼운 의존성."""
-    token = _extract_bearer_token(authorization)
-    try:
-        return verify_supabase_token(token)
-    except ValueError as exc:
-        raise _token_error(exc) from None
+    return _verify_or_http_error(_extract_bearer_token(authorization))
 
 
 def get_bearer_token(authorization: str | None = Header(default=None)) -> str:
@@ -82,10 +98,7 @@ def get_bearer_token(authorization: str | None = Header(default=None)) -> str:
     (app/services/growlio_client.py). 서명 검증까지 하므로 get_current_user와 함께 걸어도 중복 비용은
     JWKS 캐시(_jwks_client)로 크지 않다."""
     token = _extract_bearer_token(authorization)
-    try:
-        verify_supabase_token(token)
-    except ValueError as exc:
-        raise _token_error(exc) from None
+    _verify_or_http_error(token)
     return token
 
 

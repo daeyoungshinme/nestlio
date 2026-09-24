@@ -81,7 +81,7 @@ def compute_growlio_unlinked(db: Session, bearer_token: str) -> dict:
     이미 연동된(=가져온) 자산은 로컬 net_worth에 이미 잡히므로 제외한다. 대시보드에
     자동으로 뜨는 보조 위젯이므로, growlio가 설정되지 않았거나(GrowlioNotConfiguredError)
     요청이 실패해도(GrowlioRequestError, 예: growlio가 잠들어있음) 절대 실패시키지 않고
-    조용히 0건으로 처리한다 (transaction_service.push_savings_transaction_to_growlio와 동일한 방침).
+    조용히 0건으로 처리한다 (transaction_service._push_growlio와 동일한 방침).
     """
     try:
         # 두 growlio 호출을 동시에 보내 growlio가 느릴 때(콜드스타트 등) 최악의 대기시간을

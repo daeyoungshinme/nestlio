@@ -143,11 +143,10 @@ def accept_invite(
     if user is None:
         if not user_service.household_has_capacity(db):
             raise HouseholdFullError("이미 두 명의 사용자가 등록되어 있습니다.")
-        user = User(id=user_id, email=invite.email, display_name=display_name)
-        db.add(user)
-    else:
-        user.display_name = display_name
-
+        user = user_service.mirror_supabase_user(db, user_id, invite.email)
+    # 새로 만든 경우에도 이름은 여기서 덮는다 — 수락 화면과 병렬로 들어온 다른 요청이 먼저
+    # 자동 미러링(get_current_user)으로 행을 만들었어도 PK 충돌 없이 이어간다(mirror_supabase_user).
+    user.display_name = display_name
     invite.accepted_at = now
     db.commit()
     db.refresh(user)

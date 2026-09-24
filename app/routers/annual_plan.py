@@ -15,8 +15,7 @@ router = APIRouter(prefix="/annual-plan", tags=["annual-plan"])
 
 def _plan_list(db: Session, year: int, today: date) -> dict:
     items = annual_plan_service.list_items(db, year)
-    thresholds = coaching_settings_service.get_thresholds(db)
-    warn_pct, critical_pct = thresholds["budget_warn_pct"], thresholds["budget_critical_pct"]
+    warn_pct, critical_pct = coaching_settings_service.budget_thresholds(db)
     return {
         "year": year,
         "items": [annual_plan_service.item_to_out(item) for item in items],

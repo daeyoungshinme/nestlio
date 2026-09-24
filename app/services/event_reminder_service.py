@@ -24,7 +24,12 @@ def send_due_reminders(db: Session, now: datetime, window_minutes: int = 30) -> 
         return 0
 
     sent = 0
-    candidates = db.query(Event).filter(Event.reminder_minutes_before.isnot(None)).all()
+    # 로컬에서 숨긴(dismissed) 일정은 목록에 안 보이는데 메일만 오면 안 되므로 제외한다.
+    candidates = (
+        db.query(Event)
+        .filter(Event.reminder_minutes_before.isnot(None), Event.dismissed_at.is_(None))
+        .all()
+    )
     due_pairs = [
         (event, occurrence) for event in candidates for occurrence in _due_occurrences(event, now, window_minutes)
     ]
@@ -32,7 +37,10 @@ def send_due_reminders(db: Session, now: datetime, window_minutes: int = 30) -> 
     for event, occurrence in due_pairs:
         if (event.id, occurrence.isoformat()) in already_notified:
             continue
-        _send_reminder_email(db, event, occurrence)
+        # 발송에 성공했을 때만 기록한다 — 실패까지 "보냄"으로 남기면 Gmail 일시 장애 한 번에
+        # 리마인더가 영구 유실된다. 기록이 없으면 다음 틱(일정 시작 전까지)에 다시 시도한다.
+        if not _send_reminder_email(db, event, occurrence):
+            continue
         _log_notified(db, event.id, occurrence)
         sent += 1
     return sent
@@ -81,14 +89,16 @@ def _log_notified(db: Session, event_id: int, occurrence: datetime) -> None:
     db.commit()
 
 
-def _send_reminder_email(db: Session, event: Event, occurrence: datetime) -> None:
+def _send_reminder_email(db: Session, event: Event, occurrence: datetime) -> bool:
     body = _event_summary_text(event, occurrence)
     try:
         gmail_service.send_email(
             f"[Nestlio] 일정 리마인더: {event.title}", body, to=notification_settings_service.get_recipients(db)
         )
-    except Exception:  # best-effort 부수효과, 로그만 남기고 진행
+    except Exception:  # 한 건 실패가 나머지 리마인더를 막지 않도록 로그만 남긴다(다음 틱에 재시도)
         logger.exception("일정 리마인더 이메일 발송 실패: %s", event.title)
+        return False
+    return True
 
 
 def notify_other_spouse(db: Session, event: Event, actor_id: uuid.UUID, action_label: str) -> None:
