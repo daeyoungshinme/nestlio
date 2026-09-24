@@ -1,4 +1,5 @@
 import uuid
+from collections.abc import Callable
 from datetime import datetime
 from decimal import Decimal
 
@@ -43,13 +44,20 @@ def sync_from_growlio(db: Session, product_id: int, bearer_token: str, *, now: d
     return product
 
 
-def sync_all_from_growlio(db: Session, bearer_token: str, *, now: datetime) -> tuple[int, list[dict]]:
+def sync_all_from_growlio(
+    db: Session,
+    bearer_token: str,
+    *,
+    now: datetime,
+    fetch_accounts: Callable[[], list[dict]] | None = None,
+) -> tuple[int, list[dict]]:
     """연동된 저축/투자 상품을 모두 한 번에 동기화한다 (자산현황 "전체 동기화").
 
     부동산(product_type="real_estate")은 짝이 되는 대출까지 다뤄야 해서 별도 growlio 엔드포인트
     (fetch_real_estate_items)를 쓰는 real_estate_service.sync_all_from_growlio의 몫이라 제외한다.
     growlio 목록은 1회만 조회해 여러 상품에 매칭하며, 배우자 소유 등으로 매칭이 안 되는 상품은
-    예외를 던지지 않고 failed 목록에 담아 나머지 동기화를 계속 진행한다.
+    예외를 던지지 않고 failed 목록에 담아 나머지 동기화를 계속 진행한다. `fetch_accounts`는
+    account_service.sync_all_accounts와 같다.
     """
     linked_products = [
         p
@@ -58,7 +66,7 @@ def sync_all_from_growlio(db: Session, bearer_token: str, *, now: datetime) -> t
     ]
     if not linked_products:
         return 0, []
-    growlio_accounts = growlio_client.fetch_account_balances(bearer_token)
+    growlio_accounts = fetch_accounts() if fetch_accounts else growlio_client.fetch_account_balances(bearer_token)
 
     def _apply(product: SavingsProduct, match: dict) -> None:
         product.current_balance = growlio_client.to_decimal_krw(match["current_value_krw"])

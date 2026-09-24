@@ -167,7 +167,7 @@ def check_and_alert_budget_threshold(db: Session, category_id: int, year_month: 
     이미 저장된 거래까지 500으로 응답된다."""
     try:
         year_month = year_month or year_month_str(today_kst())
-        rows = budget_service.budget_vs_actual(db, year_month)
+        rows = budget_service.budget_vs_actual(db, year_month, with_suggested=False)
         row = next((r for r in rows if r["category_id"] == category_id), None)
         if row is None:
             return False

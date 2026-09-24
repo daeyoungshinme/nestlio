@@ -357,10 +357,10 @@ def compute_insights(
     breakdown = (
         breakdown if breakdown is not None else transaction_report_service.category_breakdown(db, start, end, "expense")
     )
-    budget_rows = budget_service.budget_vs_actual(
-        db, year_month, thresholds["budget_warn_pct"], thresholds["budget_critical_pct"]
-    )
     trailing_avg = transaction_report_service.trailing_average_by_category(db, month_start, months=3)
+    budget_rows = budget_service.budget_vs_actual(
+        db, year_month, thresholds["budget_warn_pct"], thresholds["budget_critical_pct"], suggested=trailing_avg
+    )
     goal_rows = goals if goals is not None else goal_service.list_goals(db)
     goal_dicts = [{"monthly_saving_amount": g.monthly_saving_amount} for g in goal_rows]
 
