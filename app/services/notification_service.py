@@ -192,13 +192,21 @@ def _send_threshold_alert(db: Session, row: dict, year_month: str) -> bool:
 
 
 def check_and_alert_budget_threshold(db: Session, category_id: int, year_month: str | None = None) -> bool:
-    """Send an alert if this category just crossed the warn/critical budget threshold this month."""
-    year_month = year_month or year_month_str(today_kst())
-    rows = budget_service.budget_vs_actual(db, year_month)
-    row = next((r for r in rows if r["category_id"] == category_id), None)
-    if row is None:
-        return False
-    return _send_threshold_alert(db, row, year_month)
+    """Send an alert if this category just crossed the warn/critical budget threshold this month.
+
+    거래 저장 직후 라우터가 호출하는 부가 작업이라, 실패하면 세션을 롤백한 뒤 다시 던진다 —
+    라우터는 예외를 로그만 남기고 같은 세션으로 응답을 만들기 때문에 오염된 세션이 남으면
+    이미 저장된 거래까지 500으로 응답된다."""
+    try:
+        year_month = year_month or year_month_str(today_kst())
+        rows = budget_service.budget_vs_actual(db, year_month)
+        row = next((r for r in rows if r["category_id"] == category_id), None)
+        if row is None:
+            return False
+        return _send_threshold_alert(db, row, year_month)
+    except Exception:
+        db.rollback()
+        raise
 
 
 def _celebrate_goal_milestone(db: Session, goal, today: date | None = None) -> bool:
@@ -249,7 +257,13 @@ def _celebrate_goal_milestone(db: Session, goal, today: date | None = None) -> b
 
 
 def check_and_celebrate_goal_milestone(db: Session, goal_id: int, today: date | None = None) -> bool:
-    return _celebrate_goal_milestone(db, goal_service.get_goal(db, goal_id), today)
+    """목표 저장 직후 라우터가 호출한다. 실패 시 롤백 후 다시 던지는 이유는
+    check_and_alert_budget_threshold와 같다."""
+    try:
+        return _celebrate_goal_milestone(db, goal_service.get_goal(db, goal_id), today)
+    except Exception:
+        db.rollback()
+        raise
 
 
 def check_all_goal_milestones(db: Session, today: date | None = None) -> int:

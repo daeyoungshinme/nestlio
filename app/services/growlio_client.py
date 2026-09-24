@@ -64,11 +64,15 @@ def _request(method: str, path: str, bearer_token: str, *, json: dict | None = N
             method, url, json=json, headers={"Authorization": f"Bearer {bearer_token}"}, timeout=_TIMEOUT
         )
         response.raise_for_status()
+        # 200이어도 본문이 JSON이 아니면(프록시 HTML 에러 페이지, 빈 본문 등) ValueError가 난다 —
+        # 호출부는 GrowlioRequestError만 잡으므로 여기서 변환해야 500으로 새지 않는다.
+        return response.json()
     except httpx.HTTPStatusError as exc:
         raise GrowlioRequestError(f"growlio API 오류 (status={exc.response.status_code})") from exc
     except httpx.HTTPError as exc:
         raise GrowlioRequestError("growlio 서버에 연결하지 못했습니다.") from exc
-    return response.json()
+    except ValueError as exc:
+        raise GrowlioRequestError("growlio 응답을 해석하지 못했습니다.") from exc
 
 
 def fetch_account_balances(bearer_token: str) -> list[dict]:

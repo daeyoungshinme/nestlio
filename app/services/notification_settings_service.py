@@ -55,7 +55,11 @@ def set_prefs(db: Session, values: dict[str, bool], updated_by: uuid.UUID) -> di
 
 
 def _default_recipients(db: Session) -> list[str]:
-    emails = [u.email for u in db.query(User).order_by(User.created_at).all()]
+    # 소프트 삭제된(제거된) 배우자는 제외한다 — user_service.list_users와 같은 조건.
+    emails = [
+        u.email
+        for u in db.query(User).filter(User.removed_at.is_(None)).order_by(User.created_at).all()
+    ]
     return emails or [settings.notify_email_to]
 
 

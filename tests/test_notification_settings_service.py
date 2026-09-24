@@ -70,3 +70,16 @@ def test_set_recipients_override_does_not_auto_merge_new_spouse_email(seeded_db)
     _second_user(db)
 
     assert notification_settings_service.get_recipients(db) == ["only-this@example.com"]
+
+
+def test_get_recipients_default_excludes_removed_spouse(seeded_db):
+    """제거된(소프트 삭제된) 배우자는 users 행이 남아 있어도 기본 수신자에서 빠져야 한다."""
+    from datetime import datetime
+
+    from app.services import user_service
+
+    db, user = seeded_db["db"], seeded_db["user"]
+    spouse = _second_user(db)
+    user_service.remove_user(db, target=spouse, requested_by=user, now=datetime(2026, 9, 1, 9, 0))
+
+    assert notification_settings_service.get_recipients(db) == [user.email]
