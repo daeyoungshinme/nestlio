@@ -5,7 +5,7 @@ import Button from "@/components/common/Button";
 import CategoryPicker from "@/components/common/CategoryPicker";
 import FormInput from "@/components/common/FormInput";
 import OwnerSelect from "@/components/common/OwnerSelect";
-import { formatKrw, formatKrwPreview, toAmountInputValue } from "@/utils/format";
+import { amountInputPreview, formatKrw, toAmountInputValue } from "@/utils/format";
 import type { CashflowSection, CategoryOut, UserOut } from "@/types";
 
 export interface CashflowPlanItemFormValues {
@@ -118,7 +118,7 @@ export default function CashflowPlanItemForm({
         onChange={(e) => setValues((v) => ({ ...v, amount: e.target.value }))}
         required
         disabled={isRecurringLinked}
-        preview={Number(values.amount) > 0 ? formatKrwPreview(Number(values.amount)) : undefined}
+        preview={amountInputPreview(values.amount)}
       />
       <Button type="submit" loading={submitting} className="w-full justify-center">
         {submitLabel}

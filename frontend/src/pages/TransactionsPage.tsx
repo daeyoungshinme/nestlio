@@ -14,10 +14,10 @@ import LedgerResults from "@/components/transactions/LedgerResults";
 import LedgerDayModal from "@/components/transactions/LedgerDayModal";
 import TransactionForm from "@/components/transactions/TransactionForm";
 import RecurringManageSheet from "@/components/transactions/RecurringManageSheet";
-import { createTransaction, deleteTransaction, updateTransaction } from "@/api/transactions";
+import { deleteTransaction, updateTransaction } from "@/api/transactions";
 import { useSwipeMonth } from "@/hooks/useSwipeMonth";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
-import { useInvalidateTransactionRelated } from "@/hooks/useInvalidateTransactionRelated";
+import { useCreateTransaction, useInvalidateTransactionRelated } from "@/hooks/useInvalidateTransactionRelated";
 import { useLedgerFilters } from "@/hooks/useLedgerFilters";
 import { useLedgerMonth } from "@/hooks/useLedgerMonth";
 import { useRecurringDeepLink } from "@/hooks/useRecurringDeepLink";
@@ -65,19 +65,6 @@ export default function TransactionsPage() {
 
   const invalidateAll = useInvalidateTransactionRelated();
 
-  const createMutation = useMutation({
-    mutationFn: createTransaction,
-    onSuccess: (created) => {
-      invalidateAll();
-      setFormTarget(null);
-      toast("내역을 추가했습니다.", "success", {
-        label: "취소",
-        onClick: () => deleteMutation.mutate(created.id),
-      });
-    },
-    onError: (err) => toast(extractErrorMessage(err), "error"),
-  });
-
   const updateMutation = useMutation({
     mutationFn: ({ id, payload }: { id: number; payload: Parameters<typeof updateTransaction>[1] }) =>
       updateTransaction(id, payload),
@@ -97,6 +84,14 @@ export default function TransactionsPage() {
       toast("내역을 삭제했습니다.", "success");
     },
     onError: (err) => toast(extractErrorMessage(err), "error"),
+  });
+
+  const createMutation = useCreateTransaction((created) => {
+    setFormTarget(null);
+    toast("내역을 추가했습니다.", "success", {
+      label: "취소",
+      onClick: () => deleteMutation.mutate(created.id),
+    });
   });
 
   const openCreate = (dateHint?: string) => {

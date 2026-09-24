@@ -1,6 +1,5 @@
 import { useState } from "react";
 import type { FormEvent } from "react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Download, Plus, RefreshCw } from "lucide-react";
 import Button from "@/components/common/Button";
 import AssetRow from "@/components/accounts/AssetRow";
@@ -22,17 +21,16 @@ import {
 import { fetchGrowlioRealEstate, importGrowlioRealEstate, syncRealEstate } from "@/api/realEstate";
 import { ASSET_RELATED_KEYS, QUERY_KEYS } from "@/constants/queryKeys";
 import { useCrudMutations } from "@/hooks/useCrudMutations";
+import { useGrowlioSyncMutation } from "@/hooks/useGrowlioSyncMutation";
 import { useGoals, useSavingsProducts } from "@/hooks/useReferenceData";
 import {
+  amountInputPreview,
   formatKrw,
-  formatKrwPreview,
   formatPercent,
   formatSyncedAt,
   resolveOwnerLabel,
   toAmountInputValue,
 } from "@/utils/format";
-import { extractErrorMessage } from "@/utils/error";
-import { toast } from "@/utils/toast";
 import {
   linkedGoalBadgeStyle,
   returnRateTextColor,
@@ -78,14 +76,8 @@ export default function RealEstateSection({ users }: Props) {
   const [formTarget, setFormTarget] = useState<"new" | SavingsProductOut | null>(null);
   const [deactivateTarget, setDeactivateTarget] = useState<number | null>(null);
   const [importOpen, setImportOpen] = useState(false);
-  const queryClient = useQueryClient();
-
   const savingsProductsQuery = useSavingsProducts();
   const { data: goals } = useGoals();
-
-  const invalidate = () => {
-    ASSET_RELATED_KEYS.forEach((key) => void queryClient.invalidateQueries({ queryKey: key }));
-  };
 
   const { createMutation, updateMutation, removeMutation: deactivateMutation } = useCrudMutations({
     invalidateKeys: ASSET_RELATED_KEYS,
@@ -96,16 +88,7 @@ export default function RealEstateSection({ users }: Props) {
     onRemoveSuccess: () => setDeactivateTarget(null),
   });
 
-  // 부동산은 시세뿐 아니라 짝이 되는 담보대출 잔액도 함께 갱신되므로(app/services/real_estate_service.py),
-  // 동기화 성공 시 대출 쿼리까지 포함된 ASSET_RELATED_KEYS를 무효화한다.
-  const syncMutation = useMutation({
-    mutationFn: syncRealEstate,
-    onSuccess: () => {
-      invalidate();
-      toast("growlio 시세/담보대출을 동기화했습니다.", "success");
-    },
-    onError: (err) => toast(extractErrorMessage(err), "error"),
-  });
+  const syncMutation = useGrowlioSyncMutation(syncRealEstate, "growlio 시세/담보대출을 동기화했습니다.");
 
   const isSaving = createMutation.isPending || updateMutation.isPending;
 
@@ -362,7 +345,7 @@ function RealEstateFormModal({
           value={draft.current_balance}
           onChange={(e) => setDraft((d) => ({ ...d, current_balance: e.target.value }))}
           className="w-full"
-          preview={Number(draft.current_balance) > 0 ? formatKrwPreview(Number(draft.current_balance)) : undefined}
+          preview={amountInputPreview(draft.current_balance)}
         />
         <FormInput
           label="매입가 (선택)"
@@ -371,7 +354,7 @@ function RealEstateFormModal({
           value={draft.principal_amount}
           onChange={(e) => setDraft((d) => ({ ...d, principal_amount: e.target.value }))}
           className="w-full"
-          preview={Number(draft.principal_amount) > 0 ? formatKrwPreview(Number(draft.principal_amount)) : undefined}
+          preview={amountInputPreview(draft.principal_amount)}
         />
         <OwnerSelect
           value={draft.owner_user_id}

@@ -29,7 +29,7 @@ import { computeCardStatus, daysUntil, isGoalAchieved } from "@/utils/goalStatus
 import { GOAL_SORT_LABELS, sortGoals, type GoalSortLabel } from "@/utils/goalSort";
 import { estimateGoalAcceleration } from "@/utils/goalAcceleration";
 import { extractErrorMessage } from "@/utils/error";
-import { formatDate, formatKrw, formatKrwPreview, formatYearMonth, toAmountInputValue } from "@/utils/format";
+import { amountInputPreview, formatDate, formatKrw, formatYearMonth, toAmountInputValue } from "@/utils/format";
 import { toast } from "@/utils/toast";
 import { findGrowlioInvestmentLink, GROWLIO_APP_URL, growlioPortfolioUrl } from "@/constants/growlio";
 import type { FinancialGoalOut, FinancialGoalUpdateIn, GoalKind } from "@/types";
@@ -340,7 +340,7 @@ export default function GoalsTab() {
                 value={progressDraftValue}
                 onChange={(e) => setProgressDraft((d) => ({ ...d, [goal.id]: e.target.value }))}
                 className="w-full sm:w-40"
-                preview={Number(progressDraftValue) > 0 ? formatKrwPreview(Number(progressDraftValue)) : undefined}
+                preview={amountInputPreview(progressDraftValue)}
               />
               <Button
                 size="sm"
@@ -365,7 +365,7 @@ export default function GoalsTab() {
                 value={monthlyDraftValue}
                 onChange={(e) => setMonthlyTargetDraft((d) => ({ ...d, [draftKey]: e.target.value }))}
                 className="w-full sm:w-40"
-                preview={Number(monthlyDraftValue) > 0 ? formatKrwPreview(Number(monthlyDraftValue)) : undefined}
+                preview={amountInputPreview(monthlyDraftValue)}
               />
               <Button
                 size="sm"

@@ -7,7 +7,7 @@ import FormInput from "@/components/common/FormInput";
 import OwnerSelect from "@/components/common/OwnerSelect";
 import { INPUT_SM, LABEL_SM } from "@/constants/inputStyles";
 import { buildYearMonthRange, syncTargetsToPeriod } from "@/utils/monthRange";
-import { formatKrwPreview, formatMonthOnly } from "@/utils/format";
+import { amountInputPreview, formatMonthOnly } from "@/utils/format";
 import type { AnnualPlanItemMonthlyTargetIn, CashflowSection, CategoryOut, UserOut } from "@/types";
 
 export interface AnnualPlanItemFormValues {
@@ -150,7 +150,7 @@ export default function AnnualPlanItemForm({
         value={annualTotalDraft}
         onChange={(e) => setAnnualTotalDraft(e.target.value)}
         hint="이 금액을 적용 기간의 달에 고르게 나눠 채워요. 지금까지 입력된 실제 합계는 아래 '월별 목표금액 합계'를 보세요."
-        preview={Number(annualTotalDraft) > 0 ? formatKrwPreview(Number(annualTotalDraft)) : undefined}
+        preview={amountInputPreview(annualTotalDraft)}
       />
       <AnnualPlanMonthlyGrid
         startMonth={startMonth}

@@ -1,6 +1,5 @@
 import { useState } from "react";
 import type { FormEvent } from "react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { ArrowRight, Download, ExternalLink, Plus, RefreshCw } from "lucide-react";
 import { Link } from "react-router-dom";
 import Button from "@/components/common/Button";
@@ -28,18 +27,17 @@ import {
 } from "@/api/savingsProducts";
 import { ASSET_RELATED_KEYS, QUERY_KEYS } from "@/constants/queryKeys";
 import { useCrudMutations } from "@/hooks/useCrudMutations";
+import { useGrowlioSyncMutation } from "@/hooks/useGrowlioSyncMutation";
 import { useGoals, useSavingsProducts } from "@/hooks/useReferenceData";
 import { planViewLink } from "@/constants/routes";
 import {
+  amountInputPreview,
   formatKrw,
-  formatKrwPreview,
   formatPercent,
   formatSyncedAt,
   resolveOwnerLabel,
   toAmountInputValue,
 } from "@/utils/format";
-import { extractErrorMessage } from "@/utils/error";
-import { toast } from "@/utils/toast";
 import {
   linkedGoalBadgeStyle,
   returnRateTextColor,
@@ -100,14 +98,8 @@ export default function SavingsProductsSection({ users }: Props) {
   const [formTarget, setFormTarget] = useState<"new" | SavingsProductOut | null>(null);
   const [deactivateTarget, setDeactivateTarget] = useState<number | null>(null);
   const [importOpen, setImportOpen] = useState(false);
-  const queryClient = useQueryClient();
-
   const savingsProductsQuery = useSavingsProducts();
   const { data: goals } = useGoals();
-
-  const invalidate = () => {
-    ASSET_RELATED_KEYS.forEach((key) => void queryClient.invalidateQueries({ queryKey: key }));
-  };
 
   const { createMutation, updateMutation, removeMutation: deactivateMutation } = useCrudMutations({
     invalidateKeys: ASSET_RELATED_KEYS,
@@ -118,14 +110,7 @@ export default function SavingsProductsSection({ users }: Props) {
     onRemoveSuccess: () => setDeactivateTarget(null),
   });
 
-  const syncMutation = useMutation({
-    mutationFn: syncSavingsProduct,
-    onSuccess: () => {
-      void invalidate();
-      toast("growlio 잔액을 동기화했습니다.", "success");
-    },
-    onError: (err) => toast(extractErrorMessage(err), "error"),
-  });
+  const syncMutation = useGrowlioSyncMutation(syncSavingsProduct, "growlio 잔액을 동기화했습니다.");
 
   const isSaving = createMutation.isPending || updateMutation.isPending;
 
@@ -433,7 +418,7 @@ function SavingsProductFormModal({
           value={draft.current_balance}
           onChange={(e) => setDraft((d) => ({ ...d, current_balance: e.target.value }))}
           className="w-full"
-          preview={Number(draft.current_balance) > 0 ? formatKrwPreview(Number(draft.current_balance)) : undefined}
+          preview={amountInputPreview(draft.current_balance)}
         />
         {!product && (
           <FormInput
@@ -443,9 +428,7 @@ function SavingsProductFormModal({
             value={draft.monthly_saving_amount}
             onChange={(e) => setDraft((d) => ({ ...d, monthly_saving_amount: e.target.value }))}
             className="w-full"
-            preview={
-              Number(draft.monthly_saving_amount) > 0 ? formatKrwPreview(Number(draft.monthly_saving_amount)) : undefined
-            }
+            preview={amountInputPreview(draft.monthly_saving_amount)}
           />
         )}
         {draft.product_type === "investment" && (
@@ -456,7 +439,7 @@ function SavingsProductFormModal({
             value={draft.principal_amount}
             onChange={(e) => setDraft((d) => ({ ...d, principal_amount: e.target.value }))}
             className="w-full"
-            preview={Number(draft.principal_amount) > 0 ? formatKrwPreview(Number(draft.principal_amount)) : undefined}
+            preview={amountInputPreview(draft.principal_amount)}
           />
         )}
         <OwnerSelect

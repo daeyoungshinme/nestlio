@@ -1,7 +1,7 @@
 import Button from "@/components/common/Button";
 import { FORM_LABEL, INPUT_SM } from "@/constants/inputStyles";
 import { useMonthlyTargetGrid } from "@/hooks/useMonthlyTargetGrid";
-import { formatKrw, formatKrwPreview } from "@/utils/format";
+import { amountInputPreview, formatKrw } from "@/utils/format";
 import type { GoalMonthlyTargetIn } from "@/types";
 
 interface Props {
@@ -62,7 +62,7 @@ export default function GoalMonthlyTargetEditor({
                 className={`flex-1 min-w-0 ${INPUT_SM}`}
               />
               <span className="text-xs text-gray-400 dark:text-gray-500 shrink-0 w-24 text-right">
-                {Number(amount) > 0 ? formatKrwPreview(Number(amount)) : ""}
+                {amountInputPreview(amount) ?? ""}
               </span>
             </div>
           );

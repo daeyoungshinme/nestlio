@@ -1,6 +1,5 @@
 import { useState } from "react";
 import type { FormEvent } from "react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Download, Plus, RefreshCw } from "lucide-react";
 import Button from "@/components/common/Button";
 import AssetRow from "@/components/accounts/AssetRow";
@@ -26,10 +25,9 @@ import {
 } from "@/api/accounts";
 import { ASSET_RELATED_KEYS, QUERY_KEYS } from "@/constants/queryKeys";
 import { useCrudMutations } from "@/hooks/useCrudMutations";
+import { useGrowlioSyncMutation } from "@/hooks/useGrowlioSyncMutation";
 import { useAccounts } from "@/hooks/useReferenceData";
-import { formatKrw, formatKrwPreview, formatSyncedAt, resolveOwnerLabel, toAmountInputValue } from "@/utils/format";
-import { extractErrorMessage } from "@/utils/error";
-import { toast } from "@/utils/toast";
+import { amountInputPreview, formatKrw, formatSyncedAt, resolveOwnerLabel, toAmountInputValue } from "@/utils/format";
 import type { AccountOut, AccountWithBalanceOut, UserOut } from "@/types";
 
 const ACCOUNT_TYPE_LABEL: Record<AccountOut["account_type"], string> = {
@@ -67,8 +65,6 @@ export default function AccountsSection({ users }: Props) {
   const [formTarget, setFormTarget] = useState<"new" | AccountWithBalanceOut | null>(null);
   const [deactivateTarget, setDeactivateTarget] = useState<number | null>(null);
   const [importOpen, setImportOpen] = useState(false);
-  const queryClient = useQueryClient();
-
   const accountsQuery = useAccounts();
 
   const { createMutation, updateMutation, removeMutation: deactivateMutation } = useCrudMutations({
@@ -80,14 +76,7 @@ export default function AccountsSection({ users }: Props) {
     onRemoveSuccess: () => setDeactivateTarget(null),
   });
 
-  const syncMutation = useMutation({
-    mutationFn: syncAccount,
-    onSuccess: () => {
-      ASSET_RELATED_KEYS.forEach((key) => void queryClient.invalidateQueries({ queryKey: key }));
-      toast("growlio 잔액을 동기화했습니다.", "success");
-    },
-    onError: (err) => toast(extractErrorMessage(err), "error"),
-  });
+  const syncMutation = useGrowlioSyncMutation(syncAccount, "growlio 잔액을 동기화했습니다.");
 
   const isSaving = createMutation.isPending || updateMutation.isPending;
 
@@ -344,7 +333,7 @@ function AccountFormModal({
           value={draft.amount}
           onChange={(e) => setDraft((d) => ({ ...d, amount: e.target.value }))}
           className="w-full"
-          preview={Number(draft.amount) > 0 ? formatKrwPreview(Number(draft.amount)) : undefined}
+          preview={amountInputPreview(draft.amount)}
         />
         <Button type="submit" loading={submitting} className="mt-2">
           {submitLabel}

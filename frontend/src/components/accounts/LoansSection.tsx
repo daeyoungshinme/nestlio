@@ -17,7 +17,7 @@ import { INPUT_SM, LABEL_SM } from "@/constants/inputStyles";
 import { useCrudMutations } from "@/hooks/useCrudMutations";
 import { useLoans } from "@/hooks/useReferenceData";
 import { accountsSectionLink } from "@/constants/routes";
-import { formatKrw, formatKrwPreview, formatSyncedAt, resolveOwnerLabel, toAmountInputValue } from "@/utils/format";
+import { amountInputPreview, formatKrw, formatSyncedAt, resolveOwnerLabel, toAmountInputValue } from "@/utils/format";
 import type { LoanOut, RepaymentMethod, UserOut } from "@/types";
 
 const REPAYMENT_METHOD_LABEL: Record<RepaymentMethod, string> = {
@@ -252,7 +252,7 @@ function LoanFormModal({
             value={draft.balance}
             onChange={(e) => setDraft((d) => ({ ...d, balance: e.target.value }))}
             className="w-full"
-            preview={Number(draft.balance) > 0 ? formatKrwPreview(Number(draft.balance)) : undefined}
+            preview={amountInputPreview(draft.balance)}
           />
           <FormInput
             label="월납입금액"
@@ -261,7 +261,7 @@ function LoanFormModal({
             value={draft.monthly_payment}
             onChange={(e) => setDraft((d) => ({ ...d, monthly_payment: e.target.value }))}
             className="w-full"
-            preview={Number(draft.monthly_payment) > 0 ? formatKrwPreview(Number(draft.monthly_payment)) : undefined}
+            preview={amountInputPreview(draft.monthly_payment)}
           />
         </div>
         <div className="grid grid-cols-2 gap-3">
