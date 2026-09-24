@@ -41,7 +41,7 @@
 - pre-commit 훅: `pre-commit install` 로 활성화(`.pre-commit-config.yaml` — ruff-check `--fix`, oxlint, 기본 위생 훅). CI 를 대체하지 않고 CI 왕복을 줄이는 용도. 포매터 전면 재정렬은 하지 않는다.
 - 테스트: `pytest` (설정은 `pyproject.toml`의 `[tool.pytest.ini_options]` — `--strict-markers`, `--durations=10`, `filterwarnings=["error", ...]`로 deprecation 경고를 에러로 승격. 상세 컨벤션은 [tests/CLAUDE.md](tests/CLAUDE.md))
 - 백엔드 린트: `ruff check .` (설정은 `pyproject.toml` `[tool.ruff]` — 포매팅 전면 재정렬은 안 하고 미사용 import/변수·bugbear·import 정렬만 강제). CI(`ci.yml`)가 `ruff check` + `pip check` + `pytest` + `migration-drift`(모델↔마이그레이션) + `api-types-drift`(백엔드 스키마↔`frontend/src/types/api.generated.ts`) + 프론트 잡(`npm run lint`/`test`/`build`)을 돌린다.
-- 마이그레이션: Alembic (`alembic.ini`, `migrations/`) — 모델 변경 시 리비전 생성 필요. 배포는 `alembic upgrade head`(`render.yaml`)라 체인이 깨지면 배포 전체가 실패하므로, `tests/test_migrations.py`가 Postgres 없이도 CI에서 head 1개·down_revision 연결·base 1개를 가드하고, CI `migration-drift` 잡이 `scripts/check_migration_drift.py`(임베디드 Postgres)로 "모델 == 마이그레이션 head"까지 가드한다(리비전 누락 방지). 2026-09-01에 51개 선형 체인을 단일 베이스라인(`bdba3c3b3277_squashed_baseline`) 하나로 스쿼시했고, 구 리비전 파일은 `migrations/versions/_archive/`에 참고용으로만 남아 있다(Alembic이 스캔하지 않음 — 자세한 건 그 디렉토리의 `README.md`). 스키마 무결성(구 체인 == 베이스라인 == 모델) 전체 검증은 `scripts/verify_migration_squash.py`(pgserver 필요).
+- 마이그레이션: Alembic (`alembic.ini`, `migrations/`) — 모델 변경 시 리비전 생성 필요. 배포는 `alembic upgrade head`(`render.yaml`)라 체인이 깨지면 배포 전체가 실패하므로, `tests/test_migrations.py`가 Postgres 없이도 CI에서 head 1개·down_revision 연결·base 1개를 가드하고, CI `migration-drift` 잡이 `scripts/check_migration_drift.py`(임베디드 Postgres)로 "모델 == 마이그레이션 head"까지 가드한다(리비전 누락 방지). 2026-09-01에 51개 선형 체인을 단일 베이스라인(`bdba3c3b3277_squashed_baseline`) 하나로 스쿼시했다(운영 DB도 같은 날 stamp 완료). 구 리비전 파일과 일회성 검증 스크립트(`verify_migration_squash.py`)는 2026-09-25에 삭제했고 git 히스토리에만 남아 있다.
 - 배포: FastAPI가 `frontend/dist`(빌드된 SPA)를 정적 파일로 서빙하는 단일 프로세스 구조 (growlio의 nginx/Render+Vercel 분리 구조와 다른, nestlio 규모에 맞춘 의도적 단순화). Render 무료 웹서비스 1개로 배포한다 (`render.yaml` 참고) — DB는 별도로 마련할 필요 없이 growlio와 공유하는 Supabase Postgres를 그대로 쓴다. Render 무료 티어는 디스크가 완전히 휘발성이라 부부 사진은 Supabase Storage에, 구글 OAuth 토큰은 Postgres에 저장한다(아래 참고). 15분 미사용 시 슬립하므로 예약 작업은 인프로세스 스케줄러 대신 GitHub Actions가 트리거한다([app/scheduler/CLAUDE.md](app/scheduler/CLAUDE.md)).
 
 ## 환경 변수
@@ -57,6 +57,6 @@
 - growlio 연동(계좌·부동산 잔액 조회/동기화, 저축·투자 거래 입출금 반영, 재무목표 프리필): `GROWLIO_API_BASE_URL` — 비어 있으면 연동 기능 전체가 꺼진다
 - 부부 사진 저장용 Supabase Storage: `SUPABASE_SERVICE_ROLE_KEY`, `SUPABASE_STORAGE_BUCKET`, `MAX_UPLOAD_SIZE_MB` — 백엔드가 `/media/couple-photo`에서 프록시로 서빙한다(`app/services/couple_photo_service.py`, `app/main.py`). 둘 중 하나라도 비어 있으면 "사진 없음"으로 동작한다.
 - 예약 작업 인증: `INTERNAL_JOB_SECRET` — GitHub Actions가 `/internal/jobs/{job_name}` 호출 시 `X-Internal-Job-Secret` 헤더로 보낸다.
-- Google OAuth: `GOOGLE_OAUTH_CLIENT_ID`, `GOOGLE_OAUTH_CLIENT_SECRET` — 토큰 자체는 파일이 아니라 Postgres `household.google_oauth_tokens`에 저장되며(재배포/재시작에도 유지), `scripts/google_auth_setup.py`로 최초 1회 로컬에서 연결한다.
+- Google OAuth: `GOOGLE_OAUTH_CLIENT_ID`, `GOOGLE_OAUTH_CLIENT_SECRET` — 토큰 자체는 파일이 아니라 Postgres `household.google_oauth_tokens`에 저장되며(재배포/재시작에도 유지), `scripts/google_auth_setup.py`로 최초 1회 로컬에서 연결한다(이 스크립트가 쓰는 `google-auth-oauthlib`는 `requirements-dev.txt`에 있다).
 
 프론트엔드 전용 컨벤션(디렉토리 구조, growlio 디자인 시스템 이식 규칙 등)은 [frontend/CLAUDE.md](frontend/CLAUDE.md) 참고.

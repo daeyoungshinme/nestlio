@@ -1,7 +1,7 @@
 """squashed_baseline
 
 기존 51개 선형 체인(9e12ea51685e … b8f2a1c9e4d7)을 접은 새 단일 베이스라인.
-아카이브된 원본은 migrations/versions/_archive/ 에 있다.
+원본 리비전 파일은 삭제됐다 — git 히스토리(2026-09-25 이전 커밋의 migrations/versions/_archive/)에 있다.
 
 검증(임시 PostgreSQL 16, pgserver): 구 체인 `upgrade head` 의 `pg_dump --schema-only`
 결과와 이 베이스라인만 적용한 결과가 오브젝트 단위로 완전히 일치하며, 이 베이스라인에서

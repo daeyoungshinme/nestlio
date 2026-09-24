@@ -194,6 +194,8 @@ def refresh_stale_growlio_links(bearer_token: str, *, now: datetime | None = Non
                 logger.info("opportunistic_growlio_sync_unavailable", exc_info=True)
                 return
             except Exception:
+                # 부분 flush 후 실패하면 세션이 오염돼 다음 섹션까지 연쇄 실패하므로 롤백한다.
+                db.rollback()
                 logger.exception("opportunistic_growlio_sync_failed section=%s", section)
     except Exception:  # fire-and-forget 백그라운드 작업, 절대 상위로 던지지 않는다
         logger.exception("opportunistic_growlio_sync_failed")

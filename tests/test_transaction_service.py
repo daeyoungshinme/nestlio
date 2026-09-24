@@ -54,41 +54,6 @@ def test_period_totals_excludes_out_of_range_transactions(seeded_db):
     assert totals["expense"] == Decimal("20000")
 
 
-def test_totals_by_user_splits_per_spouse(seeded_db):
-    db, user, food, rent = seeded_db["db"], seeded_db["user"], seeded_db["food"], seeded_db["rent"]
-    spouse2 = User(email="spouse2@example.com", display_name="Spouse 2")
-    db.add(spouse2)
-    db.commit()
-    db.refresh(spouse2)
-
-    transaction_service.create_transaction(db, user.id, food.id, "expense", Decimal("50000"), date(2026, 7, 5))
-    transaction_service.create_transaction(db, user.id, rent.id, "income", Decimal("2000000"), date(2026, 7, 1))
-    transaction_service.create_transaction(db, spouse2.id, food.id, "expense", Decimal("30000"), date(2026, 7, 6))
-
-    by_user = transaction_report_service.totals_by_user(db, date(2026, 7, 1), date(2026, 7, 31))
-
-    by_name = {row["display_name"]: row for row in by_user}
-    assert by_name["Spouse 1"]["expense"] == Decimal("50000")
-    assert by_name["Spouse 1"]["income"] == Decimal("2000000")
-    assert by_name["Spouse 1"]["savings"] == Decimal("1950000")
-    assert by_name["Spouse 2"]["expense"] == Decimal("30000")
-    assert by_name["Spouse 2"]["income"] == Decimal("0")
-    assert by_name["Spouse 2"]["savings"] == Decimal("-30000")
-
-
-def test_totals_by_user_excludes_users_with_no_transactions_in_range(seeded_db):
-    db, user, food = seeded_db["db"], seeded_db["user"], seeded_db["food"]
-    spouse2 = User(email="spouse2@example.com", display_name="Spouse 2")
-    db.add(spouse2)
-    db.commit()
-    transaction_service.create_transaction(db, user.id, food.id, "expense", Decimal("10000"), date(2026, 7, 5))
-
-    by_user = transaction_report_service.totals_by_user(db, date(2026, 7, 1), date(2026, 7, 31))
-
-    assert len(by_user) == 1
-    assert by_user[0]["display_name"] == "Spouse 1"
-
-
 def test_monthly_trend_orders_oldest_first(seeded_db):
     db, user, food = seeded_db["db"], seeded_db["user"], seeded_db["food"]
     transaction_service.create_transaction(db, user.id, food.id, "expense", Decimal("10000"), date(2026, 7, 15))
@@ -375,7 +340,7 @@ def test_totals_by_owner_splits_per_spouse_and_shared(seeded_db):
     db.refresh(spouse2)
 
     # recorded by user, but owned by spouse2 - totals_by_owner must follow owner_user_id, not
-    # who recorded it (that's what totals_by_user does, and it's the wrong axis for this).
+    # who recorded it (that's Transaction.user_id, the wrong axis for this).
     transaction_service.create_transaction(
         db, user.id, food.id, "expense", Decimal("30000"), date(2026, 7, 6), owner_user_id=spouse2.id
     )
@@ -628,26 +593,6 @@ def test_frequent_unique_transactions_ignores_entries_outside_since_days_window(
     )
 
     assert ranked == []
-
-
-def test_trailing_average_savings_averages_months_before_anchor(seeded_db):
-    db, user, salary, food = seeded_db["db"], seeded_db["user"], seeded_db["salary"], seeded_db["food"]
-    transaction_service.create_transaction(db, user.id, salary.id, "income", Decimal("3000000"), date(2026, 5, 15))
-    transaction_service.create_transaction(db, user.id, food.id, "expense", Decimal("1000000"), date(2026, 5, 20))
-    transaction_service.create_transaction(db, user.id, salary.id, "income", Decimal("3000000"), date(2026, 6, 15))
-    transaction_service.create_transaction(db, user.id, food.id, "expense", Decimal("2000000"), date(2026, 6, 20))
-    # anchor 월(7월) 거래는 평균 계산에서 제외돼야 한다
-    transaction_service.create_transaction(db, user.id, salary.id, "income", Decimal("9000000"), date(2026, 7, 1))
-
-    avg = transaction_report_service.trailing_average_savings(db, anchor=date(2026, 7, 15), months=2)
-
-    assert avg == Decimal("1500000")  # (2M + 1M) / 2
-
-
-def test_trailing_average_savings_is_zero_with_no_transactions(seeded_db):
-    db = seeded_db["db"]
-    avg = transaction_report_service.trailing_average_savings(db, anchor=date(2026, 7, 15), months=3)
-    assert avg == Decimal("0")
 
 
 def test_trailing_average_by_section_averages_months_before_anchor(seeded_db):

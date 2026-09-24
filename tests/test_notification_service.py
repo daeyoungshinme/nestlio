@@ -461,3 +461,26 @@ def test_remove_reaction(mock_send, seeded_db):
 
     [log_after] = notification_inbox_service.list_notifications(db, user.id)
     assert log_after["reactions"] == []
+
+
+def test_check_and_alert_budget_threshold_rolls_back_and_reraises_on_failure(seeded_db):
+    """라우터는 이 예외를 로그만 남기고 같은 세션으로 응답을 만들므로, 서비스가 먼저 롤백해야 한다."""
+    db, food = seeded_db["db"], seeded_db["food"]
+    with (
+        patch("app.services.notification_service.budget_service.budget_vs_actual", side_effect=RuntimeError("boom")),
+        patch.object(db, "rollback") as rollback,
+        pytest.raises(RuntimeError),
+    ):
+        notification_service.check_and_alert_budget_threshold(db, food.id, "2026-07")
+    rollback.assert_called_once()
+
+
+def test_check_and_celebrate_goal_milestone_rolls_back_and_reraises_on_failure(seeded_db):
+    db = seeded_db["db"]
+    with (
+        patch("app.services.notification_service.goal_service.get_goal", side_effect=RuntimeError("boom")),
+        patch.object(db, "rollback") as rollback,
+        pytest.raises(RuntimeError),
+    ):
+        notification_service.check_and_celebrate_goal_milestone(db, 1)
+    rollback.assert_called_once()

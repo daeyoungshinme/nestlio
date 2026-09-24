@@ -1,3 +1,5 @@
+import type { QueryKey } from "@tanstack/react-query";
+
 export const QUERY_KEYS = {
   dashboard: (period: string, anchor: string) => ["dashboard", period, anchor] as const,
   /** Prefix for invalidating every dashboard period variant at once. */
@@ -12,6 +14,8 @@ export const QUERY_KEYS = {
   transactionsAll: ["transactions"] as const,
   recentTransactions: (filters: Record<string, string | number | boolean | undefined>) =>
     ["recent-transactions", filters] as const,
+  /** Prefix for invalidating every recent-transactions filter variant at once. */
+  recentTransactionsAll: ["recent-transactions"] as const,
   categoryBreakdown: (filters: Record<string, string | number | undefined>) =>
     ["category-breakdown", filters] as const,
   /** Prefix for invalidating every category-breakdown filter variant at once. */
@@ -21,7 +25,11 @@ export const QUERY_KEYS = {
   eventsAll: ["events"] as const,
   accounts: ["accounts"] as const,
   yearlyReport: (year: number, owner?: string) => ["yearly-report", year, owner ?? "all"] as const,
+  /** Prefix for invalidating every yearly-report year/owner variant at once. */
+  yearlyReportAll: ["yearly-report"] as const,
   categoryTrend: (months: number) => ["category-trend", months] as const,
+  /** Prefix for invalidating every category-trend months variant at once. */
+  categoryTrendAll: ["category-trend"] as const,
   settings: ["settings"] as const,
   /** settings/financial-goals/savings-products/users/net-worth 중 하나라도 invalidate하는
    * 곳은 DashboardPage가 이 데이터를 dashboard-bootstrap으로 묶어서 읽으므로 이 키도 함께
@@ -57,3 +65,15 @@ export const QUERY_KEYS = {
   recurring: ["recurring"] as const,
   notifications: ["notifications"] as const,
 };
+
+/** 계좌/대출/저축·투자 상품/부동산 중 하나라도 바뀌면 함께 무효화해야 하는 캐시 묶음.
+ * 순자산(net-worth)과 대시보드 번들은 이 자산들의 합계이고, 재무목표 진행률은 연결된 상품
+ * 잔액을 따라가므로 자산 섹션마다 따로 고르지 않고 이 목록을 그대로 쓴다. */
+export const ASSET_RELATED_KEYS: QueryKey[] = [
+  QUERY_KEYS.accounts,
+  QUERY_KEYS.loans,
+  QUERY_KEYS.savingsProducts,
+  QUERY_KEYS.netWorthAll,
+  QUERY_KEYS.dashboardBootstrap,
+  QUERY_KEYS.financialGoals,
+];

@@ -4,11 +4,9 @@ set -euo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")"
 
 MODE="dev"
-KEEP_PORT=0
 for arg in "$@"; do
   case "$arg" in
     run) MODE="run" ;;
-    --keep-port) KEEP_PORT=1 ;;
   esac
 done
 
@@ -40,7 +38,6 @@ find_free_port() {
 
 # 포트가 사용 중이면(대개 이미 떠 있는 개발 서버) 죽이지 않고 다음 빈 포트로 넘어간다 —
 # dev.bat과 동일한 방침(사용자의 실행 중인 백엔드를 무단으로 종료하지 않는다).
-# 남아 있는 --keep-port 인자는 하위호환용 no-op이다.
 ORIG_BACKEND_PORT="$BACKEND_PORT"
 BACKEND_PORT=$(find_free_port "$BACKEND_PORT")
 if [ "$BACKEND_PORT" != "$ORIG_BACKEND_PORT" ]; then

@@ -8,7 +8,6 @@ accounts (shared with growlio) and their local `household.users` row is created
 automatically on the first authenticated API request (see app/dependencies.py::get_current_user).
 """
 import sys
-from datetime import date
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
@@ -17,7 +16,7 @@ from app.database import Base, SessionLocal, engine
 from app.models.cashflow_plan_item import CashflowPlanItem
 from app.models.category import Category
 from app.models.savings_product import SavingsProduct
-from app.utils.dates import year_month_str
+from app.utils.dates import today_kst, year_month_str
 
 DEFAULT_CATEGORIES = [
     ("주거비", "expense", "fixed", "#6366f1", False, False, False),
@@ -146,7 +145,7 @@ def main():
     db = SessionLocal()
     try:
         seed_categories(db)
-        seed_cashflow_plan_items(db, year_month_str(date.today()))
+        seed_cashflow_plan_items(db, year_month_str(today_kst()))
         seed_savings_products(db)
     finally:
         db.close()

@@ -148,7 +148,13 @@ def validate_startup(s: "Settings") -> None:
         return
 
     if on_default_db:
-        logger.warning("DATABASE_URL 미설정 — 로컬 SQLite(%s)로 폴백합니다.", s.database_url)
+        # 모델·마이그레이션이 household 스키마를 써서 SQLite 폴백은 실제 쿼리에서 실패한다 —
+        # 기본값은 DATABASE_URL 없이도 import가 되도록(CI·스크립트) 남겨둔 것일 뿐이다.
+        logger.warning(
+            "DATABASE_URL 미설정 — 기본값(%s)은 household 스키마 때문에 실제로 동작하지 않습니다. "
+            "로컬 개발도 Supabase Postgres DATABASE_URL이 필요합니다.",
+            s.database_url,
+        )
     if _placeholder_or_empty(s, "internal_job_secret"):
         logger.warning(
             "INTERNAL_JOB_SECRET이 플레이스홀더/미설정입니다 — /internal/jobs/*가 알려진 시크릿으로 노출됩니다."

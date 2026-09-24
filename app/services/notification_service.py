@@ -4,7 +4,6 @@ from decimal import Decimal
 
 from sqlalchemy.orm import Session
 
-from app.models.notification_log import NotificationLog
 from app.services import (
     budget_service,
     coaching_engine,
@@ -13,6 +12,7 @@ from app.services import (
     goal_progress_service,
     goal_service,
     milestone_service,
+    notification_log_service,
     notification_settings_service,
     retrospective_service,
     transaction_report_service,
@@ -23,38 +23,6 @@ from app.utils.dates import today_kst, week_bounds, year_month_str
 logger = logging.getLogger(__name__)
 
 
-def _already_sent(db: Session, notif_type: str, period_key: str, related_id: int | None = None) -> bool:
-    return (
-        db.query(NotificationLog)
-        .filter(
-            NotificationLog.notif_type == notif_type,
-            NotificationLog.year_month == period_key,
-            NotificationLog.related_id == related_id,
-        )
-        .first()
-        is not None
-    )
-
-
-def _log_sent(
-    db: Session,
-    notif_type: str,
-    period_key: str,
-    related_id: int | None = None,
-    related_type: str | None = None,
-    detail: str = "",
-):
-    db.add(
-        NotificationLog(
-            notif_type=notif_type,
-            related_type=related_type or ("category" if related_id else None),
-            related_id=related_id,
-            year_month=period_key,
-            status="sent",
-            detail=detail[:500],
-        )
-    )
-    db.commit()
 
 
 def _format_summary(title: str, start: date, end: date, totals: dict, breakdown: list[dict]) -> str:
@@ -118,7 +86,7 @@ def send_weekly_summary(db: Session, today: date | None = None, force: bool = Fa
     period_key = start.isoformat()
     if not force and not notification_settings_service.is_enabled(db, "email_weekly"):
         return False
-    if not force and _already_sent(db, "email_weekly", period_key):
+    if not force and notification_log_service.already_sent(db, "email_weekly", period_key):
         return False
     totals = transaction_report_service.period_totals(db, start, end)
     breakdown = transaction_report_service.category_breakdown(db, start, end, "expense")
@@ -134,7 +102,7 @@ def send_weekly_summary(db: Session, today: date | None = None, force: bool = Fa
         gmail_service.send_email(
             f"[Nestlio] 주간 요약 ({start} ~ {end})", body, to=notification_settings_service.get_recipients(db), html_body=html
         )
-    _log_sent(db, "email_weekly", period_key, detail=body[:500])
+    notification_log_service.log_sent(db, "email_weekly", period_key, detail=body[:500])
     return True
 
 
@@ -144,7 +112,7 @@ def send_monthly_summary(db: Session, today: date | None = None, force: bool = F
     start, end, period_key = r["start"], r["end"], r["year_month"]
     if not force and not notification_settings_service.is_enabled(db, "email_monthly"):
         return False
-    if not force and _already_sent(db, "email_monthly", period_key):
+    if not force and notification_log_service.already_sent(db, "email_monthly", period_key):
         return False
     totals, breakdown, owner_totals, insights = r["totals"], r["breakdown"], r["owner_totals"], r["insights"]
     streak = _savings_streak(db, end)
@@ -162,7 +130,7 @@ def send_monthly_summary(db: Session, today: date | None = None, force: bool = F
         gmail_service.send_email(
             f"[Nestlio] {period_key} 월간 요약", body, to=notification_settings_service.get_recipients(db), html_body=html
         )
-    _log_sent(db, "email_monthly", period_key, detail=body[:500])
+    notification_log_service.log_sent(db, "email_monthly", period_key, detail=body[:500])
     return True
 
 
@@ -175,7 +143,7 @@ def _send_threshold_alert(db: Session, row: dict, year_month: str) -> bool:
     if not notification_settings_service.is_enabled(db, "threshold_alert"):
         return False
     period_key = f"{year_month}:{row['status']}"
-    if _already_sent(db, "threshold_alert", period_key, related_id=category_id):
+    if notification_log_service.already_sent(db, "threshold_alert", period_key, related_id=category_id):
         return False
     level = "위험" if row["status"] == "critical" else "주의"
     body = (
@@ -187,18 +155,26 @@ def _send_threshold_alert(db: Session, row: dict, year_month: str) -> bool:
         gmail_service.send_email(
             f"[Nestlio] 예산 {level} - {row['name']}", body, to=notification_settings_service.get_recipients(db)
         )
-    _log_sent(db, "threshold_alert", period_key, related_id=category_id, detail=body[:200])
+    notification_log_service.log_sent(db, "threshold_alert", period_key, related_id=category_id, detail=body[:200])
     return True
 
 
 def check_and_alert_budget_threshold(db: Session, category_id: int, year_month: str | None = None) -> bool:
-    """Send an alert if this category just crossed the warn/critical budget threshold this month."""
-    year_month = year_month or year_month_str(today_kst())
-    rows = budget_service.budget_vs_actual(db, year_month, with_suggested=False)
-    row = next((r for r in rows if r["category_id"] == category_id), None)
-    if row is None:
-        return False
-    return _send_threshold_alert(db, row, year_month)
+    """Send an alert if this category just crossed the warn/critical budget threshold this month.
+
+    거래 저장 직후 라우터가 호출하는 부가 작업이라, 실패하면 세션을 롤백한 뒤 다시 던진다 —
+    라우터는 예외를 로그만 남기고 같은 세션으로 응답을 만들기 때문에 오염된 세션이 남으면
+    이미 저장된 거래까지 500으로 응답된다."""
+    try:
+        year_month = year_month or year_month_str(today_kst())
+        rows = budget_service.budget_vs_actual(db, year_month, with_suggested=False)
+        row = next((r for r in rows if r["category_id"] == category_id), None)
+        if row is None:
+            return False
+        return _send_threshold_alert(db, row, year_month)
+    except Exception:
+        db.rollback()
+        raise
 
 
 def _celebrate_goal_milestone(db: Session, goal, today: date | None = None) -> bool:
@@ -249,7 +225,13 @@ def _celebrate_goal_milestone(db: Session, goal, today: date | None = None) -> b
 
 
 def check_and_celebrate_goal_milestone(db: Session, goal_id: int, today: date | None = None) -> bool:
-    return _celebrate_goal_milestone(db, goal_service.get_goal(db, goal_id), today)
+    """목표 저장 직후 라우터가 호출한다. 실패 시 롤백 후 다시 던지는 이유는
+    check_and_alert_budget_threshold와 같다."""
+    try:
+        return _celebrate_goal_milestone(db, goal_service.get_goal(db, goal_id), today)
+    except Exception:
+        db.rollback()
+        raise
 
 
 def check_all_goal_milestones(db: Session, today: date | None = None) -> int:
@@ -259,7 +241,7 @@ def check_all_goal_milestones(db: Session, today: date | None = None) -> int:
             if _celebrate_goal_milestone(db, goal, today):
                 sent += 1
         except Exception:
-            # 한 목표의 실패가 세션을 오염시켜 이후 _log_sent 커밋이 연쇄 실패하지 않도록 롤백.
+            # 한 목표의 실패가 세션을 오염시켜 이후 log_sent 커밋이 연쇄 실패하지 않도록 롤백.
             db.rollback()
             logger.exception("goal_milestone_alert_failed goal_id=%s", goal.id)
     return sent

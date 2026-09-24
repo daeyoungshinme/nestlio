@@ -30,6 +30,7 @@ import type {
   LoanOut,
   SavingsProductOut,
 } from "@/types";
+import { formErrorTextClass } from "@/utils/colors";
 
 const GOAL_KIND_TABS = ["장기 목표", "챌린지"] as const;
 type GoalKindTab = (typeof GOAL_KIND_TABS)[number];
@@ -274,6 +275,7 @@ export default function GoalFormModal({
           <FormInput
             label="순위"
             type="number"
+            inputMode="numeric"
             value={draft.priority}
             onChange={(e) => setDraft((d) => ({ ...d, priority: e.target.value }))}
             className="w-full"
@@ -297,6 +299,7 @@ export default function GoalFormModal({
           <FormInput
             label="필요한 나이 (목표일 대신 나이로 정할 때)"
             type="number"
+            inputMode="numeric"
             value={draft.target_age}
             onChange={(e) => setDraft((d) => ({ ...d, target_age: e.target.value }))}
             className="w-full"
@@ -395,6 +398,7 @@ export default function GoalFormModal({
               <FormInput
                 label="현재 나이"
                 type="number"
+                inputMode="numeric"
                 value={currentAge}
                 onChange={(e) => setCurrentAge(e.target.value)}
                 className="w-24"
@@ -412,7 +416,7 @@ export default function GoalFormModal({
             </Button>
           )}
           {monthsRemaining !== null && monthsRemaining <= 0 && (
-            <p className="text-xs text-red-500">목표일(또는 필요한 나이)이 지금보다 이후여야 계산할 수 있어요.</p>
+            <p className={`text-xs ${formErrorTextClass()}`}>목표일(또는 필요한 나이)이 지금보다 이후여야 계산할 수 있어요.</p>
           )}
           <p className="text-xs text-gray-400 dark:text-gray-500">
             (필요금액 - 현재 저축액) ÷ 남은 개월 수로 월 저축금액을 제안해요. 저장되지 않고 계산에만 쓰여요.

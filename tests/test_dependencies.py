@@ -146,3 +146,13 @@ def test_household_reopens_after_removal(unauth_client, monkeypatch, seeded_db):
     resp = unauth_client.get("/api/v1/users/me", headers={"Authorization": "Bearer good"})
     assert resp.status_code == 200
     assert resp.json()["id"] == str(new_id)
+
+
+def test_valid_token_with_non_uuid_sub_returns_401(unauth_client, monkeypatch, seeded_db):
+    """서명은 유효하지만 sub가 UUID 형식이 아니면 500이 아니라 401이어야 한다."""
+    monkeypatch.setattr(
+        "app.dependencies.verify_supabase_token",
+        lambda token: {"sub": "not-a-uuid", "email": "x@example.com"},
+    )
+    resp = unauth_client.get("/api/v1/users/me", headers={"Authorization": "Bearer good"})
+    assert resp.status_code == 401

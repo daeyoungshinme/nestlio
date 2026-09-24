@@ -12,7 +12,7 @@ import OwnerSelect from "@/components/common/OwnerSelect";
 import QueryBoundary from "@/components/common/QueryBoundary";
 import InlineStatsBar from "@/components/common/InlineStatsBar";
 import { createLoan, deactivateLoan, updateLoan } from "@/api/loans";
-import { QUERY_KEYS } from "@/constants/queryKeys";
+import { ASSET_RELATED_KEYS } from "@/constants/queryKeys";
 import { INPUT_SM, LABEL_SM } from "@/constants/inputStyles";
 import { useCrudMutations } from "@/hooks/useCrudMutations";
 import { useLoans } from "@/hooks/useReferenceData";
@@ -87,7 +87,7 @@ export default function LoansSection({ users }: Props) {
   const loansQuery = useLoans();
 
   const { createMutation, updateMutation, removeMutation: deactivateMutation } = useCrudMutations({
-    invalidateKeys: [QUERY_KEYS.loans],
+    invalidateKeys: ASSET_RELATED_KEYS,
     api: { create: createLoan, update: updateLoan, remove: deactivateLoan },
     messages: { create: "대출을 추가했습니다.", update: "저장했습니다.", remove: "비활성화했습니다." },
     onCreateSuccess: () => setFormTarget(null),
@@ -275,6 +275,7 @@ function LoanFormModal({
           <FormInput
             label="대출기간(개월)"
             type="number"
+            inputMode="numeric"
             value={draft.term_months}
             onChange={(e) => setDraft((d) => ({ ...d, term_months: e.target.value }))}
             className="w-full"

@@ -70,3 +70,21 @@ def test_sync_linked_rows_applies_matches_and_collects_failures(db_session):
     assert failed == [
         {"id": unmatched.id, "name": "gone-from-growlio", "reason": growlio_client.SYNC_MATCH_FAILED_REASON}
     ]
+
+
+def test_request_wraps_non_json_body_as_growlio_request_error(monkeypatch):
+    """200이어도 본문이 JSON이 아니면(프록시 HTML 에러 페이지 등) 호출부가 잡는
+    GrowlioRequestError로 변환돼야 한다 — ValueError가 새면 대시보드가 500을 낸다."""
+    import httpx
+
+    monkeypatch.setattr(growlio_client.settings, "growlio_api_base_url", "https://growlio.example.com")
+    monkeypatch.setattr(
+        growlio_client.httpx,
+        "request",
+        lambda *a, **k: httpx.Response(
+            200, text="<html>waking up</html>", request=httpx.Request("GET", "https://growlio.example.com")
+        ),
+    )
+
+    with pytest.raises(growlio_client.GrowlioRequestError):
+        growlio_client.fetch_account_balances("token")

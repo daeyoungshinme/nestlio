@@ -15,6 +15,7 @@ import ScheduleDayCell from "@/components/schedule/ScheduleDayCell";
 import ScheduleEventList from "@/components/schedule/ScheduleEventList";
 import ScheduleMonthList from "@/components/schedule/ScheduleMonthList";
 import { completeEvent, createEvent, deleteEvent, fetchEvents, importGoogleEvents, updateEvent } from "@/api/events";
+import { useCrudMutations } from "@/hooks/useCrudMutations";
 import { useSettings, useUsers } from "@/hooks/useReferenceData";
 import { QUERY_KEYS } from "@/constants/queryKeys";
 import { STALE_TIME } from "@/constants/queryConfig";
@@ -70,25 +71,13 @@ export default function SchedulePage() {
 
   const invalidateEvents = () => queryClient.invalidateQueries({ queryKey: QUERY_KEYS.eventsAll });
 
-  const createMutation = useMutation({
-    mutationFn: createEvent,
-    onSuccess: () => {
-      invalidateEvents();
-      setFormTarget(null);
-      toast("일정을 등록했습니다.", "success");
-    },
-    onError: (err) => toast(extractErrorMessage(err), "error"),
-  });
-
-  const updateMutation = useMutation({
-    mutationFn: ({ id, payload }: { id: number; payload: Parameters<typeof updateEvent>[1] }) =>
-      updateEvent(id, payload),
-    onSuccess: () => {
-      invalidateEvents();
-      setFormTarget(null);
-      toast("일정을 수정했습니다.", "success");
-    },
-    onError: (err) => toast(extractErrorMessage(err), "error"),
+  // 삭제는 source별로 다른 토스트 문구가 필요해 아래에서 따로 정의한다.
+  const { createMutation, updateMutation } = useCrudMutations({
+    invalidateKeys: [QUERY_KEYS.eventsAll],
+    api: { create: createEvent, update: updateEvent },
+    messages: { create: "일정을 등록했습니다.", update: "일정을 수정했습니다." },
+    onCreateSuccess: () => setFormTarget(null),
+    onUpdateSuccess: () => setFormTarget(null),
   });
 
   const deleteMutation = useMutation({
