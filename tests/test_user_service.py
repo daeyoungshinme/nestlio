@@ -42,3 +42,20 @@ def test_remove_user_rejects_self_removal(seeded_db):
         user_service.remove_user(db, target=user, requested_by=user, now=NOW)
 
     assert user.removed_at is None
+
+
+def test_mirror_supabase_user_returns_winner_on_concurrent_first_login(db_session):
+    """첫 로그인 직후 병렬 요청이 동시에 INSERT하면 늦은 쪽은 PK 충돌 — 500 대신 먼저 생긴 행을 돌려준다."""
+    import uuid
+
+    from sqlalchemy.orm import sessionmaker
+
+    user_id = uuid.uuid4()
+    other_request = sessionmaker(bind=db_session.get_bind())()
+    user_service.mirror_supabase_user(other_request, user_id, "first@example.com")
+    other_request.close()
+
+    user = user_service.mirror_supabase_user(db_session, user_id, "first@example.com")
+
+    assert user.id == user_id
+    assert db_session.query(User).count() == 1

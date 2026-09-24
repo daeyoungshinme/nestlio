@@ -1,8 +1,11 @@
+import logging
 import time
 
 import httpx
 
 from app.config import settings
+
+logger = logging.getLogger(__name__)
 
 ALLOWED_CONTENT_TYPES = {"image/jpeg", "image/png", "image/webp"}
 OBJECT_KEY = "couple-photo"
@@ -74,6 +77,16 @@ def get_photo_url() -> str | None:
     if resp.status_code >= 400:
         raise PhotoStorageError(f"사진 조회에 실패했습니다: {resp.status_code} {resp.text}")
     return f"/media/{OBJECT_KEY}?t={int(time.time())}"
+
+
+def photo_url_for_display() -> str | None:
+    """설정/대시보드 응답에 싣는 용도의 get_photo_url — 스토리지 장애(네트워크·5xx)는 로그만 남기고
+    "사진 없음"으로 취급한다. 사진 하나 때문에 설정 화면·대시보드 전체가 500이 되면 안 된다."""
+    try:
+        return get_photo_url()
+    except PhotoStorageError:
+        logger.warning("couple_photo_lookup_failed", exc_info=True)
+        return None
 
 
 def get_photo_bytes() -> tuple[bytes, str] | None:

@@ -114,6 +114,28 @@ def test_threshold_alert_logs_even_when_google_not_connected(mock_send, mock_con
     assert log["notif_type"] == "threshold_alert"
 
 
+@patch("app.services.notification_service.is_connected", return_value=False)
+@patch("app.services.notification_service.gmail_service.send_email")
+def test_threshold_alert_uses_household_thresholds(mock_send, mock_connected, seeded_db):
+    """알림은 계획 화면과 같은 가구 임계값으로 판정한다 — env 기본값(90%)을 쓰면 화면은 "정상"인데
+    "주의" 메일이 오거나 그 반대가 된다."""
+    from app.services import coaching_settings_service, transaction_service
+
+    db, user, food = seeded_db["db"], seeded_db["user"], seeded_db["food"]
+    ym = "2026-07"
+    cashflow_plan_service.upsert_item(
+        db, None, food.type, None, food.name, Decimal("100000"), 0, ym, user.id, category_id=food.id
+    )
+    transaction_service.create_transaction(db, user.id, food.id, "expense", Decimal("95000"), date(2026, 7, 10))
+    coaching_settings_service.set_thresholds(db, {"budget_warn_pct": 97.0}, user.id)
+
+    assert notification_service.check_and_alert_budget_threshold(db, food.id, ym) is False
+    assert notification_service.check_all_categories_threshold(db, ym) == 0
+
+    coaching_settings_service.set_thresholds(db, {"budget_warn_pct": 80.0}, user.id)
+    assert notification_service.check_and_alert_budget_threshold(db, food.id, ym) is True
+
+
 @patch("app.services.notification_service.is_connected", return_value=True)
 @patch("app.services.notification_service.gmail_service.send_email")
 def test_goal_milestone_fires_once_per_milestone(mock_send, mock_connected, seeded_db):

@@ -41,4 +41,4 @@ def send_email(
             raise GmailSendError(
                 "Gmail API가 비활성화되어 있습니다. Google Cloud Console에서 Gmail API를 활성화한 뒤 다시 시도해주세요."
             ) from exc
-        raise
+        raise GmailSendError(f"Gmail 발송에 실패했습니다 (HTTP {exc.status_code}). 잠시 후 다시 시도해주세요.") from exc

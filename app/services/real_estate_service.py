@@ -16,13 +16,15 @@ def list_growlio_real_estate(bearer_token: str) -> list[dict]:
     return growlio_client.fetch_real_estate_items(bearer_token)
 
 
-def _update_linked_loan_balance(db: Session, growlio_account_id: str, mortgage_balance_krw, now: datetime) -> Loan | None:
+def _update_linked_loan_balance(
+    db: Session, growlio_account_id: str, mortgage_balance_krw, now: datetime, *, auto_sync_only: bool = False
+) -> Loan | None:
     """이미 연동된 담보대출이 있으면 잔액/동기화시각만 갱신한다(없으면 새로 만들지 않는다).
     동기화 경로(sync_from_growlio / sync_all_from_growlio)는 "가져온 적 없는 대출을 새로 만들지
     않는다"는 규칙이라 이 update-only 헬퍼를 공유한다. mortgage_balance_krw는 growlio 응답의
     raw 값(growlio는 내부적으로 float)이라 여기서 Decimal로 감싸지 않고 넘겨받는다."""
     loan = db.query(Loan).filter(Loan.growlio_account_id == growlio_account_id).one_or_none()
-    if loan is not None:
+    if loan is not None and not (auto_sync_only and not loan.auto_sync_enabled):
         loan.balance = growlio_client.to_decimal_krw(mortgage_balance_krw)
         loan.last_synced_at = now
     return loan
@@ -138,21 +140,34 @@ def sync_from_growlio(
     return product, loan
 
 
-def sync_all_from_growlio(db: Session, bearer_token: str, *, now: datetime) -> tuple[int, list[dict]]:
+def sync_all_from_growlio(
+    db: Session,
+    bearer_token: str,
+    *,
+    now: datetime,
+    auto_sync_only: bool = False,
+    owner_user_id: uuid.UUID | None = None,
+) -> tuple[int, list[dict]]:
     """연동된 부동산 자산을 모두 한 번에 짝이 되는 대출과 함께 동기화한다 (자산현황 "전체 동기화").
 
     growlio 목록은 1회만 조회해 여러 상품에 매칭한다. 배우자 소유 등으로 매칭이 안 되는 상품은
-    예외를 던지지 않고 failed 목록에 담아 나머지 동기화를 계속 진행한다.
+    예외를 던지지 않고 failed 목록에 담아 나머지 동기화를 계속 진행한다. `auto_sync_only`/
+    `owner_user_id`는 savings_product_growlio_service.sync_all_from_growlio와 같고, `auto_sync_only`면
+    짝 대출도 자기 auto_sync_enabled가 켜져 있을 때만 갱신한다.
     """
-    linked_products = (
-        db.query(SavingsProduct)
-        .filter(
-            SavingsProduct.product_type == "real_estate",
-            SavingsProduct.growlio_account_id.isnot(None),
-            SavingsProduct.is_active.is_(True),
+    linked_products = [
+        p
+        for p in (
+            db.query(SavingsProduct)
+            .filter(
+                SavingsProduct.product_type == "real_estate",
+                SavingsProduct.growlio_account_id.isnot(None),
+                SavingsProduct.is_active.is_(True),
+            )
+            .all()
         )
-        .all()
-    )
+        if growlio_client.is_background_sync_target(p, auto_sync_only=auto_sync_only, owner_user_id=owner_user_id)
+    ]
     if not linked_products:
         return 0, []
     items = growlio_client.fetch_real_estate_items(bearer_token)
@@ -161,7 +176,9 @@ def sync_all_from_growlio(db: Session, bearer_token: str, *, now: datetime) -> t
         product.current_balance = growlio_client.to_decimal_krw(match["market_value_krw"])
         if match.get("purchase_price_krw"):
             product.principal_amount = growlio_client.to_decimal_krw(match["purchase_price_krw"])
-        _update_linked_loan_balance(db, product.growlio_account_id, match.get("mortgage_balance_krw") or 0, now)
+        _update_linked_loan_balance(
+            db, product.growlio_account_id, match.get("mortgage_balance_krw") or 0, now, auto_sync_only=auto_sync_only
+        )
 
     synced_count, failed = growlio_client.sync_linked_rows(linked_products, items, now=now, apply=_apply)
     db.commit()

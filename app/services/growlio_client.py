@@ -165,6 +165,15 @@ def sync_linked_rows(
     return synced_count, failed
 
 
+def is_background_sync_target(row, *, auto_sync_only: bool, owner_user_id) -> bool:
+    """sync_all_*의 선택 필터. `auto_sync_only`면 auto_sync_enabled 행만, `owner_user_id`가 주어지면
+    그 사용자 소유이거나 공동(NULL) 소유인 행만 남긴다 — growlio는 호출자 JWT 기준 계좌만 돌려주므로
+    배우자 소유 행은 매칭될 수 없다. 둘 다 기본값이면 전부 통과(수동 "전체 동기화")."""
+    if auto_sync_only and not row.auto_sync_enabled:
+        return False
+    return owner_user_id is None or row.owner_user_id in (None, owner_user_id)
+
+
 def already_linked_growlio_ids(db: Session, model, *, active_only: bool = True) -> set[str]:
     """model.growlio_account_id가 채워진 로우들의 growlio_account_id 집합.
 

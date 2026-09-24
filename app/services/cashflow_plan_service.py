@@ -138,11 +138,14 @@ def link_recurring(db: Session, item_id: int, recurring_expense_id: int) -> Cash
     return item
 
 
-def delete_item(db: Session, id: int) -> None:
+def delete_item(db: Session, id: int) -> bool:
+    """삭제했으면 True, 없는 항목이면 False(라우터가 404로 바꾼다)."""
     item = db.get(CashflowPlanItem, id)
-    if item is not None:
-        db.delete(item)
-        db.commit()
+    if item is None:
+        return False
+    db.delete(item)
+    db.commit()
+    return True
 
 
 def _item_key(item: CashflowPlanItem) -> tuple:

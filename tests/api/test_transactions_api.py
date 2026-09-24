@@ -188,6 +188,16 @@ def test_import_csv(client):
     assert resp.json()["skipped"] == []
 
 
+def test_import_csv_undecodable_file_returns_400(client):
+    # UTF-8도 CP949도 아닌 바이트(0xFF 0xFF는 CP949 선행바이트로도 무효) → 500이 아니라 안내 400
+    resp = client.post(
+        "/api/v1/transactions/import",
+        files={"file": ("import.csv", b"\xff\xff\xff", "text/csv")},
+    )
+    assert resp.status_code == 400
+    assert "인코딩" in resp.json()["detail"]
+
+
 def test_import_sheet_public_mode(client):
     csv_text = "날짜,구분,카테고리,금액,메모\n2026-07-05,지출,식비,10000,점심\n"
     with patch("app.services.google_sheets_service.read_public_csv", return_value=csv_text):

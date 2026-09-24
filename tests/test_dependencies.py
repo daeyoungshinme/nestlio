@@ -156,3 +156,16 @@ def test_valid_token_with_non_uuid_sub_returns_401(unauth_client, monkeypatch, s
     )
     resp = unauth_client.get("/api/v1/users/me", headers={"Authorization": "Bearer good"})
     assert resp.status_code == 401
+
+
+def test_jwks_outage_returns_503_not_401(unauth_client, monkeypatch):
+    """Supabase JWKS에 못 붙는 건 토큰 문제가 아니다 — 401이면 프론트가 세션 갱신 후 로그아웃까지 간다."""
+    import jwt
+
+    class _UnreachableJwks:
+        def get_signing_key_from_jwt(self, token):
+            raise jwt.PyJWKClientConnectionError("connection refused")
+
+    monkeypatch.setattr("app.dependencies._get_jwks_client", lambda: _UnreachableJwks())
+    resp = unauth_client.get("/api/v1/users/me", headers={"Authorization": "Bearer some-token"})
+    assert resp.status_code == 503

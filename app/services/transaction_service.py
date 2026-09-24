@@ -120,6 +120,16 @@ def update_transaction(db: Session, tx_id: int, bearer_token: str | None = None,
     db.commit()
     db.refresh(tx)
 
+    # 라우터는 수정 폼의 모든 필드를 보내므로, 메모만 고쳐도 아래 -old/+new 잔액조정과 growlio
+    # 출금+입금 한 쌍이 나간다(growlio 원장에 의미 없는 내역이 쌓이고, 반쪽 실패 시 잔액이 어긋남).
+    # 저축 연동에 영향을 주는 값이 그대로면 건너뛴다.
+    if (tx.savings_product_id, tx.amount, tx.transaction_date) == (
+        old_savings_product_id,
+        old_amount,
+        old_transaction_date,
+    ):
+        return tx
+
     if old_savings_product_id is not None:
         savings_product_service.adjust_balance(db, old_savings_product_id, -old_amount)
     if new_savings_product_id is not None:

@@ -38,6 +38,7 @@
 - DB 쓰기는 전혀 없다. 대부분의 함수는 순수 계산 함수로, 입력은 이미 조회된 집계값들이고 출력은 `Insight` dataclass다 — 이 함수들은 파라미터화 테스트로 경계값을 촘촘히 검증한다(`tests/test_coaching_engine.py`).
 - 다만 `emergency_fund_context`/`compute_surplus_allocation`/`compute_insights` 3개는 예외로, `db: Session`을 받아 직접 조회(`savings_product_service.get_emergency_fund_balance`, `transaction_report_service.monthly_trend` 등)까지 겸하는 "DB-aware 래퍼"다 — 호출부(`app/routers/dashboard.py`)가 매번 재조회하지 않도록 조회와 순수 계산을 한데 묶어놓은 것이며, 새 순수 계산 함수를 추가할 때 이 3개까지 순수 함수로 착각하지 않는다.
 - 임계값(경고/위험 기준)은 하드코딩하지 않고 `app/config.py`의 `settings`에서 가져온다.
+- 예산 경고/위험 %는 가구가 설정 화면에서 바꿀 수 있으므로 예산 상태를 계산하는 곳(계획 화면 라우터, 예산 알림 메일)은 `coaching_settings_service.budget_thresholds(db)`로 꺼내 `budget_vs_actual` 등에 넘긴다 — 인자를 생략하면 env 기본값이 쓰여 화면과 알림 판정이 어긋난다.
 - 새 룰 추가 시 순수 계산 함수는 동일하게 파라미터화 테스트로 경계값을 검증한다.
 
 ## transaction_service.py / transaction_report_service.py / transaction_import_service.py
@@ -99,7 +100,7 @@
 
 **전체 동기화(`sync_all_*`) 패턴**: `account_service.sync_all_accounts`/`savings_product_growlio_service.sync_all_from_growlio`/`real_estate_service.sync_all_from_growlio`가 공유하는 규칙 — growlio 목록은 (건별 `sync_account`/`sync_from_growlio`처럼 매번 재호출하지 않고) **1회만 조회**해 연동된 항목 전체에 매칭한다. 배우자 소유 등으로 매칭에 실패한 항목은 예외를 던져 전체를 중단시키지 않고 `{id, name, reason}` 형태로 `failed` 리스트에 담아 나머지 항목 동기화를 계속 진행하며, 반환 타입은 `tuple[동기화된_개수: int, failed: list[dict]]`로 통일한다. 새로운 growlio 연동 리소스 타입에 "전체 동기화"를 추가할 때도 이 시그니처와 부분 실패 처리 방식을 따른다.
 
-**기회주의적 갱신(`net_worth_service.refresh_stale_growlio_links`)**: `auto_sync_enabled`인데 `last_synced_at`이 `STALE_GROWLIO_LINK_AFTER`(12h)보다 오래된 SavingsProduct/Loan 연동이 있으면, `GET /net-worth`(대시보드·자산 화면이 공유) 응답 후 FastAPI `BackgroundTasks`로 위 `sync_all_*` 3종을 조용히 실행한다. 스케줄러에는 사용자 Supabase JWT가 없어(app/scheduler/CLAUDE.md) 예약 작업으로는 growlio 잔액 동기화를 못 하기 때문에 택한 방식이다. fire-and-forget이라 절대 raise하지 않고(요청 스코프 세션이 응답 후 닫히므로 자체 `SessionLocal()`을 연다), growlio 미설정/접속 실패면 조용히 중단한다.
+**기회주의적 갱신(`net_worth_service.refresh_stale_growlio_links`)**: `auto_sync_enabled`인데 `last_synced_at`이 `STALE_GROWLIO_LINK_AFTER`(12h)보다 오래된 SavingsProduct/Loan 연동(호출자 소유 또는 공동 소유만 — 배우자 항목은 호출자 JWT로 매칭되지 않아 영원히 stale로 남으므로 제외)이 있으면, `GET /net-worth`·`GET /dashboard/bootstrap` 응답 후 FastAPI `BackgroundTasks`로 저축/투자·부동산 `sync_all_from_growlio`를 `auto_sync_only=True, owner_user_id=<호출자>`로 조용히 실행한다. 자동 동기화를 끈 항목(짝 대출 포함)의 직접 입력 잔액은 덮어쓰지 않고, **은행 계좌(`sync_all_accounts`)는 돌리지 않는다** — 계좌 동기화는 `initial_balance`를 역산 재기준하므로 사용자가 누르는 수동 동기화 전용이다(`models/account.py` 주석). 스케줄러에는 사용자 Supabase JWT가 없어(app/scheduler/CLAUDE.md) 예약 작업으로는 growlio 잔액 동기화를 못 하기 때문에 택한 방식이다. fire-and-forget이라 절대 raise하지 않고(요청 스코프 세션이 응답 후 닫히므로 자체 `SessionLocal()`을 연다), growlio 미설정/접속 실패면 조용히 중단한다.
 
 ## 연간계획류 공용 헬퍼 (plan_targets.py)
 

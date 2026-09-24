@@ -18,7 +18,7 @@ from app.services import (
     notification_settings_service,
 )
 from app.services.gmail_service import GmailSendError
-from app.services.google_auth import is_connected
+from app.services.google_auth import GoogleAuthError, is_connected
 
 router = APIRouter(prefix="/settings", tags=["settings"])
 
@@ -29,7 +29,7 @@ def _settings_out(db: Session) -> dict:
         "notify_emails": notification_settings_service.get_recipients(db),
         "coaching_thresholds": coaching_settings_service.get_thresholds(db),
         "notification_prefs": notification_settings_service.get_prefs(db),
-        "couple_photo_url": couple_photo_service.get_photo_url(),
+        "couple_photo_url": couple_photo_service.photo_url_for_display(),
     }
 
 
@@ -69,12 +69,14 @@ def set_notification_prefs(
 
 
 @router.post("/couple-photo", response_model=SettingsOut)
-async def upload_couple_photo(
+def upload_couple_photo(
     db: Session = Depends(get_db),
     file: UploadFile = File(...),
     _: User = Depends(get_current_user),
 ):
-    raw = await file.read()
+    # async def가 아니라 def — 스토리지 업로드(httpx 동기, 최대 30초)와 DB 조회가 블로킹이라
+    # 이벤트 루프에서 돌면 단일 프로세스(Render) 전체 요청이 그동안 멈춘다. def는 스레드풀에서 돈다.
+    raw = file.file.read()
     try:
         couple_photo_service.save_photo(raw, file.content_type)
     except couple_photo_service.InvalidPhotoError as exc:
@@ -106,6 +108,9 @@ def _run_test_email(db: Session, *, setting_key: str, label: str, send) -> dict:
         sent = send(db, force=True)
     except GmailSendError as exc:
         raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc)) from None
+    except GoogleAuthError as exc:
+        # 토큰 만료·revoke — 재연결 안내 문구를 그대로 보여준다(500이면 원인을 알 수 없다).
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from None
     return {"sent": sent, "message": f"{label} 요약 이메일을 발송했습니다." if sent else "발송하지 못했습니다."}
 
 

@@ -17,12 +17,12 @@ def get_net_worth(
     months: int = Query(default=12, ge=1, le=60),
     db: Session = Depends(get_db),
     bearer_token: str = Depends(get_bearer_token),
-    _: User = Depends(get_current_user),
+    user: User = Depends(get_current_user),
 ):
     # 대시보드·자산 화면이 공유하는 이 엔드포인트를 후크로, auto_sync_enabled인데 오래된 growlio
     # 연동 잔액을 응답 후 백그라운드로 조용히 새로고침한다(스케줄러엔 사용자 JWT가 없어서).
     background_tasks.add_task(
-        net_worth_service.refresh_stale_growlio_links, bearer_token, now=now_kst()
+        net_worth_service.refresh_stale_growlio_links, bearer_token, user.id, now=now_kst()
     )
     return {
         "current": net_worth_service.compute_current(db),

@@ -28,7 +28,7 @@ from app.services import (
 )
 from app.services.google_auth import GoogleNotConnectedError
 from app.services.google_sheets_service import GoogleSheetsReadError
-from app.utils.dates import month_bounds, today_kst
+from app.utils.dates import month_bounds, today_kst, year_month_str
 
 router = APIRouter(prefix="/transactions", tags=["transactions"])
 logger = logging.getLogger("transactions")
@@ -84,7 +84,10 @@ def create_transaction(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
     if payload.type == "expense":
         try:
-            notification_service.check_and_alert_budget_threshold(db, payload.category_id)
+            # 과거 날짜로 입력한 지출이면 그 달 예산을 본다(이번 달 기준이면 엉뚱한 달을 검사한다).
+            notification_service.check_and_alert_budget_threshold(
+                db, payload.category_id, year_month_str(payload.transaction_date)
+            )
         except Exception:
             logger.exception("예산 초과 알림 발송 실패 (거래는 정상 저장됨)")
     if tx.growlio_sync_failed:
@@ -142,16 +145,22 @@ def export_csv(
 
 
 @router.post("/import", response_model=ImportResultOut)
-async def import_csv(
+def import_csv(
     file: UploadFile = File(...),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    raw = await file.read()
+    # async def가 아니라 def — 가져오기 전체가 동기 DB 작업이라 이벤트 루프를 막지 않게 스레드풀에서 돈다.
+    raw = file.file.read()
     try:
         text = raw.decode("utf-8-sig")
     except UnicodeDecodeError:
-        text = raw.decode("cp949")
+        try:
+            text = raw.decode("cp949")
+        except UnicodeDecodeError:
+            raise HTTPException(
+                status.HTTP_400_BAD_REQUEST, "CSV 파일 인코딩을 읽을 수 없습니다. UTF-8 또는 CP949로 저장해 주세요."
+            ) from None
     return transaction_import_service.import_csv(db, text, current_user.id)
 
 
