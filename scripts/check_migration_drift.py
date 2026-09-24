@@ -10,8 +10,6 @@
   3. 하나라도 `op.*` 작업이 나오면 non-zero exit + 그 작업 목록 출력
 
 SQLite로는 대체할 수 없다 — 모델·마이그레이션이 `household` 스키마와 raw SQL을 쓴다.
-`scripts/verify_migration_squash.py`(스쿼시 검증 일회성 도구)의 "모델 드리프트" 단계와
-같은 로직이지만, 아카이브 체인 재생·왕복 검증 없이 이것만 빠르게 돈다.
 
     pip install pgserver   # requirements-dev.txt 에 포함
     python scripts/check_migration_drift.py
