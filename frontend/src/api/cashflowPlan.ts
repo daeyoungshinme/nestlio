@@ -17,7 +17,9 @@ export const upsertCashflowPlanItem = (payload: CashflowPlanItemUpsertIn) =>
 export const splitCashflowPlanItem = (payload: CashflowPlanItemSplitIn) =>
   apiPost<CashflowPlanSplitResultOut>("/cashflow-plan/items/split", payload);
 
-export const deleteCashflowPlanItem = (id: number) => apiDelete(`/cashflow-plan/items/${id}`);
+/** 그 달의 금액만 지운다 — 다른 달에 금액이 없으면 항목째 삭제된다. */
+export const deleteCashflowPlanItem = ({ id, yearMonth }: { id: number; yearMonth: string }) =>
+  apiDelete(`/cashflow-plan/items/${id}`, { params: { year_month: yearMonth } });
 
 export const copyPreviousMonthCashflowPlan = (yearMonth: string) =>
   apiPost<CashflowPlanCopyResultOut>("/cashflow-plan/copy-previous-month", { year_month: yearMonth });

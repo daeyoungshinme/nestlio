@@ -35,17 +35,27 @@ def test_upsert_item_creates_then_updates(seeded_db):
         db, None, "income", user.id, "근로/사업소득", Decimal("5000000"), 0, ym, user.id
     )
     assert created.id is not None
-    assert created.amount == Decimal("5000000")
-    assert created.year_month == ym
+    assert created.year == 2026
+    assert (created.start_month, created.end_month) == (ym, ym)
 
     updated = cashflow_plan_service.upsert_item(
         db, created.id, "income", user.id, "근로/사업소득", Decimal("5500000"), 0, ym, user.id
     )
     assert updated.id == created.id
-    assert updated.amount == Decimal("5500000")
 
-    items = cashflow_plan_service.list_items(db, ym)
-    assert len(items) == 1
+    [item] = cashflow_plan_service.list_items(db, ym)
+    assert item.id == created.id
+    assert item.amount == Decimal("5500000")
+    assert item.year_month == ym
+    assert item.spans_multiple_months is False
+
+
+def test_upsert_item_returns_none_for_other_year_item(seeded_db):
+    db, user = seeded_db["db"], seeded_db["user"]
+    item = cashflow_plan_service.upsert_item(db, None, "fixed", None, "월세", Decimal("1"), 0, "2026-07", user.id)
+
+    assert cashflow_plan_service.upsert_item(db, item.id, "fixed", None, "월세", Decimal("1"), 0, "2027-01", user.id) is None
+    assert cashflow_plan_service.upsert_item(db, 9999, "fixed", None, "월세", Decimal("1"), 0, "2026-07", user.id) is None
 
 
 def test_list_items_filters_by_year_month(seeded_db):
@@ -57,15 +67,26 @@ def test_list_items_filters_by_year_month(seeded_db):
     assert len(cashflow_plan_service.list_items(db, "2026-08")) == 1
 
 
-def test_delete_item(seeded_db):
+def test_delete_month_keeps_other_months_then_deletes_item(seeded_db):
     db, user = seeded_db["db"], seeded_db["user"]
     item = cashflow_plan_service.upsert_item(
         db, None, "fixed", None, "보장성보험", Decimal("60000"), 0, "2026-07", user.id
     )
+    cashflow_plan_service.upsert_item(db, item.id, "fixed", None, "보장성보험", Decimal("60000"), 0, "2026-08", user.id)
 
-    cashflow_plan_service.delete_item(db, item.id)
-
+    assert cashflow_plan_service.delete_month(db, item.id, "2026-07") is True
     assert cashflow_plan_service.list_items(db, "2026-07") == []
+    [august] = cashflow_plan_service.list_items(db, "2026-08")
+    assert august.id == item.id
+    db.refresh(item)
+    assert (item.start_month, item.end_month) == ("2026-08", "2026-08")
+
+    # 이미 지운 달 / 없는 항목은 False
+    assert cashflow_plan_service.delete_month(db, item.id, "2026-07") is False
+    assert cashflow_plan_service.delete_month(db, 9999, "2026-08") is False
+
+    assert cashflow_plan_service.delete_month(db, item.id, "2026-08") is True
+    assert annual_plan_service.list_items(db, 2026) == []
 
 
 def test_copy_from_previous_month_skips_existing_section_name(seeded_db):
@@ -199,22 +220,30 @@ def test_section_summary_status_fixed_over_budget_is_critical(seeded_db):
 def test_split_item_into_months_distributes_remainder_and_dates(seeded_db):
     db, user = seeded_db["db"], seeded_db["user"]
 
-    created = cashflow_plan_service.split_item_into_months(
-        db, "irregular", None, "자동차보험료", Decimal("1000000"), "2026-07", 12, 0, user.id
+    item = cashflow_plan_service.split_item_into_months(
+        db, "irregular", None, "자동차보험료", Decimal("1000000"), "2026-07", 6, 0, user.id
     )
 
-    assert len(created) == 12
-    assert sum((i.amount for i in created), Decimal("0")) == Decimal("1000000")
-    assert [i.year_month for i in created] == [
-        "2026-07", "2026-08", "2026-09", "2026-10", "2026-11", "2026-12",
-        "2027-01", "2027-02", "2027-03", "2027-04", "2027-05", "2027-06",
-    ]
-    assert [i.installment_no for i in created] == list(range(1, 13))
-    assert all(i.installment_total == 12 for i in created)
-    assert all(i.installment_total_amount == Decimal("1000000") for i in created)
-    # 1,000,000 / 12 = 83,333.33.., remainder distributed 1원씩 to the first months
-    assert created[0].amount == Decimal("83334")
-    assert created[-1].amount == Decimal("83333")
+    assert (item.start_month, item.end_month) == ("2026-07", "2026-12")
+    assert item.installment_total == 6
+    assert item.installment_total_amount == Decimal("1000000")
+    targets = [mt.target_amount for mt in item.monthly_targets]
+    assert sum(targets, Decimal("0")) == Decimal("1000000")
+    # 1,000,000 / 6 = 166,666.66.., remainder distributed 1원씩 to the first months
+    assert targets[0] == Decimal("166667")
+    assert targets[-1] == Decimal("166666")
+
+    months = [cashflow_plan_service.list_items(db, f"2026-{m:02d}")[0] for m in range(7, 13)]
+    assert [m.installment_no for m in months] == list(range(1, 7))
+    assert all(m.installment_total == 6 for m in months)
+
+
+def test_split_item_into_months_rejects_crossing_year(seeded_db):
+    db, user = seeded_db["db"], seeded_db["user"]
+    with pytest.raises(ValueError):
+        cashflow_plan_service.split_item_into_months(
+            db, "irregular", None, "보험", Decimal("1200000"), "2026-07", 12, 0, user.id
+        )
 
 
 def test_split_item_into_months_remainder_matches_frontend(seeded_db):
@@ -224,30 +253,30 @@ def test_split_item_into_months_remainder_matches_frontend(seeded_db):
     monthRange.test.ts를 나란히 비교해 알아챌 수 있어야 한다."""
     db, user = seeded_db["db"], seeded_db["user"]
 
-    created = cashflow_plan_service.split_item_into_months(
+    item = cashflow_plan_service.split_item_into_months(
         db, "irregular", None, "테스트", Decimal("100000"), "2026-09", 3, 0, user.id
     )
 
-    assert [i.amount for i in created] == [Decimal("33334"), Decimal("33333"), Decimal("33333")]
+    assert [mt.target_amount for mt in item.monthly_targets] == [
+        Decimal("33334"), Decimal("33333"), Decimal("33333")
+    ]
 
 
 def test_split_item_then_editing_one_month_does_not_affect_others(seeded_db):
     db, user = seeded_db["db"], seeded_db["user"]
-    created = cashflow_plan_service.split_item_into_months(
-        db, "irregular", None, "재산세", Decimal("120000"), "2026-07", 12, 0, user.id
-    )
-    third = created[2]
-
-    cashflow_plan_service.upsert_item(
-        db, third.id, "irregular", None, "재산세", Decimal("999999"), 0, third.year_month, user.id
+    item = cashflow_plan_service.split_item_into_months(
+        db, "irregular", None, "재산세", Decimal("60000"), "2026-07", 6, 0, user.id
     )
 
-    others = [i for i in created if i.id != third.id]
-    for item in others:
-        db.refresh(item)
-        assert item.amount == Decimal("10000.00")
-    db.refresh(third)
-    assert third.amount == Decimal("999999")
+    cashflow_plan_service.upsert_item(db, item.id, "irregular", None, "재산세", Decimal("999999"), 0, "2026-09", user.id)
+
+    amounts = {m: cashflow_plan_service.list_items(db, m)[0].amount for m in ("2026-07", "2026-08", "2026-09", "2026-10")}
+    assert amounts == {
+        "2026-07": Decimal("10000.00"),
+        "2026-08": Decimal("10000.00"),
+        "2026-09": Decimal("999999"),
+        "2026-10": Decimal("10000.00"),
+    }
 
 
 def test_category_tagged_item_is_included_in_list_and_section_summary(seeded_db):
@@ -288,11 +317,9 @@ def test_copy_from_previous_month_dedups_category_tagged_items_by_category_not_n
 
 
 def test_section_summary_status_income_direction_is_inverted():
-    from app.models.cashflow_plan_item import CashflowPlanItem
+    from types import SimpleNamespace
 
-    item = CashflowPlanItem(
-        section="income", year_month="2026-07", name="근로소득", own_amount=Decimal("1000000"), sort_order=0
-    )
+    item = SimpleNamespace(section="income", amount=Decimal("1000000"))
 
     # over-achieving income should never be flagged
     over = cashflow_plan_service.compute_summary([item], actuals={"income": Decimal("1500000")})
@@ -402,139 +429,86 @@ def test_copy_from_previous_month_carries_recurring_link_forward(seeded_db):
     assert rent_item.recurring_expense_id == recurring.id
 
 
-def test_annual_fallback_fills_month_with_no_matching_item(seeded_db):
+def test_annual_item_appears_in_month_list_with_its_own_id(seeded_db):
     db, user, rent = seeded_db["db"], seeded_db["user"], seeded_db["rent"]
-    annual_plan_service.upsert_item(
+    annual = annual_plan_service.upsert_item(
         db, None, 2026, "fixed", None, "월세", rent.id, 0, user.id, "2026-01", "2026-12",
-        monthly_targets=[{"year_month": "2026-07", "target_amount": Decimal("800000")}],
+        monthly_targets=[
+            {"year_month": "2026-07", "target_amount": Decimal("800000")},
+            {"year_month": "2026-08", "target_amount": Decimal("800000")},
+        ],
     )
 
-    items = cashflow_plan_service.list_items_with_annual_fallback(db, "2026-07")
+    [item] = cashflow_plan_service.list_items(db, "2026-07")
 
-    assert len(items) == 1
-    fallback = items[0]
-    assert fallback.id is None
-    assert fallback.from_annual_plan is True
-    assert fallback.amount == Decimal("800000")
-    assert fallback.category_id == rent.id
+    assert item.id == annual.id
+    assert item.amount == Decimal("800000")
+    assert item.category_id == rent.id
+    assert item.spans_multiple_months is True
+    assert cashflow_plan_service.list_items(db, "2026-06") == []
 
-    summary = cashflow_plan_service.compute_summary(items)
+    summary = cashflow_plan_service.compute_summary([item])
     assert summary["fixed"]["planned"] == Decimal("800000")
 
 
-def test_annual_fallback_gives_distinct_ids_for_items_sharing_a_category(seeded_db):
+def test_editing_month_amount_updates_only_that_month_of_the_annual_item(seeded_db):
+    """이번 달 화면에서 금액을 바꾸면 연간계획의 그 달 값이 바뀐다(원본이 하나) — 다른 달과 연간 합계도
+    같은 원본을 보므로 이후 연간계획을 고쳐도 "끊긴 달"이 생기지 않는다(구 폴백 승격 모델의 문제)."""
     db, user, rent = seeded_db["db"], seeded_db["user"], seeded_db["rent"]
-    first = annual_plan_service.upsert_item(
-        db, None, 2026, "fixed", None, "티빙", rent.id, 0, user.id, "2026-01", "2026-12",
-        monthly_targets=[{"year_month": "2026-07", "target_amount": Decimal("5000")}],
-    )
-    second = annual_plan_service.upsert_item(
-        db, None, 2026, "fixed", None, "유튜브", rent.id, 1, user.id, "2026-01", "2026-12",
-        monthly_targets=[{"year_month": "2026-07", "target_amount": Decimal("14900")}],
-    )
-
-    items = cashflow_plan_service.list_items_with_annual_fallback(db, "2026-07")
-
-    assert len(items) == 2
-    ids = {item.annual_plan_item_id for item in items}
-    assert ids == {first.id, second.id}
-
-
-def test_annual_fallback_skips_month_with_existing_matching_item(seeded_db):
-    db, user, rent = seeded_db["db"], seeded_db["user"], seeded_db["rent"]
-    annual_plan_service.upsert_item(
+    annual = annual_plan_service.upsert_item(
         db, None, 2026, "fixed", None, "월세", rent.id, 0, user.id, "2026-01", "2026-12",
-        monthly_targets=[{"year_month": "2026-07", "target_amount": Decimal("800000")}],
+        monthly_targets=[{"year_month": f"2026-{m:02d}", "target_amount": Decimal("800000")} for m in range(1, 13)],
     )
+
     cashflow_plan_service.upsert_item(
-        db, None, "fixed", None, "월세", Decimal("850000"), 0, "2026-07", user.id, category_id=rent.id
+        db, annual.id, "fixed", None, "월세", Decimal("900000"), 0, "2026-07", user.id, category_id=rent.id
     )
 
-    items = cashflow_plan_service.list_items_with_annual_fallback(db, "2026-07")
+    [out] = annual_plan_service.list_items(db, 2026)
+    by_month = {mt.year_month: mt.target_amount for mt in out.monthly_targets}
+    assert by_month["2026-07"] == Decimal("900000")
+    assert by_month["2026-06"] == Decimal("800000")
+    assert annual_plan_service.item_to_out(out)["annual_target"] == Decimal("800000") * 11 + Decimal("900000")
 
-    assert len(items) == 1
-    real_item = items[0]
-    assert real_item.id is not None
-    assert real_item.amount == Decimal("850000")
-
-
-def test_annual_fallback_still_shows_when_only_category_matches_not_name(seeded_db):
-    """같은 카테고리를 쓰지만 이름이 다른 실제 항목이 이미 있어도, 연간계획 항목은 폴백으로 계속
-    노출되어야 한다 — category_id만으로 매칭하면 이 연간계획 항목이 통째로 가려지는 게 이번에 고친 버그다."""
-    db, user, rent = seeded_db["db"], seeded_db["user"], seeded_db["rent"]
+    # 연간 화면에서 다시 고치면 이번 달 화면도 그대로 따라온다
     annual_plan_service.upsert_item(
-        db, None, 2026, "fixed", None, "월세", rent.id, 0, user.id, "2026-01", "2026-12",
-        monthly_targets=[{"year_month": "2026-07", "target_amount": Decimal("800000")}],
-    )
-    cashflow_plan_service.upsert_item(
-        db, None, "fixed", None, "관리비", Decimal("150000"), 1, "2026-07", user.id, category_id=rent.id
-    )
-
-    items = cashflow_plan_service.list_items_with_annual_fallback(db, "2026-07")
-
-    assert len(items) == 2
-    real_item = next(i for i in items if i.id is not None)
-    fallback = next(i for i in items if i.id is None)
-    assert real_item.name == "관리비"
-    assert real_item.amount == Decimal("150000")
-    assert fallback.name == "월세"
-    assert fallback.from_annual_plan is True
-    assert fallback.amount == Decimal("800000")
-
-
-def test_editing_annual_fallback_promotes_it_and_detaches_from_future_annual_edits(seeded_db):
-    db, user, rent = seeded_db["db"], seeded_db["user"], seeded_db["rent"]
-    annual_item = annual_plan_service.upsert_item(
-        db, None, 2026, "fixed", None, "월세", rent.id, 0, user.id, "2026-01", "2026-12",
-        monthly_targets=[{"year_month": "2026-07", "target_amount": Decimal("800000")}],
-    )
-
-    [fallback] = cashflow_plan_service.list_items_with_annual_fallback(db, "2026-07")
-    saved = cashflow_plan_service.upsert_item(
-        db, fallback.id, fallback.section, fallback.owner_user_id, fallback.name, Decimal("900000"),
-        fallback.sort_order, "2026-07", user.id, category_id=fallback.category_id,
-    )
-    assert saved.id is not None
-
-    # Changing the annual plan afterwards must not overwrite the already-materialized month.
-    annual_plan_service.upsert_item(
-        db, annual_item.id, 2026, "fixed", None, "월세", rent.id, 0, user.id, "2026-01", "2026-12",
+        db, annual.id, 2026, "fixed", None, "월세", rent.id, 0, user.id, "2026-01", "2026-12",
         monthly_targets=[{"year_month": "2026-07", "target_amount": Decimal("1000000")}],
     )
-
-    items = cashflow_plan_service.list_items_with_annual_fallback(db, "2026-07")
-    assert len(items) == 1
-    assert items[0].id == saved.id
-    assert items[0].amount == Decimal("900000")
+    [item] = cashflow_plan_service.list_items(db, "2026-07")
+    assert item.amount == Decimal("1000000")
 
 
-def test_renaming_annual_item_after_promotion_still_matches_promoted_item(seeded_db):
-    """카테고리가 없는(자유 텍스트) 연간계획 항목을 승격시킨 뒤 이름을 여러 번 바꿔도, annual_plan_item_id로
-    연결되어 있으므로 승격된 실제 행이 계속 그 자리를 대표해야 한다 — 이름 문자열 매칭에 의존하면 이름이
-    바뀔 때마다 별개의 폴백 항목이 추가로 생겨 중복되거나(구 버그), 반대로 실제 행이 고아가 되어 최신
-    연간계획 값이 영원히 반영되지 않는다."""
+def test_upsert_month_outside_range_extends_item_range(seeded_db):
     db, user = seeded_db["db"], seeded_db["user"]
-    annual_item = annual_plan_service.upsert_item(
-        db, None, 2026, "irregular", None, "재산세", None, 0, user.id, "2026-01", "2026-12",
+    annual = annual_plan_service.upsert_item(
+        db, None, 2026, "irregular", None, "재산세", None, 0, user.id, "2026-07", "2026-07",
         monthly_targets=[{"year_month": "2026-07", "target_amount": Decimal("300000")}],
     )
 
-    [fallback] = cashflow_plan_service.list_items_with_annual_fallback(db, "2026-07")
-    saved = cashflow_plan_service.upsert_item(
-        db, fallback.id, fallback.section, fallback.owner_user_id, fallback.name, Decimal("300000"),
-        fallback.sort_order, "2026-07", user.id, category_id=fallback.category_id,
-        annual_plan_item_id=fallback.annual_plan_item_id,
+    cashflow_plan_service.upsert_item(db, annual.id, "irregular", None, "재산세", Decimal("50000"), 0, "2026-09", user.id)
+
+    db.refresh(annual)
+    assert (annual.start_month, annual.end_month) == ("2026-07", "2026-09")
+
+
+def test_copy_into_january_reuses_or_creates_this_years_item(seeded_db):
+    db, user, rent = seeded_db["db"], seeded_db["user"], seeded_db["rent"]
+    cashflow_plan_service.upsert_item(db, None, "fixed", None, "월세", Decimal("800000"), 0, "2026-12", user.id, category_id=rent.id)
+    cashflow_plan_service.upsert_item(db, None, "irregular", None, "재산세", Decimal("300000"), 1, "2026-12", user.id)
+    # 2027년에 이미 월세 항목(다른 달)이 있으면 그 항목에 1월을 더한다
+    existing_2027 = annual_plan_service.upsert_item(
+        db, None, 2027, "fixed", None, "월세", rent.id, 0, user.id, "2027-03", "2027-03",
+        monthly_targets=[{"year_month": "2027-03", "target_amount": Decimal("850000")}],
     )
-    assert saved.id is not None
-    assert saved.annual_plan_item_id == annual_item.id
 
-    # Rename the annual plan item a couple of times, keeping the id stable (as the frontend does).
-    for new_name in ("재산세(변경1)", "재산세(변경2)"):
-        annual_plan_service.upsert_item(
-            db, annual_item.id, 2026, "irregular", None, new_name, None, 0, user.id, "2026-01", "2026-12",
-            monthly_targets=[{"year_month": "2026-07", "target_amount": Decimal("300000")}],
-        )
+    copied = cashflow_plan_service.copy_from_previous_month(db, "2027-01", user.id)
 
-    items = cashflow_plan_service.list_items_with_annual_fallback(db, "2026-07")
-    assert len(items) == 1
-    assert items[0].id == saved.id
+    assert copied == 2
+    january = {i.name: i for i in cashflow_plan_service.list_items(db, "2027-01")}
+    assert january["월세"].id == existing_2027.id
+    assert january["월세"].amount == Decimal("800000")
+    assert january["재산세"].amount == Decimal("300000")
+    assert {i.year for i in annual_plan_service.list_items(db, 2027)} == {2027}
+
+

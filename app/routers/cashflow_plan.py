@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
 from app.database import get_db
@@ -22,7 +22,7 @@ router = APIRouter(prefix="/cashflow-plan", tags=["cashflow-plan"])
 def _plan_list(db: Session, year_month: str | None) -> dict:
     ym = year_month or year_month_str(today_kst())
     month_start = parse_year_month(ym)
-    items = cashflow_plan_service.list_items_with_annual_fallback(db, ym)
+    items = cashflow_plan_service.list_items(db, ym)
     actuals = cashflow_plan_service.actuals_for_month(db, ym)
     suggested = cashflow_plan_service.suggested_totals(db, ym)
     warn_pct, critical_pct = coaching_settings_service.budget_thresholds(db)
@@ -51,7 +51,7 @@ def upsert_plan_item(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    cashflow_plan_service.upsert_item(
+    item = cashflow_plan_service.upsert_item(
         db,
         payload.id,
         payload.section,
@@ -62,8 +62,9 @@ def upsert_plan_item(
         payload.year_month,
         current_user.id,
         category_id=payload.category_id,
-        annual_plan_item_id=payload.annual_plan_item_id,
     )
+    if item is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="계획 항목을 찾을 수 없습니다.")
     return _plan_list(db, payload.year_month)
 
 
@@ -74,7 +75,7 @@ def split_plan_item(
     current_user: User = Depends(get_current_user),
 ):
     months = months_remaining_in_year(parse_year_month(payload.start_year_month))
-    created = cashflow_plan_service.split_item_into_months(
+    cashflow_plan_service.split_item_into_months(
         db,
         payload.section,
         payload.owner_user_id,
@@ -86,7 +87,7 @@ def split_plan_item(
         current_user.id,
         category_id=payload.category_id,
     )
-    return {"created": len(created)}
+    return {"created": months}
 
 
 @router.post("/items/{item_id}/link-recurring", response_model=CashflowPlanListOut)
@@ -104,12 +105,17 @@ def link_recurring(
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
     if item is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="계획 항목을 찾을 수 없습니다.")
-    return _plan_list(db, item.year_month)
+    return _plan_list(db, payload.year_month)
 
 
 @router.delete("/items/{item_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_plan_item(item_id: int, db: Session = Depends(get_db), _: User = Depends(get_current_user)):
-    if not cashflow_plan_service.delete_item(db, item_id):
+def delete_plan_item(
+    item_id: int,
+    year_month: str = Query(..., description="이 달의 금액만 지운다(다른 달 금액이 없으면 항목째 삭제)"),
+    db: Session = Depends(get_db),
+    _: User = Depends(get_current_user),
+):
+    if not cashflow_plan_service.delete_month(db, item_id, year_month):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="계획 항목을 찾을 수 없습니다.")
 
 

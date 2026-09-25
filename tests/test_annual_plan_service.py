@@ -5,7 +5,6 @@ from app.models.annual_plan_item_monthly_target import AnnualPlanItemMonthlyTarg
 from app.services import (
     annual_plan_service,
     budget_service,
-    cashflow_plan_service,
     coaching_settings_service,
     transaction_report_service,
     transaction_service,
@@ -469,12 +468,9 @@ def test_category_budget_status_matches_monthly_under_household_threshold_overri
     같은 status를 매겨야 한다 — 특히 가구가 임계값을 조정했을 때. 예전에는 연간이 env 기본값만
     써서 월간과 갈렸다."""
     db, user, food = seeded_db["db"], seeded_db["user"], seeded_db["food"]
-    # 연간계획: 식비 1월 목표 100000, 이번 달(cashflow) 계획도 같은 카테고리 100000
+    # 연간계획: 식비 1월 목표 100000 — 이번 달 계획은 이 연간계획의 1월 단면이라 월간 예산도 100000이다.
     annual_plan_service.upsert_item(
         db, None, 2026, "variable", None, "식비", food.id, 0, user.id, "2026-01", "2026-12", monthly_targets=_monthly(jan="100000")
-    )
-    cashflow_plan_service.upsert_item(
-        db, None, "variable", None, "식비", Decimal("100000"), 0, "2026-01", user.id, category_id=food.id
     )
     # 실적 80000 → pct 80%. env 기본값(warn 90)이면 ok, 가구가 warn=70으로 낮추면 warn.
     transaction_service.create_transaction(db, user.id, food.id, "expense", Decimal("80000"), date(2026, 1, 10))

@@ -1,40 +1,33 @@
 from decimal import Decimal
 
-from sqlalchemy import case, func
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.config import settings
-from app.models.cashflow_plan_item import CashflowPlanItem
+from app.models.annual_plan_item import AnnualPlanItem
+from app.models.annual_plan_item_monthly_target import AnnualPlanItemMonthlyTarget
 from app.models.category import Category
-from app.models.recurring_expense import RecurringExpense
+from app.services import plan_targets
 from app.services.transaction_report_service import category_breakdown, trailing_average_by_category
 from app.utils.dates import month_bounds, parse_year_month
 from app.utils.plan_status import pct_of, status_from_pct
 
 
 def get_budgets_for_month(db: Session, year_month: str) -> dict[int, Decimal]:
-    """카테고리를 태깅한 계획 항목(cashflow_plan_service가 다루는 것과 같은 행)들을 카테고리별로 합산한다.
-    한 카테고리에 여러 항목이 태깅될 수 있으므로(예: 서로 다른 이름의 두 구독이 같은 "구독" 카테고리) 예산 상한은
-    항상 합계다. 항목 입력/수정은 cashflow_plan_service.upsert_item(category_id=...)이 전담한다 — 이 서비스는
-    실적 대비 집계(budget_vs_actual)만 다룬다.
-
-    이 함수는 SQL 집계라서 CashflowPlanItem.amount/category_id 파이썬 프로퍼티(read-through)를 거치지 않으므로,
-    반복거래에 연동된 항목은 own_amount/own_category_id 대신 연동된 RecurringExpense의 값을 직접 CASE로
-    끌어와 합산한다 — 그렇지 않으면 반복거래 금액을 바꿔도 예산 상한이 갱신되지 않는 드리프트가 재발한다."""
-    effective_category_id = case(
-        (CashflowPlanItem.recurring_expense_id.isnot(None), RecurringExpense.category_id),
-        else_=CashflowPlanItem.own_category_id,
-    )
-    effective_amount = case(
-        (CashflowPlanItem.recurring_expense_id.isnot(None), RecurringExpense.amount),
-        else_=CashflowPlanItem.own_amount,
-    )
+    """카테고리를 태깅한 계획 항목의 그 달 금액을 카테고리별로 합산한다(계획 원본은 AnnualPlanItem의
+    월별 target 하나뿐 — 이번 달 계획 화면·예산 경고·코칭이 모두 같은 값을 본다). 한 카테고리에 여러 항목이
+    태깅될 수 있으므로(예: 서로 다른 이름의 두 구독이 같은 "구독" 카테고리) 예산 상한은 항상 합계다.
+    반복거래 연동 항목은 plan_targets.EFFECTIVE_* 식으로 연동된 RecurringExpense의 현재 금액/카테고리를 쓴다."""
+    query = db.query(plan_targets.EFFECTIVE_CATEGORY_ID, func.sum(plan_targets.EFFECTIVE_TARGET_AMOUNT)).select_from(
+        AnnualPlanItemMonthlyTarget
+    ).join(AnnualPlanItem, AnnualPlanItemMonthlyTarget.item_id == AnnualPlanItem.id)
     rows = (
-        db.query(effective_category_id, func.sum(effective_amount))
-        .select_from(CashflowPlanItem)
-        .outerjoin(RecurringExpense, CashflowPlanItem.recurring_expense_id == RecurringExpense.id)
-        .filter(CashflowPlanItem.year_month == year_month, effective_category_id.isnot(None))
-        .group_by(effective_category_id)
+        plan_targets.join_recurring(query)
+        .filter(
+            AnnualPlanItemMonthlyTarget.year_month == year_month,
+            plan_targets.EFFECTIVE_CATEGORY_ID.isnot(None),
+        )
+        .group_by(plan_targets.EFFECTIVE_CATEGORY_ID)
         .all()
     )
     return dict(rows)

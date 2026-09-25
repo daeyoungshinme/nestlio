@@ -26,16 +26,30 @@ def list_items(db: Session, year: int, section: str | None = None) -> list[Annua
 
 
 def monthly_targets_for_month(db: Session, year_month: str) -> list[tuple[AnnualPlanItem, Decimal]]:
-    """그 달에 값이 설정된 모든 AnnualPlanItem과 해당 월 목표금액 쌍을 반환한다 —
-    savings_product_plan_service._monthly_targets_by_product_for_year와 동일 패턴. cashflow_plan_service가
-    이번 달 계획에 값이 없는 항목을 연간계획 값으로 자동 채우는 폴백에 쓴다."""
+    """그 달에 값이 설정된 모든 AnnualPlanItem과 해당 월의 **실제 계획 금액**(반복거래 연동 시 그 금액)
+    쌍을 (section, sort_order) 순으로 반환한다 — 이번 달 계획 화면(cashflow_plan_service.list_items)의 소스."""
     year = int(year_month[:4])
-    return (
+    rows = (
         db.query(AnnualPlanItem, AnnualPlanItemMonthlyTarget.target_amount)
         .join(AnnualPlanItemMonthlyTarget, AnnualPlanItemMonthlyTarget.item_id == AnnualPlanItem.id)
         .filter(AnnualPlanItem.year == year, AnnualPlanItemMonthlyTarget.year_month == year_month)
+        .order_by(AnnualPlanItem.section, AnnualPlanItem.sort_order, AnnualPlanItem.id)
         .all()
     )
+    return [(item, item.amount_for(target)) for item, target in rows]
+
+
+def set_month_target(item: AnnualPlanItem, year_month: str, amount: Decimal) -> None:
+    """항목의 한 달 target만 바꾸거나 새로 만든다(나머지 달은 그대로). 적용 기간(start/end_month)
+    밖의 달이면 기간을 그 달까지 넓힌다 — 이번 달 계획 화면에서 연간 항목의 한 달만 조정하는 경로."""
+    for mt in item.monthly_targets:
+        if mt.year_month == year_month:
+            mt.target_amount = amount
+            break
+    else:
+        item.monthly_targets.append(AnnualPlanItemMonthlyTarget(year_month=year_month, target_amount=amount))
+    item.start_month = min(item.start_month, year_month)
+    item.end_month = max(item.end_month, year_month)
 
 
 def upsert_item(
@@ -83,32 +97,42 @@ def delete_item(db: Session, id: int) -> bool:
 
 
 def item_to_out(item: AnnualPlanItem) -> dict:
+    category = item.effective_category
     return {
         "id": item.id,
         "year": item.year,
         "section": item.section,
         "owner_user_id": item.owner_user_id,
         "name": item.name,
-        "category_id": item.category_id,
-        "category_name": item.category.name if item.category else None,
-        "category_color": item.category.color if item.category else None,
+        "category_id": item.effective_category_id,
+        "category_name": category.name if category else None,
+        "category_color": category.color if category else None,
         "sort_order": item.sort_order,
         "updated_at": item.updated_at,
         "start_month": item.start_month,
         "end_month": item.end_month,
-        "annual_target": sum((mt.target_amount for mt in item.monthly_targets), Decimal("0")),
+        "installment_total": item.installment_total,
+        "installment_total_amount": item.installment_total_amount,
+        "recurring_expense_id": item.recurring_expense_id,
+        "recurring_active": item.recurring_active,
+        "annual_target": sum((item.amount_for(mt.target_amount) for mt in item.monthly_targets), Decimal("0")),
         "monthly_targets": [
-            {"year_month": mt.year_month, "target_amount": mt.target_amount} for mt in item.monthly_targets
+            {"year_month": mt.year_month, "target_amount": item.amount_for(mt.target_amount)}
+            for mt in item.monthly_targets
         ],
     }
 
 
 def _section_monthly_targets(db: Session, year: int, section: str) -> dict[str, Decimal]:
     """그 섹션에 속한 모든 항목의 월별 목표금액을 월별로 합산한다 — 섹션 총액은 저장하지 않고
-    항목 합으로 파생시킨다(월간 CashflowPlanItem.compute_summary와 동일 원칙)."""
-    rows = (
-        db.query(AnnualPlanItemMonthlyTarget.year_month, func.sum(AnnualPlanItemMonthlyTarget.target_amount))
+    항목 합으로 파생시킨다(이번 달 계획 compute_summary와 동일 원칙). 반복거래 연동 금액을 반영한다."""
+    query = (
+        db.query(AnnualPlanItemMonthlyTarget.year_month, func.sum(plan_targets.EFFECTIVE_TARGET_AMOUNT))
+        .select_from(AnnualPlanItemMonthlyTarget)
         .join(AnnualPlanItem, AnnualPlanItemMonthlyTarget.item_id == AnnualPlanItem.id)
+    )
+    rows = (
+        plan_targets.join_recurring(query)
         .filter(AnnualPlanItem.year == year, AnnualPlanItem.section == section)
         .group_by(AnnualPlanItemMonthlyTarget.year_month)
         .all()
@@ -183,13 +207,17 @@ def summary_for_year(
 
 
 def category_budgets_for_year(db: Session, year: int) -> dict[int, Decimal]:
-    """AnnualPlanItem.category_id가 있는 항목들의 12개월 목표금액을 카테고리별로 합산한다 —
-    budget_service.get_budgets_for_month의 연간 버전(소스 테이블만 CashflowPlanItem -> AnnualPlanItem)."""
+    """카테고리가 있는 항목들의 12개월 목표금액을 카테고리별로 합산한다 —
+    budget_service.get_budgets_for_month의 연간 버전(반복거래 연동 금액/카테고리 반영)."""
+    query = (
+        db.query(plan_targets.EFFECTIVE_CATEGORY_ID, func.sum(plan_targets.EFFECTIVE_TARGET_AMOUNT))
+        .select_from(AnnualPlanItemMonthlyTarget)
+        .join(AnnualPlanItem, AnnualPlanItemMonthlyTarget.item_id == AnnualPlanItem.id)
+    )
     rows = (
-        db.query(AnnualPlanItem.category_id, func.sum(AnnualPlanItemMonthlyTarget.target_amount))
-        .join(AnnualPlanItemMonthlyTarget, AnnualPlanItemMonthlyTarget.item_id == AnnualPlanItem.id)
-        .filter(AnnualPlanItem.year == year, AnnualPlanItem.category_id.isnot(None))
-        .group_by(AnnualPlanItem.category_id)
+        plan_targets.join_recurring(query)
+        .filter(AnnualPlanItem.year == year, plan_targets.EFFECTIVE_CATEGORY_ID.isnot(None))
+        .group_by(plan_targets.EFFECTIVE_CATEGORY_ID)
         .all()
     )
     return dict(rows)

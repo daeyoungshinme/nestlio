@@ -69,8 +69,11 @@ export default function CashflowPlanTab({ view }: { view: "monthly" | "annual" }
     queryFn: () => fetchSavingsProductsPlan(yearMonth),
   });
 
+  // 이번 달 계획은 연간계획의 한 달 단면이라, 여기서 저장하면 연간계획과(항목 이름·카테고리는 모든 달 공통이라)
+  // 다른 달 화면도 바뀐다 — 월과 무관하게 두 계획 쿼리를 모두 무효화한다.
   const invalidate = () => {
-    void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.cashflowPlan(yearMonth) });
+    void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.cashflowPlanAll });
+    void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.annualPlanAll });
     void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.dashboardAll });
   };
 
@@ -233,7 +236,6 @@ export default function CashflowPlanTab({ view }: { view: "monthly" | "annual" }
         amount: values.amount,
         category_id: values.category_id ? Number(values.category_id) : null,
         sort_order: item?.sort_order ?? sectionCount,
-        annual_plan_item_id: item?.annual_plan_item_id ?? null,
       },
       { onSuccess: () => setModal(null) },
     );
@@ -375,8 +377,8 @@ export default function CashflowPlanTab({ view }: { view: "monthly" | "annual" }
 
       {deleteTarget !== null && (
         <ConfirmModal
-          message="이 항목을 삭제할까요?"
-          onConfirm={() => deleteMutation.mutate(deleteTarget)}
+          message="이번 달 금액을 삭제할까요? 다른 달에 입력된 금액은 그대로 남아요."
+          onConfirm={() => deleteMutation.mutate({ id: deleteTarget, yearMonth })}
           onCancel={() => setDeleteTarget(null)}
         />
       )}

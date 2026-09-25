@@ -6,7 +6,7 @@ import { linkCashflowPlanRecurring } from "@/api/cashflowPlan";
 import { useRecurringMutations } from "@/hooks/useRecurringMutations";
 import { extractErrorMessage } from "@/utils/error";
 import { toast } from "@/utils/toast";
-import type { CashflowPlanItemOut, CategoryOut } from "@/types";
+import type { CashflowPlanItemOut, CashflowPlanLinkRecurringIn, CategoryOut } from "@/types";
 
 interface Props {
   item: CashflowPlanItemOut;
@@ -20,7 +20,7 @@ interface Props {
 export default function CashflowPlanRecurringLinkModal({ item, categories, onClose, onLinked }: Props) {
   const { createMutation: createRecurringMutation } = useRecurringMutations();
   const linkRecurringMutation = useMutation({
-    mutationFn: (vars: { itemId: number; payload: { recurring_expense_id: number } }) =>
+    mutationFn: (vars: { itemId: number; payload: CashflowPlanLinkRecurringIn }) =>
       linkCashflowPlanRecurring(vars.itemId, vars.payload),
   });
 
@@ -28,8 +28,7 @@ export default function CashflowPlanRecurringLinkModal({ item, categories, onClo
     createRecurringMutation.mutate(buildRecurringPayload(values), {
       onSuccess: (created) => {
         linkRecurringMutation.mutate(
-          // 반복내역 연결 메뉴는 item.id가 있는(이미 저장된) 항목에서만 열리므로 non-null 단언이 안전하다.
-          { itemId: item.id!, payload: { recurring_expense_id: created.id } },
+          { itemId: item.id, payload: { recurring_expense_id: created.id, year_month: item.year_month } },
           {
             onSuccess: () => {
               onLinked();
