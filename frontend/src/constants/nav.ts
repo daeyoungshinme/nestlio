@@ -1,4 +1,4 @@
-import { BarChart3, CalendarDays, Home, Landmark, Settings, Target, Wallet } from "lucide-react";
+import { BarChart3, CalendarDays, ClipboardList, Home, Landmark, Target, Wallet } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { ROUTES } from "@/constants/routes";
 
@@ -13,55 +13,44 @@ export interface NavGroup {
   items: NavItem[];
 }
 
-const DASHBOARD: NavItem = { to: ROUTES.dashboard, icon: Home, label: "대시보드" };
+const DASHBOARD: NavItem = { to: ROUTES.dashboard, icon: Home, label: "홈" };
 const TRANSACTIONS: NavItem = { to: ROUTES.transactions, icon: Wallet, label: "가계부" };
+const PLAN: NavItem = { to: ROUTES.plan, icon: ClipboardList, label: "계획" };
+const GOALS: NavItem = { to: ROUTES.goals, icon: Target, label: "목표" };
 const ACCOUNTS: NavItem = { to: ROUTES.accounts, icon: Landmark, label: "자산" };
 const SCHEDULE: NavItem = { to: ROUTES.schedule, icon: CalendarDays, label: "일정" };
 const REPORTS_YEARLY: NavItem = { to: ROUTES.reportsYearly, icon: BarChart3, label: "연간리포트" };
-const FINANCIAL_PLAN: NavItem = { to: ROUTES.financialPlan, icon: Target, label: "계획·목표" };
-const SETTINGS: NavItem = { to: ROUTES.settings, icon: Settings, label: "설정" };
 
-/** 사이드바(데스크톱, lg 이상)는 아래 그룹을 순서대로 전부 보여준다. 대시보드/연간리포트/설정은
- * 그룹 헤더 없이 단독으로 둔다. 앱의 유일한 목적("부부가 세운 자산증식 목표 달성")을 중심으로
- * 위계를 납작하게 정리했다:
- *   - "기록"    = 매일 들어가는 실측 입력 (가계부 + 일정). 일정은 화면 자체는 `/schedule`로
- *                 독립돼 있지만(담당자 배분·완료 체크·전체 CRUD가 있는 부부 공동 플래너) 사용
- *                 빈도상 가계부와 한 그룹으로 묶고, 모바일 하단탭에서는 "더보기"에 접힌다.
- *   - "계획·목표"= `/financial-plan`(화면 내부 `[목표] [이번 달] [연간]` 세그먼트 — 구 페이지 탭
- *                 2 × 뷰 서브탭 2 × 섹션 탭 5의 3중 중첩을 평탄화)과 `/accounts`를 한 그룹으로 묶는다.
- *                 재무목표·현금흐름 계획은 스코프(목표일 vs 달력월)가 다르지만 커플이 여는 이유는 늘
- *                 "목표가 뭐고 이번 달 얼마"이고, 자산현황(순자산 스냅샷 + 계좌/저축·투자/부동산/대출
- *                 단일 스크롤, growlio 동기화·가져오기의 유일 진입점)도 그 판단 재료라 인접시켰다.
- * 예산·고정지출은 관리 화면 없이 가계부/계획 화면의 필터·섹션으로 흡수됐다(구 라우트
- * `/budgets`, `/recurring`은 `/transactions`로 리다이렉트). 거래 수정도 별도 페이지 없이
- * 가계부의 인라인 모달로 처리한다(구 `/transactions/:id/edit` 삭제). */
+/** 하단 탭(모바일)과 사이드바(데스크톱)가 공유하는 주 메뉴 5개. 앱의 목적("부부가 연간 계획을 세우고
+ * 월별로 점검하며 가계부를 함께 써서 자산증식 목표를 달성")을 그대로 따라간다:
+ *   홈(요약) → 가계부(기록) → 계획(연간 원본 + 이번 달 조정) → 목표(동기부여) → 자산(순자산·growlio).
+ * 목표를 계획에서 독립 탭으로 분리해 "우리가 어디까지 왔는지"를 한 번의 탭으로 보게 했다.
+ * 설정은 탭이 아니라 헤더 아이콘(Header.tsx)으로 들어간다 — 사용 빈도가 낮아 탭 한 칸을 줄 이유가 없다.
+ * "더보기" 시트는 없앴다(숨은 메뉴는 부부가 발견하지 못한다). */
+export const PRIMARY_NAV_ITEMS: NavItem[] = [DASHBOARD, TRANSACTIONS, PLAN, GOALS, ACCOUNTS];
+
+/** 데스크톱 사이드바 전용 보조 메뉴. 일정은 가계부 캘린더로, 연간리포트는 계획 › 연간으로 병합될
+ * 예정이라 모바일 하단탭에는 두지 않고(가계부·계획 화면 안의 링크로 진입), 넓은 화면에서만 바로가기로 남긴다. */
+export const SECONDARY_NAV_ITEMS: NavItem[] = [SCHEDULE, REPORTS_YEARLY];
+
 export const SIDEBAR_NAV_GROUPS: NavGroup[] = [
-  { header: null, items: [DASHBOARD] },
-  { header: "기록", items: [TRANSACTIONS, SCHEDULE] },
-  { header: "계획·목표", items: [FINANCIAL_PLAN, ACCOUNTS] },
-  { header: null, items: [REPORTS_YEARLY] },
-  { header: null, items: [SETTINGS] },
+  { header: null, items: PRIMARY_NAV_ITEMS },
+  { header: "바로가기", items: SECONDARY_NAV_ITEMS },
 ];
 
-/** SIDEBAR_NAV_GROUPS를 평탄화한 파생 목록 (총 7개). */
-export const SIDEBAR_NAV_ITEMS: NavItem[] = SIDEBAR_NAV_GROUPS.flatMap((group) => group.items);
+/** 헤더 페이지 타이틀 조회용 — 주/보조 메뉴 외에 헤더 아이콘·설정 하위로만 들어가는 화면까지 포함한다. */
+export const PAGE_TITLES: { to: string; label: string }[] = [
+  ...PRIMARY_NAV_ITEMS,
+  ...SECONDARY_NAV_ITEMS,
+  { to: ROUTES.settings, label: "설정" },
+  { to: ROUTES.categories, label: "카테고리" },
+  { to: ROUTES.transactionImport, label: "거래 데이터" },
+];
 
-function byPaths(paths: string[]): NavItem[] {
-  return paths.map((to) => {
-    const item = SIDEBAR_NAV_ITEMS.find((candidate) => candidate.to === to);
-    if (!item) throw new Error(`nav.ts: unknown path ${to}`);
-    return item;
-  });
+/** 현재 경로에 대응하는 페이지 타이틀. 가장 긴 prefix가 이긴다(`/transactions/import` > `/transactions`). */
+export function pageTitleFor(pathname: string): string | undefined {
+  if (pathname === ROUTES.dashboard) return DASHBOARD.label;
+  return PAGE_TITLES.filter((item) => item.to !== ROUTES.dashboard && pathname.startsWith(item.to)).sort(
+    (a, b) => b.to.length - a.to.length,
+  )[0]?.label;
 }
-
-/** 하단 탭(모바일)은 엄지 도달 범위/터치 타겟 크기를 지키기 위해 사용 빈도가 높은
- * 4개(대시보드/가계부/계획·목표/자산)만 상시 노출하고, 나머지(일정/연간리포트/설정)는
- * "더보기" 시트로 접는다. 목표 달성 루프의 중심축(계획·목표)을 자산보다 앞에 둔다. */
-export const BOTTOM_NAV_PRIMARY_ITEMS: NavItem[] = byPaths([
-  ROUTES.dashboard,
-  ROUTES.transactions,
-  ROUTES.financialPlan,
-  ROUTES.accounts,
-]);
-
-export const BOTTOM_NAV_MORE_ITEMS: NavItem[] = byPaths([ROUTES.schedule, ROUTES.reportsYearly, ROUTES.settings]);

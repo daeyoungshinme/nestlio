@@ -9,6 +9,7 @@ import StatusBadge from "@/components/common/StatusBadge";
 import EventForm, { emptyEventFormValues } from "@/components/transactions/EventForm";
 import { completeEvent, createEvent, fetchEvents } from "@/api/events";
 import { QUERY_KEYS } from "@/constants/queryKeys";
+import { ROUTES } from "@/constants/routes";
 import { STALE_TIME } from "@/constants/queryConfig";
 import { extractErrorMessage } from "@/utils/error";
 import { toast } from "@/utils/toast";
@@ -60,7 +61,7 @@ export default function TodayScheduleCard({ day, users }: Props) {
           <Button size="sm" icon={<Plus size={14} />} onClick={() => setShowAdd(true)}>
             일정 추가
           </Button>
-          <Link to="/schedule" className="text-xs font-semibold text-primary-600 dark:text-primary-400 hover:underline">
+          <Link to={ROUTES.schedule} className="text-xs font-semibold text-primary-600 dark:text-primary-400 hover:underline">
             전체 일정 보기 →
           </Link>
         </div>
