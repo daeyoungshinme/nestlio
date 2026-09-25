@@ -697,6 +697,11 @@ export interface AnnualPlanItemOut {
   monthly_targets: AnnualPlanItemMonthlyTargetOut[];
 }
 
+export interface AnnualPlanSeedIn {
+  year: number;
+  source: "previous_year" | "recurring" | "recent_average";
+}
+
 export interface AnnualPlanItemUpsertIn {
   id: number | null;
   year: number;

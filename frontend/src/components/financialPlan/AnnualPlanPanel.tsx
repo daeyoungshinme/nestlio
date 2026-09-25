@@ -1,24 +1,26 @@
-import { useState } from "react";
-import { Link } from "react-router-dom";
+import { useEffect, useRef, useState } from "react";
+import { Link, useSearchParams } from "react-router-dom";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import AnnualPlanItemForm from "@/components/financialPlan/AnnualPlanItemForm";
 import AnnualPlanSectionPanel from "@/components/financialPlan/AnnualPlanSectionPanel";
-import GoalPurposeSummary from "@/components/financialPlan/GoalPurposeSummary";
-import type { Purpose } from "@/components/financialPlan/GoalPurposeSummary";
+import PlanBalanceSummary from "@/components/plan/PlanBalanceSummary";
+import PlanSectionAccordion, { type PlanSection } from "@/components/plan/PlanSectionAccordion";
+import PlanYearStartWizard from "@/components/plan/PlanYearStartWizard";
+import YearlyReportSection from "@/components/plan/YearlyReportSection";
 import SavingsInvestmentPlanPanel from "@/components/financialPlan/SavingsInvestmentPlanPanel";
-import Button from "@/components/common/Button";
 import ConfirmModal from "@/components/common/ConfirmModal";
 import ErrorState from "@/components/common/ErrorState";
 import Modal from "@/components/common/Modal";
 import SkeletonCard from "@/components/common/SkeletonCard";
-import { ROUTES } from "@/constants/routes";
-import SummaryCard from "@/components/common/SummaryCard";
+import { PLAN_ANALYSIS_SECTION, ROUTES } from "@/constants/routes";
+import { TOUCH_TARGET_MIN } from "@/constants/uiSizes";
 import { deleteAnnualPlanItem, fetchAnnualPlan, upsertAnnualPlanItem } from "@/api/annualPlan";
 import { fetchSavingsProductsAnnualPlan } from "@/api/savingsProducts";
 import { useCategories, useUsers } from "@/hooks/useReferenceData";
-import { SECTIONS, SAVINGS_INVESTMENT_LABEL, type SectionLabel } from "@/constants/planSections";
+import { SECTIONS, SAVINGS_INVESTMENT_LABEL } from "@/constants/planSections";
 import { QUERY_KEYS } from "@/constants/queryKeys";
-import { formatKrw, pctOf } from "@/utils/format";
+import { pctOf } from "@/utils/format";
 import { extractErrorMessage } from "@/utils/error";
 import { worseStatus } from "@/utils/colors";
 import { currentYear } from "@/utils/date";
@@ -42,10 +44,12 @@ interface ItemModalState {
  * 완전히 별개 개념이다. */
 export default function AnnualPlanPanel() {
   const [year, setYear] = useState(currentYear());
-  const [activeLabel, setActiveLabel] = useState<SectionLabel>("수입");
   const [itemModal, setItemModal] = useState<ItemModalState | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<number | null>(null);
   const queryClient = useQueryClient();
+  const [searchParams] = useSearchParams();
+  const analysisRef = useRef<HTMLElement>(null);
+  const scrollToAnalysis = searchParams.get("section") === PLAN_ANALYSIS_SECTION;
 
   const { data, isLoading, isError, refetch } = useQuery({
     queryKey: QUERY_KEYS.annualPlan(year),
@@ -90,6 +94,12 @@ export default function AnnualPlanPanel() {
     onError: (err) => toast(extractErrorMessage(err), "error"),
   });
 
+  // 구 연간리포트 딥링크(/reports/yearly → ?section=분석)로 들어오면 데이터가 그려진 뒤 실적 분석으로 스크롤한다.
+  const loaded = Boolean(data);
+  useEffect(() => {
+    if (scrollToAnalysis && loaded) analysisRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }, [scrollToAnalysis, loaded]);
+
   if (isError || savingsError) {
     return (
       <ErrorState
@@ -116,17 +126,40 @@ export default function AnnualPlanPanel() {
       ? Number(savingsAnnualData.savings.actual) + Number(savingsAnnualData.investment.actual)
       : null;
   const savingsInvestmentPct = pctOf(savingsInvestmentActual, savingsInvestmentTargetToDate);
-  const purposes: Purpose[] = [
-    { label: "수입", pct: summary.income.pct, status: summary.income.status },
-    { label: "고정지출", pct: summary.fixed.pct, status: summary.fixed.status },
-    { label: "변동지출", pct: summary.variable.pct, status: summary.variable.status },
-    { label: "비정기지출", pct: summary.irregular.pct, status: summary.irregular.status },
+  const sections: PlanSection[] = [
+    ...SECTIONS.map(({ key, label }) => {
+      const sectionSummary = summary[key];
+      return {
+        label,
+        planned: Number(sectionSummary.elapsed_months > 0 ? sectionSummary.target_to_date : sectionSummary.annual_target),
+        actual: sectionSummary.elapsed_months > 0 ? Number(sectionSummary.actual) : null,
+        pct: sectionSummary.pct,
+        status: sectionSummary.status,
+        content: (
+          <AnnualPlanSectionPanel
+            sectionKey={key}
+            label={label}
+            items={data.items.filter((i) => i.section === key)}
+            sectionSummary={sectionSummary}
+            users={users}
+            categories={categories ?? []}
+            categoryBudgetRows={data.category_budgets.filter((row) => row.type === key && Number(row.budget) > 0)}
+            onAddItem={() => setItemModal({ section: key, item: null })}
+            onEditItem={(item) => setItemModal({ section: key, item })}
+            onDeleteItem={(item) => setDeleteTarget(item.id)}
+          />
+        ),
+      };
+    }),
     {
       label: SAVINGS_INVESTMENT_LABEL,
+      planned: savingsInvestmentTargetToDate,
+      actual: savingsInvestmentActual,
       pct: savingsInvestmentPct,
       status: savingsAnnualData
         ? worseStatus(savingsAnnualData.savings.status, savingsAnnualData.investment.status)
         : null,
+      content: <SavingsInvestmentPlanPanel yearMonth={`${year}-01`} initialViewMode="올해 누적" showViewToggle={false} />,
     },
   ];
 
@@ -149,89 +182,51 @@ export default function AnnualPlanPanel() {
   };
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between gap-2">
-        <span className="text-sm font-semibold text-gray-700 dark:text-gray-300">{year}년 연간계획</span>
-        <div className="flex items-center gap-2">
-          <Button size="sm" variant="secondary" onClick={() => setYear((y) => y - 1)}>
-            이전 해
-          </Button>
-          <Button size="sm" variant="secondary" onClick={() => setYear((y) => y + 1)}>
-            다음 해
-          </Button>
-        </div>
+    <div className="space-y-4">
+      <div className="flex items-center justify-center gap-4">
+        <button
+          type="button"
+          onClick={() => setYear((y) => y - 1)}
+          className={`${TOUCH_TARGET_MIN} flex items-center justify-center rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800`}
+          aria-label="이전 해"
+        >
+          <ChevronLeft size={18} />
+        </button>
+        <span className="text-base font-bold text-gray-900 dark:text-gray-50">{year}년 연간계획</span>
+        <button
+          type="button"
+          onClick={() => setYear((y) => y + 1)}
+          className={`${TOUCH_TARGET_MIN} flex items-center justify-center rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800`}
+          aria-label="다음 해"
+        >
+          <ChevronRight size={18} />
+        </button>
       </div>
 
-      <p className="text-xs text-gray-400 dark:text-gray-500">
-        연간 계획 금액과 올해 지금까지의 실제 내역을 비교해 달성율을 보여줘요. 카테고리를 태깅하면 그 카테고리의
-        실제 지출과도 비교돼요. 여기서 입력한 월별 금액이 곧 "이번 달" 계획이고, 이번 달 화면에서 조정한 금액도
-        여기에 그대로 반영돼요.
-      </p>
-      <div className="flex flex-col gap-1">
-        <Link
-          to={ROUTES.goals}
-          className="block text-xs text-gray-500 dark:text-gray-400 hover:text-primary dark:hover:text-primary-400"
-        >
-          개별 재무목표의 월별 계획·달성 현황은 목표 탭에서 확인해요 →
-        </Link>
-        <Link
-          to={ROUTES.reportsYearly}
-          className="block text-xs text-gray-500 dark:text-gray-400 hover:text-primary dark:hover:text-primary-400"
-        >
-          월별 수입·지출 추이와 카테고리 분석은 연간리포트에서 확인해요 →
-        </Link>
-      </div>
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <SummaryCard label="계획 수입 합계" value={formatKrw(summary.income.annual_target)} tone="positive" />
-        <SummaryCard label="계획 지출 합계" value={formatKrw(summary.expense_total)} />
-        <SummaryCard
-          label="저축 가능액 (계획)"
-          value={formatKrw(summary.available)}
-          tone={Number(summary.available) < 0 ? "negative" : "positive"}
-        />
-        <SummaryCard
-          label="계획된 저축·투자액"
-          value={savingsAnnualData ? formatKrw(plannedSavingsInvestmentAnnualTotal) : "…"}
-          tone={
-            savingsAnnualData && plannedSavingsInvestmentAnnualTotal > Number(summary.available)
-              ? "negative"
-              : "positive"
-          }
-        />
-      </div>
+      {data.items.length === 0 && <PlanYearStartWizard year={year} />}
 
-      <GoalPurposeSummary
-        heading="올해 목표 현황 (칩을 눌러 항목별 계획을 편집하세요)"
-        purposes={purposes}
-        activeLabel={activeLabel}
-        onSelect={(label) => setActiveLabel(label as SectionLabel)}
+      <PlanBalanceSummary
+        periodLabel={`${year}년`}
+        income={Number(summary.income.annual_target)}
+        expense={Number(summary.expense_total)}
+        savingsPlanned={savingsAnnualData ? plannedSavingsInvestmentAnnualTotal : null}
       />
 
-      {activeLabel === SAVINGS_INVESTMENT_LABEL ? (
-        <SavingsInvestmentPlanPanel yearMonth={`${year}-01`} initialViewMode="올해 누적" showViewToggle={false} />
-      ) : (
-        (() => {
-          const { key, label } = SECTIONS.find((s) => s.label === activeLabel)!;
-          const items = data.items.filter((i) => i.section === key);
-          const categoryBudgetRows = data.category_budgets.filter(
-            (row) => row.type === key && Number(row.budget) > 0,
-          );
-          return (
-            <AnnualPlanSectionPanel
-              sectionKey={key}
-              label={label}
-              items={items}
-              sectionSummary={summary[key]}
-              users={users}
-              categories={categories ?? []}
-              categoryBudgetRows={categoryBudgetRows}
-              onAddItem={() => setItemModal({ section: key, item: null })}
-              onEditItem={(item) => setItemModal({ section: key, item })}
-              onDeleteItem={(item) => setDeleteTarget(item.id)}
-            />
-          );
-        })()
-      )}
+      <PlanSectionAccordion sections={sections} />
+
+      <p className="text-xs text-gray-400 dark:text-gray-500">
+        섹션마다 올해 지금까지의 목표 대비 실적이에요. 여기서 입력한 월별 금액이 곧 "이번 달" 계획이고, 이번 달
+        화면에서 조정한 금액도 여기에 그대로 반영돼요. 개별 재무목표 진행은{" "}
+        <Link to={ROUTES.goals} className="font-semibold underline hover:no-underline">
+          목표 탭
+        </Link>
+        에서 확인해요.
+      </p>
+
+      <section ref={analysisRef} className="space-y-4 scroll-mt-16">
+        <h2 className="text-base font-bold text-gray-900 dark:text-gray-50">{year}년 실적 분석</h2>
+        <YearlyReportSection year={year} />
+      </section>
 
       {itemModal && (
         <Modal

@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.dependencies import get_current_user
 from app.models.user import User
-from app.schemas.annual_plan import AnnualPlanItemUpsertIn, AnnualPlanListOut
+from app.schemas.annual_plan import AnnualPlanItemUpsertIn, AnnualPlanListOut, AnnualPlanSeedIn
 from app.services import annual_plan_service, coaching_settings_service
 from app.utils.dates import today_kst
 
@@ -56,3 +56,18 @@ def upsert_plan_item(
 def delete_plan_item(item_id: int, db: Session = Depends(get_db), _: User = Depends(get_current_user)):
     if not annual_plan_service.delete_item(db, item_id):
         raise HTTPException(status.HTTP_404_NOT_FOUND, "연간계획 항목을 찾을 수 없습니다.")
+
+
+@router.post("/seed", response_model=AnnualPlanListOut)
+def seed_plan(
+    payload: AnnualPlanSeedIn,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """빈 해의 연간계획을 작년 계획/반복거래/최근 3개월 평균 중 하나로 한 번에 채운다(이미 있으면 409)."""
+    today = today_kst()
+    try:
+        annual_plan_service.seed_year(db, payload.year, payload.source, current_user.id, today)
+    except annual_plan_service.PlanAlreadyExistsError as exc:
+        raise HTTPException(status.HTTP_409_CONFLICT, str(exc)) from exc
+    return _plan_list(db, payload.year, today)

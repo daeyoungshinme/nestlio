@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Copy } from "lucide-react";
@@ -8,8 +8,8 @@ import CashflowPlanRecurringLinkModal from "@/components/financialPlan/CashflowP
 import CashflowPlanSectionPanel from "@/components/financialPlan/CashflowPlanSectionPanel";
 import CashflowPlanSplitForm from "@/components/financialPlan/CashflowPlanSplitForm";
 import AnnualPlanPanel from "@/components/financialPlan/AnnualPlanPanel";
-import GoalPurposeSummary from "@/components/financialPlan/GoalPurposeSummary";
-import type { Purpose } from "@/components/financialPlan/GoalPurposeSummary";
+import PlanBalanceSummary from "@/components/plan/PlanBalanceSummary";
+import PlanSectionAccordion, { type PlanSection } from "@/components/plan/PlanSectionAccordion";
 import SavingsInvestmentPlanPanel from "@/components/financialPlan/SavingsInvestmentPlanPanel";
 import Button from "@/components/common/Button";
 import ConfirmModal from "@/components/common/ConfirmModal";
@@ -18,7 +18,6 @@ import MonthPicker from "@/components/common/MonthPicker";
 import { currentYearMonth, shiftYearMonth } from "@/utils/date";
 import QueryBoundary from "@/components/common/QueryBoundary";
 import SkeletonCard from "@/components/common/SkeletonCard";
-import SummaryCard from "@/components/common/SummaryCard";
 import {
   copyPreviousMonthCashflowPlan,
   deleteCashflowPlanItem,
@@ -28,9 +27,11 @@ import {
 } from "@/api/cashflowPlan";
 import { fetchSavingsProductsPlan } from "@/api/savingsProducts";
 import { useCategories, useUsers } from "@/hooks/useReferenceData";
-import { SECTIONS, SAVINGS_INVESTMENT_LABEL, type SectionLabel } from "@/constants/planSections";
+import { SECTIONS, SAVINGS_INVESTMENT_LABEL } from "@/constants/planSections";
+import { ROUTES } from "@/constants/routes";
+import { useSwipeMonth } from "@/hooks/useSwipeMonth";
 import { QUERY_KEYS } from "@/constants/queryKeys";
-import { formatKrw, formatYearMonth, pctOf } from "@/utils/format";
+import { formatYearMonth, pctOf } from "@/utils/format";
 import { extractErrorMessage } from "@/utils/error";
 import { worseStatus } from "@/utils/colors";
 import { toast } from "@/utils/toast";
@@ -45,7 +46,6 @@ interface ModalState {
 
 export default function CashflowPlanTab({ view }: { view: "monthly" | "annual" }) {
   const [yearMonth, setYearMonth] = useState(currentYearMonth());
-  const [activeLabel, setActiveLabel] = useState<SectionLabel>("수입");
   const [modal, setModal] = useState<ModalState | null>(null);
   const [splitModalOpen, setSplitModalOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<number | null>(null);
@@ -53,6 +53,8 @@ export default function CashflowPlanTab({ view }: { view: "monthly" | "annual" }
   const [quickAddTarget, setQuickAddTarget] = useState<CashflowPlanItemOut | null>(null);
   const [applyingCategoryId, setApplyingCategoryId] = useState<number | null>(null);
   const queryClient = useQueryClient();
+  const swipeRef = useRef<HTMLDivElement>(null);
+  useSwipeMonth(swipeRef, (direction) => setYearMonth((prev) => shiftYearMonth(prev, direction)));
   const nextYearMonth = shiftYearMonth(yearMonth, 1);
   const nextYearMonthLabel = formatYearMonth(nextYearMonth);
 
@@ -198,19 +200,49 @@ export default function CashflowPlanTab({ view }: { view: "monthly" | "annual" }
       ? Number(savingsPlanData.savings.actual) + Number(savingsPlanData.investment.actual)
       : null;
   const savingsInvestmentPct = pctOf(savingsInvestmentActual, plannedSavingsInvestmentTotal);
-  const purposes: Purpose[] = [
-    { label: "수입", pct: summary.income.pct, status: summary.income.status },
-    { label: "고정지출", pct: summary.fixed.pct, status: summary.fixed.status },
-    { label: "변동지출", pct: summary.variable.pct, status: summary.variable.status },
-    { label: "비정기지출", pct: summary.irregular.pct, status: summary.irregular.status },
-    {
-      label: SAVINGS_INVESTMENT_LABEL,
-      pct: savingsInvestmentPct,
-      status: savingsPlanData ? worseStatus(savingsPlanData.savings.status, savingsPlanData.investment.status) : null,
-    },
-  ];
   const budgetRows = data.category_budgets;
   const budgetRowByCategory = new Map(budgetRows.map((row) => [row.category_id, row]));
+  const sections: PlanSection[] = [
+    ...SECTIONS.map(({ key, label }) => ({
+      label,
+      planned: Number(summary[key].planned),
+      actual: summary[key].actual !== null ? Number(summary[key].actual) : null,
+      pct: summary[key].pct,
+      status: summary[key].status,
+      content: (
+        <CashflowPlanSectionPanel
+          sectionKey={key}
+          label={label}
+          items={data.items.filter((i) => i.section === key)}
+          sectionSummary={summary[key]}
+          users={users}
+          categories={allCategories ?? []}
+          budgetRowByCategory={budgetRowByCategory}
+          nextYearMonthLabel={nextYearMonthLabel}
+          onAddItem={() => setModal({ section: key, item: null })}
+          onSplit={() => setSplitModalOpen(true)}
+          onEditItem={(item) => setModal({ section: key, item })}
+          onDeleteItem={(item) => setDeleteTarget(item.id)}
+          onLinkRecurring={setRecurringLinkTarget}
+          onQuickAdd={setQuickAddTarget}
+          onApplyCategorySuggestion={(row) => applyCategorySuggestionMutation.mutate(row)}
+          applyingCategoryId={applyingCategoryId}
+          onApplyIncomeSuggestion={(item, suggestedAmount) =>
+            applyIncomeSuggestionMutation.mutate({ item, suggestedAmount })
+          }
+          applyingIncomeSuggestion={applyIncomeSuggestionMutation.isPending}
+        />
+      ),
+    })),
+    {
+      label: SAVINGS_INVESTMENT_LABEL,
+      planned: plannedSavingsInvestmentTotal,
+      actual: savingsInvestmentActual,
+      pct: savingsInvestmentPct,
+      status: savingsPlanData ? worseStatus(savingsPlanData.savings.status, savingsPlanData.investment.status) : null,
+      content: <SavingsInvestmentPlanPanel yearMonth={yearMonth} showViewToggle={false} />,
+    },
+  ];
 
   const categoryPlannedTotals: Record<number, string> = Object.fromEntries(
     budgetRows.map((row) => {
@@ -254,7 +286,7 @@ export default function CashflowPlanTab({ view }: { view: "monthly" | "annual" }
   };
 
   return (
-    <div className="space-y-6">
+    <div ref={swipeRef} className="space-y-4">
       <div className="flex items-center justify-between flex-wrap gap-3">
         <MonthPicker yearMonth={yearMonth} onChange={setYearMonth} />
         <Button
@@ -268,69 +300,23 @@ export default function CashflowPlanTab({ view }: { view: "monthly" | "annual" }
         </Button>
       </div>
 
-      <p className="text-xs text-gray-400 dark:text-gray-500">
-        계획 금액과 이번 달 실제 내역을 비교해 달성율을 보여줘요. 카테고리를 태깅하면 그 카테고리의 실제 지출과도
-        비교돼요. 이번 달 실제 수입·지출은{" "}
-        <Link to="/transactions" className="font-semibold underline hover:no-underline">
-          가계부에서 확인
-        </Link>
-        할 수 있어요.
-      </p>
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <SummaryCard label="계획 수입 합계" value={formatKrw(summary.income.planned)} tone="positive" />
-        <SummaryCard label="계획 지출 합계" value={formatKrw(summary.expense_total)} />
-        <SummaryCard
-          label="저축 가능액 (계획)"
-          value={formatKrw(summary.available)}
-          tone={Number(summary.available) < 0 ? "negative" : "positive"}
-        />
-        <SummaryCard
-          label="계획된 저축·투자액"
-          value={savingsPlanData ? formatKrw(plannedSavingsInvestmentTotal) : "…"}
-          tone={
-            savingsPlanData && plannedSavingsInvestmentTotal > Number(summary.available) ? "negative" : "positive"
-          }
-        />
-      </div>
-
-      <GoalPurposeSummary
-        heading="이번 달 목표 현황 (칩을 눌러 항목별 계획을 편집하세요)"
-        purposes={purposes}
-        activeLabel={activeLabel}
-        onSelect={(label) => setActiveLabel(label as SectionLabel)}
+      <PlanBalanceSummary
+        periodLabel={`${formatYearMonth(yearMonth)}`}
+        income={Number(summary.income.planned)}
+        expense={Number(summary.expense_total)}
+        savingsPlanned={savingsPlanData ? plannedSavingsInvestmentTotal : null}
       />
 
-      {activeLabel === SAVINGS_INVESTMENT_LABEL ? (
-        <SavingsInvestmentPlanPanel yearMonth={yearMonth} showViewToggle={false} />
-      ) : (
-        (() => {
-          const { key, label } = SECTIONS.find((s) => s.label === activeLabel)!;
-          return (
-            <CashflowPlanSectionPanel
-              sectionKey={key}
-              label={label}
-              items={data.items.filter((i) => i.section === key)}
-              sectionSummary={summary[key]}
-              users={users}
-              categories={allCategories ?? []}
-              budgetRowByCategory={budgetRowByCategory}
-              nextYearMonthLabel={nextYearMonthLabel}
-              onAddItem={() => setModal({ section: key, item: null })}
-              onSplit={() => setSplitModalOpen(true)}
-              onEditItem={(item) => setModal({ section: key, item })}
-              onDeleteItem={(item) => setDeleteTarget(item.id)}
-              onLinkRecurring={setRecurringLinkTarget}
-              onQuickAdd={setQuickAddTarget}
-              onApplyCategorySuggestion={(row) => applyCategorySuggestionMutation.mutate(row)}
-              applyingCategoryId={applyingCategoryId}
-              onApplyIncomeSuggestion={(item, suggestedAmount) =>
-                applyIncomeSuggestionMutation.mutate({ item, suggestedAmount })
-              }
-              applyingIncomeSuggestion={applyIncomeSuggestionMutation.isPending}
-            />
-          );
-        })()
-      )}
+      <PlanSectionAccordion sections={sections} />
+
+      <p className="text-xs text-gray-400 dark:text-gray-500">
+        이번 달 계획은 연간계획의 이번 달 금액이에요. 여기서 바꾼 금액은 이번 달에만 적용되고, 달마다 다른 금액은
+        연간 탭에서 한 번에 채울 수 있어요. 실제 수입·지출은{" "}
+        <Link to={ROUTES.transactions} className="font-semibold underline hover:no-underline">
+          가계부
+        </Link>
+        에서 확인해요.
+      </p>
 
       {modal && (
         <Modal

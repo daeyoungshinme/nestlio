@@ -236,3 +236,107 @@ def category_budget_vs_actual(
     }
     budgets = category_budgets_for_year(db, year)
     return budget_service.build_category_rows(db, actuals, budgets, warn_pct, critical_pct)
+
+
+SEED_SOURCES = ("previous_year", "recurring", "recent_average")
+
+
+class PlanAlreadyExistsError(Exception):
+    pass
+
+
+def _seed_item(year: int, section: str, name: str, category_id: int | None, sort_order: int, updated_by: uuid.UUID,
+               monthly: dict[str, Decimal], **extra) -> AnnualPlanItem:
+    months = sorted(monthly)
+    return AnnualPlanItem(
+        year=year,
+        section=section,
+        name=name,
+        category_id=category_id,
+        sort_order=sort_order,
+        start_month=months[0],
+        end_month=months[-1],
+        updated_by=updated_by,
+        monthly_targets=[AnnualPlanItemMonthlyTarget(year_month=ym, target_amount=amt) for ym, amt in monthly.items()],
+        **extra,
+    )
+
+
+def _section_for(category) -> str:
+    return "income" if category.kind == "income" else category.type
+
+
+def _recurring_monthly_amounts(recurring, year: int) -> tuple[dict[str, Decimal], bool]:
+    """반복거래 하나를 그 해 월별 계획 금액으로 바꾼다. (월별 금액, 연동 가능 여부) — 매달 한 번 나가는
+    항목만 반복거래 연동(read-through)이 월 금액과 같아 연동하고, 한 달에 여러 번/매주/매년은 금액만 채운다."""
+    months = [year_month_of(year, m) for m in range(1, 13)]
+    if recurring.frequency == "yearly":
+        due = recurring.next_due_date or recurring.start_date
+        return {year_month_of(year, due.month): recurring.amount}, False
+    if recurring.frequency == "weekly":
+        monthly = (recurring.amount * 52 / 12).quantize(Decimal("1"))
+        return dict.fromkeys(months, monthly), False
+    times = len(recurring.days_of_month or []) or 1
+    return dict.fromkeys(months, recurring.amount * times), times == 1
+
+
+def seed_year(db: Session, year: int, source: str, updated_by: uuid.UUID, today: date) -> int:
+    """빈 해의 연간계획을 한 번에 채운다(계획 탭의 "새해 계획 시작" 마법사). 이미 항목이 있으면
+    PlanAlreadyExistsError — 덮어쓰기/중복 생성을 막는다. 만든 항목 수를 반환한다.
+      - previous_year: 작년 항목을 월만 올해로 옮겨 그대로 복사(반복거래 연동·할부 메타 포함)
+      - recurring: 활성 반복거래(수입·지출)로 항목 생성 — 저축 카테고리는 저축·투자 계획이 따로 있어 제외
+      - recent_average: today 기준 직전 3개월 카테고리별 평균 실적으로 매달 같은 금액의 항목 생성
+    """
+    from app.models.category import Category
+    from app.services import recurring_service
+
+    if source not in SEED_SOURCES:
+        raise ValueError(f"알 수 없는 source: {source}")
+    if list_items(db, year):
+        raise PlanAlreadyExistsError(f"{year}년 연간계획에 이미 항목이 있습니다.")
+
+    created: list[AnnualPlanItem] = []
+    if source == "previous_year":
+        for prev in list_items(db, year - 1):
+            monthly = {f"{year}{mt.year_month[4:]}": mt.target_amount for mt in prev.monthly_targets}
+            if not monthly:
+                continue
+            item = _seed_item(
+                year, prev.section, prev.name, prev.category_id, prev.sort_order, updated_by, monthly,
+                owner_user_id=prev.owner_user_id,
+                recurring_expense_id=prev.recurring_expense_id,
+                installment_total=prev.installment_total,
+                installment_total_amount=prev.installment_total_amount,
+            )
+            created.append(item)
+    elif source == "recurring":
+        for order, recurring in enumerate(recurring_service.list_recurring(db, active_only=True)):
+            category = recurring.category
+            if category is None or category.is_savings:
+                continue
+            monthly, linkable = _recurring_monthly_amounts(recurring, year)
+            created.append(
+                _seed_item(
+                    year, _section_for(category), recurring.name, category.id, order, updated_by, monthly,
+                    recurring_expense_id=recurring.id if linkable else None,
+                )
+            )
+    else:
+        averages = {
+            **transaction_report_service.trailing_average_by_category(db, today, months=3, type_="expense"),
+            **transaction_report_service.trailing_average_by_category(db, today, months=3, type_="income"),
+        }
+        categories = {c.id: c for c in db.query(Category).filter(Category.id.in_(list(averages))).all()}
+        for order, (category_id, avg) in enumerate(sorted(averages.items())):
+            category = categories.get(category_id)
+            amount = avg.quantize(Decimal("1"))
+            if category is None or category.is_savings or amount <= 0:
+                continue
+            monthly = {year_month_of(year, m): amount for m in range(1, 13)}
+            created.append(
+                _seed_item(year, _section_for(category), category.name, category.id, order, updated_by, monthly)
+            )
+
+    db.add_all(created)
+    db.commit()
+    return len(created)

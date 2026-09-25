@@ -1,7 +1,7 @@
 import { useNavigate } from "react-router-dom";
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { ChevronLeft, ChevronRight, PieChart as PieChartIcon, Scale, TrendingUp } from "lucide-react";
+import { PieChart as PieChartIcon, Scale, TrendingUp } from "lucide-react";
 import {
   Bar,
   BarChart,
@@ -21,16 +21,14 @@ import Tabs from "@/components/common/Tabs";
 import ProgressBar from "@/components/common/ProgressBar";
 import SkeletonCard from "@/components/common/SkeletonCard";
 import QueryBoundary from "@/components/common/QueryBoundary";
-import SummaryCards from "@/components/common/SummaryCards";
 import EmptyState from "@/components/common/EmptyState";
 import { fetchCategoryTrend, fetchYearlyReport } from "@/api/reports";
 import { useUsers } from "@/hooks/useReferenceData";
 import { QUERY_KEYS } from "@/constants/queryKeys";
+import { ROUTES } from "@/constants/routes";
 import { STALE_TIME } from "@/constants/queryConfig";
-import { TOUCH_TARGET_MIN_MOBILE_ONLY } from "@/constants/uiSizes";
 import { formatKrw, formatKrwCompact, formatPercent, formatYearMonth, formatMonthOnly } from "@/utils/format";
 import { incomeExpenseChartColor, planStatusBarClass, planStatusTextClass } from "@/utils/colors";
-import { currentYear } from "@/utils/date";
 import { useThemeStore } from "@/stores/themeStore";
 import type { CategoryBenchmarkRowOut } from "@/types";
 
@@ -41,9 +39,11 @@ const SHARED_OWNER_TAB = "공통";
 const MONTH_TICK_FORMATTER = (value: string) => value.replace("월", "");
 const TREND_TICK_FORMATTER = (value: string) => value.replace(/^\d+년\s*/, "");
 
-export default function ReportsYearlyPage() {
+/** 계획 › 연간 하단의 "실적 분석"(구 연간리포트 페이지 `/reports/yearly`를 흡수). 섹션별 계획 대비 실적은
+ * 바로 위 연간계획 아코디언이 이미 보여주므로 총계 카드(SummaryCards)는 빼고, 계획 화면에 없는 분석만
+ * 남겼다: 월별 수입/지출 추이, 부부별 카테고리 지출, 가구 평균(가이드라인) 대비, 최근 카테고리 추이. */
+export default function YearlyReportSection({ year }: { year: number }) {
   const navigate = useNavigate();
-  const [year, setYear] = useState(currentYear());
   const [ownerTab, setOwnerTab] = useState(ALL_OWNERS_TAB);
   const [hiddenSeries, setHiddenSeries] = useState<Set<string>>(new Set());
   const isDark = useThemeStore((s) => s.isDark);
@@ -110,32 +110,11 @@ export default function ReportsYearlyPage() {
   return (
     <QueryBoundary
       query={yearlyReportQuery}
-      errorMessage="연간 리포트를 불러오지 못했습니다."
+      errorMessage="실적 분석을 불러오지 못했습니다."
       loadingFallback={<SkeletonCard rows={4} />}
     >
       {(data) => (
           <div className="space-y-6">
-            <div className="flex items-center justify-center gap-4">
-              <button
-                type="button"
-                onClick={() => setYear(data.prev_year)}
-                className={`${TOUCH_TARGET_MIN_MOBILE_ONLY} rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800`}
-                aria-label="이전 해"
-              >
-                <ChevronLeft size={18} />
-              </button>
-              <h1 className="text-xl font-bold text-gray-900 dark:text-gray-50">{data.year}년 연간 리포트</h1>
-              <button
-                type="button"
-                onClick={() => setYear(data.next_year)}
-                className={`${TOUCH_TARGET_MIN_MOBILE_ONLY} rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800`}
-                aria-label="다음 해"
-              >
-                <ChevronRight size={18} />
-              </button>
-            </div>
-
-            <SummaryCards totals={data.totals} />
 
             <div className="card">
               <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">월별 수입/지출</h3>
@@ -207,7 +186,7 @@ export default function ReportsYearlyPage() {
                   icon={Scale}
                   title="카테고리에 표준 카테고리를 지정하면 비교해드려요"
                   compact
-                  action={{ label: "카테고리 관리로 이동", onClick: () => navigate("/categories") }}
+                  action={{ label: "카테고리 관리로 이동", onClick: () => navigate(ROUTES.categories) }}
                 />
               ) : (
                 <div className="space-y-3">
@@ -227,17 +206,9 @@ export default function ReportsYearlyPage() {
               ) : (
                 <div className="h-[240px] sm:h-[280px]">
                   <ResponsiveContainer width="100%" height="100%">
-                    <LineChart data={trendData} margin={{ bottom: 16 }}>
+                    <LineChart data={trendData}>
                       <CartesianGrid strokeDasharray="3 3" className="stroke-gray-200 dark:stroke-gray-700" />
-                      <XAxis
-                        dataKey="name"
-                        tick={{ fontSize: 12 }}
-                        tickFormatter={TREND_TICK_FORMATTER}
-                        interval={0}
-                        angle={-30}
-                        textAnchor="end"
-                        height={40}
-                      />
+                      <XAxis dataKey="name" tick={{ fontSize: 12 }} tickFormatter={TREND_TICK_FORMATTER} interval={0} />
                       <YAxis tick={{ fontSize: 12 }} tickFormatter={(v) => formatKrwCompact(Number(v))} width={70} />
                       <Tooltip formatter={(v) => formatKrw(Number(v))} />
                       <Legend

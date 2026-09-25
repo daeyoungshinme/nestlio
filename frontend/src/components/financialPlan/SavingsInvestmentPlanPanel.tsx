@@ -18,7 +18,7 @@ import {
   upsertSavingsProductAnnualPlan,
 } from "@/api/savingsProducts";
 import { useSavingsProducts, useUsers } from "@/hooks/useReferenceData";
-import { accountsSectionLink, planViewLink } from "@/constants/routes";
+import { accountsSectionLink } from "@/constants/routes";
 import { QUERY_KEYS } from "@/constants/queryKeys";
 import { TOUCH_TARGET_MIN_MOBILE_ONLY } from "@/constants/uiSizes";
 import { formatKrw, formatPercent } from "@/utils/format";
@@ -351,22 +351,9 @@ export default function SavingsInvestmentPlanPanel({
   const savingsItems = items.filter((i) => i.product_type === "savings");
   const investmentItems = items.filter((i) => i.product_type === "investment");
 
-  const otherViewLink = isMonthMode
-    ? { to: planViewLink("연간"), label: "연간 누적 보기" }
-    : { to: planViewLink("이번 달"), label: "이번 달 상세 보기" };
-
   return (
     <div className="space-y-4">
-      {showViewToggle ? (
-        <Tabs tabs={VIEW_MODE_TABS} activeTab={viewMode} onChange={setViewMode} variant="pill" />
-      ) : (
-        <Link
-          to={otherViewLink.to}
-          className="inline-flex items-center gap-1 text-xs text-gray-500 dark:text-gray-400 hover:text-primary-600 dark:hover:text-primary-400"
-        >
-          {otherViewLink.label} <ArrowRight size={12} />
-        </Link>
-      )}
+      {showViewToggle && <Tabs tabs={VIEW_MODE_TABS} activeTab={viewMode} onChange={setViewMode} variant="pill" />}
 
       <p className="text-xs text-gray-400 dark:text-gray-500">
         {isMonthMode

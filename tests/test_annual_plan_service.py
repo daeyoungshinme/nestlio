@@ -1,6 +1,8 @@
 from datetime import date
 from decimal import Decimal
 
+import pytest
+
 from app.models.annual_plan_item_monthly_target import AnnualPlanItemMonthlyTarget
 from app.services import (
     annual_plan_service,
@@ -485,3 +487,73 @@ def test_category_budget_status_matches_monthly_under_household_threshold_overri
         r for r in annual_plan_service.category_budget_vs_actual(db, 2026, warn, crit) if r["category_id"] == food.id
     )
     assert monthly["status"] == yearly["status"] == "warn"
+
+
+def test_seed_year_from_previous_year_copies_items_into_new_year(seeded_db):
+    db, user, rent = seeded_db["db"], seeded_db["user"], seeded_db["rent"]
+    annual_plan_service.upsert_item(
+        db, None, 2026, "fixed", None, "월세", rent.id, 0, user.id, "2026-01", "2026-12",
+        monthly_targets=[{"year_month": "2026-03", "target_amount": Decimal("800000")}],
+    )
+
+    created = annual_plan_service.seed_year(db, 2027, "previous_year", user.id, date(2026, 12, 20))
+
+    assert created == 1
+    [item] = annual_plan_service.list_items(db, 2027)
+    assert item.name == "월세"
+    assert [(mt.year_month, mt.target_amount) for mt in item.monthly_targets] == [("2027-03", Decimal("800000"))]
+
+
+def test_seed_year_from_recurring_links_monthly_items_and_skips_savings(seeded_db):
+    from app.models.category import Category
+    from app.services import recurring_service
+
+    db, user, rent, salary = seeded_db["db"], seeded_db["user"], seeded_db["rent"], seeded_db["salary"]
+    savings_cat = Category(name="적금", type="fixed", color="#000", sort_order=0, is_savings=True)
+    db.add(savings_cat)
+    db.commit()
+    rent_rec = recurring_service.create_recurring(
+        db, name="월세", category_id=rent.id, amount=Decimal("800000"),
+        frequency="monthly", start_date=date(2026, 1, 5), created_by=user.id,
+    )
+    recurring_service.create_recurring(
+        db, name="월급", category_id=salary.id, amount=Decimal("3000000"),
+        frequency="monthly", start_date=date(2026, 1, 25), created_by=user.id, type_="income",
+    )
+    recurring_service.create_recurring(
+        db, name="적금 이체", category_id=savings_cat.id, amount=Decimal("500000"),
+        frequency="monthly", start_date=date(2026, 1, 10), created_by=user.id,
+    )
+
+    created = annual_plan_service.seed_year(db, 2027, "recurring", user.id, date(2026, 12, 20))
+
+    assert created == 2
+    items = {i.name: i for i in annual_plan_service.list_items(db, 2027)}
+    assert items["월세"].recurring_expense_id == rent_rec.id
+    assert items["월세"].section == "fixed"
+    assert len(items["월세"].monthly_targets) == 12
+    assert items["월급"].section == "income"
+    assert "적금 이체" not in items
+
+
+def test_seed_year_from_recent_average_uses_trailing_three_months(seeded_db):
+    db, user, food = seeded_db["db"], seeded_db["user"], seeded_db["food"]
+    for month, amount in ((9, "300000"), (10, "330000"), (11, "360000")):
+        transaction_service.create_transaction(db, user.id, food.id, "expense", Decimal(amount), date(2026, month, 5))
+
+    created = annual_plan_service.seed_year(db, 2027, "recent_average", user.id, date(2026, 12, 20))
+
+    assert created == 1
+    [item] = annual_plan_service.list_items(db, 2027)
+    assert item.section == "variable"
+    assert {mt.target_amount for mt in item.monthly_targets} == {Decimal("330000")}
+
+
+def test_seed_year_refuses_when_year_already_has_items(seeded_db):
+    db, user = seeded_db["db"], seeded_db["user"]
+    annual_plan_service.upsert_item(
+        db, None, 2027, "fixed", None, "월세", None, 0, user.id, "2027-01", "2027-01",
+        monthly_targets=[{"year_month": "2027-01", "target_amount": Decimal("1")}],
+    )
+    with pytest.raises(annual_plan_service.PlanAlreadyExistsError):
+        annual_plan_service.seed_year(db, 2027, "previous_year", user.id, date(2026, 12, 20))

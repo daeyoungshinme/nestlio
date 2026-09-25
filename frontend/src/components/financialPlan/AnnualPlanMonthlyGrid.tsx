@@ -19,7 +19,7 @@ interface Props {
  * GoalMonthlyTargetEditor의 mode="goal"(총액 입력 → 균등분배)과 같은 상호작용이지만, 개별 목표
  * (FinancialGoal)와는 무관한 별도 컴포넌트다. 항목 단위 실적 비교는 하지 않으므로(월간
  * CashflowPlanItemRow도 항목별 실적을 보여주지 않는 것과 동일) 실적/달성률 컬럼은 없다 — 섹션
- * 전체 달성률은 AnnualPlanPanel의 SectionAchievementBar가 별도로 보여준다. */
+ * 전체 달성률은 계획 화면의 섹션 아코디언(PlanSectionAccordion) 헤더가 별도로 보여준다. */
 export default function AnnualPlanMonthlyGrid({ startMonth, endMonth, targets, onChange, distributeAmount }: Props) {
   const { months, amountByMonth, total, setAmount, handleDistributeEvenly } = useMonthlyTargetGrid(
     startMonth,
