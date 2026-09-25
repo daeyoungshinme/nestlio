@@ -14,6 +14,7 @@ from app.services import (
     coaching_settings_service,
     goal_service,
     net_worth_service,
+    savings_product_plan_service,
     savings_product_service,
     transaction_report_service,
 )
@@ -21,7 +22,7 @@ from app.utils.dates import month_bounds, parse_year_month, today_kst, year_mont
 
 # 코칭 임계값은 app/config.py의 settings에 있다 (app/services/CLAUDE.md 컨벤션). 뜻:
 #   emergency_fund_min/target_months — 비상금 런웨이(고정지출 기준 개월수)
-#   goal_pace_critical/info_pct       — 실제 저축 vs 목표 월저축액 합의 % (100=info, 70미만=critical)
+#   goal_pace_critical/info_pct       — 실제 저축 vs 계획 월저축액의 % (savings_pace_basis, 100=info, 70미만=critical)
 #   savings_execution_critical/warn_pct — 실제 순자산 저축 증가분 vs 이론적 잉여(수입-지출)의 %
 #   variable_trend_flag_pct           — 변동지출이 최근 3개월 평균 대비 몇 %p 늘면 경고
 #   category_benchmark_top_n          — compute_insights가 대시보드에 노출할 벤치마크 인사이트 개수
@@ -196,23 +197,33 @@ def category_benchmark_insights(rows: list[dict]) -> list[Insight]:
     ]
 
 
-def goal_pace_insight(totals: dict, goals: list[dict]) -> Insight | None:
-    target_monthly = sum((g["monthly_saving_amount"] for g in goals), Decimal("0"))
+def savings_pace_basis(
+    planned_savings: Decimal, deposits: Decimal, goals_monthly: Decimal, surplus: Decimal
+) -> tuple[Decimal, Decimal]:
+    """목표 페이스·연속 달성이 비교할 (실적, 목표) 쌍. 저축·투자 계획(SavingsProduct 월 계획액)이 있으면
+    그것이 "얼마 저축할지"의 원본이라 **계획 대비 실제 납입액**(저축상품 연결 거래)을 비교한다. 계획을 아직
+    세우지 않은 가구만 예전처럼 목표들의 월 저축액 합 대비 그 달 수입−지출로 폴백한다."""
+    if planned_savings > 0:
+        return deposits, planned_savings
+    return surplus, goals_monthly
+
+
+def goal_pace_insight(actual: Decimal, target_monthly: Decimal) -> Insight | None:
     if target_monthly <= 0:
         return None
-    pct = _pct(totals["savings"], target_monthly)
+    pct = _pct(actual, target_monthly)
     if pct < settings.goal_pace_critical_pct:
         return Insight(
             "goal_pace",
             "critical",
-            f"이번달 저축액이 목표 월 저축액의 {pct:.0f}%예요. 목표 페이스에 많이 못 미쳤어요. 이번 달엔 같이 지출을 점검해볼까요?",
+            f"이번달 저축·투자가 계획한 월 저축액의 {pct:.0f}%예요. 목표 페이스에 많이 못 미쳤어요. 이번 달엔 같이 지출을 점검해볼까요?",
         )
     if pct < settings.goal_pace_info_pct:
         return Insight(
-            "goal_pace", "warning", f"이번달 저축액이 목표 월 저축액의 {pct:.0f}%예요. 우리 조금만 더 힘내볼까요?"
+            "goal_pace", "warning", f"이번달 저축·투자가 계획한 월 저축액의 {pct:.0f}%예요. 우리 조금만 더 힘내볼까요?"
         )
     return Insight(
-        "goal_pace", "info", f"이번달 저축액이 목표 월 저축액의 {pct:.0f}% — 두 분 다 목표 페이스를 잘 지키고 있어요!"
+        "goal_pace", "info", f"이번달 저축·투자가 계획한 월 저축액의 {pct:.0f}% — 두 분 다 목표 페이스를 잘 지키고 있어요!"
     )
 
 
@@ -319,19 +330,31 @@ def emergency_fund_insight(current_balance: Decimal | None, avg_monthly_fixed: D
     )
 
 
-def savings_streak_months(trend: list[dict], target_monthly: Decimal) -> int:
-    """trend는 오래된 달부터 정렬된 월별 income/expense 목록(transaction_report_service.monthly_trend
-    출력). 가장 최근 달부터 거꾸로 훑으며 그 달의 저축액(income-expense)이 목표 월 저축액 이상이었던
-    연속 개월 수를 센다 (게임화 위젯의 '연속 목표달성' 스트릭 배지용)."""
-    if target_monthly <= 0:
-        return 0
+def savings_streak_months(history: list[tuple[Decimal, Decimal]]) -> int:
+    """history는 오래된 달부터 정렬된 월별 (실적, 목표) 쌍(savings_pace_basis 출력). 가장 최근 달부터
+    거꾸로 훑으며 목표가 있고 실적이 목표 이상이었던 연속 개월 수를 센다 (게임화 위젯의 '연속 목표달성'
+    스트릭 배지용). 목표가 없는 달을 만나면 거기서 끊는다."""
     streak = 0
-    for row in reversed(trend):
-        savings = row["income"] - row["expense"]
-        if savings < target_monthly:
+    for actual, target in reversed(history):
+        if target <= 0 or actual < target:
             break
         streak += 1
     return streak
+
+
+def goals_monthly_total(goals: list[FinancialGoal]) -> Decimal:
+    return sum((g.monthly_saving_amount for g in goals), Decimal("0"))
+
+
+def savings_pace_history(db: Session, trend: list[dict], goals: list[FinancialGoal]) -> list[tuple[Decimal, Decimal]]:
+    """trend(transaction_report_service.monthly_trend 출력, 오래된 달부터)의 각 달에 대해 savings_pace_basis를
+    계산하는 DB-aware 래퍼 — 대시보드와 요약 메일이 같은 연속 달성 개월 수를 보이도록 공유한다."""
+    goals_monthly = goals_monthly_total(goals)
+    history = []
+    for row in trend:
+        planned, deposits = savings_product_plan_service.plan_totals_for_month(db, row["year_month"])
+        history.append(savings_pace_basis(planned, deposits, goals_monthly, row["income"] - row["expense"]))
+    return history
 
 
 def compute_insights(
@@ -362,7 +385,10 @@ def compute_insights(
         db, year_month, thresholds["budget_warn_pct"], thresholds["budget_critical_pct"], suggested=trailing_avg
     )
     goal_rows = goals if goals is not None else goal_service.list_goals(db)
-    goal_dicts = [{"monthly_saving_amount": g.monthly_saving_amount} for g in goal_rows]
+    planned_savings, deposits = savings_product_plan_service.plan_totals_for_month(db, year_month)
+    pace_actual, pace_target = savings_pace_basis(
+        planned_savings, deposits, goals_monthly_total(goal_rows), totals["savings"]
+    )
 
     insights: list[Insight] = []
     actual_saved = actual_saved if actual_saved is not None else net_worth_service.savings_delta(db, year_month)
@@ -373,7 +399,7 @@ def compute_insights(
         ),
         discretionary_ratio_insight(totals, breakdown, thresholds["discretionary_ratio_warn"]),
         debt_ratio_insight(totals, breakdown, thresholds["debt_ratio_warn"]),
-        goal_pace_insight(totals, goal_dicts),
+        goal_pace_insight(pace_actual, pace_target),
         savings_execution_insight(totals["savings"], actual_saved),
     ):
         if candidate:

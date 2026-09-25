@@ -625,6 +625,8 @@ export interface FinancialGoalOut {
   target_date: string | null;
   required_amount: string;
   monthly_saving_amount: string;
+  /** 실제 월 계획액 — 저축·투자 상품이 연동되면 그 상품들의 이번 달 계획 합, 아니면 monthly_saving_amount. */
+  planned_monthly_amount: string;
   current_amount: string;
   progress_pct: string;
   sort_order: number;

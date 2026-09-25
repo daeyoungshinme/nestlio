@@ -4,7 +4,6 @@
 서비스 계층으로 모아 재사용·테스트가 가능하게 했다. 순수 조합 로직이며 DB 쓰기는 없다.
 """
 from datetime import date
-from decimal import Decimal
 from typing import Literal
 
 from sqlalchemy.orm import Session
@@ -77,8 +76,7 @@ def build(
         db, month_start=month_start, surplus=investable_surplus, fund_context=fund_context
     )
 
-    target_monthly = sum((g.monthly_saving_amount for g in goals), Decimal("0"))
-    streak = coaching_engine.savings_streak_months(trend, target_monthly)
+    streak = coaching_engine.savings_streak_months(coaching_engine.savings_pace_history(db, trend, goals))
 
     return {
         "period": period,

@@ -1,6 +1,5 @@
 import logging
 from datetime import date
-from decimal import Decimal
 
 from sqlalchemy.orm import Session
 
@@ -48,9 +47,8 @@ def _savings_streak(db: Session, end: date) -> int:
     """대시보드(GET /dashboard)와 같은 계산(coaching_engine.savings_streak_months)을 재사용해
     주간/월간 요약 알림에도 "연속 몇 개월째 목표 페이스를 지키고 있는지"를 함께 보여준다."""
     goals = goal_service.list_goals(db)
-    target_monthly = sum((g.monthly_saving_amount for g in goals), Decimal("0"))
     trend = transaction_report_service.monthly_trend(db, months=6, anchor=end)
-    return coaching_engine.savings_streak_months(trend, target_monthly)
+    return coaching_engine.savings_streak_months(coaching_engine.savings_pace_history(db, trend, goals))
 
 
 def _contribution_summary_text(owner_totals: list[dict]) -> str | None:

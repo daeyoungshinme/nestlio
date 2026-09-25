@@ -36,10 +36,11 @@
 ## coaching_engine.py
 
 - DB 쓰기는 전혀 없다. 대부분의 함수는 순수 계산 함수로, 입력은 이미 조회된 집계값들이고 출력은 `Insight` dataclass다 — 이 함수들은 파라미터화 테스트로 경계값을 촘촘히 검증한다(`tests/test_coaching_engine.py`).
-- 다만 `emergency_fund_context`/`compute_surplus_allocation`/`compute_insights` 3개는 예외로, `db: Session`을 받아 직접 조회(`savings_product_service.get_emergency_fund_balance`, `transaction_report_service.monthly_trend` 등)까지 겸하는 "DB-aware 래퍼"다 — 호출부(`app/routers/dashboard.py`)가 매번 재조회하지 않도록 조회와 순수 계산을 한데 묶어놓은 것이며, 새 순수 계산 함수를 추가할 때 이 3개까지 순수 함수로 착각하지 않는다.
+- 다만 `emergency_fund_context`/`compute_surplus_allocation`/`compute_insights`/`savings_pace_history` 4개는 예외로, `db: Session`을 받아 직접 조회(`savings_product_service.get_emergency_fund_balance`, `transaction_report_service.monthly_trend` 등)까지 겸하는 "DB-aware 래퍼"다 — 호출부(`app/routers/dashboard.py`)가 매번 재조회하지 않도록 조회와 순수 계산을 한데 묶어놓은 것이며, 새 순수 계산 함수를 추가할 때 이 3개까지 순수 함수로 착각하지 않는다.
 - 임계값(경고/위험 기준)은 하드코딩하지 않고 `app/config.py`의 `settings`에서 가져온다.
 - 예산 경고/위험 %는 가구가 설정 화면에서 바꿀 수 있으므로 예산 상태를 계산하는 곳(계획 화면 라우터, 예산 알림 메일)은 `coaching_settings_service.budget_thresholds(db)`로 꺼내 `budget_vs_actual` 등에 넘긴다 — 인자를 생략하면 env 기본값이 쓰여 화면과 알림 판정이 어긋난다.
 - 새 룰 추가 시 순수 계산 함수는 동일하게 파라미터화 테스트로 경계값을 검증한다.
+- **"얼마 저축할지"의 원본은 저축·투자 상품의 월 계획**(`savings_product_plan_service.planned_by_product_for_month` — `SavingsProductAnnualPlan` 그리드, 없으면 `monthly_saving_amount`)이다. 목표 페이스(`goal_pace`)·연속 달성(`savings_streak_months`)은 `savings_pace_basis`로 (실적, 목표)를 고른다: 그 달 저축·투자 계획이 있으면 **계획 대비 실제 납입액**(저축상품 연결 거래), 계획이 없는 가구만 목표들의 `monthly_saving_amount` 합 대비 수입−지출로 폴백한다. 목표의 실제 월 계획액도 같은 원본을 따른다(`goal_progress_service.planned_monthly_for_goal` — 상품 연동 목표는 상품 계획 합, `FinancialGoalOut.planned_monthly_amount`, ETA도 이 값으로 계산).
 
 ## transaction_service.py / transaction_report_service.py / transaction_import_service.py
 

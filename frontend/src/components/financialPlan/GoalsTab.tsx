@@ -127,7 +127,7 @@ export default function GoalsTab() {
     <QueryBoundary query={goalsQuery}>
       {(data) => {
   const totalRequired = data.reduce((sum, g) => sum + Number(g.required_amount), 0);
-  const totalMonthly = data.reduce((sum, g) => sum + Number(g.monthly_saving_amount), 0);
+  const totalMonthly = data.reduce((sum, g) => sum + Number(g.planned_monthly_amount), 0);
   const isSaving = createMutation.isPending || updateMutation.isPending;
   const investableSurplus = dashboard?.investable_surplus ?? "0";
   const priorityOrderedGoals = data.slice().sort((a, b) => a.priority - b.priority);
@@ -322,7 +322,7 @@ export default function GoalsTab() {
           <>
             {goal.funding_sources.length > 0 ? "연동 항목 잔액 합계" : "현재 저축액"}{" "}
             {formatKrw(goal.current_amount)} / 목표 {formatKrw(goal.required_amount)}
-            {!isChallenge && <> · 월 {formatKrw(goal.monthly_saving_amount)}</>}
+            {!isChallenge && <> · 월 {formatKrw(goal.planned_monthly_amount)}</>}
             {hasLoanSource && " (대출 차감 반영)"}
           </>
         }

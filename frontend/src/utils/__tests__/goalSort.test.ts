@@ -13,6 +13,7 @@ function makeGoal(overrides: Partial<FinancialGoalOut>): FinancialGoalOut {
     target_date: null,
     required_amount: "1000000",
     monthly_saving_amount: "100000",
+    planned_monthly_amount: "100000",
     current_amount: "0",
     progress_pct: "0",
     sort_order: 0,

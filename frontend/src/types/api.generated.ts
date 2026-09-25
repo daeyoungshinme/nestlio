@@ -2417,6 +2417,8 @@ export interface components {
             required_amount: string;
             /** Monthly Saving Amount */
             monthly_saving_amount: string;
+            /** Planned Monthly Amount */
+            planned_monthly_amount: string;
             /** Current Amount */
             current_amount: string;
             /** Progress Pct */
