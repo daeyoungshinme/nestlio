@@ -20,6 +20,16 @@ def _is_importable_asset_type(asset_type: str) -> bool:
     return asset_type not in growlio_client.BANK_ASSET_TYPES and asset_type != growlio_client.REAL_ESTATE_ASSET_TYPE
 
 
+def _apply_balance(product: SavingsProduct, match: dict) -> None:
+    """growlio 평가액을 잔액으로, 투자 상품이면 growlio 원금(invested_amount_krw)을 principal_amount로 채운다 —
+    그러면 SavingsProduct.return_amount/return_rate_pct("모은 돈 vs 시장이 벌어준 돈")가 계산된다. 원금을 모르는
+    응답(구버전·예금형)이면 기존 원금을 건드리지 않는다."""
+    product.current_balance = growlio_client.to_decimal_krw(match["current_value_krw"])
+    principal = growlio_client.principal_krw(match)
+    if principal is not None and product.product_type == "investment":
+        product.principal_amount = principal
+
+
 def list_growlio_accounts(bearer_token: str) -> list[dict]:
     """연동 대상 선택 UI를 위해 growlio 계좌 목록을 전달한다."""
     accounts = growlio_client.fetch_account_balances(bearer_token)
@@ -36,7 +46,7 @@ def sync_from_growlio(db: Session, product_id: int, bearer_token: str, *, now: d
     match = growlio_client.find_by_growlio_id(accounts, product.growlio_account_id)
     if match is None:
         raise GrowlioSyncError("growlio에서 연동된 계좌를 찾을 수 없습니다. 계좌가 삭제되었을 수 있습니다.")
-    product.current_balance = growlio_client.to_decimal_krw(match["current_value_krw"])
+    _apply_balance(product, match)
     product.last_synced_at = now
     db.commit()
     db.refresh(product)
@@ -73,11 +83,8 @@ def sync_all_from_growlio(
         return 0, []
     growlio_accounts = growlio_client.fetch_account_balances(bearer_token)
 
-    def _apply(product: SavingsProduct, match: dict) -> None:
-        product.current_balance = growlio_client.to_decimal_krw(match["current_value_krw"])
-
     synced_count, failed = growlio_client.sync_linked_rows(
-        linked_products, growlio_accounts, now=now, apply=_apply
+        linked_products, growlio_accounts, now=now, apply=_apply_balance
     )
     db.commit()
     return synced_count, failed
@@ -117,6 +124,7 @@ def import_from_growlio(
             sort_order=DEFAULT_SORT_ORDER,
             owner_user_id=owner_user_id,
         )
+        _apply_balance(product, account)
         db.add(product)
         created.append(product)
     db.commit()

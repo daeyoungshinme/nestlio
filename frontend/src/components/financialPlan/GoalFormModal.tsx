@@ -129,6 +129,9 @@ export default function GoalFormModal({
             ? String(Math.round(annualDepositGoal / 12))
             : d.monthly_saving_amount,
         savings_product_ids: growlioProductIds.length > 0 ? growlioProductIds : d.savings_product_ids,
+        // growlio 목표 수익률로 복리 ETA를 계산한다(목표 폼 3단계 "기대 연 수익률").
+        expected_annual_return_pct:
+          data.goal_annual_return_pct !== null ? String(data.goal_annual_return_pct) : d.expected_annual_return_pct,
       }));
       toast(
         growlioProductIds.length > 0
@@ -469,6 +472,19 @@ export default function GoalFormModal({
           className="w-full"
           preview={amountInputPreview(draft.monthly_saving_amount)}
         />
+        <FormInput
+          label="기대 연 수익률 % (선택 — 투자로 모을 때)"
+          type="number"
+          inputMode="decimal"
+          step="0.1"
+          value={draft.expected_annual_return_pct}
+          onChange={(e) => setDraft((d) => ({ ...d, expected_annual_return_pct: e.target.value }))}
+          className="w-full"
+        />
+        <p className="text-xs text-gray-400 dark:text-gray-500">
+          입력하면 투자 수익을 월 복리로 반영한 예상 달성월도 함께 보여줘요. growlio 투자목표를 불러오면 목표 수익률이
+          채워져요.
+        </p>
         {draft.savings_product_ids.length > 0 && (
           <p className="text-xs text-gray-500 dark:text-gray-400">
             저축·투자 상품이 연동된 목표는 계획 탭의 상품별 월 계획 합계가 실제 월 저축액으로 쓰여요(예상 달성일·페이스

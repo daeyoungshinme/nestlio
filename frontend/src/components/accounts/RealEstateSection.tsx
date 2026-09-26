@@ -365,6 +365,7 @@ function RealEstateFormModal({
           <GrowlioLinkSection
             productId={product.id}
             growlioAccountId={product.growlio_account_id}
+            autoSyncEnabled={product.auto_sync_enabled}
             queryKey={QUERY_KEYS.growlioRealEstateAccounts}
             fetchRows={fetchGrowlioRealEstate}
             getRowId={(item) => item.id}

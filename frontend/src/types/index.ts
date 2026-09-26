@@ -624,6 +624,9 @@ export interface FinancialGoalOut {
   monthly_saving_amount: string;
   /** 실제 월 계획액 — 저축·투자 상품이 연동되면 그 상품들의 이번 달 계획 합, 아니면 monthly_saving_amount. */
   planned_monthly_amount: string;
+  /** 부부가 기대하는 연 투자수익률(%) — 있으면 eta_with_return_year_month(월 복리 ETA)가 채워진다. */
+  expected_annual_return_pct: string | null;
+  eta_with_return_year_month: string | null;
   current_amount: string;
   progress_pct: string;
   sort_order: number;
@@ -651,6 +654,7 @@ export interface FinancialGoalCreateIn {
   target_date?: string | null;
   required_amount: string;
   monthly_saving_amount: string;
+  expected_annual_return_pct?: string | null;
   current_amount?: string;
   funding_sources?: FundingSourceIn[];
   start_date?: string | null;
@@ -666,6 +670,36 @@ export interface GoalCheerIn {
 
 export interface GoalCheerOut {
   notification_id: number;
+}
+
+export interface GrowlioPerformanceOut {
+  xirr_pct: number | null;
+  annual_return_pct: number | null;
+  cumulative_return_pct: number | null;
+  goal_annual_return_pct: number | null;
+  return_goal_gap_pct: number | null;
+  annual_deposit_goal: number | null;
+  annual_deposit_current: number | null;
+  deposit_achievement_pct: number | null;
+}
+
+export interface GrowlioDepositGuideOut {
+  annual_return_pct: number;
+  required_monthly_deposit: number | null;
+  required_annual_deposit: number | null;
+}
+
+export interface GrowlioFeasibilityOut {
+  required_return_pct: number | null;
+  pv: number;
+  n_months: number;
+  note: string | null;
+  deposit_guide: GrowlioDepositGuideOut[];
+}
+
+export interface GrowlioGoalInsightOut {
+  performance: GrowlioPerformanceOut;
+  feasibility: GrowlioFeasibilityOut | null;
 }
 
 export interface GrowlioGoalSettingsOut {

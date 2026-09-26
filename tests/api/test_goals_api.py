@@ -271,3 +271,40 @@ def test_cheer_goal_404_and_invalid_emoji(client, seeded_db):
         json={"priority": 1, "name": "여행", "required_amount": "1000000", "monthly_saving_amount": "100000"},
     ).json()["id"]
     assert client.post(f"/api/v1/financial-goals/{goal_id}/cheer", json={"emoji": "🙂"}).status_code == 422
+
+
+def test_growlio_insight_combines_performance_and_feasibility(client, seeded_db):
+    from decimal import Decimal
+    from unittest.mock import patch
+
+    goal_id = client.post(
+        "/api/v1/financial-goals",
+        json={
+            "priority": 1,
+            "name": "내집마련",
+            "required_amount": "30000000",
+            "monthly_saving_amount": "500000",
+            "target_date": "2029-12-31",
+            "current_amount": "10000000",
+        },
+    ).json()["id"]
+    feasibility = {"required_return_pct": 4.2, "pv": 10000000.0, "n_months": 39, "note": None, "deposit_guide": []}
+    with (
+        patch("app.services.goal_service.growlio_client.fetch_performance", return_value={"xirr_pct": 7.5}),
+        patch("app.services.goal_service.growlio_client.fetch_goal_feasibility", return_value=feasibility) as mock_f,
+    ):
+        resp = client.get(f"/api/v1/financial-goals/{goal_id}/growlio-insight")
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["performance"]["xirr_pct"] == 7.5
+    assert body["feasibility"]["required_return_pct"] == 4.2
+    # 현재 금액·목표·월 계획을 growlio에 넘긴다
+    args = mock_f.call_args.args
+    assert args[1] == Decimal("30000000")
+    assert args[2] == Decimal("10000000")
+    assert args[4] == Decimal("500000")
+
+
+def test_growlio_insight_404(client, seeded_db):
+    assert client.get("/api/v1/financial-goals/999/growlio-insight").status_code == 404

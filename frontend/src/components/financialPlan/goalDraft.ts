@@ -13,6 +13,8 @@ export interface Draft {
   start_date: string;
   required_amount: string;
   monthly_saving_amount: string;
+  /** 기대 연수익률(%) — 비우면 null(복리 ETA 없음) */
+  expected_annual_return_pct: string;
   current_amount: string;
   savings_product_ids: string[];
   account_ids: string[];
@@ -30,6 +32,7 @@ export const EMPTY_GOAL_DRAFT: Draft = {
   start_date: "",
   required_amount: "0",
   monthly_saving_amount: "0",
+  expected_annual_return_pct: "",
   current_amount: "0",
   savings_product_ids: [],
   account_ids: [],
@@ -60,6 +63,7 @@ export function draftFromGoal(goal: FinancialGoalOut): Draft {
     start_date: goal.start_date ?? currentDateIso(),
     required_amount: toAmountInputValue(goal.required_amount),
     monthly_saving_amount: toAmountInputValue(goal.monthly_saving_amount),
+    expected_annual_return_pct: goal.expected_annual_return_pct !== null ? String(Number(goal.expected_annual_return_pct)) : "",
     current_amount: toAmountInputValue(goal.current_amount),
     savings_product_ids: goal.funding_sources.filter((fs) => fs.type === "savings_product").map((fs) => String(fs.id)),
     account_ids: goal.funding_sources.filter((fs) => fs.type === "account").map((fs) => String(fs.id)),
@@ -89,6 +93,8 @@ export function toPayload(draft: Draft) {
     target_date: draft.target_date === "" ? null : draft.target_date,
     required_amount: draft.required_amount,
     monthly_saving_amount: isChallenge ? "0" : draft.monthly_saving_amount,
+    expected_annual_return_pct:
+      isChallenge || draft.expected_annual_return_pct.trim() === "" ? null : draft.expected_annual_return_pct,
     current_amount: draft.current_amount,
     funding_sources,
     start_date: isChallenge ? draft.start_date : null,

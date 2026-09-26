@@ -113,8 +113,10 @@ def create_goal(
     created_by_id: uuid.UUID | None = None,
     monthly_targets: list[dict] | None = None,
     now: datetime | None = None,
+    expected_annual_return_pct: Decimal | None = None,
 ) -> FinancialGoal:
     goal = FinancialGoal(
+        expected_annual_return_pct=expected_annual_return_pct,
         priority=priority,
         name=name,
         target_age=target_age,
@@ -156,6 +158,7 @@ def update_goal(
     start_date: date | None = None,
     monthly_targets: list[dict] | None = None,
     now: datetime | None = None,
+    expected_annual_return_pct: Decimal | None = None,
 ) -> FinancialGoal | None:
     goal = db.get(FinancialGoal, goal_id)
     if goal is None:
@@ -166,6 +169,7 @@ def update_goal(
     goal.target_date = target_date
     goal.required_amount = required_amount
     goal.monthly_saving_amount = monthly_saving_amount
+    goal.expected_annual_return_pct = expected_annual_return_pct
     goal.manual_current_amount = current_amount
     goal.description = description
     goal.start_date = start_date
@@ -224,3 +228,21 @@ def sync_challenge_statuses(db: Session, now: datetime) -> list[FinancialGoal]:
     if transitioned:
         db.commit()
     return transitioned
+
+
+def fetch_growlio_insight(db: Session, goal: FinancialGoal, bearer_token: str, today: date) -> dict:
+    """목표 상세의 "투자 수익을 반영하면?" 카드 — growlio 실적 수익률(performance)과 이 목표의 달성 가능성
+    (feasibility: 현재 금액·목표 금액·남은 개월·월 계획으로 필요 연수익률과 프리셋별 필요 적립액)을 묶는다.
+    목표일이 없으면 기간을 알 수 없어 feasibility는 None. growlio 미설정/실패는 전역 핸들러가 501/502로 바꾼다."""
+    out = goal_progress_service.to_out(db, goal, today)
+    performance = growlio_client.fetch_performance(bearer_token)
+    feasibility = None
+    if out["months_remaining"]:
+        feasibility = growlio_client.fetch_goal_feasibility(
+            bearer_token,
+            goal.required_amount,
+            out["current_amount"],
+            out["months_remaining"],
+            out["planned_monthly_amount"],
+        )
+    return {"performance": performance, "feasibility": feasibility}

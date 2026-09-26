@@ -31,6 +31,9 @@ class FinancialGoal(Base):
     target_date: Mapped[date | None] = mapped_column(Date, nullable=True)
     required_amount: Mapped[Decimal] = mapped_column(Numeric(14, 2), default=0)
     monthly_saving_amount: Mapped[Decimal] = mapped_column(Numeric(12, 2), default=0)
+    # 부부가 기대하는 연 투자수익률(%) — 있으면 복리 ETA(goal_progress_service.compute_eta_with_return)를 함께 보여준다.
+    # growlio 투자목표의 goal_annual_return_pct로 미리 채울 수 있다.
+    expected_annual_return_pct: Mapped[Decimal | None] = mapped_column(Numeric(5, 2), nullable=True)
     # 실제 컬럼명은 그대로 current_amount(하위호환) — 연동된 저축상품(funding_sources)이 하나라도
     # 있으면 이 수동 입력값 대신 연동 상품들의 잔액 합이 진행률 계산에 쓰인다. 아래 current_amount 참고.
     manual_current_amount: Mapped[Decimal] = mapped_column("current_amount", Numeric(14, 2), default=0)

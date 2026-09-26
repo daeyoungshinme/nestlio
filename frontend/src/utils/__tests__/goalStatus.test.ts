@@ -14,6 +14,8 @@ function makeGoal(overrides: Partial<FinancialGoalOut>): FinancialGoalOut {
     required_amount: "1000000",
     monthly_saving_amount: "100000",
     planned_monthly_amount: "100000",
+    expected_annual_return_pct: null,
+    eta_with_return_year_month: null,
     current_amount: "0",
     progress_pct: "0",
     sort_order: 0,

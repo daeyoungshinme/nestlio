@@ -43,6 +43,8 @@ export const QUERY_KEYS = {
   /** Prefix for invalidating every cashflow-plan month variant at once. */
   cashflowPlanAll: ["cashflow-plan"] as const,
   financialGoals: ["financial-goals"] as const,
+  /** financialGoals 하위라 목표 저장 시 financialGoals 무효화에 함께 걸린다. */
+  financialGoalGrowlioInsight: (goalId: number) => ["financial-goals", goalId, "growlio-insight"] as const,
   annualPlan: (year: number) => ["annual-plan", year] as const,
   /** Prefix for invalidating every annual-plan year variant at once. */
   annualPlanAll: ["annual-plan"] as const,

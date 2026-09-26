@@ -12,6 +12,8 @@ import { formErrorTextClass } from "@/utils/colors";
 interface Props<T> {
   productId: number;
   growlioAccountId: string | null;
+  /** 연동 중일 때 자동 동기화(12시간 넘게 지나면 자산/홈 조회 후 백그라운드 갱신) 여부. */
+  autoSyncEnabled: boolean;
   queryKey: QueryKey;
   fetchRows: () => Promise<T[]>;
   getRowId: (row: T) => string;
@@ -26,6 +28,7 @@ interface Props<T> {
 export default function GrowlioLinkSection<T>({
   productId,
   growlioAccountId,
+  autoSyncEnabled,
   queryKey,
   fetchRows,
   getRowId,
@@ -45,8 +48,8 @@ export default function GrowlioLinkSection<T>({
   });
 
   const linkMutation = useMutation({
-    mutationFn: (nextGrowlioAccountId: string | null) =>
-      setGrowlioLink(productId, { growlio_account_id: nextGrowlioAccountId, auto_sync_enabled: true }),
+    mutationFn: ({ accountId, autoSync }: { accountId: string | null; autoSync: boolean }) =>
+      setGrowlioLink(productId, { growlio_account_id: accountId, auto_sync_enabled: autoSync }),
     onSuccess: () => {
       invalidateKeys.forEach((key) => void queryClient.invalidateQueries({ queryKey: key }));
       toast("growlio 연동을 저장했습니다.", "success");
@@ -69,7 +72,7 @@ export default function GrowlioLinkSection<T>({
             size="sm"
             icon={<Unlink size={14} />}
             loading={linkMutation.isPending}
-            onClick={() => linkMutation.mutate(null)}
+            onClick={() => linkMutation.mutate({ accountId: null, autoSync: false })}
           >
             연동 해제
           </Button>
@@ -85,7 +88,7 @@ export default function GrowlioLinkSection<T>({
             <button
               key={getRowId(row)}
               type="button"
-              onClick={() => linkMutation.mutate(getRowId(row))}
+              onClick={() => linkMutation.mutate({ accountId: getRowId(row), autoSync: true })}
               disabled={linkMutation.isPending}
               className="w-full flex items-center justify-between gap-2 px-3 py-2 text-sm text-left rounded-lg border border-gray-200 dark:border-gray-700 hover:border-primary-400 hover:bg-primary-50 dark:hover:bg-primary-950 transition-colors disabled:opacity-50"
             >
@@ -101,6 +104,23 @@ export default function GrowlioLinkSection<T>({
         <Button type="button" variant="secondary" size="sm" icon={<Link2 size={14} />} onClick={() => setPickerOpen(true)}>
           growlio 계좌 선택
         </Button>
+      )}
+      {growlioAccountId && (
+        <label className="mt-2 flex items-center justify-between gap-3 min-h-[44px] text-sm text-gray-700 dark:text-gray-300">
+          <span>
+            자동 동기화
+            <span className="block text-xs text-gray-400 dark:text-gray-500">
+              끄면 여기서 직접 입력한 잔액을 growlio 값으로 덮어쓰지 않아요.
+            </span>
+          </span>
+          <input
+            type="checkbox"
+            checked={autoSyncEnabled}
+            disabled={linkMutation.isPending}
+            onChange={() => linkMutation.mutate({ accountId: growlioAccountId, autoSync: !autoSyncEnabled })}
+            className="h-5 w-5 shrink-0 rounded border-gray-300"
+          />
+        </label>
       )}
     </div>
   );

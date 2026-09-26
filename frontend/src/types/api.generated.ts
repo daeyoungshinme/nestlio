@@ -955,6 +955,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/financial-goals/{goal_id}/growlio-insight": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Growlio Insight
+         * @description 목표 상세의 "투자 수익을 반영하면?" — growlio 실적 수익률과 이 목표의 필요 수익률·프리셋별 필요 적립액.
+         */
+        get: operations["get_growlio_insight_api_v1_financial_goals__goal_id__growlio_insight_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/invites": {
         parameters: {
             query?: never;
@@ -2448,6 +2468,8 @@ export interface components {
             start_date?: string | null;
             /** Monthly Targets */
             monthly_targets?: components["schemas"]["GoalMonthlyTargetIn"][] | null;
+            /** Expected Annual Return Pct */
+            expected_annual_return_pct?: number | string | null;
         };
         /** FinancialGoalOut */
         FinancialGoalOut: {
@@ -2475,6 +2497,10 @@ export interface components {
             monthly_saving_amount: string;
             /** Planned Monthly Amount */
             planned_monthly_amount: string;
+            /** Expected Annual Return Pct */
+            expected_annual_return_pct?: string | null;
+            /** Eta With Return Year Month */
+            eta_with_return_year_month?: string | null;
             /** Current Amount */
             current_amount: string;
             /** Progress Pct */
@@ -2544,6 +2570,8 @@ export interface components {
             start_date?: string | null;
             /** Monthly Targets */
             monthly_targets?: components["schemas"]["GoalMonthlyTargetIn"][] | null;
+            /** Expected Annual Return Pct */
+            expected_annual_return_pct?: number | string | null;
         };
         /** FundingSourceIn */
         FundingSourceIn: {
@@ -2629,6 +2657,36 @@ export interface components {
             /** As Of */
             as_of?: string | null;
         };
+        /** GrowlioDepositGuideOut */
+        GrowlioDepositGuideOut: {
+            /** Annual Return Pct */
+            annual_return_pct: number;
+            /** Required Monthly Deposit */
+            required_monthly_deposit?: number | null;
+            /** Required Annual Deposit */
+            required_annual_deposit?: number | null;
+        };
+        /** GrowlioFeasibilityOut */
+        GrowlioFeasibilityOut: {
+            /** Required Return Pct */
+            required_return_pct?: number | null;
+            /** Pv */
+            pv: number;
+            /** N Months */
+            n_months: number;
+            /** Note */
+            note?: string | null;
+            /**
+             * Deposit Guide
+             * @default []
+             */
+            deposit_guide: components["schemas"]["GrowlioDepositGuideOut"][];
+        };
+        /** GrowlioGoalInsightOut */
+        GrowlioGoalInsightOut: {
+            performance: components["schemas"]["GrowlioPerformanceOut"];
+            feasibility?: components["schemas"]["GrowlioFeasibilityOut"] | null;
+        };
         /**
          * GrowlioGoalSettingsOut
          * @description growlio `/api/v1/external/goal` 응답을 그대로 전달하는 프록시용 스키마 — 재무목표
@@ -2664,6 +2722,28 @@ export interface components {
         GrowlioImportIn: {
             /** Growlio Account Ids */
             growlio_account_ids: string[];
+        };
+        /**
+         * GrowlioPerformanceOut
+         * @description growlio `/external/performance` 프록시 — growlio 도메인이 float라 float 그대로 둔다(GrowlioGoalSettingsOut 참고).
+         */
+        GrowlioPerformanceOut: {
+            /** Xirr Pct */
+            xirr_pct?: number | null;
+            /** Annual Return Pct */
+            annual_return_pct?: number | null;
+            /** Cumulative Return Pct */
+            cumulative_return_pct?: number | null;
+            /** Goal Annual Return Pct */
+            goal_annual_return_pct?: number | null;
+            /** Return Goal Gap Pct */
+            return_goal_gap_pct?: number | null;
+            /** Annual Deposit Goal */
+            annual_deposit_goal?: number | null;
+            /** Annual Deposit Current */
+            annual_deposit_current?: number | null;
+            /** Deposit Achievement Pct */
+            deposit_achievement_pct?: number | null;
         };
         /**
          * GrowlioRealEstateOut
@@ -5929,6 +6009,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["GoalCheerOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_growlio_insight_api_v1_financial_goals__goal_id__growlio_insight_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                goal_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GrowlioGoalInsightOut"];
                 };
             };
             /** @description Validation Error */

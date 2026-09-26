@@ -55,13 +55,15 @@ class GrowlioSyncError(Exception):
     """
 
 
-def _request(method: str, path: str, bearer_token: str, *, json: dict | None = None) -> dict | list:
+def _request(
+    method: str, path: str, bearer_token: str, *, json: dict | None = None, params: dict | None = None
+) -> dict | list:
     if not settings.growlio_api_base_url:
         raise GrowlioNotConfiguredError("growlio 연동이 설정되지 않았습니다 (GROWLIO_API_BASE_URL).")
     url = f"{settings.growlio_api_base_url.rstrip('/')}/api/v1/external/{path}"
     try:
         response = httpx.request(
-            method, url, json=json, headers={"Authorization": f"Bearer {bearer_token}"}, timeout=_TIMEOUT
+            method, url, json=json, params=params, headers={"Authorization": f"Bearer {bearer_token}"}, timeout=_TIMEOUT
         )
         response.raise_for_status()
         # 200이어도 본문이 JSON이 아니면(프록시 HTML 에러 페이지, 빈 본문 등) ValueError가 난다 —
@@ -97,6 +99,32 @@ def fetch_investment_goal(bearer_token: str) -> dict:
     이 값이 아니라 이미 가져온 growlio 연동 저축/투자 상품 잔액으로 nestlio가 직접 계산한다.
     """
     return _request("GET", "goal", bearer_token)
+
+
+def fetch_performance(bearer_token: str) -> dict:
+    """growlio 대시보드가 계산한 수익률 KPI(XIRR·연환산·누적, 목표 수익률과의 차이, 연 납입 달성률) —
+    목표 상세에서 "필요 수익률 vs 실제 수익률"을 비교하는 데 쓴다(GET /external/performance)."""
+    return _request("GET", "performance", bearer_token)
+
+
+def fetch_goal_feasibility(
+    bearer_token: str, goal_amount: Decimal, current_amount: Decimal, n_months: int, monthly_deposit: Decimal
+) -> dict:
+    """nestlio 목표 하나의 달성 가능성을 growlio 복리 역산으로 계산한다(GET /external/goal-feasibility) —
+    필요 연수익률과 가정 수익률(보수/중립/공격)별 필요 월 적립액. growlio는 float 도메인이라 경계에서 float로 보낸다."""
+    params = {
+        "goal_amount": float(goal_amount),
+        "current_amount": float(max(current_amount, Decimal("0"))),
+        "n_months": n_months,
+        "monthly_deposit_amount": float(max(monthly_deposit, Decimal("0"))),
+    }
+    return _request("GET", "goal-feasibility", bearer_token, params=params)
+
+
+def principal_krw(account: dict) -> Decimal | None:
+    """growlio 계좌 응답의 투자 원금(invested_amount_krw) — growlio 구버전이나 원금을 추적하지 않는 계좌는 None."""
+    raw = account.get("invested_amount_krw")
+    return to_decimal_krw(raw) if raw is not None else None
 
 
 def push_transaction(
