@@ -214,11 +214,19 @@ def planned_monthly_for_goal(goal: FinancialGoal, planned_by_product: dict[int, 
     return sum((planned_by_product.get(pid, Decimal("0")) for pid in product_ids), Decimal("0"))
 
 
-def to_out(db: Session, goal: FinancialGoal, today: date) -> dict:
+def list_out(db: Session, goals: list[FinancialGoal], today: date) -> list[dict]:
+    """목표 목록 응답. 상품별 이번 달 계획액은 목표와 무관하므로 한 번만 조회해 모든 목표가 나눠 쓴다."""
+    planned_by_product = savings_product_plan_service.planned_by_product_for_month(db, year_month_str(today))
+    return [to_out(db, goal, today, planned_by_product=planned_by_product) for goal in goals]
+
+
+def to_out(
+    db: Session, goal: FinancialGoal, today: date, planned_by_product: dict[int, Decimal] | None = None
+) -> dict:
     breakdown = funding_source_breakdown(db, goal)
-    planned_monthly = planned_monthly_for_goal(
-        goal, savings_product_plan_service.planned_by_product_for_month(db, year_month_str(today))
-    )
+    if planned_by_product is None:
+        planned_by_product = savings_product_plan_service.planned_by_product_for_month(db, year_month_str(today))
+    planned_monthly = planned_monthly_for_goal(goal, planned_by_product)
     current_amount = current_amount_from_breakdown(goal, breakdown)
     months_remaining = compute_months_remaining(today, goal.target_date)
     is_linked_goal = goal.kind == "goal" and bool(goal.funding_sources)
