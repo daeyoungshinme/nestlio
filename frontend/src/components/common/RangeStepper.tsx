@@ -9,7 +9,7 @@ interface Props {
   nextAriaLabel: string;
 }
 
-/** DayPicker/WeekPicker/MonthPicker가 공유하는 좌우 화살표 + 중앙 라벨 셸.
+/** MonthPicker 등 기간 선택기가 공유하는 좌우 화살표 + 중앙 라벨 셸.
  * 각 날짜 단위의 이동/포맷 로직은 호출부가 맡고, 여기서는 마크업만 공통화한다. */
 export default function RangeStepper({ label, onPrev, onNext, prevAriaLabel, nextAriaLabel }: Props) {
   return (

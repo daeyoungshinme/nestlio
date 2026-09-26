@@ -2235,8 +2235,6 @@ export interface components {
             owner_totals: components["schemas"]["OwnerTotalsOut"][];
             /** Expense Breakdown */
             expense_breakdown: components["schemas"]["CategoryAmountOut"][];
-            /** Payment Method Breakdown */
-            payment_method_breakdown: components["schemas"]["PaymentMethodAmountOut"][];
             /** Owner Overspend Highlights */
             owner_overspend_highlights: components["schemas"]["OwnerOverspendHighlightOut"][];
             /** Category Benchmarks */
@@ -3046,13 +3044,6 @@ export interface components {
             savings: string;
             /** Savings Investment */
             savings_investment: string;
-        };
-        /** PaymentMethodAmountOut */
-        PaymentMethodAmountOut: {
-            /** Payment Method */
-            payment_method: ("cash" | "credit_card" | "debit_card" | "transfer" | "other") | null;
-            /** Amount */
-            amount: string;
         };
         /**
          * RealEstateImportResultOut

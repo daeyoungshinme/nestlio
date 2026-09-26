@@ -4,7 +4,6 @@ PaymentMethodOut이 미지 값을 "other"로 안전하게 폴백하는지 검증
 import pytest
 from pydantic import TypeAdapter
 
-from app.schemas.dashboard import PaymentMethodAmountOut
 from app.schemas.transaction import PaymentMethodOut
 
 _adapter = TypeAdapter(PaymentMethodOut | None)
@@ -22,8 +21,3 @@ def test_none_passes_through():
 @pytest.mark.parametrize("value", ["계좌이체", "체크카드", "unknown", ""])
 def test_legacy_or_unknown_value_falls_back_to_other(value):
     assert _adapter.validate_python(value) == "other"
-
-
-def test_payment_method_amount_out_tolerates_legacy_value():
-    row = PaymentMethodAmountOut(payment_method="계좌이체", amount=10000)
-    assert row.payment_method == "other"
