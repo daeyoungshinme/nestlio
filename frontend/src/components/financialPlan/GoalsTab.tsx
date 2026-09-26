@@ -244,7 +244,7 @@ export default function GoalsTab() {
         pinnedDetail={
           <Link
             to={goalDetailLink(goal.id)}
-            className="inline-flex items-center min-h-[36px] text-xs font-semibold text-primary-600 dark:text-primary-400 hover:underline"
+            className="inline-flex items-center min-h-[44px] text-xs font-semibold text-primary-600 dark:text-primary-400 hover:underline"
           >
             자세히 보기 · 서로 응원하기 →
           </Link>

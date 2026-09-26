@@ -116,6 +116,9 @@ function ProductRow({
     void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.savingsProductAnnualPlanDetail(item.id, year) });
     void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.savingsProducts });
     void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.dashboardBootstrap });
+    // 목표의 계획 월액·예상 달성월(planned_monthly_amount/eta)과 홈의 목표 페이스 코칭이 상품 월 계획을 원본으로 쓴다.
+    void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.financialGoals });
+    void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.dashboardAll });
   };
 
   const { data: planDetail, isLoading: isPlanLoading } = useQuery({

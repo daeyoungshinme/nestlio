@@ -7,14 +7,14 @@ import EmptyState from "@/components/common/EmptyState";
 import ProgressBar from "@/components/common/ProgressBar";
 import QueryBoundary from "@/components/common/QueryBoundary";
 import SkeletonCard from "@/components/common/SkeletonCard";
-import { cheerGoal, fetchGoalGrowlioInsight, fetchGoals } from "@/api/goals";
+import { cheerGoal, fetchGoalGrowlioInsight } from "@/api/goals";
 import { fetchNotifications } from "@/api/notifications";
 import { GROWLIO_APP_URL, findGrowlioInvestmentLink, growlioPortfolioUrl } from "@/constants/growlio";
 import { QUERY_KEYS } from "@/constants/queryKeys";
 import { NOTIFICATIONS_REFETCH_INTERVAL, STALE_TIME } from "@/constants/queryConfig";
 import { ROUTES } from "@/constants/routes";
 import { INPUT_SM } from "@/constants/inputStyles";
-import { useSavingsProducts } from "@/hooks/useReferenceData";
+import { useGoals, useSavingsProducts } from "@/hooks/useReferenceData";
 import { monthsToGoalWithExtra } from "@/utils/goalAcceleration";
 import { computeCardStatus, daysUntil } from "@/utils/goalStatus";
 import { progressStatusBadgeClass, progressStatusLabel } from "@/utils/colors";
@@ -33,7 +33,7 @@ const SCENARIO_MAX = 1_000_000;
 export default function GoalDetailPage() {
   const { id } = useParams();
   const goalId = Number(id);
-  const goalsQuery = useQuery({ queryKey: QUERY_KEYS.financialGoals, queryFn: fetchGoals });
+  const goalsQuery = useGoals();
 
   return (
     <QueryBoundary query={goalsQuery} loadingFallback={<SkeletonCard rows={6} />} errorMessage="목표를 불러오지 못했습니다.">
@@ -103,7 +103,7 @@ function GoalDetail({ goal }: { goal: FinancialGoalOut }) {
               {isChallenge ? "챌린지" : `${goal.priority}순위 목표`}
               {goal.target_date && ` · D-${daysUntil(goal.target_date)}`}
             </p>
-            <h1 className="text-lg font-bold text-gray-900 dark:text-gray-50 truncate">{goal.name}</h1>
+            <h2 className="text-lg font-bold text-gray-900 dark:text-gray-50 truncate">{goal.name}</h2>
           </div>
           <span className={`shrink-0 px-2 py-0.5 rounded-full text-xs font-medium ${progressStatusBadgeClass(status)}`}>
             {progressStatusLabel(status)}

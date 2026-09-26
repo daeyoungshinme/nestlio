@@ -1,7 +1,7 @@
 import { apiGet, apiPost, apiPut } from "@/api/client";
 import type {
   AccountCreateIn,
-  AccountGrowlioImportIn,
+  GrowlioImportIn,
   AccountOut,
   AccountUpdateIn,
   AccountWithBalanceOut,
@@ -24,5 +24,5 @@ export const syncAllAccounts = () => apiPost<GrowlioSyncAllOut>("/accounts/sync-
 
 export const fetchGrowlioAccounts = () => apiGet<GrowlioAccountOut[]>("/accounts/growlio-accounts");
 
-export const importGrowlioAccounts = (payload: AccountGrowlioImportIn) =>
+export const importGrowlioAccounts = (payload: GrowlioImportIn) =>
   apiPost<AccountOut[]>("/accounts/growlio-import", payload);

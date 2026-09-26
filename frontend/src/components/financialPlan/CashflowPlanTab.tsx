@@ -61,6 +61,8 @@ export default function CashflowPlanTab({ view }: { view: "monthly" | "annual" }
   const cashflowQuery = useQuery({
     queryKey: QUERY_KEYS.cashflowPlan(yearMonth),
     queryFn: () => fetchCashflowPlan(yearMonth),
+    // 연간 보기는 AnnualPlanPanel이 자체 쿼리를 쓴다 — 이 달 쿼리는 월 보기에서만 보낸다.
+    enabled: view === "monthly",
   });
   const { data: users } = useUsers();
   const { data: categories } = useCategories("expense");
@@ -69,6 +71,7 @@ export default function CashflowPlanTab({ view }: { view: "monthly" | "annual" }
   const savingsPlanQuery = useQuery({
     queryKey: QUERY_KEYS.savingsProductsPlan(yearMonth),
     queryFn: () => fetchSavingsProductsPlan(yearMonth),
+    enabled: view === "monthly",
   });
 
   // 이번 달 계획은 연간계획의 한 달 단면이라, 여기서 저장하면 연간계획과(항목 이름·카테고리는 모든 달 공통이라)
@@ -155,8 +158,8 @@ export default function CashflowPlanTab({ view }: { view: "monthly" | "annual" }
       }),
     onMutate: (row) => setApplyingCategoryId(row.category_id),
     onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.cashflowPlan(nextYearMonth) });
-      void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.dashboardAll });
+      // 다음 달 계획도 연간계획의 한 달이라 연간 화면까지 함께 바뀐다 — 같은 invalidate()를 쓴다.
+      invalidate();
       toast(`${nextYearMonthLabel} 예산에 반영했습니다.`, "success");
     },
     onError: (err) => toast(extractErrorMessage(err), "error"),
@@ -174,8 +177,8 @@ export default function CashflowPlanTab({ view }: { view: "monthly" | "annual" }
         ownerFallback: item.owner_user_id,
       }),
     onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.cashflowPlan(nextYearMonth) });
-      void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.dashboardAll });
+      // 다음 달 계획도 연간계획의 한 달이라 연간 화면까지 함께 바뀐다 — 같은 invalidate()를 쓴다.
+      invalidate();
       toast(`${nextYearMonthLabel} 계획에 반영했습니다.`, "success");
     },
     onError: (err) => toast(extractErrorMessage(err), "error"),
