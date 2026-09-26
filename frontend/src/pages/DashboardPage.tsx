@@ -299,7 +299,7 @@ export default function DashboardPage() {
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {!topGoal ? (
-          <Link to={planViewLink("목표")} className="relative card block hover:border-primary-300 dark:hover:border-primary-700 transition-colors">
+          <Link to={ROUTES.goals} className="relative card block hover:border-primary-300 dark:hover:border-primary-700 transition-colors">
             <ChevronRight size={16} className="absolute top-5 right-5 text-gray-300 dark:text-gray-600" aria-hidden="true" />
             <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">우리 부부 목표</h3>
             <EmptyState
@@ -310,7 +310,7 @@ export default function DashboardPage() {
             />
           </Link>
         ) : (
-          <Link to={planViewLink("목표")} className="relative block">
+          <Link to={ROUTES.goals} className="relative block">
             <ChevronRight size={16} className="absolute top-5 right-5 text-gray-300 dark:text-gray-600 z-10" aria-hidden="true" />
             <GoalProgressCard
               className="hover:border-primary-300 dark:hover:border-primary-700 transition-colors"

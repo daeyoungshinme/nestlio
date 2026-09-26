@@ -1,7 +1,7 @@
 import { useState } from "react";
-import { useLocation } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Bell, PiggyBank } from "lucide-react";
+import { Bell, PiggyBank, Settings } from "lucide-react";
 import Modal from "@/components/common/Modal";
 import EmptyState from "@/components/common/EmptyState";
 import {
@@ -13,7 +13,8 @@ import {
 import { useMe } from "@/hooks/useReferenceData";
 import { QUERY_KEYS } from "@/constants/queryKeys";
 import { NOTIFICATIONS_REFETCH_INTERVAL } from "@/constants/queryConfig";
-import { SIDEBAR_NAV_ITEMS } from "@/constants/nav";
+import { pageTitleFor } from "@/constants/nav";
+import { ROUTES } from "@/constants/routes";
 import { TOUCH_TARGET_COMPACT_MOBILE_ONLY, TOUCH_TARGET_MIN } from "@/constants/uiSizes";
 import { formatDate } from "@/utils/format";
 import { extractErrorMessage } from "@/utils/error";
@@ -38,18 +39,10 @@ function notificationTitle(n: NotificationOut): string {
   return NOTIF_TYPE_LABEL[n.notif_type] ?? n.notif_type;
 }
 
-/** 현재 경로에 대응하는 사이드바 nav 항목의 라벨. `/categories`처럼 nav에 없는 경로는 undefined. */
-function currentPageLabel(pathname: string): string | undefined {
-  if (pathname === "/") return SIDEBAR_NAV_ITEMS.find((item) => item.to === "/")?.label;
-  return SIDEBAR_NAV_ITEMS.filter((item) => item.to !== "/" && pathname.startsWith(item.to)).sort(
-    (a, b) => b.to.length - a.to.length,
-  )[0]?.label;
-}
-
 export default function Header() {
   const [showInbox, setShowInbox] = useState(false);
   const location = useLocation();
-  const pageLabel = currentPageLabel(location.pathname);
+  const pageLabel = pageTitleFor(location.pathname);
   const queryClient = useQueryClient();
 
   const { data, isLoading: notificationsLoading, isError: notificationsError } = useQuery({
@@ -89,6 +82,7 @@ export default function Header() {
           <span className="font-bold text-base text-gray-900 dark:text-gray-50 truncate">{pageLabel}</span>
         )}
       </div>
+      <div className="flex items-center gap-1">
       <button
         type="button"
         onClick={() => setShowInbox(true)}
@@ -105,6 +99,14 @@ export default function Header() {
           </span>
         )}
       </button>
+      <Link
+        to={ROUTES.settings}
+        aria-label="설정"
+        className={`flex items-center justify-center ${TOUCH_TARGET_MIN} p-2 text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors`}
+      >
+        <Settings size={20} aria-hidden="true" />
+      </Link>
+      </div>
 
       {showInbox && (
         <Modal onClose={() => setShowInbox(false)} title="알림" size="sm" closeOnBackdrop>
