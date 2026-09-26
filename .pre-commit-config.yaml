@@ -11,7 +11,7 @@ exclude: '^frontend/src/types/api\.generated\.ts$'
 
 repos:
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.16.7 # requirements-dev.txt 의 ruff 핀과 함께 올린다
+    rev: v0.16.8 # requirements-dev.txt 의 ruff 핀과 함께 올린다 (tests/test_dev_tooling.py 가 가드)
     hooks:
       - id: ruff-check
         args: [--fix]

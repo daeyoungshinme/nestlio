@@ -127,5 +127,6 @@ stores/{authStore,themeStore}.ts — Zustand, React Query 캐시와 무관한 �
 - 입력 필드 스타일은 `constants/inputStyles.ts`의 `INPUT_SM`/`INPUT_MD`/`LABEL_SM`/`LABEL_MD`를 재사용한다 (직접 border/rounded 조합을 새로 쓰지 않는다).
 - 다크모드는 growlio와 동일하게 `<html>`의 `.dark` 클래스 기반(`darkMode: "class"`)이다. `stores/themeStore.ts`가 최초 진입 시 `localStorage` 저장값이 없으면 `prefers-color-scheme`을 따르고, 이후에는 토글 값을 우선한다.
 - React Query 쿼리 키는 `constants/queryKeys.ts`(`QUERY_KEYS`)에 모아두고 각 페이지에서 직접 배열 리터럴을 만들지 않는다 — mutation 성공 후 무효화할 때 실수로 다른 문자열을 써서 캐시가 안 갱신되는 것을 방지.
+- **영속 쿼리 캐시**: `main.tsx`의 `PersistQueryClientProvider`가 `PERSIST_QUERY_KEYS`(`constants/queryConfig.ts` — 대시보드·거래·계좌·순자산·목표·계획·저축상품) 응답을 localStorage(`PERSIST_CACHE_KEY`)에 24시간 보관해 재방문 시 즉시 그린다(오프라인 동작용 아님 — 백그라운드 리페치가 곧 덮어쓴다). 이 키들의 **응답 형태를 호환되지 않게 바꾸면**(필드 이름 변경·타입 변경·필수 필드 추가) `buster` 문자열을 올린다 — 안 올리면 구 형태 캐시가 새 코드로 최대 24시간 렌더돼 `undefined` 접근으로 깨질 수 있다. 필드 삭제만이면 보통 필요 없다.
 
 **테스트**: growlio와 동일하게 Vitest + Testing Library, `src/test/setup.ts`(jsdom `matchMedia` 폴리필 포함)를 사용한다. 현재는 `utils/`, 공용 컴포넌트, store 위주의 가벼운 커버리지이며 growlio처럼 커버리지 임계값(`vite.config.ts`의 `coverage.thresholds`)은 아직 설정하지 않았다 — 페이지 테스트가 쌓인 뒤 실측값 기반으로 도입한다 (growlio의 `docs/`에 실측 후 임계값을 정한 선례가 있다).

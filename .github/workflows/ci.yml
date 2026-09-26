@@ -48,7 +48,8 @@ jobs:
           cache-dependency-path: |
             requirements.txt
             requirements-dev.txt
-      - run: pip install -r requirements.txt "pgserver==0.1.4"  # requirements-dev.txt 핀과 맞춘다
+      # pgserver 핀은 requirements-dev.txt 한 곳에만 둔다(dependabot이 그 파일만 올리므로 여기 복사하면 어긋난다).
+      - run: pip install -r requirements.txt "$(grep -E '^pgserver==' requirements-dev.txt)"
       - run: python scripts/check_migration_drift.py
 
   frontend:
