@@ -3,7 +3,7 @@ from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine
+from sqlalchemy import String, create_engine, event
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
@@ -15,6 +15,25 @@ from app.dependencies import get_bearer_token, get_current_user, get_token_paylo
 from app.main import app as fastapi_app
 from app.models.category import Category
 from app.models.user import User
+
+
+def _enforce_string_lengths(mapper, connection, target):
+    """SQLite는 VARCHAR(n) 길이를 강제하지 않아 운영 Postgres에서만 터지는 길이 초과(예: String(20)에
+    26자 ISO datetime)가 테스트를 통과해 버린다 — flush 직전에 String(n) 컬럼 값 길이를 대신 검사한다."""
+    for attr in mapper.column_attrs:
+        for column in attr.columns:
+            length = getattr(column.type, "length", None)
+            if not isinstance(column.type, String) or length is None:
+                continue
+            value = getattr(target, attr.key, None)
+            if isinstance(value, str) and len(value) > length:
+                raise AssertionError(
+                    f"{mapper.class_.__name__}.{attr.key}: {len(value)}자 > String({length}) — Postgres에서 실패한다"
+                )
+
+
+event.listen(Base, "before_insert", _enforce_string_lengths, propagate=True)
+event.listen(Base, "before_update", _enforce_string_lengths, propagate=True)
 
 
 @pytest.fixture()
@@ -46,6 +65,10 @@ def _google_auth_test_db(monkeypatch, db_session):
     monkeypatch.setattr("app.services.google_auth.SessionLocal", test_session_factory)
     # 스케줄러 잡(app/scheduler/jobs.py)도 같은 이유로 자체 SessionLocal()을 연다.
     monkeypatch.setattr("app.scheduler.jobs.SessionLocal", test_session_factory)
+    # net_worth_service.refresh_stale_growlio_links(GET /net-worth·/dashboard/bootstrap의 백그라운드
+    # 태스크)처럼 함수 안에서 `from app.database import SessionLocal`로 늦게 import하는 곳은 모듈 속성
+    # 자체를 바꿔야 잡힌다 — TestClient가 백그라운드 태스크까지 실행하므로 빠지면 운영 DB에 붙는다.
+    monkeypatch.setattr("app.database.SessionLocal", test_session_factory)
 
 
 @pytest.fixture()

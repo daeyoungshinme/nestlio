@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.dependencies import get_bearer_token, get_current_user
 from app.models.user import User
+from app.schemas.common import YearMonth
 from app.schemas.financial_goal import (
     FinancialGoalCreateIn,
     FinancialGoalOut,
@@ -112,7 +113,7 @@ def update_goal(
 @router.patch("/{goal_id}/monthly-targets/{year_month}", response_model=FinancialGoalOut)
 def update_monthly_target(
     goal_id: int,
-    year_month: str,
+    year_month: YearMonth,
     payload: GoalMonthlyTargetAchievedIn,
     db: Session = Depends(get_db),
     _: User = Depends(get_current_user),

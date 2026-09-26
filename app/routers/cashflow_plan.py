@@ -13,6 +13,7 @@ from app.schemas.cashflow_plan import (
     CashflowPlanListOut,
     CashflowPlanSplitResultOut,
 )
+from app.schemas.common import YearMonth
 from app.services import budget_service, cashflow_plan_service, coaching_settings_service
 from app.utils.dates import months_remaining_in_year, parse_year_month, shift_month, today_kst, year_month_str
 
@@ -38,7 +39,7 @@ def _plan_list(db: Session, year_month: str | None) -> dict:
 
 @router.get("", response_model=CashflowPlanListOut)
 def list_plan(
-    year_month: str | None = None,
+    year_month: YearMonth | None = None,
     db: Session = Depends(get_db),
     _: User = Depends(get_current_user),
 ):
@@ -111,7 +112,7 @@ def link_recurring(
 @router.delete("/items/{item_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_plan_item(
     item_id: int,
-    year_month: str = Query(..., description="이 달의 금액만 지운다(다른 달 금액이 없으면 항목째 삭제)"),
+    year_month: YearMonth = Query(..., description="이 달의 금액만 지운다(다른 달 금액이 없으면 항목째 삭제)"),
     db: Session = Depends(get_db),
     _: User = Depends(get_current_user),
 ):

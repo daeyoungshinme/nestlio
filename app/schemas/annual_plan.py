@@ -6,7 +6,7 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict
 
 from app.schemas.cashflow_plan import CashflowSection
-from app.schemas.common import KrwAmount
+from app.schemas.common import KrwAmount, YearMonth
 
 
 class AnnualPlanItemMonthlyTargetOut(BaseModel):
@@ -15,7 +15,7 @@ class AnnualPlanItemMonthlyTargetOut(BaseModel):
 
 
 class AnnualPlanItemMonthlyTargetIn(BaseModel):
-    year_month: str
+    year_month: YearMonth
     target_amount: KrwAmount
 
 
@@ -50,8 +50,8 @@ class AnnualPlanItemUpsertIn(BaseModel):
     name: str
     category_id: int | None = None
     sort_order: int = 0
-    start_month: str
-    end_month: str
+    start_month: YearMonth
+    end_month: YearMonth
     monthly_targets: list[AnnualPlanItemMonthlyTargetIn] = []
 
 

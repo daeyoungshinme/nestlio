@@ -26,7 +26,7 @@ class AnnualPlanItem(Base):
     __tablename__ = "annual_plan_items"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    year: Mapped[int] = mapped_column(Integer)
+    year: Mapped[int] = mapped_column(Integer, index=True)
     section: Mapped[str] = mapped_column(String(10))  # 'income' | 'fixed' | 'variable' | 'irregular'
     start_month: Mapped[str] = mapped_column(String(7))  # 'YYYY-MM' — 이 항목의 월별 입력 적용 기간 시작
     end_month: Mapped[str] = mapped_column(String(7))  # 'YYYY-MM' — 적용 기간 종료 (둘 다 포함)
@@ -34,12 +34,15 @@ class AnnualPlanItem(Base):
         UUID(as_uuid=True), ForeignKey("users.id"), nullable=True
     )  # income 섹션에서만 사용 (부부 구분)
     name: Mapped[str] = mapped_column(String(100))
-    category_id: Mapped[int | None] = mapped_column(ForeignKey("categories.id"), nullable=True)
+    category_id: Mapped[int | None] = mapped_column(ForeignKey("categories.id"), nullable=True, index=True)
     sort_order: Mapped[int] = mapped_column(Integer, default=0)
     # 할부 등록(cashflow_plan_service.split_item_into_months)으로 만든 항목만 채워진다 — 표시용("3/10").
-    # 회차는 저장하지 않고 start_month로부터의 경과 개월로 계산한다(installment_no_for).
+    # 회차는 저장하지 않고 installment_start_month(1회차 달)로부터의 경과 개월로 계산한다(installment_no_for).
+    # start_month는 달을 지우거나 앞 달에 금액을 넣을 때 움직이므로 회차 기준으로 쓰면 남은 회차가 전부
+    # 재번호된다 — 1회차 달은 등록 시 한 번 정하고 바꾸지 않는다.
     installment_total: Mapped[int | None] = mapped_column(Integer, nullable=True)
     installment_total_amount: Mapped[Decimal | None] = mapped_column(Numeric(12, 2), nullable=True)
+    installment_start_month: Mapped[str | None] = mapped_column(String(7), nullable=True)
     recurring_expense_id: Mapped[int | None] = mapped_column(
         ForeignKey(
             "recurring_expenses.id",
@@ -47,6 +50,7 @@ class AnnualPlanItem(Base):
             name="fk_annual_plan_items_recurring_expense_id",
         ),
         nullable=True,
+        index=True,
     )
     updated_by: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
     updated_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), onupdate=func.now())
@@ -76,6 +80,7 @@ class AnnualPlanItem(Base):
     def installment_no_for(self, year_month: str) -> int | None:
         if self.installment_total is None:
             return None
-        start_y, start_m = int(self.start_month[:4]), int(self.start_month[5:7])
+        first = self.installment_start_month or self.start_month
+        start_y, start_m = int(first[:4]), int(first[5:7])
         y, m = int(year_month[:4]), int(year_month[5:7])
         return (y - start_y) * 12 + (m - start_m) + 1

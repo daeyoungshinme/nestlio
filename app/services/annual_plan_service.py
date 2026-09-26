@@ -65,12 +65,16 @@ def upsert_item(
     start_month: str,
     end_month: str,
     monthly_targets: list[dict] | None = None,
-) -> AnnualPlanItem:
-    item = db.get(AnnualPlanItem, id) if id is not None else None
-    if item is None:
+) -> AnnualPlanItem | None:
+    """id가 없으면 새 항목을 만들고, 있으면 그 항목을 고친다. 없는 id면 None(라우터가 404) — 조용히 새 항목을
+    만들면 이미 지워진 항목을 다른 탭에서 저장할 때 중복 항목이 생긴다(cashflow_plan_service.upsert_item과 같은 규칙)."""
+    if id is None:
         item = AnnualPlanItem(year=year, section=section)
         db.add(item)
     else:
+        item = db.get(AnnualPlanItem, id)
+        if item is None:
+            return None
         item.year = year
         item.section = section
     item.owner_user_id = owner_user_id
@@ -307,6 +311,9 @@ def seed_year(db: Session, year: int, source: str, updated_by: uuid.UUID, today:
                 recurring_expense_id=prev.recurring_expense_id,
                 installment_total=prev.installment_total,
                 installment_total_amount=prev.installment_total_amount,
+                installment_start_month=(
+                    f"{year}{prev.installment_start_month[4:]}" if prev.installment_start_month else None
+                ),
             )
             created.append(item)
     elif source == "recurring":
