@@ -3,7 +3,6 @@ import type { FormEvent } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { Download } from "lucide-react";
 import Button from "@/components/common/Button";
-import CollapsibleGroup from "@/components/common/CollapsibleGroup";
 import FormInput from "@/components/common/FormInput";
 import Modal from "@/components/common/Modal";
 import Tabs from "@/components/common/Tabs";
@@ -42,6 +41,10 @@ const KIND_TO_GOAL_KIND_TAB: Record<"goal" | "challenge", GoalKindTab> = {
   goal: "장기 목표",
   challenge: "챌린지",
 };
+
+/** 장기 목표 폼의 단계 — 한 화면에 모든 입력(기본정보·자금원 3종 체크리스트·월별 계획·제안 계산)을 쌓던 긴 모달을
+ * 모바일에서 한 번에 한 가지만 결정하도록 나눴다. */
+const GOAL_STEPS = ["무엇을·언제·얼마", "연동할 자금원", "저축 계획"] as const;
 
 /** start~end 사이 전체 개월 수 — 백엔드 app/utils/dates.py::months_between과 동일한 규칙(일 차이는 무시). */
 function monthsBetween(start: Date, end: Date): number {
@@ -144,9 +147,20 @@ export default function GoalFormModal({
     }));
   };
 
+  const [step, setStep] = useState(0);
+  const isLastStep = step === GOAL_STEPS.length - 1;
+
   const handleSubmit = (e: FormEvent) => {
     e.preventDefault();
-    if (!draft.name.trim()) return;
+    if (!draft.name.trim()) {
+      setStep(0);
+      return;
+    }
+    // 챌린지는 한 화면 폼이라 바로 저장. 장기 목표는 마지막 단계에서만 저장하고, 그 전 Enter/다음은 다음 단계로.
+    if (!isChallenge && !isLastStep) {
+      setStep((current) => current + 1);
+      return;
+    }
     onSubmit(draft);
   };
 
@@ -252,6 +266,28 @@ export default function GoalFormModal({
     <Modal onClose={onClose} title={title}>
       <form onSubmit={handleSubmit} className="p-6 overflow-y-auto flex flex-col gap-3">
         {kindToggle}
+        <ol className="grid grid-cols-3 gap-1" aria-label="목표 설정 단계">
+          {GOAL_STEPS.map((label, index) => (
+            <li key={label}>
+              <button
+                type="button"
+                // 새 목표는 순서대로 진행하고(이름 없이 건너뛰지 않게), 수정할 때는 원하는 단계로 바로 이동한다.
+                disabled={existingGoal === null && index > step}
+                onClick={() => setStep(index)}
+                aria-current={index === step ? "step" : undefined}
+                className={`w-full min-h-[44px] rounded-lg px-1 text-xs font-medium border transition-colors disabled:opacity-50 ${
+                  index === step
+                    ? "border-primary-300 dark:border-primary-700 bg-primary-50 dark:bg-primary-950 text-primary-600 dark:text-primary-400"
+                    : "border-gray-200 dark:border-gray-700 text-gray-500 dark:text-gray-400"
+                }`}
+              >
+                {index + 1}. {label}
+              </button>
+            </li>
+          ))}
+        </ol>
+        {step === 0 && (
+          <>
         <p className={FORM_SECTION_LABEL}>기본 정보</p>
         {/* 저장 전에는 아무것도 반영되지 않으므로(모달을 닫으면 원복) 별도 확인 모달 없이 바로 불러온다. */}
         <Button
@@ -314,15 +350,14 @@ export default function GoalFormModal({
           className="w-full"
           preview={amountInputPreview(draft.required_amount)}
         />
-        <CollapsibleGroup
-          header={<span className="text-sm font-medium text-gray-700 dark:text-gray-300">연동 항목</span>}
-          amount={
-            isLinked
-              ? `${draft.savings_product_ids.length + draft.account_ids.length + draft.loan_ids.length}건 연동`
-              : "연동 안 함"
-          }
-          defaultOpen={isLinked}
-        >
+          </>
+        )}
+        {step === 1 && (
+          <>
+          <p className="text-sm text-gray-500 dark:text-gray-400">
+            목표에 쓸 저축·투자 상품이나 계좌를 연결하면 현재 저축액과 이번 달 달성액이 자동으로 계산돼요. 연결하지
+            않아도 목표를 만들 수 있어요.
+          </p>
           <FundingSourceChecklist
             label="연동할 저축/투자 상품 (복수 선택 가능)"
             items={availableSavingsProducts}
@@ -360,7 +395,10 @@ export default function GoalFormModal({
             hint="상품·계좌·대출을 연동하면 현재 저축액이 (연동된 상품·계좌 잔액 합) − (연동된 대출 잔액)으로
             자동 계산돼요. 부부가 각자 다른 상품/계좌로 한 목표를 함께 모을 때 여러 개를 선택하세요."
           />
-        </CollapsibleGroup>
+          </>
+        )}
+        {step === 2 && (
+          <>
         <p className={FORM_SECTION_LABEL}>저축 계획</p>
         {isLinked ? (
           <div className="rounded-lg border border-gray-200 dark:border-gray-700 px-3 py-2.5 text-sm text-gray-500 dark:text-gray-400">
@@ -431,9 +469,24 @@ export default function GoalFormModal({
           className="w-full"
           preview={amountInputPreview(draft.monthly_saving_amount)}
         />
-        <Button type="submit" loading={submitting} className="mt-2">
-          {submitLabel}
-        </Button>
+        {draft.savings_product_ids.length > 0 && (
+          <p className="text-xs text-gray-500 dark:text-gray-400">
+            저축·투자 상품이 연동된 목표는 계획 탭의 상품별 월 계획 합계가 실제 월 저축액으로 쓰여요(예상 달성일·페이스
+            판정 기준).
+          </p>
+        )}
+          </>
+        )}
+        <div className="flex gap-2 mt-2">
+          {step > 0 && (
+            <Button type="button" variant="secondary" className="flex-1" onClick={() => setStep((current) => current - 1)}>
+              이전
+            </Button>
+          )}
+          <Button type="submit" loading={isLastStep && submitting} className="flex-1">
+            {isLastStep ? submitLabel : "다음"}
+          </Button>
+        </div>
       </form>
     </Modal>
   );

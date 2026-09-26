@@ -245,3 +245,29 @@ def test_delete_goal(client, seeded_db):
 
 def test_delete_goal_404_when_missing(client):
     assert client.delete("/api/v1/financial-goals/99999").status_code == 404
+
+
+def test_cheer_goal_records_notification_with_sender_reaction(client, seeded_db):
+    goal_id = client.post(
+        "/api/v1/financial-goals",
+        json={"priority": 1, "name": "여행", "required_amount": "1000000", "monthly_saving_amount": "100000"},
+    ).json()["id"]
+
+    resp = client.post(f"/api/v1/financial-goals/{goal_id}/cheer", json={"emoji": "💪", "message": "조금만 더!"})
+
+    assert resp.status_code == 201
+    notifications = client.get("/api/v1/notifications").json()
+    [cheer] = [n for n in notifications["items"] if n["notif_type"] == "goal_cheer"]
+    assert cheer["related_id"] == goal_id
+    assert cheer["is_read"] is True  # 보낸 사람에게는 읽음 처리
+    assert cheer["reactions"][0]["emoji"] == "💪"
+    assert "조금만 더!" in cheer["detail"]
+
+
+def test_cheer_goal_404_and_invalid_emoji(client, seeded_db):
+    assert client.post("/api/v1/financial-goals/999/cheer", json={"emoji": "💪"}).status_code == 404
+    goal_id = client.post(
+        "/api/v1/financial-goals",
+        json={"priority": 1, "name": "여행", "required_amount": "1000000", "monthly_saving_amount": "100000"},
+    ).json()["id"]
+    assert client.post(f"/api/v1/financial-goals/{goal_id}/cheer", json={"emoji": "🙂"}).status_code == 422

@@ -51,6 +51,7 @@ class NotificationPrefsOut(BaseModel):
     goal_milestone: bool
     challenge_success: bool
     event_reminder: bool
+    savings_pace_reminder: bool = True
 
 
 class NotificationPrefsIn(NotificationPrefsOut):

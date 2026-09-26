@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
-import { useMutation, useQuery } from "@tanstack/react-query";
-import { ExternalLink, Plus, Target, Trophy } from "lucide-react";
+import { useMutation } from "@tanstack/react-query";
+import { Plus, Target, Trophy } from "lucide-react";
 import Button from "@/components/common/Button";
 import CollapsibleGroup from "@/components/common/CollapsibleGroup";
 import ConfirmModal from "@/components/common/ConfirmModal";
@@ -14,24 +14,19 @@ import type { GoalProgressCardBadge, GoalProgressCardExtraDetail } from "@/compo
 import GoalSectionHeader from "@/components/financialPlan/GoalSectionHeader";
 import QueryBoundary from "@/components/common/QueryBoundary";
 import Tabs from "@/components/common/Tabs";
-import { currentYearMonth } from "@/utils/date";
-import { fetchDashboard } from "@/api/dashboard";
 import { createGoal, deleteGoal, updateGoal, updateGoalMonthlyTarget } from "@/api/goals";
 import { INLINE_BUTTON_OFFSET } from "@/constants/inputStyles";
 import { QUERY_KEYS } from "@/constants/queryKeys";
-import { STALE_TIME } from "@/constants/queryConfig";
 import { TOUCH_TARGET_MIN_HEIGHT } from "@/constants/uiSizes";
 import { useCrudMutations } from "@/hooks/useCrudMutations";
 import { useAccounts, useGoals, useLoans, useSavingsProducts } from "@/hooks/useReferenceData";
-import { planViewLink } from "@/constants/routes";
+import { goalDetailLink, planViewLink } from "@/constants/routes";
 import { progressStatusBadgeClass, progressStatusLabel } from "@/utils/colors";
 import { computeCardStatus, daysUntil, isGoalAchieved } from "@/utils/goalStatus";
 import { GOAL_SORT_LABELS, sortGoals, type GoalSortLabel } from "@/utils/goalSort";
-import { estimateGoalAcceleration } from "@/utils/goalAcceleration";
 import { extractErrorMessage } from "@/utils/error";
 import { amountInputPreview, formatDate, formatKrw, formatYearMonth, toAmountInputValue } from "@/utils/format";
 import { toast } from "@/utils/toast";
-import { findGrowlioInvestmentLink, GROWLIO_APP_URL, growlioPortfolioUrl } from "@/constants/growlio";
 import type { FinancialGoalOut, FinancialGoalUpdateIn, GoalKind } from "@/types";
 
 const GOAL_MILESTONES = [25, 50, 75, 100];
@@ -60,14 +55,6 @@ export default function GoalsTab() {
   const { data: savingsProducts } = useSavingsProducts();
   const { data: accounts } = useAccounts();
   const { data: loans } = useLoans();
-  // goal_pace 코칭 문구는 대시보드 카드에서만 보여준다(중복 노출 제거). 이 쿼리는
-  // investable_surplus(이번 달 여유자금 힌트, 아래 사용처 참고)를 위해 유지한다.
-  const { data: dashboard } = useQuery({
-    queryKey: QUERY_KEYS.dashboard("month", currentYearMonth()),
-    queryFn: () => fetchDashboard("month", currentYearMonth()),
-    staleTime: STALE_TIME.SHORT,
-  });
-
   const { createMutation, updateMutation, removeMutation: deleteMutation, invalidate } = useCrudMutations({
     // 목표에 연동된 저축상품의 월 계획액이 목표 저장 시 함께 갱신되므로(app/services/goal_service.py::
     // _sync_funding_product_monthly_amount), 저축상품 관련 쿼리도 함께 무효화한다(savingsProducts는
@@ -129,18 +116,12 @@ export default function GoalsTab() {
   const totalRequired = data.reduce((sum, g) => sum + Number(g.required_amount), 0);
   const totalMonthly = data.reduce((sum, g) => sum + Number(g.planned_monthly_amount), 0);
   const isSaving = createMutation.isPending || updateMutation.isPending;
-  const investableSurplus = dashboard?.investable_surplus ?? "0";
   const priorityOrderedGoals = data.slice().sort((a, b) => a.priority - b.priority);
   // 달성한 목표는 활성 목록에서 분리해 아래 접이식으로 옮긴다 — 완료된 항목이 계속 쌓여
   // 목록을 채우는 것을 막기 위함(백엔드에 별도 archive 필드는 없음, 순수 프론트 판정).
   const activeGoalsByPriority = priorityOrderedGoals.filter((g) => !isGoalAchieved(g));
   const achievedGoals = priorityOrderedGoals.filter((g) => isGoalAchieved(g));
   const activeGoals = sortGoals(activeGoalsByPriority, sortOption);
-  // 여유자금은 가구 전체 단위라 목표마다 반복 표시하면 목표별로 다른 금액처럼 오인될 수 있어,
-  // growlio 연동된 활성 목표 중 우선순위가 가장 높은 하나에만 붙인다(정렬 옵션과 무관하게 고정).
-  const firstGrowlioLinkedGoalId =
-    activeGoalsByPriority.find((g) => findGrowlioInvestmentLink(g, savingsProducts ?? []))?.id ?? null;
-
   const celebrateIfCrossed = (oldPct: number, goal: FinancialGoalOut) => {
     const milestone = crossedMilestone(oldPct, Number(goal.progress_pct), goal.kind);
     if (milestone !== null) {
@@ -180,9 +161,6 @@ export default function GoalsTab() {
    * 조건에서만 명시적으로 갈라진다. */
   const renderGoalCard = (goal: FinancialGoalOut) => {
     const isChallenge = goal.kind === "challenge";
-    const growlioAccountId = findGrowlioInvestmentLink(goal, savingsProducts ?? []);
-    const showSurplusHint =
-      goal.id === firstGrowlioLinkedGoalId && GROWLIO_APP_URL && Number(investableSurplus) > 0;
     const hasLoanSource = goal.funding_sources.some((fs) => fs.type === "loan");
     const status = computeCardStatus(goal);
 
@@ -218,55 +196,7 @@ export default function GoalsTab() {
       badges.push({ label: "이번 달 자동계산", toneClassName: progressStatusBadgeClass("neutral") });
     }
 
-    const growlioDetail =
-      growlioAccountId && GROWLIO_APP_URL ? (
-        <a
-          href={growlioPortfolioUrl(growlioAccountId)}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="inline-flex items-center gap-1 text-xs font-medium text-primary-600 dark:text-primary-400 hover:underline"
-        >
-          <ExternalLink size={12} />
-          이 목표의 투자금, growlio에서 포트폴리오로 굴리기
-        </a>
-      ) : null;
-
     const extraDetails: GoalProgressCardExtraDetail[] = [];
-    if (goal.funding_sources.length > 0) {
-      extraDetails.push({
-        key: "funding-sources",
-        content: (
-          <div className="rounded-lg border border-gray-200 dark:border-gray-700 divide-y divide-gray-100 dark:divide-gray-800 max-h-40 overflow-y-auto">
-            {goal.funding_sources.map((fs) => (
-              <div key={`${fs.type}-${fs.id}`} className="flex items-center justify-between gap-2 px-2 py-1.5">
-                <span className="truncate">{fs.name}</span>
-                <span className="shrink-0">{formatKrw(fs.amount)}</span>
-              </div>
-            ))}
-          </div>
-        ),
-      });
-    }
-    if (goal.monthly_targets.length > 0) {
-      extraDetails.push({
-        key: "monthly-targets",
-        content: (
-          <div className="rounded-lg border border-gray-200 dark:border-gray-700 divide-y divide-gray-100 dark:divide-gray-800 max-h-40 overflow-y-auto">
-            {goal.monthly_targets.map((mt) => (
-              <div key={mt.year_month} className="flex items-center justify-between gap-2 px-2 py-1.5">
-                <span className="truncate">
-                  {mt.is_achieved ? "✅ " : ""}
-                  {mt.year_month}
-                </span>
-                <span className="shrink-0">
-                  {formatKrw(mt.achieved_amount)} / {formatKrw(mt.target_amount)}
-                </span>
-              </div>
-            ))}
-          </div>
-        ),
-      });
-    }
     if (!isChallenge && goal.eta_year_month) {
       const ab = goal.ahead_behind_months;
       extraDetails.push({
@@ -274,21 +204,6 @@ export default function GoalsTab() {
         content: `현재 저축 속도면 ${formatYearMonth(goal.eta_year_month)} 도달 예상${
           ab !== null ? ` · 목표일 대비 ${Math.abs(ab)}개월 ${ab >= 0 ? "빠름" : "늦음"}` : ""
         }`,
-      });
-    }
-    if (showSurplusHint) {
-      const acceleration = estimateGoalAcceleration(
-        goal.required_amount,
-        goal.current_amount,
-        goal.months_remaining,
-        goal.suggested_monthly_amount,
-        investableSurplus,
-      );
-      extraDetails.push({
-        key: "surplus",
-        content: acceleration
-          ? `이번 달 여유자금 ${formatKrw(investableSurplus)}를 이 목표의 투자금에 보태면 달성까지 ${goal.months_remaining}개월 → ${acceleration.newMonthsRemaining}개월로 ${acceleration.monthsSaved}개월 앞당길 수 있어요. (가계 전체 여유자금이라 growlio 연동된 목표 중 1순위에만 표시돼요)`
-          : `이번 달 여유자금 ${formatKrw(investableSurplus)}, 이 목표의 투자금에 보태보세요. (가계 전체 여유자금이라 growlio 연동된 목표 중 1순위에만 표시돼요)`,
       });
     }
     return (
@@ -326,7 +241,14 @@ export default function GoalsTab() {
             {hasLoanSource && " (대출 차감 반영)"}
           </>
         }
-        pinnedDetail={growlioDetail}
+        pinnedDetail={
+          <Link
+            to={goalDetailLink(goal.id)}
+            className="inline-flex items-center min-h-[36px] text-xs font-semibold text-primary-600 dark:text-primary-400 hover:underline"
+          >
+            자세히 보기 · 서로 응원하기 →
+          </Link>
+        }
         extraDetails={extraDetails}
         onEdit={() => setFormTarget(goal)}
         onDelete={() => setDeleteTarget(goal.id)}

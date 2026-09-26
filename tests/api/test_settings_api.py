@@ -107,6 +107,7 @@ def test_set_notification_prefs_overrides_and_persists(mock_is_connected, client
         "goal_milestone": True,
         "challenge_success": True,
         "event_reminder": True,
+        "savings_pace_reminder": False,
     }
     resp = client.put("/api/v1/settings/notification-prefs", json=payload)
     assert resp.status_code == 200

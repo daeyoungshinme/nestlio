@@ -438,6 +438,7 @@ export interface NotificationPrefsOut {
   goal_milestone: boolean;
   challenge_success: boolean;
   event_reminder: boolean;
+  savings_pace_reminder: boolean;
 }
 
 export type NotificationPrefsIn = NotificationPrefsOut;
@@ -657,6 +658,15 @@ export interface FinancialGoalCreateIn {
 }
 
 export type FinancialGoalUpdateIn = Omit<FinancialGoalCreateIn, "kind">;
+
+export interface GoalCheerIn {
+  emoji: string;
+  message?: string | null;
+}
+
+export interface GoalCheerOut {
+  notification_id: number;
+}
 
 export interface GrowlioGoalSettingsOut {
   is_configured: boolean;

@@ -935,6 +935,26 @@ export interface paths {
         patch: operations["update_monthly_target_api_v1_financial_goals__goal_id__monthly_targets__year_month__patch"];
         trace?: never;
     };
+    "/api/v1/financial-goals/{goal_id}/cheer": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Cheer Goal
+         * @description 배우자에게 목표 응원을 보낸다(알림함에 남는다) — 서로 동기부여.
+         */
+        post: operations["cheer_goal_api_v1_financial_goals__goal_id__cheer_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/invites": {
         parameters: {
             query?: never;
@@ -2549,6 +2569,18 @@ export interface components {
             /** Amount */
             amount: string;
         };
+        /** GoalCheerIn */
+        GoalCheerIn: {
+            /** Emoji */
+            emoji: string;
+            /** Message */
+            message?: string | null;
+        };
+        /** GoalCheerOut */
+        GoalCheerOut: {
+            /** Notification Id */
+            notification_id: number;
+        };
         /** GoalMonthlyTargetAchievedIn */
         GoalMonthlyTargetAchievedIn: {
             /** Achieved Amount */
@@ -2965,6 +2997,11 @@ export interface components {
             challenge_success: boolean;
             /** Event Reminder */
             event_reminder: boolean;
+            /**
+             * Savings Pace Reminder
+             * @default true
+             */
+            savings_pace_reminder: boolean;
         };
         /** NotificationPrefsOut */
         NotificationPrefsOut: {
@@ -2980,6 +3017,11 @@ export interface components {
             challenge_success: boolean;
             /** Event Reminder */
             event_reminder: boolean;
+            /**
+             * Savings Pace Reminder
+             * @default true
+             */
+            savings_pace_reminder: boolean;
         };
         /** NotificationReactionIn */
         NotificationReactionIn: {
@@ -5850,6 +5892,43 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["FinancialGoalOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    cheer_goal_api_v1_financial_goals__goal_id__cheer_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                goal_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GoalCheerIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GoalCheerOut"];
                 };
             };
             /** @description Validation Error */
