@@ -275,46 +275,6 @@ def test_category_breakdown_excludes_savings_linked_transactions(seeded_db):
     assert breakdown == []
 
 
-def test_payment_method_breakdown_groups_expense_by_method(seeded_db):
-    db, user, food = seeded_db["db"], seeded_db["user"], seeded_db["food"]
-    transaction_service.create_transaction(
-        db, user.id, food.id, "expense", Decimal("30000"), date(2026, 7, 1), payment_method="credit_card"
-    )
-    transaction_service.create_transaction(
-        db, user.id, food.id, "expense", Decimal("20000"), date(2026, 7, 2), payment_method="credit_card"
-    )
-    transaction_service.create_transaction(
-        db, user.id, food.id, "expense", Decimal("15000"), date(2026, 7, 3), payment_method="debit_card"
-    )
-    transaction_service.create_transaction(db, user.id, food.id, "expense", Decimal("5000"), date(2026, 7, 4))
-
-    breakdown = transaction_report_service.payment_method_breakdown(db, date(2026, 7, 1), date(2026, 7, 31))
-
-    by_method = {row["payment_method"]: row["amount"] for row in breakdown}
-    assert by_method["credit_card"] == Decimal("50000")
-    assert by_method["debit_card"] == Decimal("15000")
-    assert by_method[None] == Decimal("5000")
-
-
-def test_payment_method_breakdown_excludes_savings_linked_transactions(seeded_db):
-    db, user = seeded_db["db"], seeded_db["user"]
-    savings_category, product = _add_savings_category_and_product(db)
-    transaction_service.create_transaction(
-        db,
-        user.id,
-        savings_category.id,
-        "expense",
-        Decimal("300000"),
-        date(2026, 7, 1),
-        savings_product_id=product.id,
-        payment_method="transfer",
-    )
-
-    breakdown = transaction_report_service.payment_method_breakdown(db, date(2026, 7, 1), date(2026, 7, 31))
-
-    assert breakdown == []
-
-
 def test_category_breakdown_filters_by_user(seeded_db):
     db, user, food, rent = seeded_db["db"], seeded_db["user"], seeded_db["food"], seeded_db["rent"]
     spouse2 = User(email="spouse2@example.com", display_name="Spouse 2")

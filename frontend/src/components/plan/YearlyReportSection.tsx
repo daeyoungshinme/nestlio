@@ -40,7 +40,7 @@ const MONTH_TICK_FORMATTER = (value: string) => value.replace("월", "");
 const TREND_TICK_FORMATTER = (value: string) => value.replace(/^\d+년\s*/, "");
 
 /** 계획 › 연간 하단의 "실적 분석"(구 연간리포트 페이지 `/reports/yearly`를 흡수). 섹션별 계획 대비 실적은
- * 바로 위 연간계획 아코디언이 이미 보여주므로 총계 카드(SummaryCards)는 빼고, 계획 화면에 없는 분석만
+ * 바로 위 연간계획 아코디언이 이미 보여주므로 총계 카드는 빼고, 계획 화면에 없는 분석만
  * 남겼다: 월별 수입/지출 추이, 부부별 카테고리 지출, 가구 평균(가이드라인) 대비, 최근 카테고리 추이. */
 export default function YearlyReportSection({ year }: { year: number }) {
   const navigate = useNavigate();
@@ -60,7 +60,7 @@ export default function YearlyReportSection({ year }: { year: number }) {
   };
   const { data: users } = useUsers();
   // 배우자별/공통 지출을 비교하는 탭 — 카테고리별 지출·가구 평균 대비 비교 두 카드에만 적용된다
-  // (월별 수입/지출, 소득 등 SummaryCards 총계는 항상 가구 전체 기준으로 유지).
+  // (월별 수입/지출, 소득 등 총계는 항상 가구 전체 기준으로 유지).
   const ownerTabs = [ALL_OWNERS_TAB, ...(users?.map((u) => u.display_name) ?? []), SHARED_OWNER_TAB];
   const ownerParam =
     ownerTab === ALL_OWNERS_TAB

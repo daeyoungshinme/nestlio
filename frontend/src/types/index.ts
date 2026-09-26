@@ -150,11 +150,6 @@ export interface OwnerOverspendHighlightOut {
   delta: string;
 }
 
-export interface PaymentMethodAmountOut {
-  payment_method: PaymentMethod | null;
-  amount: string;
-}
-
 export interface DashboardOut {
   period: DashboardPeriod;
   start: string;
@@ -162,7 +157,6 @@ export interface DashboardOut {
   totals: TotalsOut;
   owner_totals: OwnerTotalsOut[];
   expense_breakdown: CategoryAmountOut[];
-  payment_method_breakdown: PaymentMethodAmountOut[];
   owner_overspend_highlights: OwnerOverspendHighlightOut[];
   category_benchmarks: CategoryBenchmarkRowOut[];
   trend: TrendRowOut[];
