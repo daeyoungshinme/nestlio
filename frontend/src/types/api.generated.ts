@@ -353,26 +353,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/recurring/run-now": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Run Now
-         * @description 수동으로 고정지출 마감 체크를 실행한다 (스케줄러의 daily_due_date_check와 동일 로직).
-         */
-        post: operations["run_now_api_v1_recurring_run_now_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/v1/recurring/{recurring_id}/deactivate": {
         parameters: {
             query?: never;
@@ -933,6 +913,26 @@ export interface paths {
         head?: never;
         /** Update Monthly Target */
         patch: operations["update_monthly_target_api_v1_financial_goals__goal_id__monthly_targets__year_month__patch"];
+        trace?: never;
+    };
+    "/api/v1/financial-goals/{goal_id}/cheer": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Cheer Goal
+         * @description 배우자에게 목표 응원을 보낸다(알림함에 남는다) — 서로 동기부여.
+         */
+        post: operations["cheer_goal_api_v1_financial_goals__goal_id__cheer_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/api/v1/invites": {
@@ -2235,8 +2235,6 @@ export interface components {
             owner_totals: components["schemas"]["OwnerTotalsOut"][];
             /** Expense Breakdown */
             expense_breakdown: components["schemas"]["CategoryAmountOut"][];
-            /** Payment Method Breakdown */
-            payment_method_breakdown: components["schemas"]["PaymentMethodAmountOut"][];
             /** Owner Overspend Highlights */
             owner_overspend_highlights: components["schemas"]["OwnerOverspendHighlightOut"][];
             /** Category Benchmarks */
@@ -2548,6 +2546,18 @@ export interface components {
             name: string;
             /** Amount */
             amount: string;
+        };
+        /** GoalCheerIn */
+        GoalCheerIn: {
+            /** Emoji */
+            emoji: string;
+            /** Message */
+            message?: string | null;
+        };
+        /** GoalCheerOut */
+        GoalCheerOut: {
+            /** Notification Id */
+            notification_id: number;
         };
         /** GoalMonthlyTargetAchievedIn */
         GoalMonthlyTargetAchievedIn: {
@@ -2965,6 +2975,11 @@ export interface components {
             challenge_success: boolean;
             /** Event Reminder */
             event_reminder: boolean;
+            /**
+             * Savings Pace Reminder
+             * @default true
+             */
+            savings_pace_reminder: boolean;
         };
         /** NotificationPrefsOut */
         NotificationPrefsOut: {
@@ -2980,6 +2995,11 @@ export interface components {
             challenge_success: boolean;
             /** Event Reminder */
             event_reminder: boolean;
+            /**
+             * Savings Pace Reminder
+             * @default true
+             */
+            savings_pace_reminder: boolean;
         };
         /** NotificationReactionIn */
         NotificationReactionIn: {
@@ -3046,13 +3066,6 @@ export interface components {
             savings: string;
             /** Savings Investment */
             savings_investment: string;
-        };
-        /** PaymentMethodAmountOut */
-        PaymentMethodAmountOut: {
-            /** Payment Method */
-            payment_method: ("cash" | "credit_card" | "debit_card" | "transfer" | "other") | null;
-            /** Amount */
-            amount: string;
         };
         /**
          * RealEstateImportResultOut
@@ -3167,11 +3180,6 @@ export interface components {
             end_date?: string | null;
             /** Reminder Days Before */
             reminder_days_before?: number | null;
-        };
-        /** RunNowResultOut */
-        RunNowResultOut: {
-            /** Created Count */
-            created_count: number;
         };
         /** SavingsProductAnnualPlanDetailOut */
         SavingsProductAnnualPlanDetailOut: {
@@ -4553,37 +4561,6 @@ export interface operations {
             };
         };
     };
-    run_now_api_v1_recurring_run_now_post: {
-        parameters: {
-            query?: never;
-            header?: {
-                authorization?: string | null;
-            };
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["RunNowResultOut"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
     deactivate_api_v1_recurring__recurring_id__deactivate_post: {
         parameters: {
             query?: never;
@@ -5850,6 +5827,43 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["FinancialGoalOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    cheer_goal_api_v1_financial_goals__goal_id__cheer_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                goal_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GoalCheerIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GoalCheerOut"];
                 };
             };
             /** @description Validation Error */

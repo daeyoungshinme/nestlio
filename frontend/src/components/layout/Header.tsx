@@ -28,6 +28,8 @@ const NOTIF_TYPE_LABEL: Record<string, string> = {
   goal_milestone: "목표 마일스톤 달성",
   challenge_success: "챌린지 성공",
   event_reminder: "일정 알림",
+  goal_cheer: "목표 응원",
+  savings_pace_reminder: "월말 저축 리마인더",
 };
 
 // 목표 마일스톤 축하 알림에만 응원 반응을 남길 수 있다 — 다른 알림 종류(예산 경고 등)는
@@ -75,11 +77,13 @@ export default function Header() {
   const unreadCount = data?.unread_count ?? 0;
 
   return (
-    <header className="flex items-center justify-between lg:justify-end px-3 pt-[calc(0.5rem+env(safe-area-inset-top))] pb-2 lg:px-6 lg:py-3 border-b border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900">
-      <div className="flex items-center gap-2 lg:hidden min-w-0">
-        <PiggyBank className="text-primary-600 dark:text-primary-400 shrink-0" size={20} aria-hidden="true" />
+    <header className="flex items-center justify-between px-3 pt-[calc(0.5rem+env(safe-area-inset-top))] pb-2 lg:px-6 lg:py-3 border-b border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900">
+      {/* 페이지 제목은 모바일·데스크톱 모두 헤더 한 곳에서 보여준다(페이지 안에 h1을 따로 두지 않는다).
+          로고는 데스크톱에선 사이드바에 있으므로 모바일에서만. */}
+      <div className="flex items-center gap-2 min-w-0">
+        <PiggyBank className="lg:hidden text-primary-600 dark:text-primary-400 shrink-0" size={20} aria-hidden="true" />
         {pageLabel && (
-          <span className="font-bold text-base text-gray-900 dark:text-gray-50 truncate">{pageLabel}</span>
+          <h1 className="font-bold text-base lg:text-lg text-gray-900 dark:text-gray-50 truncate">{pageLabel}</h1>
         )}
       </div>
       <div className="flex items-center gap-1">
@@ -116,7 +120,7 @@ export default function Header() {
                 <button
                   type="button"
                   onClick={() => readAllMutation.mutate()}
-                  className="text-xs font-medium text-primary-600 dark:text-primary-400 hover:underline"
+                  className="min-h-[44px] px-2 text-xs font-medium text-primary-600 dark:text-primary-400 hover:underline"
                 >
                   모두 읽음
                 </button>

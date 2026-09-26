@@ -140,22 +140,3 @@ def test_create_recurring_rejects_invalid_days_of_month(client, seeded_db):
         },
     )
     assert resp.status_code == 422
-
-
-def test_run_now_creates_due_transactions(client, seeded_db):
-    food = seeded_db["food"]
-    client.post(
-        "/api/v1/recurring",
-        json={
-            "name": "구독료",
-            "category_id": food.id,
-            "amount": "5000",
-            "frequency": "monthly",
-            "start_date": "2026-07-01",
-        },
-    )
-
-    resp = client.post("/api/v1/recurring/run-now")
-
-    assert resp.status_code == 200
-    assert resp.json()["created_count"] >= 1

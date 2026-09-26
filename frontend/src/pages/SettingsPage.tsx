@@ -17,8 +17,6 @@ export default function SettingsPage() {
 
   return (
     <div className="max-w-lg space-y-4">
-      <h1 className="text-xl font-bold text-gray-900 dark:text-gray-50">설정</h1>
-
       <QueryBoundary
         query={settingsQuery}
         errorMessage="설정 정보를 불러오지 못했습니다."

@@ -45,7 +45,7 @@ export default function CategoryBudgetProgress({ row, nextYearMonthLabel, onAppl
             <Button
               variant="secondary"
               size="sm"
-              className="shrink-0 !min-h-0 !py-1 !px-2 text-xs"
+              className="shrink-0"
               loading={applyingCategoryId === row.category_id}
               onClick={() => onApplySuggestion(row)}
             >

@@ -88,6 +88,7 @@ def daily_threshold_safety_net() -> None:
             ("예산 초과 체크", lambda: notification_service.check_all_categories_threshold(db)),
             ("챌린지 상태 재평가", lambda: goal_service.sync_challenge_statuses(db, now=now_kst())),
             ("목표 달성 체크", lambda: notification_service.check_all_goal_milestones(db)),
+            ("월말 저축 리마인더", lambda: notification_service.check_savings_pace_reminder(db, today=today_kst())),
         ):
             try:
                 step()

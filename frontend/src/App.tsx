@@ -23,6 +23,7 @@ const AccountsPage = lazy(() => import("./pages/AccountsPage"));
 const CategoriesPage = lazy(() => import("./pages/CategoriesPage"));
 const PlanPage = lazy(() => import("./pages/PlanPage"));
 const GoalsPage = lazy(() => import("./pages/GoalsPage"));
+const GoalDetailPage = lazy(() => import("./pages/GoalDetailPage"));
 const LegacyFinancialPlanRedirect = lazy(() => import("./pages/LegacyFinancialPlanRedirect"));
 const SettingsPage = lazy(() => import("./pages/SettingsPage"));
 
@@ -72,6 +73,7 @@ function AppRoutes() {
         <Route path="reports/yearly" element={<Navigate to={planAnalysisLink()} replace />} />
         <Route path="plan" element={<LazyRoute Component={PlanPage} />} />
         <Route path="goals" element={<LazyRoute Component={GoalsPage} />} />
+        <Route path="goals/:id" element={<LazyRoute Component={GoalDetailPage} />} />
         <Route path="financial-plan" element={<LazyRoute Component={LegacyFinancialPlanRedirect} />} />
         <Route path="settings" element={<LazyRoute Component={SettingsPage} />} />
         <Route path="*" element={<Navigate to="/" replace />} />

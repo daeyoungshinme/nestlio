@@ -41,6 +41,10 @@ export function planAnalysisLink(): string {
   return `${planViewLink("연간")}&section=${PLAN_ANALYSIS_SECTION}`;
 }
 
+export function goalDetailLink(goalId: number): string {
+  return `${ROUTES.goals}/${goalId}`;
+}
+
 /** `/accounts`의 접이식 섹션(`?section=`). AccountsPage가 이 값을 그대로 섹션 제목으로 쓴다. */
 export const ACCOUNTS_SECTIONS = ["계좌", "저축·투자", "부동산", "대출"] as const;
 export type AccountsSection = (typeof ACCOUNTS_SECTIONS)[number];

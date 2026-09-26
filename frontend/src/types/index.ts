@@ -150,11 +150,6 @@ export interface OwnerOverspendHighlightOut {
   delta: string;
 }
 
-export interface PaymentMethodAmountOut {
-  payment_method: PaymentMethod | null;
-  amount: string;
-}
-
 export interface DashboardOut {
   period: DashboardPeriod;
   start: string;
@@ -162,7 +157,6 @@ export interface DashboardOut {
   totals: TotalsOut;
   owner_totals: OwnerTotalsOut[];
   expense_breakdown: CategoryAmountOut[];
-  payment_method_breakdown: PaymentMethodAmountOut[];
   owner_overspend_highlights: OwnerOverspendHighlightOut[];
   category_benchmarks: CategoryBenchmarkRowOut[];
   trend: TrendRowOut[];
@@ -438,6 +432,7 @@ export interface NotificationPrefsOut {
   goal_milestone: boolean;
   challenge_success: boolean;
   event_reminder: boolean;
+  savings_pace_reminder: boolean;
 }
 
 export type NotificationPrefsIn = NotificationPrefsOut;
@@ -657,6 +652,15 @@ export interface FinancialGoalCreateIn {
 }
 
 export type FinancialGoalUpdateIn = Omit<FinancialGoalCreateIn, "kind">;
+
+export interface GoalCheerIn {
+  emoji: string;
+  message?: string | null;
+}
+
+export interface GoalCheerOut {
+  notification_id: number;
+}
 
 export interface GrowlioGoalSettingsOut {
   is_configured: boolean;
