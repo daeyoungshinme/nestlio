@@ -147,6 +147,35 @@ def _plan_group(
     }
 
 
+def plan_products(db: Session) -> list[SavingsProduct]:
+    return [p for p in savings_product_service.list_products(db) if p.product_type in PLAN_PRODUCT_TYPES]
+
+
+def planned_by_product_for_month(
+    db: Session, year_month: str, products: list[SavingsProduct] | None = None
+) -> dict[int, Decimal]:
+    """상품별 그 달 저축·투자 계획액 — "얼마 저축할지"의 **유일한 원본**이다. SavingsProductAnnualPlan(월별
+    그리드)에 값이 있으면 그 값을, 없으면 product.monthly_saving_amount로 폴백한다. 목표의 월 계획액
+    (goal_progress_service.planned_monthly_for_goal)과 코칭의 목표 페이스·연속 달성(coaching_engine)도
+    이 값을 쓴다."""
+    products = plan_products(db) if products is None else products
+    targets_by_product = _monthly_targets_by_product_for_year(db, [p.id for p in products], int(year_month[:4]))
+    return {
+        p.id: targets_by_product.get(p.id, {}).get(year_month, p.monthly_saving_amount) for p in products
+    }
+
+
+def plan_totals_for_month(db: Session, year_month: str) -> tuple[Decimal, Decimal]:
+    """(그 달 저축·투자 계획 합계, 그 달 실제 납입 합계) — 부동산·비상금 상품은 계획 대상이 아니라 뺀다."""
+    products = plan_products(db)
+    planned = planned_by_product_for_month(db, year_month, products)
+    actuals = actuals_for_month(db, year_month)
+    return (
+        sum(planned.values(), Decimal("0")),
+        sum((actuals.get(p.id, Decimal("0")) for p in products), Decimal("0")),
+    )
+
+
 def compute_plan_summary(
     db: Session, year_month: str, warn_pct: float | None = None, critical_pct: float | None = None
 ) -> dict:
@@ -154,16 +183,15 @@ def compute_plan_summary(
     그 달이 속한 연도에 SavingsProductAnnualPlan(월별 그리드)이 설정돼 있으면 그 값을, 없으면
     product.monthly_saving_amount로 폴백한다(_monthly_targets_by_product_for_year). 이 함수 자체는
     읽기 전용 집계만 담당하고, 상품 추가/수정은 update_product 등 별도 함수가 맡는다."""
-    products = [p for p in savings_product_service.list_products(db) if p.product_type in PLAN_PRODUCT_TYPES]
-    year = int(year_month[:4])
-    targets_by_product = _monthly_targets_by_product_for_year(db, [p.id for p in products], year)
+    products = plan_products(db)
+    planned_by_product = planned_by_product_for_month(db, year_month, products)
     actuals = actuals_for_month(db, year_month)
     suggested = trailing_average_actuals(db, year_month, months=3)
     items = []
     planned_by_type: dict[str, Decimal] = {t: Decimal("0") for t in PLAN_PRODUCT_TYPES}
     actual_by_type: dict[str, Decimal] = {t: Decimal("0") for t in PLAN_PRODUCT_TYPES}
     for product in products:
-        planned = targets_by_product.get(product.id, {}).get(year_month, product.monthly_saving_amount)
+        planned = planned_by_product[product.id]
         actual = actuals.get(product.id, Decimal("0"))
         group = _plan_group(planned, actual, warn_pct, critical_pct)
         items.append(
@@ -217,7 +245,7 @@ def compute_annual_plan_summary(
     달리 특정 달의 미달/초과가 다음 달로 이월되는 문제를 자연히 상쇄한다 — 한 달을 걸러도 이후 달에
     몰아 넣으면 누적 기준으로는 계획대로 납입한 것으로 인정된다."""
     elapsed_months = plan_targets.elapsed_months(year, as_of)
-    products = [p for p in savings_product_service.list_products(db) if p.product_type in PLAN_PRODUCT_TYPES]
+    products = plan_products(db)
     actuals = actuals_for_year(db, year)
     targets_by_product = _monthly_targets_by_product_for_year(db, [p.id for p in products], year)
     items = []
