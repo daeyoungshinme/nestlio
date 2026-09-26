@@ -26,7 +26,7 @@ class AnnualPlanItem(Base):
     __tablename__ = "annual_plan_items"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    year: Mapped[int] = mapped_column(Integer)
+    year: Mapped[int] = mapped_column(Integer, index=True)
     section: Mapped[str] = mapped_column(String(10))  # 'income' | 'fixed' | 'variable' | 'irregular'
     start_month: Mapped[str] = mapped_column(String(7))  # 'YYYY-MM' — 이 항목의 월별 입력 적용 기간 시작
     end_month: Mapped[str] = mapped_column(String(7))  # 'YYYY-MM' — 적용 기간 종료 (둘 다 포함)
@@ -34,7 +34,7 @@ class AnnualPlanItem(Base):
         UUID(as_uuid=True), ForeignKey("users.id"), nullable=True
     )  # income 섹션에서만 사용 (부부 구분)
     name: Mapped[str] = mapped_column(String(100))
-    category_id: Mapped[int | None] = mapped_column(ForeignKey("categories.id"), nullable=True)
+    category_id: Mapped[int | None] = mapped_column(ForeignKey("categories.id"), nullable=True, index=True)
     sort_order: Mapped[int] = mapped_column(Integer, default=0)
     # 할부 등록(cashflow_plan_service.split_item_into_months)으로 만든 항목만 채워진다 — 표시용("3/10").
     # 회차는 저장하지 않고 installment_start_month(1회차 달)로부터의 경과 개월로 계산한다(installment_no_for).
@@ -50,6 +50,7 @@ class AnnualPlanItem(Base):
             name="fk_annual_plan_items_recurring_expense_id",
         ),
         nullable=True,
+        index=True,
     )
     updated_by: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
     updated_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), onupdate=func.now())
