@@ -1,13 +1,14 @@
 import { Link } from "react-router-dom";
 import { Plus, Tag } from "lucide-react";
+import Button from "@/components/common/Button";
 import AnnualCategoryBudgetProgress from "@/components/financialPlan/AnnualCategoryBudgetProgress";
 import AnnualPlanItemRow from "@/components/financialPlan/AnnualPlanItemRow";
-import SectionAchievementBar from "@/components/financialPlan/SectionAchievementBar";
 import CollapsibleGroup from "@/components/common/CollapsibleGroup";
+import { ROUTES } from "@/constants/routes";
 import { TOUCH_TARGET_MIN_MOBILE_ONLY } from "@/constants/uiSizes";
 import { groupItemsByCategory } from "@/utils/categoryGroup";
 import { CATEGORY_SWATCH_FALLBACK_COLOR } from "@/utils/colors";
-import { formatKrw } from "@/utils/format";
+import { formatKrw, formatPercent } from "@/utils/format";
 import type {
   AnnualCategoryBudgetRowOut,
   AnnualPlanItemOut,
@@ -30,9 +31,9 @@ interface Props {
   onDeleteItem: (item: AnnualPlanItemOut) => void;
 }
 
-/** CashflowPlanSectionPanel의 연간 버전 — 반복거래 연동/할부/수입제안/소유자 소계는 연간 항목에
- * 해당 개념이 없어(AnnualPlanItemRow가 이미 그렇듯) 뺐다. 이번 달 계획 탭과 동일하게 Tabs로 한
- * 번에 섹션 하나만 보여주는 AnnualPlanPanel에서 쓰인다. */
+/** CashflowPlanSectionPanel의 연간 버전 — PlanSectionAccordion의 섹션 본문으로 쓰인다(섹션 이름·실적·달성률은
+ * 아코디언 헤더가 보여주므로 여기선 연간 목표 합계와 항목 목록만). 반복거래 연동/할부/수입제안/소유자 소계는
+ * 이번 달 화면에서 다룬다. */
 export default function AnnualPlanSectionPanel({
   sectionKey,
   label,
@@ -60,16 +61,16 @@ export default function AnnualPlanSectionPanel({
   );
 
   return (
-    <div className="card">
-      <div className="flex items-center justify-between mb-1">
-        <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300">{label}</h3>
-        <div className="flex items-center gap-2">
-          <span className="text-sm font-semibold text-gray-900 dark:text-gray-50">
-            연간 {formatKrw(sectionSummary.annual_target)}
-          </span>
+    <div>
+      <div className="flex items-center justify-between gap-2 mb-1">
+        <p className="text-xs text-gray-500 dark:text-gray-400">
+          연간 목표 {formatKrw(sectionSummary.annual_target)}
+          {sectionSummary.annual_pct !== null && ` · 연간 대비 ${formatPercent(sectionSummary.annual_pct)}`}
+        </p>
+        <div className="flex items-center gap-1">
           {sectionKey !== "income" && (
             <Link
-              to="/categories"
+              to={ROUTES.categories}
               className={`${TOUCH_TARGET_MIN_MOBILE_ONLY} p-2 text-gray-400 hover:text-primary-600 hover:bg-primary-50 dark:hover:bg-primary-950 rounded-lg transition-colors`}
               aria-label="카테고리 관리"
               title="카테고리 관리"
@@ -77,18 +78,11 @@ export default function AnnualPlanSectionPanel({
               <Tag size={16} />
             </Link>
           )}
-          <button
-            type="button"
-            onClick={onAddItem}
-            className={`${TOUCH_TARGET_MIN_MOBILE_ONLY} p-2 text-gray-400 hover:text-primary-600 hover:bg-primary-50 dark:hover:bg-primary-950 rounded-lg transition-colors`}
-            aria-label={`${label} 항목 추가`}
-          >
-            <Plus size={16} />
-          </button>
+          <Button size="sm" variant="secondary" icon={<Plus size={14} />} onClick={onAddItem} aria-label={`${label} 항목 추가`}>
+            항목 추가
+          </Button>
         </div>
       </div>
-
-      <SectionAchievementBar label={label} summary={sectionSummary} />
 
       <div>
         {showCategoryGroups

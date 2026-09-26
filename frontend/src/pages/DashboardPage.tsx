@@ -46,7 +46,7 @@ import { estimateGoalAcceleration } from "@/utils/goalAcceleration";
 import { extractErrorMessage } from "@/utils/error";
 import { toast } from "@/utils/toast";
 import { findGrowlioInvestmentLink } from "@/constants/growlio";
-import { ROUTES, accountsSectionLink, planViewLink } from "@/constants/routes";
+import { ROUTES, accountsSectionLink, planAnalysisLink, planViewLink } from "@/constants/routes";
 import type { DashboardPeriod, SavingsProductOut } from "@/types";
 import { ChevronDown, ChevronRight, Flame, Target } from "lucide-react";
 
@@ -59,7 +59,7 @@ const INSIGHT_LINKS: Partial<Record<string, { to: string; label: string }>> = {
   variable_spend_trend: { to: ROUTES.transactions, label: "가계부 보기" },
   discretionary_ratio: { to: ROUTES.transactions, label: "가계부 보기" },
   debt_ratio: { to: ROUTES.transactions, label: "가계부 보기" },
-  category_benchmark: { to: ROUTES.reportsYearly, label: "연간 리포트 보기" },
+  category_benchmark: { to: planAnalysisLink(), label: "실적 분석 보기" },
   budget_overrun: { to: planViewLink("이번 달"), label: "이번 달 계획 보기" },
   emergency_fund: { to: accountsSectionLink("저축·투자"), label: "저축·투자 보기" },
   savings_execution: { to: accountsSectionLink("저축·투자"), label: "저축·투자 보기" },

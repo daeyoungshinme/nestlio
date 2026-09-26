@@ -3,8 +3,8 @@ import { Layers, Plus, Tag } from "lucide-react";
 import Button from "@/components/common/Button";
 import CollapsibleGroup from "@/components/common/CollapsibleGroup";
 import CashflowPlanItemRow from "@/components/financialPlan/CashflowPlanItemRow";
-import SectionAchievementBar from "@/components/financialPlan/SectionAchievementBar";
 import CategoryBudgetProgress from "@/components/financialPlan/CategoryBudgetProgress";
+import { ROUTES } from "@/constants/routes";
 import { TOUCH_TARGET_MIN_MOBILE_ONLY } from "@/constants/uiSizes";
 import { groupItemsByCategory } from "@/utils/categoryGroup";
 import { CATEGORY_SWATCH_FALLBACK_COLOR } from "@/utils/colors";
@@ -106,13 +106,9 @@ export default function CashflowPlanSectionPanel({
   );
 
   return (
-    <div className="card">
-      <div className="flex items-center justify-between mb-1">
-        <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300">{label}</h3>
-        <div className="flex items-center gap-2">
-          <span className="text-sm font-semibold text-gray-900 dark:text-gray-50">
-            계획 {formatKrw(sectionSummary.planned)}
-          </span>
+    <div>
+      <div className="flex items-center justify-end mb-1">
+        <div className="flex items-center gap-1">
           {sectionKey === "irregular" && (
             <button
               type="button"
@@ -126,7 +122,7 @@ export default function CashflowPlanSectionPanel({
           )}
           {sectionKey !== "income" && (
             <Link
-              to="/categories"
+              to={ROUTES.categories}
               className={`${TOUCH_TARGET_MIN_MOBILE_ONLY} p-2 text-gray-400 hover:text-primary-600 hover:bg-primary-50 dark:hover:bg-primary-950 rounded-lg transition-colors`}
               aria-label="카테고리 관리"
               title="카테고리 관리 — 여기서 태깅할 카테고리를 추가/수정할 수 있어요"
@@ -134,20 +130,14 @@ export default function CashflowPlanSectionPanel({
               <Tag size={16} />
             </Link>
           )}
-          <button
-            type="button"
-            onClick={onAddItem}
-            className={`${TOUCH_TARGET_MIN_MOBILE_ONLY} p-2 text-gray-400 hover:text-primary-600 hover:bg-primary-50 dark:hover:bg-primary-950 rounded-lg transition-colors`}
-            aria-label={`${label} 항목 추가`}
-          >
-            <Plus size={16} />
-          </button>
+          <Button size="sm" variant="secondary" icon={<Plus size={14} />} onClick={onAddItem} aria-label={`${label} 항목 추가`}>
+            항목 추가
+          </Button>
         </div>
       </div>
       {ownerSubtotalParts.length > 0 && (
         <p className="text-xs text-gray-400 dark:text-gray-500 mb-2">{ownerSubtotalParts.join(" · ")}</p>
       )}
-      <SectionAchievementBar label={label} summary={sectionSummary} />
       {showIncomeSuggestion && (
         <div className="mb-2 flex items-center justify-between gap-2 rounded-lg bg-amber-50 dark:bg-amber-950 px-2 py-1.5">
           <p className="text-xs text-amber-700 dark:text-amber-300">
@@ -158,7 +148,7 @@ export default function CashflowPlanSectionPanel({
             <Button
               variant="secondary"
               size="sm"
-              className="shrink-0 !min-h-0 !py-1 !px-2 text-xs"
+              className="shrink-0"
               loading={applyingIncomeSuggestion}
               onClick={() => onApplyIncomeSuggestion(items[0], sectionSummary.suggested_amount!)}
             >

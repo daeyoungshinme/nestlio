@@ -100,3 +100,8 @@ class AnnualPlanListOut(BaseModel):
     items: list[AnnualPlanItemOut]
     summary: AnnualPlanSummaryOut
     category_budgets: list[AnnualCategoryBudgetRowOut]
+
+
+class AnnualPlanSeedIn(BaseModel):
+    year: int
+    source: Literal["previous_year", "recurring", "recent_average"]

@@ -1506,6 +1506,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/annual-plan/seed": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Seed Plan
+         * @description 빈 해의 연간계획을 작년 계획/반복거래/최근 3개월 평균 중 하나로 한 번에 채운다(이미 있으면 409).
+         */
+        post: operations["seed_plan_api_v1_annual_plan_seed_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/internal/jobs/{job_name}": {
         parameters: {
             query?: never;
@@ -1750,6 +1770,16 @@ export interface components {
             status: ("ok" | "warn" | "critical") | null;
             /** Monthly */
             monthly: components["schemas"]["AnnualPlanSectionMonthOut"][];
+        };
+        /** AnnualPlanSeedIn */
+        AnnualPlanSeedIn: {
+            /** Year */
+            year: number;
+            /**
+             * Source
+             * @enum {string}
+             */
+            source: "previous_year" | "recurring" | "recent_average";
         };
         /** AnnualPlanSummaryOut */
         AnnualPlanSummaryOut: {
@@ -7012,6 +7042,41 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    seed_plan_api_v1_annual_plan_seed_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AnnualPlanSeedIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AnnualPlanListOut"];
+                };
             };
             /** @description Validation Error */
             422: {

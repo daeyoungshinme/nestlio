@@ -10,6 +10,7 @@ import { useAuthStore } from "./stores/authStore";
 import { useThemeStore } from "./stores/themeStore";
 import { clearClientCaches } from "./utils/session";
 import { APP_EVENTS } from "./constants/events";
+import { planAnalysisLink } from "./constants/routes";
 
 const LoginPage = lazy(() => import("./pages/LoginPage"));
 const InviteAcceptPage = lazy(() => import("./pages/InviteAcceptPage"));
@@ -19,7 +20,6 @@ const TransactionsPage = lazy(() => import("./pages/TransactionsPage"));
 const TransactionImportPage = lazy(() => import("./pages/TransactionImportPage"));
 const AccountsPage = lazy(() => import("./pages/AccountsPage"));
 const CategoriesPage = lazy(() => import("./pages/CategoriesPage"));
-const ReportsYearlyPage = lazy(() => import("./pages/ReportsYearlyPage"));
 const SchedulePage = lazy(() => import("./pages/SchedulePage"));
 const PlanPage = lazy(() => import("./pages/PlanPage"));
 const GoalsPage = lazy(() => import("./pages/GoalsPage"));
@@ -69,7 +69,7 @@ function AppRoutes() {
         <Route path="accounts" element={<LazyRoute Component={AccountsPage} />} />
         <Route path="categories" element={<LazyRoute Component={CategoriesPage} />} />
         <Route path="schedule" element={<LazyRoute Component={SchedulePage} />} />
-        <Route path="reports/yearly" element={<LazyRoute Component={ReportsYearlyPage} />} />
+        <Route path="reports/yearly" element={<Navigate to={planAnalysisLink()} replace />} />
         <Route path="plan" element={<LazyRoute Component={PlanPage} />} />
         <Route path="goals" element={<LazyRoute Component={GoalsPage} />} />
         <Route path="financial-plan" element={<LazyRoute Component={LegacyFinancialPlanRedirect} />} />

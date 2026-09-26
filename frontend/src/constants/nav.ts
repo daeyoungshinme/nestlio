@@ -1,4 +1,4 @@
-import { BarChart3, CalendarDays, ClipboardList, Home, Landmark, Target, Wallet } from "lucide-react";
+import { CalendarDays, ClipboardList, Home, Landmark, Target, Wallet } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { ROUTES } from "@/constants/routes";
 
@@ -19,7 +19,6 @@ const PLAN: NavItem = { to: ROUTES.plan, icon: ClipboardList, label: "계획" };
 const GOALS: NavItem = { to: ROUTES.goals, icon: Target, label: "목표" };
 const ACCOUNTS: NavItem = { to: ROUTES.accounts, icon: Landmark, label: "자산" };
 const SCHEDULE: NavItem = { to: ROUTES.schedule, icon: CalendarDays, label: "일정" };
-const REPORTS_YEARLY: NavItem = { to: ROUTES.reportsYearly, icon: BarChart3, label: "연간리포트" };
 
 /** 하단 탭(모바일)과 사이드바(데스크톱)가 공유하는 주 메뉴 5개. 앱의 목적("부부가 연간 계획을 세우고
  * 월별로 점검하며 가계부를 함께 써서 자산증식 목표를 달성")을 그대로 따라간다:
@@ -29,9 +28,9 @@ const REPORTS_YEARLY: NavItem = { to: ROUTES.reportsYearly, icon: BarChart3, lab
  * "더보기" 시트는 없앴다(숨은 메뉴는 부부가 발견하지 못한다). */
 export const PRIMARY_NAV_ITEMS: NavItem[] = [DASHBOARD, TRANSACTIONS, PLAN, GOALS, ACCOUNTS];
 
-/** 데스크톱 사이드바 전용 보조 메뉴. 일정은 가계부 캘린더로, 연간리포트는 계획 › 연간으로 병합될
- * 예정이라 모바일 하단탭에는 두지 않고(가계부·계획 화면 안의 링크로 진입), 넓은 화면에서만 바로가기로 남긴다. */
-export const SECONDARY_NAV_ITEMS: NavItem[] = [SCHEDULE, REPORTS_YEARLY];
+/** 데스크톱 사이드바 전용 보조 메뉴. 일정은 가계부 캘린더로 병합될 예정이라 모바일 하단탭에는 두지 않고
+ * (가계부 헤더의 링크로 진입), 넓은 화면에서만 바로가기로 남긴다. 연간리포트는 계획 › 연간 › 실적 분석으로 흡수됐다. */
+export const SECONDARY_NAV_ITEMS: NavItem[] = [SCHEDULE];
 
 export const SIDEBAR_NAV_GROUPS: NavGroup[] = [
   { header: null, items: PRIMARY_NAV_ITEMS },
