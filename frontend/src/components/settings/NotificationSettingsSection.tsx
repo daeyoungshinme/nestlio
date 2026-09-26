@@ -17,6 +17,11 @@ const NOTIF_PREF_FIELDS: { key: keyof NotificationPrefsOut; label: string; hint:
   { key: "goal_milestone", label: "목표 마일스톤 달성", hint: "재무목표가 25/50/75/100%에 도달하면 축하 알림" },
   { key: "challenge_success", label: "챌린지 성공", hint: "부부 챌린지를 달성하면 축하 알림" },
   { key: "event_reminder", label: "일정 알림", hint: "등록한 개인 일정·리마인더의 알림 시각이 되면 이메일" },
+  {
+    key: "savings_pace_reminder",
+    label: "월말 저축 리마인더",
+    hint: "월말 3일 전, 이번 달 저축·투자 계획을 다 못 채웠으면 남은 금액을 알려줘요",
+  },
 ];
 
 interface Props {

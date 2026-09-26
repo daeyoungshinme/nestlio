@@ -42,6 +42,15 @@ class GoalMonthlyTargetOut(BaseModel):
     is_auto_computed: bool = False
 
 
+class GoalCheerIn(BaseModel):
+    emoji: str
+    message: str | None = None
+
+
+class GoalCheerOut(BaseModel):
+    notification_id: int
+
+
 class GoalMonthlyTargetAchievedIn(BaseModel):
     achieved_amount: KrwAmount
 

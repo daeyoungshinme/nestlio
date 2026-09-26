@@ -83,8 +83,8 @@
 
 `notification_service.py`는 원래 발송/알림 판정 로직과 인박스(읽음/반응) 로직을 한 파일에 모두 담고 있었으나(425줄), 책임별로 2개 파일로 분리했다(`goal_service`와 동일한 2분할 동기 — growlio류 연동이 없어 이쪽도 3분할 대상이 아니다).
 
-- `notification_service.py`: 이메일 발송/알림 판정 로직(`send_weekly_summary`/`send_monthly_summary`/`check_and_alert_budget_threshold`/`check_and_celebrate_goal_milestone`/`check_all_goal_milestones`/`check_all_categories_threshold`)만 남는다. 위 "알림 dedup" 절이 설명하는 `NotificationLog` 기반 dedup 헬퍼(`already_sent`/`log_sent`)는 `notification_log_service.py`로 분리돼 있다 — `milestone_service`(목표 달성 축하, 마일스톤 값을 기간 키로 사용)도 같은 헬퍼를 쓰므로, `notification_service`를 import하면 순환 의존이 되는 모듈에서도 쓸 수 있게 따로 뒀다.
-- `notification_inbox_service.py`(신규): 알림 목록/읽음/반응 CRUD(`list_notifications`/`add_reaction`/`remove_reaction`/`unread_count`/`mark_read`/`mark_all_read`), `REACTION_EMOJIS` 상수, 예외 클래스(`NotificationError`, `NotificationNotFoundError`, `InvalidReactionError`)가 모여 있다.
+- `notification_service.py`: 이메일 발송/알림 판정 로직(`send_weekly_summary`/`send_monthly_summary`/`check_and_alert_budget_threshold`/`check_and_celebrate_goal_milestone`/`check_all_goal_milestones`/`check_all_categories_threshold`/`check_savings_pace_reminder` — 월말 3일 전 이번 달 저축·투자 계획 미달분 알림, 월 1회 dedup)만 남는다. 위 "알림 dedup" 절이 설명하는 `NotificationLog` 기반 dedup 헬퍼(`already_sent`/`log_sent`)는 `notification_log_service.py`로 분리돼 있다 — `milestone_service`(목표 달성 축하, 마일스톤 값을 기간 키로 사용)도 같은 헬퍼를 쓰므로, `notification_service`를 import하면 순환 의존이 되는 모듈에서도 쓸 수 있게 따로 뒀다.
+- `notification_inbox_service.py`(신규): 알림 목록/읽음/반응 CRUD(`list_notifications`/`add_reaction`/`remove_reaction`/`unread_count`/`mark_read`/`mark_all_read`)와 목표 응원(`send_goal_cheer` — `goal_cheer` 알림 + 보낸 사람 리액션 + 본인 읽음 처리), `REACTION_EMOJIS` 상수, 예외 클래스(`NotificationError`, `NotificationNotFoundError`, `InvalidReactionError`)가 모여 있다.
 - 두 모듈 사이에 의존 관계는 없다(서로 import하지 않음) — 알림을 "발송"하는 것과 발송된 알림을 "조회/읽음 처리"하는 것은 완전히 분리된 관심사다.
 - 테스트 파일은 나누지 않았다(`tests/CLAUDE.md`에 명시) — `tests/test_notification_service.py`가 두 모듈을 모두 다룬다.
 

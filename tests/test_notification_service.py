@@ -12,6 +12,7 @@ from app.services import (
     notification_inbox_service,
     notification_service,
     notification_settings_service,
+    transaction_service,
 )
 
 
@@ -506,3 +507,41 @@ def test_check_and_celebrate_goal_milestone_rolls_back_and_reraises_on_failure(s
     ):
         notification_service.check_and_celebrate_goal_milestone(db, 1)
     rollback.assert_called_once()
+
+
+def _plan_product(db, monthly="500000"):
+    from app.models.category import Category
+    from app.services import savings_product_service
+
+    cat = Category(name="저축", type="fixed", color="#000", sort_order=0, is_savings=True)
+    db.add(cat)
+    db.commit()
+    product = savings_product_service.create_product(db, "적금", Decimal("0"), Decimal(monthly))
+    return cat, product
+
+
+@patch("app.services.notification_service.is_connected", return_value=False)
+def test_savings_pace_reminder_sends_once_near_month_end_when_plan_not_met(_conn, seeded_db):
+    from app.models.notification_log import NotificationLog
+
+    db, user = seeded_db["db"], seeded_db["user"]
+    cat, product = _plan_product(db)
+    transaction_service.create_transaction(
+        db, user.id, cat.id, "expense", Decimal("200000"), date(2026, 9, 5), savings_product_id=product.id
+    )
+
+    assert notification_service.check_savings_pace_reminder(db, today=date(2026, 9, 20)) is False  # 아직 이르다
+    assert notification_service.check_savings_pace_reminder(db, today=date(2026, 9, 28)) is True
+    assert notification_service.check_savings_pace_reminder(db, today=date(2026, 9, 29)) is False  # 월 1회
+    [log] = db.query(NotificationLog).filter(NotificationLog.notif_type == "savings_pace_reminder").all()
+    assert "300,000원이 남았어요" in log.detail
+
+
+@patch("app.services.notification_service.is_connected", return_value=False)
+def test_savings_pace_reminder_skips_when_plan_already_met(_conn, seeded_db):
+    db, user = seeded_db["db"], seeded_db["user"]
+    cat, product = _plan_product(db)
+    transaction_service.create_transaction(
+        db, user.id, cat.id, "expense", Decimal("500000"), date(2026, 9, 5), savings_product_id=product.id
+    )
+    assert notification_service.check_savings_pace_reminder(db, today=date(2026, 9, 28)) is False

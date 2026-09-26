@@ -15,10 +15,11 @@ from app.services import (
     notification_log_service,
     notification_settings_service,
     retrospective_service,
+    savings_product_plan_service,
     transaction_report_service,
 )
 from app.services.google_auth import is_connected
-from app.utils.dates import today_kst, week_bounds, year_month_str
+from app.utils.dates import month_bounds, today_kst, week_bounds, year_month_str
 
 logger = logging.getLogger(__name__)
 
@@ -260,3 +261,36 @@ def check_all_categories_threshold(db: Session, year_month: str | None = None) -
             db.rollback()
             logger.exception("threshold_alert_failed category_id=%s", row["category_id"])
     return sent
+
+
+SAVINGS_REMINDER_DAYS_BEFORE_MONTH_END = 3
+
+
+def check_savings_pace_reminder(db: Session, today: date | None = None) -> bool:
+    """월말 3일 전부터, 이번 달 저축·투자 계획(savings_product_plan_service)을 아직 다 채우지 못했으면 "N원 남았어요"를
+    한 번(월 1회, dedup) 알린다 — 연속 달성(streak)이 끊기기 전에 부부가 함께 채울 수 있게. 계획이 없거나 이미
+    채웠으면 보내지 않는다. 이메일은 Google 연결 시에만, 인앱 알림은 항상 남는다."""
+    today = today or today_kst()
+    _, month_end = month_bounds(today)
+    if (month_end - today).days >= SAVINGS_REMINDER_DAYS_BEFORE_MONTH_END:
+        return False
+    if not notification_settings_service.is_enabled(db, "savings_pace_reminder"):
+        return False
+    year_month = year_month_str(today)
+    if notification_log_service.already_sent(db, "savings_pace_reminder", year_month):
+        return False
+    planned, deposits = savings_product_plan_service.plan_totals_for_month(db, year_month)
+    remaining = planned - deposits
+    if planned <= 0 or remaining <= 0:
+        return False
+    streak = _savings_streak(db, today)
+    body = f"이번 달 저축·투자 계획 {planned:,.0f}원 중 {remaining:,.0f}원이 남았어요. 월말 전에 함께 채워봐요!"
+    if streak > 0:
+        body += f" 지금까지 {streak}개월 연속 달성 중이에요."
+    if is_connected():
+        gmail_service.send_email(
+            "[Nestlio] 이번 달 저축 계획까지 조금 남았어요", body, to=notification_settings_service.get_recipients(db)
+        )
+    notification_log_service.log_sent(db, "savings_pace_reminder", year_month, detail=body)
+    db.commit()
+    return True

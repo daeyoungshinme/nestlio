@@ -151,3 +151,40 @@ def mark_all_read(db: Session, user_id: uuid.UUID, now: datetime | None = None) 
     if unread_ids:
         db.commit()
     return len(unread_ids)
+
+
+def send_goal_cheer(
+    db: Session,
+    sender_id: uuid.UUID,
+    sender_name: str,
+    goal_id: int,
+    goal_name: str,
+    emoji: str,
+    message: str | None,
+    now: datetime | None = None,
+) -> int:
+    """배우자가 목표에 언제든 응원을 보낸다(마일스톤 축하 알림에 반응을 남기는 것과 달리 25% 도달 전에도 가능).
+    알림함(NotificationLog, notif_type="goal_cheer", related=goal)에 한 줄 남기고, 보낸 사람의 이모지·메시지는
+    기존 리액션 모델로 그 알림에 붙인다 — 받는 쪽 인박스·홈이 기존 리액션 표시를 그대로 쓴다. 보낸 사람 본인에게는
+    읽음 처리해 안 읽은 알림으로 잡히지 않게 한다. 새 알림 id를 반환한다."""
+    if emoji not in REACTION_EMOJIS:
+        raise InvalidReactionError("지원하지 않는 반응이에요.")
+    now = now or now_kst()
+    message = message.strip()[:200] or None if message else None
+    detail = f'{sender_name}님이 "{goal_name}" 목표에 {emoji} 응원을 보냈어요'
+    if message:
+        detail += f": {message}"
+    log = NotificationLog(
+        notif_type="goal_cheer",
+        related_type="goal",
+        related_id=goal_id,
+        year_month=now.isoformat(),
+        status="sent",
+        detail=detail[:500],
+    )
+    db.add(log)
+    db.flush()
+    db.add(NotificationReaction(notification_log_id=log.id, user_id=sender_id, emoji=emoji, message=message))
+    db.add(NotificationRead(notification_log_id=log.id, user_id=sender_id, read_at=now))
+    db.commit()
+    return log.id

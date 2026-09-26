@@ -10,10 +10,12 @@ from app.schemas.financial_goal import (
     FinancialGoalCreateIn,
     FinancialGoalOut,
     FinancialGoalUpdateIn,
+    GoalCheerIn,
+    GoalCheerOut,
     GoalMonthlyTargetAchievedIn,
     GrowlioGoalSettingsOut,
 )
-from app.services import goal_progress_service, goal_service, notification_service
+from app.services import goal_progress_service, goal_service, notification_inbox_service, notification_service
 from app.utils.dates import now_kst, today_kst
 
 router = APIRouter(prefix="/financial-goals", tags=["financial-goals"])
@@ -130,3 +132,23 @@ def update_monthly_target(
 def delete_goal(goal_id: int, db: Session = Depends(get_db), _: User = Depends(get_current_user)):
     if not goal_service.delete_goal(db, goal_id):
         raise HTTPException(status.HTTP_404_NOT_FOUND, "목표를 찾을 수 없습니다.")
+
+
+@router.post("/{goal_id}/cheer", response_model=GoalCheerOut, status_code=status.HTTP_201_CREATED)
+def cheer_goal(
+    goal_id: int,
+    payload: GoalCheerIn,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """배우자에게 목표 응원을 보낸다(알림함에 남는다) — 서로 동기부여."""
+    goal = goal_service.get_goal(db, goal_id)
+    if goal is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="목표를 찾을 수 없습니다.")
+    try:
+        notification_id = notification_inbox_service.send_goal_cheer(
+            db, current_user.id, current_user.display_name, goal.id, goal.name, payload.emoji, payload.message
+        )
+    except notification_inbox_service.InvalidReactionError as exc:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=str(exc)) from exc
+    return {"notification_id": notification_id}
