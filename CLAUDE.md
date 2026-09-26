@@ -10,7 +10,7 @@
 - **설정**: pydantic-settings (`app/config.py`)
 - **인증**: growlio와 동일 — 프론트엔드가 `@supabase/supabase-js`로 직접 로그인해 Supabase JWT를 발급받고, 백엔드는 `app/dependencies.py`에서 JWKS(`PyJWKClient`)로 서명만 검증한다. 백엔드에는 로그인 엔드포인트가 없다 (세션 쿠키 없음, `Authorization: Bearer <token>` 헤더만 사용)
 - **스케줄링**: 예약 작업은 in-process 스케줄러가 아니라 GitHub Actions 예약 워크플로(`.github/workflows/scheduled-jobs.yml`)가 `POST /internal/jobs/{job_name}`을 호출해 실행한다 (Render 무료 웹서비스가 15분 미사용 시 슬립하기 때문). 상세는 [app/scheduler/CLAUDE.md](app/scheduler/CLAUDE.md)
-- **외부 연동**: Google Calendar / Gmail API, growlio 자산 API(`app/services/growlio_client.py` — 사용자의 Supabase JWT를 그대로 전달해 호출, 별도 서비스 API 키 없음). 계좌·부동산(+담보대출) 잔액 동기화(`account_service`/`savings_product_service`/`real_estate_service`)와 재무목표 프리필(`goal_service`)은 읽기전용이지만, 저축/투자 내역 입력 시 growlio 계좌 입출금에도 반영하는 쓰기 호출(`push_transaction`, `transaction_service`)이 있다 — "읽기전용"으로 단정하지 않는다. 잔액 동기화는 자산현황 화면의 "전체 동기화" 버튼 + `auto_sync_enabled` 연동이 오래됐을 때 `GET /net-worth` 응답 후 백그라운드로 도는 기회주의적 갱신(`net_worth_service.refresh_stale_growlio_links`, 스케줄러엔 사용자 JWT가 없어서)으로 이뤄진다.
+- **외부 연동**: Google Calendar / Gmail API, growlio 자산 API(`app/services/growlio_client.py` — 사용자의 Supabase JWT를 그대로 전달해 호출, 별도 서비스 API 키 없음). 계좌·저축/투자·부동산(+담보대출) 잔액 동기화(`account_service`/`savings_product_growlio_service`/`real_estate_service`)와 재무목표 프리필·투자 수익 인사이트(`goal_service.fetch_growlio_goal_settings`/`fetch_growlio_insight`)는 읽기전용이지만, 저축/투자 내역 입력 시 growlio 계좌 입출금에도 반영하는 쓰기 호출(`push_transaction`, `transaction_service`)이 있다 — "읽기전용"으로 단정하지 않는다. 잔액 동기화는 자산현황 화면의 "전체 동기화" 버튼 + `auto_sync_enabled` 연동이 오래됐을 때 `GET /net-worth`·`GET /dashboard/bootstrap` 응답 후 백그라운드로 도는 기회주의적 갱신(`net_worth_service.refresh_stale_growlio_links`, 스케줄러엔 사용자 JWT가 없어서)으로 이뤄진다. growlio 연동 상세는 [app/services/CLAUDE.md](app/services/CLAUDE.md)의 "growlio 연동 공통 헬퍼" 절.
 
 ## 아키텍처
 
@@ -35,13 +35,13 @@
 ## 실행 / 커맨드
 
 - 로컬 프론트엔드만 실행: `cd frontend && npm run dev` (Vite, 5273 포트, `/api` 요청을 8899로 프록시)
-- 개발(소스 수정 즉시 반영, HMR): `dev.sh` 인자 없이 실행 (Windows: `dev.bat`) — 백엔드(uvicorn `--reload`)와 프론트(Vite dev 서버)를 동시에 띄운다. `http://localhost:5273`으로 접속하면 프론트/백엔드 코드 수정이 재빌드·재기동 없이 바로 반영된다. `dev.sh`도 Windows(Git Bash) 전용이다(`powershell.exe`/`taskkill`/`.venv/Scripts` 사용).
+- 개발(소스 수정 즉시 반영, HMR): `dev.sh` 인자 없이 실행 (Windows: `dev.bat`) — 백엔드(uvicorn `--reload`)와 프론트(Vite dev 서버)를 동시에 띄운다. `http://localhost:5273`으로 접속하면 프론트/백엔드 코드 수정이 재빌드·재기동 없이 바로 반영된다. `dev.sh`도 Windows(Git Bash) 전용이다(`powershell.exe`/`taskkill`/`.venv/Scripts` 사용). 8899/5273이 이미 사용 중이면(대개 이미 떠 있는 개발 서버) 기존 프로세스를 죽이지 않고 다음 빈 포트로 넘어가며, Vite 프록시는 `VITE_BACKEND_PORT`로 바뀐 백엔드 포트를 따라간다 — 실제 포트는 스크립트 출력으로 확인한다.
 - 마이그레이션/시드: `dev.sh migrate` (Windows: `dev.bat migrate`, `run`과 함께 줄 수 있음) — 로컬 `DATABASE_URL`은 대개 운영과 공유하는 Supabase Postgres라, 인자 없이 실행하면 `alembic upgrade head`/`scripts/seed_data.py`를 **건너뛴다**(머지 안 된 로컬 마이그레이션이 운영 DB에 적용되는 사고 방지). 운영 DB는 배포(`render.yaml`의 `alembic upgrade head`)가 head로 맞추므로 평소엔 필요 없다.
 - 배포 스냅샷 실행: `dev.sh run` (Windows: `dev.bat run`) — `frontend/dist`를 정적 빌드한 뒤 uvicorn 단일 프로세스(8899 포트)로 서빙한다. 프론트 수정 시 재빌드가 필요하다 (구 `run.sh`/`run.bat`은 이 모드로 통합됨).
 - 의존성 설치: 런타임은 `pip install -r requirements.txt`, 테스트/개발은 여기에 `-r requirements-dev.txt`를 더한다 (`pytest` 등 테스트 전용 의존성은 프로덕션 이미지에 넣지 않는다)
 - pre-commit 훅: `pre-commit install` 로 활성화(`.pre-commit-config.yaml` — ruff-check `--fix`, oxlint, 기본 위생 훅). CI 를 대체하지 않고 CI 왕복을 줄이는 용도. 포매터 전면 재정렬은 하지 않는다.
 - 테스트: `pytest` (설정은 `pyproject.toml`의 `[tool.pytest.ini_options]` — `--strict-markers`, `--durations=10`, `filterwarnings=["error", ...]`로 deprecation 경고를 에러로 승격. 상세 컨벤션은 [tests/CLAUDE.md](tests/CLAUDE.md))
-- 백엔드 린트: `ruff check .` (설정은 `pyproject.toml` `[tool.ruff]` — 포매팅 전면 재정렬은 안 하고 미사용 import/변수·bugbear·import 정렬만 강제). CI(`ci.yml`)가 `ruff check` + `pip check` + `pytest` + `migration-drift`(모델↔마이그레이션) + `api-types-drift`(백엔드 스키마↔`frontend/src/types/api.generated.ts`) + 프론트 잡(`npm run lint`/`test`/`build`)을 돌린다.
+- 백엔드 린트: `ruff check .` (설정은 `pyproject.toml` `[tool.ruff]` — 포매팅 전면 재정렬은 안 하고 미사용 import/변수·bugbear·import 정렬만 강제). CI(`ci.yml`)가 `ruff check` + `pip check` + `pip-audit` + `pytest` + `migration-drift`(모델↔마이그레이션) + `api-types-drift`(백엔드 스키마↔`frontend/src/types/api.generated.ts`) + 프론트 잡(`npm audit --audit-level=high`, raw `emerald-`/`indigo-` 색상 grep 가드, `npm run lint`/`test`/`build`/`check:bundle-size`)을 돌린다.
 - 마이그레이션: Alembic (`alembic.ini`, `migrations/`) — 모델 변경 시 리비전 생성 필요. 배포는 `alembic upgrade head`(`render.yaml`)라 체인이 깨지면 배포 전체가 실패하므로, `tests/test_migrations.py`가 Postgres 없이도 CI에서 head 1개·down_revision 연결·base 1개를 가드하고, CI `migration-drift` 잡이 `scripts/check_migration_drift.py`(임베디드 Postgres)로 "모델 == 마이그레이션 head"까지 가드한다(리비전 누락 방지). 2026-09-01에 51개 선형 체인을 단일 베이스라인(`bdba3c3b3277_squashed_baseline`) 하나로 스쿼시했다(운영 DB도 같은 날 stamp 완료). 구 리비전 파일과 일회성 검증 스크립트(`verify_migration_squash.py`)는 2026-09-25에 삭제했고 git 히스토리에만 남아 있다.
 - 배포: FastAPI가 `frontend/dist`(빌드된 SPA)를 정적 파일로 서빙하는 단일 프로세스 구조 (growlio의 nginx/Render+Vercel 분리 구조와 다른, nestlio 규모에 맞춘 의도적 단순화). Render 무료 웹서비스 1개로 배포한다 (`render.yaml` 참고) — DB는 별도로 마련할 필요 없이 growlio와 공유하는 Supabase Postgres를 그대로 쓴다. Render 무료 티어는 디스크가 완전히 휘발성이라 부부 사진은 Supabase Storage에, 구글 OAuth 토큰은 Postgres에 저장한다(아래 참고). 15분 미사용 시 슬립하므로 예약 작업은 인프로세스 스케줄러 대신 GitHub Actions가 트리거한다([app/scheduler/CLAUDE.md](app/scheduler/CLAUDE.md)).
 
@@ -49,7 +49,7 @@
 
 `.env.example` 참고. 주요 그룹:
 - 런타임: `TZ=Asia/Seoul`(앱은 naive datetime을 KST 벽시계로 취급 — 컨테이너 기본 UTC면 스케줄러 날짜 경계가 어긋난다. 코드는 `app/utils/dates.py`의 `now_kst()`/`today_kst()`로도 방어), `APP_ENV`(`production`이면 필수 시크릿 누락 시 부팅을 막는다 — `app/config.py::validate_startup`. Render는 `RENDER` 환경변수로도 감지)
-- DB: `DATABASE_URL`
+- DB: `DATABASE_URL` — 로컬 개발도 Supabase Postgres가 필요하다. `app/config.py`의 SQLite 기본값(`sqlite:///./data/app.db`)은 모든 테이블이 `household` 스키마(`app/database.py`)에 있어 실제로는 동작하지 않는다(테스트는 `tests/conftest.py`가 in-memory SQLite 엔진에 `schema_translate_map={"household": None}`을 걸어 우회한다).
 - Supabase(growlio와 공유, JWT 검증용): `SUPABASE_PROJECT_URL`
 - CORS: `CORS_ORIGINS` (프론트엔드 오리진 목록)
 - 프론트엔드 오리진(배우자 초대 이메일의 가입 링크 조립용): `APP_BASE_URL`
