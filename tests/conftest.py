@@ -1,9 +1,10 @@
 import sys
+from contextlib import contextmanager
 from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, event
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
@@ -46,6 +47,28 @@ def _google_auth_test_db(monkeypatch, db_session):
     monkeypatch.setattr("app.services.google_auth.SessionLocal", test_session_factory)
     # 스케줄러 잡(app/scheduler/jobs.py)도 같은 이유로 자체 SessionLocal()을 연다.
     monkeypatch.setattr("app.scheduler.jobs.SessionLocal", test_session_factory)
+
+
+@pytest.fixture()
+def count_selects(db_session):
+    """`with count_selects() as n:` 블록 안에서 실행된 SELECT 수를 `n[0]`으로 센다 — N+1 회귀 테스트용."""
+    engine = db_session.get_bind()
+
+    @contextmanager
+    def _count():
+        counter = [0]
+
+        def _on_execute(conn, cursor, statement, *_args):
+            if statement.lstrip().upper().startswith("SELECT"):
+                counter[0] += 1
+
+        event.listen(engine, "before_cursor_execute", _on_execute)
+        try:
+            yield counter
+        finally:
+            event.remove(engine, "before_cursor_execute", _on_execute)
+
+    return _count
 
 
 @pytest.fixture()

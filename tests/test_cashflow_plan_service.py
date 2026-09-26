@@ -512,3 +512,19 @@ def test_copy_into_january_reuses_or_creates_this_years_item(seeded_db):
     assert {i.year for i in annual_plan_service.list_items(db, 2027)} == {2027}
 
 
+
+
+def test_list_items_loads_monthly_targets_without_n_plus_one(seeded_db, count_selects):
+    db, user = seeded_db["db"], seeded_db["user"]
+    for i in range(5):
+        cashflow_plan_service.split_item_into_months(
+            db, "irregular", None, f"할부{i}", Decimal("300000"), "2026-07", 3, i, user.id
+        )
+    db.expire_all()
+
+    with count_selects() as n:
+        items = cashflow_plan_service.list_items(db, "2026-08")
+        assert all(i.spans_multiple_months for i in items)
+
+    assert len(items) == 5
+    assert n[0] <= 2  # 항목 조인 1 + monthly_targets selectin 1 (항목 수와 무관)

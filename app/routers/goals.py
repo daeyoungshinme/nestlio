@@ -32,7 +32,7 @@ def get_growlio_goal(bearer_token: str = Depends(get_bearer_token), _: User = De
 @router.get("", response_model=list[FinancialGoalOut])
 def list_goals(db: Session = Depends(get_db), _: User = Depends(get_current_user)):
     today = today_kst()
-    return [goal_progress_service.to_out(db, goal, today) for goal in goal_service.list_goals(db)]
+    return goal_progress_service.list_out(db, goal_service.list_goals(db), today)
 
 
 @router.post("", response_model=FinancialGoalOut, status_code=status.HTTP_201_CREATED)

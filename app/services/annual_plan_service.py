@@ -32,6 +32,9 @@ def monthly_targets_for_month(db: Session, year_month: str) -> list[tuple[Annual
     rows = (
         db.query(AnnualPlanItem, AnnualPlanItemMonthlyTarget.target_amount)
         .join(AnnualPlanItemMonthlyTarget, AnnualPlanItemMonthlyTarget.item_id == AnnualPlanItem.id)
+        # 호출자(_month_view의 spans_multiple_months, copy_from_previous_month)가 항목마다 monthly_targets를
+        # 읽으므로 미리 한 번에 싣는다 — 안 하면 항목 수만큼 SELECT가 더 나간다(N+1).
+        .options(selectinload(AnnualPlanItem.monthly_targets))
         .filter(AnnualPlanItem.year == year, AnnualPlanItemMonthlyTarget.year_month == year_month)
         .order_by(AnnualPlanItem.section, AnnualPlanItem.sort_order, AnnualPlanItem.id)
         .all()
