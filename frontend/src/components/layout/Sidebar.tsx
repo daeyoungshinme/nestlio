@@ -1,13 +1,9 @@
-import { LogOut, Moon, PiggyBank, Sun } from "lucide-react";
+import { PiggyBank } from "lucide-react";
 import { NavLink } from "react-router-dom";
 import { SIDEBAR_NAV_GROUPS } from "@/constants/nav";
-import { useThemeStore } from "@/stores/themeStore";
-import { useLogout } from "@/hooks/useLogout";
 
 export default function Sidebar() {
-  const logout = useLogout();
-  const { isDark, toggle } = useThemeStore();
-
+  // 다크 모드·로그아웃은 설정 화면(헤더 아이콘) 한 곳에만 둔다 — 사이드바/설정 중복 제거.
   return (
     <aside
       aria-label="사이드바 내비게이션"
@@ -49,28 +45,6 @@ export default function Sidebar() {
         ))}
       </nav>
 
-      <div className="space-y-1">
-        <button
-          type="button"
-          onClick={toggle}
-          title={isDark ? "라이트 모드로 전환" : "다크 모드로 전환"}
-          aria-label={isDark ? "라이트 모드로 전환" : "다크 모드로 전환"}
-          className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 hover:text-gray-700 dark:hover:text-gray-200 transition-colors"
-        >
-          {isDark ? <Sun size={18} aria-hidden="true" /> : <Moon size={18} aria-hidden="true" />}
-          {isDark ? "라이트 모드" : "다크 모드"}
-        </button>
-        <button
-          type="button"
-          onClick={() => void logout()}
-          title="로그아웃"
-          aria-label="로그아웃"
-          className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 hover:text-gray-700 dark:hover:text-gray-200 transition-colors"
-        >
-          <LogOut size={18} aria-hidden="true" />
-          로그아웃
-        </button>
-      </div>
     </aside>
   );
 }

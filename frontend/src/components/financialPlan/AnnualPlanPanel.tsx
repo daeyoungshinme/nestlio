@@ -11,7 +11,7 @@ import ConfirmModal from "@/components/common/ConfirmModal";
 import ErrorState from "@/components/common/ErrorState";
 import Modal from "@/components/common/Modal";
 import SkeletonCard from "@/components/common/SkeletonCard";
-import { planViewLink } from "@/constants/routes";
+import { ROUTES } from "@/constants/routes";
 import SummaryCard from "@/components/common/SummaryCard";
 import { deleteAnnualPlanItem, fetchAnnualPlan, upsertAnnualPlanItem } from "@/api/annualPlan";
 import { fetchSavingsProductsAnnualPlan } from "@/api/savingsProducts";
@@ -167,12 +167,20 @@ export default function AnnualPlanPanel() {
         실제 지출과도 비교돼요. 여기서 입력한 월별 금액이 곧 "이번 달" 계획이고, 이번 달 화면에서 조정한 금액도
         여기에 그대로 반영돼요.
       </p>
-      <Link
-        to={planViewLink("목표")}
-        className="block text-xs text-gray-500 dark:text-gray-400 hover:text-primary dark:hover:text-primary-400"
-      >
-        개별 재무목표의 월별 계획·달성 현황은 목표 탭에서 확인해요 →
-      </Link>
+      <div className="flex flex-col gap-1">
+        <Link
+          to={ROUTES.goals}
+          className="block text-xs text-gray-500 dark:text-gray-400 hover:text-primary dark:hover:text-primary-400"
+        >
+          개별 재무목표의 월별 계획·달성 현황은 목표 탭에서 확인해요 →
+        </Link>
+        <Link
+          to={ROUTES.reportsYearly}
+          className="block text-xs text-gray-500 dark:text-gray-400 hover:text-primary dark:hover:text-primary-400"
+        >
+          월별 수입·지출 추이와 카테고리 분석은 연간리포트에서 확인해요 →
+        </Link>
+      </div>
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         <SummaryCard label="계획 수입 합계" value={formatKrw(summary.income.annual_target)} tone="positive" />
         <SummaryCard label="계획 지출 합계" value={formatKrw(summary.expense_total)} />

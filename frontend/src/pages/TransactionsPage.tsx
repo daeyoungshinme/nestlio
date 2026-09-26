@@ -1,6 +1,8 @@
 import { useMemo, useRef, useState } from "react";
 import { useMutation } from "@tanstack/react-query";
-import { Plus, Repeat } from "lucide-react";
+import { CalendarDays, Plus, Repeat } from "lucide-react";
+import { Link } from "react-router-dom";
+import { ROUTES } from "@/constants/routes";
 import ConfirmModal from "@/components/common/ConfirmModal";
 import Modal from "@/components/common/Modal";
 import MonthPicker from "@/components/common/MonthPicker";
@@ -117,6 +119,14 @@ export default function TransactionsPage() {
         <div className="flex items-center justify-between flex-wrap gap-3">
           <MonthPicker yearMonth={yearMonth} onChange={setYearMonth} />
           <div className="flex gap-2">
+            <Link
+              to={ROUTES.schedule}
+              className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-gray-600 dark:text-gray-300 border border-gray-200 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+              aria-label="부부 일정"
+            >
+              <CalendarDays size={16} aria-hidden="true" />
+              <span className="hidden sm:inline">일정</span>
+            </Link>
             <button
               type="button"
               onClick={() => setShowRecurringSheet(true)}

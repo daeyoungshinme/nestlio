@@ -58,6 +58,9 @@ class FinancialGoalOut(BaseModel):
     target_date: date | None
     required_amount: Decimal
     monthly_saving_amount: Decimal
+    # 실제 월 계획액 — 저축·투자 상품이 연동되면 그 상품들의 이번 달 계획 합, 아니면 monthly_saving_amount.
+    # ETA·페이스 판정은 이 값을 쓴다(goal_progress_service.planned_monthly_for_goal).
+    planned_monthly_amount: Decimal
     current_amount: Decimal
     progress_pct: Decimal
     sort_order: int

@@ -756,3 +756,33 @@ def test_to_out_marks_linked_goal_monthly_targets_as_auto_computed(seeded_db):
             "is_auto_computed": True,
         }
     ]
+
+
+def test_linked_goal_monthly_plan_follows_savings_product_plan(seeded_db):
+    """목표의 실제 월 계획액·ETA는 연동 상품의 월 계획(원본)을 따른다 — 목표에 입력한 월 저축액이 아니라."""
+    from app.services import savings_product_plan_service
+
+    db = seeded_db["db"]
+    product = savings_product_service.create_product(db, "적금", Decimal("0"), Decimal("100000"))
+    goal = goal_service.create_goal(
+        db, 1, "여행", None, Decimal("1200000"), Decimal("100000"),
+        funding_sources=[{"type": "savings_product", "id": product.id}],
+    )
+    savings_product_plan_service.upsert_annual_plan(
+        db, product.id, 2026, "2026-01", "2026-12",
+        monthly_targets=[{"year_month": "2026-07", "target_amount": Decimal("300000")}],
+    )
+    db.refresh(goal)
+
+    out = goal_progress_service.to_out(db, goal, date(2026, 7, 10))
+
+    assert out["monthly_saving_amount"] == Decimal("100000")
+    assert out["planned_monthly_amount"] == Decimal("300000")
+    assert out["eta_year_month"] == "2026-11"  # 1,200,000 / 300,000 = 4개월
+
+
+def test_unlinked_goal_monthly_plan_is_its_own_amount(seeded_db):
+    db = seeded_db["db"]
+    goal = goal_service.create_goal(db, 1, "비상금", None, Decimal("1000000"), Decimal("250000"))
+    out = goal_progress_service.to_out(db, goal, date(2026, 7, 10))
+    assert out["planned_monthly_amount"] == Decimal("250000")

@@ -24,6 +24,7 @@ from app.services.coaching_engine import (
     investable_surplus,
     recommend_surplus_allocation,
     savings_execution_insight,
+    savings_pace_basis,
     savings_rate_insight,
     savings_streak_months,
     variable_spend_trend_insights,
@@ -203,7 +204,7 @@ def test_category_benchmark_insights_only_includes_warn_rows_sorted_by_overage()
     assert "식비" in insights[1].message  # 표준 그룹 라벨 기준 메시지(원래 카테고리명 "장보기"가 아님)
 
 
-# --- goal pace: actual savings vs sum of goals' monthly_saving_amount ----------------------
+# --- goal pace: actual vs target (savings_pace_basis가 고른 쌍) --------------------------------
 
 @pytest.mark.parametrize(
     "actual_savings,target_monthly,expected_severity",
@@ -217,21 +218,27 @@ def test_category_benchmark_insights_only_includes_warn_rows_sorted_by_overage()
     ],
 )
 def test_goal_pace_boundaries(actual_savings, target_monthly, expected_severity):
-    totals = _totals(1_000_000, 1_000_000 - actual_savings, 0, 1_000_000 - actual_savings)
-    goals = [{"monthly_saving_amount": Decimal(target_monthly)}]
-    insight = goal_pace_insight(totals, goals)
+    insight = goal_pace_insight(Decimal(actual_savings), Decimal(target_monthly))
     assert insight.severity == expected_severity
 
 
-def test_goal_pace_skips_when_no_goals():
-    assert goal_pace_insight(_totals(1_000_000, 500_000, 0, 500_000), []) is None
+def test_goal_pace_skips_without_target():
+    assert goal_pace_insight(Decimal("500000"), Decimal("0")) is None
 
 
-def test_goal_pace_sums_across_multiple_goals():
-    totals = _totals(1_000_000, 500_000, 0, 500_000)  # 500,000 savings
-    goals = [{"monthly_saving_amount": Decimal("300000")}, {"monthly_saving_amount": Decimal("200000")}]
-    insight = goal_pace_insight(totals, goals)
-    assert insight.severity == "info"  # 500,000 / 500,000 = 100%
+@pytest.mark.parametrize(
+    "planned,deposits,goals_monthly,surplus,expected",
+    [
+        # 저축·투자 계획이 있으면 계획 대비 실제 납입액 — 수입−지출(surplus)은 보지 않는다
+        (500_000, 300_000, 900_000, 2_000_000, (300_000, 500_000)),
+        # 계획이 없으면 목표 월 저축액 합 대비 수입−지출로 폴백
+        (0, 300_000, 900_000, 2_000_000, (2_000_000, 900_000)),
+        (0, 0, 0, 100_000, (100_000, 0)),
+    ],
+)
+def test_savings_pace_basis_prefers_savings_plan(planned, deposits, goals_monthly, surplus, expected):
+    result = savings_pace_basis(Decimal(planned), Decimal(deposits), Decimal(goals_monthly), Decimal(surplus))
+    assert result == (Decimal(expected[0]), Decimal(expected[1]))
 
 
 # --- savings execution: actual net-worth savings growth vs theoretical surplus ------------
@@ -339,28 +346,27 @@ def test_emergency_fund_skips_when_no_balance_set():
 
 # --- savings streak: consecutive trailing months meeting target, counted from the most recent -
 
-def _trend_row(income, expense):
-    return {"income": Decimal(income), "expense": Decimal(expense)}
+def _h(actual, target):
+    return (Decimal(actual), Decimal(target))
 
 
 def test_savings_streak_counts_consecutive_months_hitting_target():
-    trend = [_trend_row(2_000_000, 1_500_000) for _ in range(3)]  # 500,000 savings each month
-    assert savings_streak_months(trend, Decimal("500000")) == 3
+    assert savings_streak_months([_h(500_000, 500_000) for _ in range(3)]) == 3
 
 
 def test_savings_streak_stops_at_first_miss_from_the_end():
-    trend = [
-        _trend_row(2_000_000, 1_500_000),  # met (oldest)
-        _trend_row(2_000_000, 1_900_000),  # missed
-        _trend_row(2_000_000, 1_500_000),  # met
-        _trend_row(2_000_000, 1_500_000),  # met (most recent)
+    history = [
+        _h(500_000, 500_000),  # met (oldest)
+        _h(100_000, 500_000),  # missed
+        _h(600_000, 500_000),  # met
+        _h(500_000, 500_000),  # met (most recent)
     ]
-    assert savings_streak_months(trend, Decimal("500000")) == 2
+    assert savings_streak_months(history) == 2
 
 
-def test_savings_streak_is_zero_without_a_target():
-    trend = [_trend_row(2_000_000, 1_500_000)]
-    assert savings_streak_months(trend, Decimal("0")) == 0
+def test_savings_streak_stops_at_month_without_target():
+    assert savings_streak_months([_h(500_000, 500_000), _h(500_000, 0)]) == 0
+    assert savings_streak_months([_h(500_000, 0), _h(500_000, 500_000)]) == 1
 
 
 # --- end-to-end wiring through compute_insights (uses real DB-backed services) -------------
@@ -422,6 +428,28 @@ def test_compute_insights_includes_goal_pace_when_goals_exist(seeded_db):
     insights = coaching_engine.compute_insights(db, "2026-07")
 
     assert any(i.rule_code == "goal_pace" for i in insights)
+
+
+def test_compute_insights_goal_pace_compares_savings_plan_with_deposits(seeded_db):
+    """저축·투자 계획이 있으면 목표 페이스는 수입−지출이 아니라 계획 대비 실제 납입액으로 판정한다."""
+    from app.models.category import Category
+    from app.services import savings_product_service
+
+    db, user, rent = seeded_db["db"], seeded_db["user"], seeded_db["rent"]
+    savings_cat = Category(name="저축", type="fixed", color="#000", sort_order=0, is_savings=True)
+    db.add(savings_cat)
+    db.commit()
+    product = savings_product_service.create_product(db, "적금", Decimal("0"), Decimal("1000000"))
+    # 수입−지출은 넉넉하지만(2,000,000) 적금 납입은 계획(1,000,000)의 30%뿐
+    transaction_service.create_transaction(db, user.id, rent.id, "income", Decimal("2000000"), date(2026, 7, 1))
+    transaction_service.create_transaction(
+        db, user.id, savings_cat.id, "expense", Decimal("300000"), date(2026, 7, 3), savings_product_id=product.id
+    )
+
+    [pace] = [i for i in coaching_engine.compute_insights(db, "2026-07") if i.rule_code == "goal_pace"]
+
+    assert pace.severity == "critical"
+    assert "30%" in pace.message
 
 
 def test_compute_insights_includes_savings_execution_when_snapshots_exist(seeded_db):

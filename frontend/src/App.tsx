@@ -21,7 +21,9 @@ const AccountsPage = lazy(() => import("./pages/AccountsPage"));
 const CategoriesPage = lazy(() => import("./pages/CategoriesPage"));
 const ReportsYearlyPage = lazy(() => import("./pages/ReportsYearlyPage"));
 const SchedulePage = lazy(() => import("./pages/SchedulePage"));
-const FinancialPlanPage = lazy(() => import("./pages/FinancialPlanPage"));
+const PlanPage = lazy(() => import("./pages/PlanPage"));
+const GoalsPage = lazy(() => import("./pages/GoalsPage"));
+const LegacyFinancialPlanRedirect = lazy(() => import("./pages/LegacyFinancialPlanRedirect"));
 const SettingsPage = lazy(() => import("./pages/SettingsPage"));
 
 function PrivateRoute({ children }: { children: React.ReactNode }) {
@@ -68,7 +70,9 @@ function AppRoutes() {
         <Route path="categories" element={<LazyRoute Component={CategoriesPage} />} />
         <Route path="schedule" element={<LazyRoute Component={SchedulePage} />} />
         <Route path="reports/yearly" element={<LazyRoute Component={ReportsYearlyPage} />} />
-        <Route path="financial-plan" element={<LazyRoute Component={FinancialPlanPage} />} />
+        <Route path="plan" element={<LazyRoute Component={PlanPage} />} />
+        <Route path="goals" element={<LazyRoute Component={GoalsPage} />} />
+        <Route path="financial-plan" element={<LazyRoute Component={LegacyFinancialPlanRedirect} />} />
         <Route path="settings" element={<LazyRoute Component={SettingsPage} />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Route>
