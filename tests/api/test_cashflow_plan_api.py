@@ -356,3 +356,11 @@ def test_delete_plan_item(client, seeded_db):
 
     missing_resp = client.delete(f"/api/v1/cashflow-plan/items/{item_id}", params={"year_month": "2026-07"})
     assert missing_resp.status_code == 404
+
+
+def test_year_month_must_be_zero_padded_yyyy_mm(client):
+    # "2026-9"를 받아 두면 String(7) 컬럼의 문자열 비교(기간 min/max)가 조용히 어긋난다.
+    assert client.get("/api/v1/cashflow-plan", params={"year_month": "2026-9"}).status_code == 422
+    assert client.get("/api/v1/cashflow-plan", params={"year_month": "2026-13"}).status_code == 422
+    assert client.post("/api/v1/cashflow-plan/copy-previous-month", json={"year_month": "garbage"}).status_code == 422
+    assert client.get("/api/v1/cashflow-plan", params={"year_month": "2026-09"}).status_code == 200

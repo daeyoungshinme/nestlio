@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.dependencies import get_bearer_token, get_current_user
 from app.models.user import User
+from app.schemas.common import YearMonth
 from app.schemas.financial_goal import (
     FinancialGoalCreateIn,
     FinancialGoalOut,
@@ -32,7 +33,7 @@ def get_growlio_goal(bearer_token: str = Depends(get_bearer_token), _: User = De
 @router.get("", response_model=list[FinancialGoalOut])
 def list_goals(db: Session = Depends(get_db), _: User = Depends(get_current_user)):
     today = today_kst()
-    return [goal_progress_service.to_out(db, goal, today) for goal in goal_service.list_goals(db)]
+    return goal_progress_service.list_out(db, goal_service.list_goals(db), today)
 
 
 @router.post("", response_model=FinancialGoalOut, status_code=status.HTTP_201_CREATED)
@@ -112,7 +113,7 @@ def update_goal(
 @router.patch("/{goal_id}/monthly-targets/{year_month}", response_model=FinancialGoalOut)
 def update_monthly_target(
     goal_id: int,
-    year_month: str,
+    year_month: YearMonth,
     payload: GoalMonthlyTargetAchievedIn,
     db: Session = Depends(get_db),
     _: User = Depends(get_current_user),

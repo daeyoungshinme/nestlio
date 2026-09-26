@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import type { FormEvent } from "react";
 import { ArrowRight, Download, ExternalLink, Plus, RefreshCw } from "lucide-react";
 import { Link } from "react-router-dom";
@@ -29,6 +30,9 @@ import { ASSET_RELATED_KEYS, QUERY_KEYS } from "@/constants/queryKeys";
 import { useCrudMutations } from "@/hooks/useCrudMutations";
 import { useGrowlioSyncMutation } from "@/hooks/useGrowlioSyncMutation";
 import { useGoals, useSavingsProducts } from "@/hooks/useReferenceData";
+import { fetchSavingsProductsPlan } from "@/api/savingsProducts";
+import { STALE_TIME } from "@/constants/queryConfig";
+import { currentYearMonth } from "@/utils/date";
 import { planViewLink } from "@/constants/routes";
 import {
   amountInputPreview,
@@ -100,6 +104,19 @@ export default function SavingsProductsSection({ users }: Props) {
   const [importOpen, setImportOpen] = useState(false);
   const savingsProductsQuery = useSavingsProducts();
   const { data: goals } = useGoals();
+  // "월 N원"은 상품의 폴백 필드(monthly_saving_amount)가 아니라 이번 달 실제 계획액(계획 탭의 월별 그리드가 있으면
+  // 그 값)을 보여준다 — 계획 탭·목표 화면과 같은 숫자여야 한다(savings_product_plan_service.planned_by_product_for_month).
+  const thisMonth = currentYearMonth();
+  const { data: productPlan } = useQuery({
+    queryKey: QUERY_KEYS.savingsProductsPlan(thisMonth),
+    queryFn: () => fetchSavingsProductsPlan(thisMonth),
+    staleTime: STALE_TIME.SHORT,
+  });
+  const plannedById = useMemo(
+    () => new Map((productPlan?.items ?? []).map((item) => [item.id, item.planned])),
+    [productPlan],
+  );
+  const monthlyPlanOf = (product: SavingsProductOut) => plannedById.get(product.id) ?? product.monthly_saving_amount;
 
   const { createMutation, updateMutation, removeMutation: deactivateMutation } = useCrudMutations({
     invalidateKeys: ASSET_RELATED_KEYS,
@@ -135,7 +152,7 @@ export default function SavingsProductsSection({ users }: Props) {
         const existingGrowlioAccountIds = new Set(
           data.filter((p): p is SavingsProductOut & { growlio_account_id: string } => !!p.growlio_account_id).map((p) => p.growlio_account_id)
         );
-        const totalMonthly = data.reduce((sum, p) => sum + Number(p.monthly_saving_amount), 0);
+        const totalMonthly = data.reduce((sum, p) => sum + Number(monthlyPlanOf(p)), 0);
         const balanceByType = PRODUCT_TYPES.map((type) => ({
           type,
           rows: data.filter((p) => p.product_type === type),
@@ -147,6 +164,7 @@ export default function SavingsProductsSection({ users }: Props) {
           <SavingsProductRow
             key={product.id}
             product={product}
+            monthlyPlan={monthlyPlanOf(product)}
             users={users}
             linkedGoals={goalsFor(product)}
             syncPending={syncMutation.isPending}
@@ -257,6 +275,7 @@ export default function SavingsProductsSection({ users }: Props) {
 
 function SavingsProductRow({
   product,
+  monthlyPlan,
   users,
   linkedGoals,
   syncPending,
@@ -265,6 +284,7 @@ function SavingsProductRow({
   onDelete,
 }: {
   product: SavingsProductOut;
+  monthlyPlan: string;
   users: UserOut[] | undefined;
   linkedGoals: FinancialGoalOut[];
   syncPending: boolean;
@@ -323,7 +343,7 @@ function SavingsProductRow({
           </div>
           <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
             {ownerLabel}
-            {` · 월 ${formatKrw(product.monthly_saving_amount)}`}
+            {` · 월 ${formatKrw(monthlyPlan)}`}
             {product.return_amount !== null && (
               <span className={returnRateTextColor(Number(product.return_rate_pct))}>
                 {" "}

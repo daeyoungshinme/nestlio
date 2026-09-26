@@ -16,13 +16,13 @@ import QuickAddFab from "@/components/common/QuickAddFab";
 import TransactionForm from "@/components/transactions/TransactionForm";
 import { fetchDashboard } from "@/api/dashboard";
 import { fetchCashflowPlan } from "@/api/cashflowPlan";
-import { fetchNotifications } from "@/api/notifications";
 import { fetchSavingsProductsPlan } from "@/api/savingsProducts";
 import { useAuthStore } from "@/stores/authStore";
 import { useCreateTransaction } from "@/hooks/useInvalidateTransactionRelated";
+import { useNotifications } from "@/hooks/useNotifications";
 import { useAccounts, useCategories, useDashboardBootstrap, useMe } from "@/hooks/useReferenceData";
 import { QUERY_KEYS } from "@/constants/queryKeys";
-import { NOTIFICATIONS_REFETCH_INTERVAL, STALE_TIME } from "@/constants/queryConfig";
+import { STALE_TIME } from "@/constants/queryConfig";
 import { currentDateIso, currentYearMonth } from "@/utils/date";
 import { estimateGoalAcceleration } from "@/utils/goalAcceleration";
 import { extractErrorMessage } from "@/utils/error";
@@ -75,11 +75,7 @@ export default function DashboardPage() {
     queryFn: () => fetchSavingsProductsPlan(yearMonth),
     staleTime: STALE_TIME.SHORT,
   });
-  const { data: notifications } = useQuery({
-    queryKey: QUERY_KEYS.notifications,
-    queryFn: fetchNotifications,
-    refetchInterval: NOTIFICATIONS_REFETCH_INTERVAL,
-  });
+  const { data: notifications } = useNotifications();
   const { data: me } = useMe();
   // settings/net-worth/financial-goals/savings-products/users를 한 요청으로 묶어서 가져온다.
   const bootstrap = useDashboardBootstrap();

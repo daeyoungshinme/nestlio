@@ -18,15 +18,20 @@ export function useEventActions({
   users,
   dateFrom,
   dateTo,
+  onSaved,
 }: {
   users: UserOut[] | undefined;
   dateFrom: string;
   dateTo: string;
+  /** 추가·수정 저장 성공 후 호출 — 가계부 날짜 시트가 폼 화면에서 목록으로 돌아가는 데 쓴다. */
+  onSaved?: () => void;
 }): {
   openCreate: (dateHint: string) => void;
   openEdit: (event: EventOut) => void;
   openDelete: (event: EventOut) => void;
   toggleComplete: (event: EventOut) => void;
+  /** 모달 없이 일정 폼만 — 호출 화면이 자기 시트 안에 그린다(가계부 날짜 시트). 저장 결과는 onSaved로 받는다. */
+  renderForm: (target: "new" | EventOut, dateHint: string) => ReactNode;
   importGoogle: () => void;
   importingGoogle: boolean;
   modals: ReactNode;
@@ -41,8 +46,14 @@ export function useEventActions({
     invalidateKeys: [QUERY_KEYS.eventsAll],
     api: { create: createEvent, update: updateEvent },
     messages: { create: "일정을 등록했습니다.", update: "일정을 수정했습니다." },
-    onCreateSuccess: () => setFormTarget(null),
-    onUpdateSuccess: () => setFormTarget(null),
+    onCreateSuccess: () => {
+      setFormTarget(null);
+      onSaved?.();
+    },
+    onUpdateSuccess: () => {
+      setFormTarget(null);
+      onSaved?.();
+    },
   });
 
   // 삭제는 source별로 다른 토스트 문구가 필요해 따로 정의한다.
@@ -78,23 +89,23 @@ export function useEventActions({
     onError: (err) => toast(extractErrorMessage(err), "error"),
   });
 
+  const renderForm = (target: "new" | EventOut, dateHint: string) => (
+    <EventForm
+      initialValues={target === "new" ? emptyEventFormValues(dateHint) : eventToFormValues(target)}
+      submitLabel={target === "new" ? "추가" : "저장"}
+      submitting={createMutation.isPending || updateMutation.isPending}
+      users={users}
+      onSubmit={(payload) =>
+        target === "new" ? createMutation.mutate(payload) : updateMutation.mutate({ id: target.id, payload })
+      }
+    />
+  );
+
   const modals = (
     <>
       {formTarget && (
         <Modal onClose={() => setFormTarget(null)} title={formTarget === "new" ? "새 일정" : "일정 수정"}>
-          <div className="p-6 overflow-y-auto">
-            <EventForm
-              initialValues={formTarget === "new" ? emptyEventFormValues(createDateHint) : eventToFormValues(formTarget)}
-              submitLabel={formTarget === "new" ? "추가" : "저장"}
-              submitting={createMutation.isPending || updateMutation.isPending}
-              users={users}
-              onSubmit={(payload) =>
-                formTarget === "new"
-                  ? createMutation.mutate(payload)
-                  : updateMutation.mutate({ id: formTarget.id, payload })
-              }
-            />
-          </div>
+          <div className="p-6 overflow-y-auto">{renderForm(formTarget, createDateHint)}</div>
         </Modal>
       )}
       {deleteTarget && (
@@ -119,6 +130,7 @@ export function useEventActions({
     openEdit: setFormTarget,
     openDelete: setDeleteTarget,
     toggleComplete: (event) => completeMutation.mutate({ id: event.id, completed: !event.completed_at }),
+    renderForm,
     importGoogle: () => importGoogleMutation.mutate(),
     importingGoogle: importGoogleMutation.isPending,
     modals,

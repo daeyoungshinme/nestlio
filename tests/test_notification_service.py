@@ -532,3 +532,27 @@ def test_savings_pace_reminder_skips_when_plan_already_met(_conn, seeded_db):
         db, user.id, cat.id, "expense", Decimal("500000"), date(2026, 9, 5), savings_product_id=product.id
     )
     assert notification_service.check_savings_pace_reminder(db, today=date(2026, 9, 28)) is False
+
+
+@patch("app.services.notification_service.is_connected", return_value=False)
+def test_savings_pace_reminder_window_starts_three_days_before_month_end(_conn, seeded_db):
+    db = seeded_db["db"]
+    _plan_product(db)
+    # 9월 말일은 30일 — 27일은 3일 전이라 아직, 28일부터 창이 열린다.
+    assert notification_service.check_savings_pace_reminder(db, today=date(2026, 9, 27)) is False
+    assert notification_service.check_savings_pace_reminder(db, today=date(2026, 9, 28)) is True
+
+
+@patch("app.services.notification_service.is_connected", return_value=False)
+def test_savings_pace_reminder_respects_disabled_pref(_conn, seeded_db):
+    from app.services import notification_settings_service
+
+    db, user = seeded_db["db"], seeded_db["user"]
+    _plan_product(db)
+    notification_settings_service.set_prefs(db, {"savings_pace_reminder": False}, updated_by=user.id)
+    assert notification_service.check_savings_pace_reminder(db, today=date(2026, 9, 28)) is False
+
+
+@patch("app.services.notification_service.is_connected", return_value=False)
+def test_savings_pace_reminder_skips_without_any_plan(_conn, seeded_db):
+    assert notification_service.check_savings_pace_reminder(seeded_db["db"], today=date(2026, 9, 28)) is False

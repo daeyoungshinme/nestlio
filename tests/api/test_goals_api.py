@@ -209,7 +209,7 @@ def test_link_savings_product_already_linked_to_another_goal_returns_409(client,
     assert resp.status_code == 409
 
 
-def test_linking_savings_product_syncs_its_monthly_plan_amount(client, seeded_db):
+def test_linking_savings_product_keeps_its_monthly_plan_amount(client, seeded_db):
     product = client.post(
         "/api/v1/savings-products",
         json={"name": "적금", "current_balance": "0", "monthly_saving_amount": "50000", "product_type": "savings"},
@@ -227,8 +227,11 @@ def test_linking_savings_product_syncs_its_monthly_plan_amount(client, seeded_db
     )
 
     updated_product = client.get("/api/v1/savings-products").json()[0]
-    assert updated_product["monthly_saving_amount"] == "200000.00"
+    # 상품 월 계획(계획 탭)이 원본 — 목표 저장이 상품 값을 덮어쓰지 않고, 목표의 계획 월액이 상품 값을 따른다.
+    assert updated_product["monthly_saving_amount"] == "50000.00"
     assert updated_product["linked_goal_id"] is not None
+    [goal] = client.get("/api/v1/financial-goals").json()
+    assert goal["planned_monthly_amount"] == "50000.00"
 
 
 def test_delete_goal(client, seeded_db):
@@ -308,3 +311,25 @@ def test_growlio_insight_combines_performance_and_feasibility(client, seeded_db)
 
 def test_growlio_insight_404(client, seeded_db):
     assert client.get("/api/v1/financial-goals/999/growlio-insight").status_code == 404
+
+
+def test_goal_list_looks_up_product_plans_once_not_per_goal(client, seeded_db, monkeypatch):
+    from app.services import goal_progress_service
+
+    for i in range(3):
+        assert client.post(
+            "/api/v1/financial-goals",
+            json={"name": f"목표{i}", "required_amount": "1000000", "monthly_saving_amount": "10000"},
+        ).status_code in (200, 201)
+    calls = []
+    real = goal_progress_service.savings_product_plan_service.planned_by_product_for_month
+    monkeypatch.setattr(
+        goal_progress_service.savings_product_plan_service,
+        "planned_by_product_for_month",
+        lambda db, ym: calls.append(ym) or real(db, ym),
+    )
+
+    goals = client.get("/api/v1/financial-goals").json()
+
+    assert len(goals) == 3
+    assert len(calls) == 1

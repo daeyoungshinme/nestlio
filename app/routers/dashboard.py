@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.dependencies import get_bearer_token, get_current_user
 from app.models.user import User
+from app.schemas.common import YearMonth
 from app.schemas.dashboard import DashboardBootstrapOut, DashboardOut, MonthlyRetrospectiveOut
 from app.services import (
     coaching_settings_service,
@@ -26,7 +27,7 @@ router = APIRouter(prefix="/dashboard", tags=["dashboard"])
 
 @router.get("", response_model=DashboardOut)
 def dashboard(
-    year_month: str | None = None,
+    year_month: YearMonth | None = None,
     db: Session = Depends(get_db),
     _: User = Depends(get_current_user),
 ):
@@ -59,7 +60,7 @@ def dashboard_bootstrap(
             "current": net_worth_service.compute_current(db),
             "history": net_worth_service.list_history(db, 12),
         },
-        "goals": [goal_progress_service.to_out(db, goal, today) for goal in goal_service.list_goals(db)],
+        "goals": goal_progress_service.list_out(db, goal_service.list_goals(db), today),
         "savings_products": savings_product_service.list_products(db),
         "users": user_service.list_users(db),
     }

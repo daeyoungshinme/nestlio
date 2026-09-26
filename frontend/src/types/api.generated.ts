@@ -3419,11 +3419,6 @@ export interface components {
             linked_goal_id?: number | null;
             /** Linked Goal Name */
             linked_goal_name?: string | null;
-            /**
-             * Monthly Saving Amount Synced
-             * @default false
-             */
-            monthly_saving_amount_synced: boolean;
         };
         /** SavingsProductPlanGroupOut */
         SavingsProductPlanGroupOut: {

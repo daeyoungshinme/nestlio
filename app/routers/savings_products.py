@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.dependencies import get_bearer_token, get_current_user
 from app.models.user import User
+from app.schemas.common import YearMonth
 from app.schemas.savings_product import (
     GrowlioAccountOut,
     SavingsProductAnnualPlanDetailOut,
@@ -35,7 +36,7 @@ def list_products(db: Session = Depends(get_db), _: User = Depends(get_current_u
 
 @router.get("/plan", response_model=SavingsProductPlanListOut)
 def get_plan_summary(
-    year_month: str | None = None, db: Session = Depends(get_db), _: User = Depends(get_current_user)
+    year_month: YearMonth | None = None, db: Session = Depends(get_db), _: User = Depends(get_current_user)
 ):
     ym = year_month or year_month_str(today_kst())
     warn_pct, critical_pct = coaching_settings_service.budget_thresholds(db)

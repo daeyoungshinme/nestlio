@@ -56,9 +56,9 @@ export default function GoalsTab() {
   const { data: accounts } = useAccounts();
   const { data: loans } = useLoans();
   const { createMutation, updateMutation, removeMutation: deleteMutation, invalidate } = useCrudMutations({
-    // 목표에 연동된 저축상품의 월 계획액이 목표 저장 시 함께 갱신되므로(app/services/goal_service.py::
-    // _sync_funding_product_monthly_amount), 저축상품 관련 쿼리도 함께 무효화한다(savingsProducts는
-    // 계획·연간계획 키의 공통 프리픽스). 대시보드 본문의 목표 페이스·잉여자금 코칭도 목표를 읽는다.
+    // 목표 연동이 바뀌면 저축상품의 linked_goal_id/linked_goal_name(자산·계획 탭 배지)도 바뀌므로 저축상품
+    // 관련 쿼리도 함께 무효화한다(savingsProducts는 계획·연간계획 키의 공통 프리픽스). 대시보드 본문의 목표
+    // 페이스·잉여자금 코칭도 목표를 읽는다.
     invalidateKeys: [
       QUERY_KEYS.financialGoals,
       QUERY_KEYS.savingsProducts,
@@ -244,7 +244,7 @@ export default function GoalsTab() {
         pinnedDetail={
           <Link
             to={goalDetailLink(goal.id)}
-            className="inline-flex items-center min-h-[36px] text-xs font-semibold text-primary-600 dark:text-primary-400 hover:underline"
+            className="inline-flex items-center min-h-[44px] text-xs font-semibold text-primary-600 dark:text-primary-400 hover:underline"
           >
             자세히 보기 · 서로 응원하기 →
           </Link>

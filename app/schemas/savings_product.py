@@ -5,7 +5,7 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict
 
-from app.schemas.common import KrwAmount
+from app.schemas.common import KrwAmount, YearMonth
 from app.schemas.growlio import GrowlioImportIn, GrowlioSyncAllOut
 
 
@@ -28,7 +28,6 @@ class SavingsProductOut(BaseModel):
     owner_user_id: uuid.UUID | None = None
     linked_goal_id: int | None = None
     linked_goal_name: str | None = None
-    monthly_saving_amount_synced: bool = False
 
 
 class SavingsProductCreateIn(BaseModel):
@@ -108,7 +107,7 @@ class SavingsProductAnnualPlanMonthlyTargetOut(BaseModel):
 
 
 class SavingsProductAnnualPlanMonthlyTargetIn(BaseModel):
-    year_month: str
+    year_month: YearMonth
     target_amount: KrwAmount
 
 
@@ -122,8 +121,8 @@ class SavingsProductAnnualPlanDetailOut(BaseModel):
 
 class SavingsProductAnnualPlanUpsertIn(BaseModel):
     year: int
-    start_month: str
-    end_month: str
+    start_month: YearMonth
+    end_month: YearMonth
     monthly_targets: list[SavingsProductAnnualPlanMonthlyTargetIn]
 
 

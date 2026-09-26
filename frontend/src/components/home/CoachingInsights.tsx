@@ -39,7 +39,7 @@ export default function CoachingInsights({ insights }: { insights: InsightOut[] 
           >
             <span>{insight.message}</span>
             {link && (
-              <Link to={link.to} className="shrink-0 text-xs font-semibold underline hover:no-underline min-h-[32px] flex items-center">
+              <Link to={link.to} className="shrink-0 text-xs font-semibold underline hover:no-underline min-h-[44px] flex items-center">
                 {link.label}
               </Link>
             )}

@@ -238,6 +238,27 @@ def test_split_item_into_months_distributes_remainder_and_dates(seeded_db):
     assert all(m.installment_total == 6 for m in months)
 
 
+def test_installment_numbers_stay_fixed_when_months_are_removed_or_added_before(seeded_db):
+    db, user = seeded_db["db"], seeded_db["user"]
+    item = cashflow_plan_service.split_item_into_months(
+        db, "irregular", None, "노트북", Decimal("500000"), "2026-03", 5, 0, user.id
+    )
+
+    def no_for(ym):
+        return next(i for i in cashflow_plan_service.list_items(db, ym) if i.id == item.id).installment_no
+
+    # 1회차 달을 지우면 start_month는 4월로 옮겨가지만 4월은 여전히 2회차여야 한다.
+    assert cashflow_plan_service.delete_month(db, item.id, "2026-03")
+    assert no_for("2026-04") == 2
+    assert no_for("2026-07") == 5
+
+    # 앞 달(2월)에 금액을 넣어 기간이 앞으로 늘어나도 기존 회차는 그대로다.
+    cashflow_plan_service.upsert_item(
+        db, item.id, "irregular", None, "노트북", Decimal("1000"), 0, "2026-02", user.id
+    )
+    assert no_for("2026-04") == 2
+
+
 def test_split_item_into_months_rejects_crossing_year(seeded_db):
     db, user = seeded_db["db"], seeded_db["user"]
     with pytest.raises(ValueError):
@@ -512,3 +533,19 @@ def test_copy_into_january_reuses_or_creates_this_years_item(seeded_db):
     assert {i.year for i in annual_plan_service.list_items(db, 2027)} == {2027}
 
 
+
+
+def test_list_items_loads_monthly_targets_without_n_plus_one(seeded_db, count_selects):
+    db, user = seeded_db["db"], seeded_db["user"]
+    for i in range(5):
+        cashflow_plan_service.split_item_into_months(
+            db, "irregular", None, f"할부{i}", Decimal("300000"), "2026-07", 3, i, user.id
+        )
+    db.expire_all()
+
+    with count_selects() as n:
+        items = cashflow_plan_service.list_items(db, "2026-08")
+        assert all(i.spans_multiple_months for i in items)
+
+    assert len(items) == 5
+    assert n[0] <= 2  # 항목 조인 1 + monthly_targets selectin 1 (항목 수와 무관)

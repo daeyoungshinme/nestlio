@@ -27,8 +27,15 @@ class InvalidReactionError(NotificationError):
 REACTION_EMOJIS = ("🎉", "👏", "❤️", "💪", "🥳")
 
 
-def _read_log_ids(db: Session, user_id: uuid.UUID) -> set[int]:
-    rows = db.query(NotificationRead.notification_log_id).filter(NotificationRead.user_id == user_id).all()
+def _read_log_ids(db: Session, user_id: uuid.UUID, log_ids: list[int]) -> set[int]:
+    """log_ids 중 user_id가 읽은 것 — 페이지에 나온 알림만 본다(쌓인 읽음 기록 전체를 싣지 않는다)."""
+    if not log_ids:
+        return set()
+    rows = (
+        db.query(NotificationRead.notification_log_id)
+        .filter(NotificationRead.user_id == user_id, NotificationRead.notification_log_id.in_(log_ids))
+        .all()
+    )
     return {row[0] for row in rows}
 
 
@@ -58,8 +65,9 @@ def _reactions_by_log(db: Session, log_ids: list[int]) -> dict[int, list[dict]]:
 
 def list_notifications(db: Session, user_id: uuid.UUID, limit: int = 50) -> list[dict]:
     logs = db.query(NotificationLog).order_by(NotificationLog.sent_at.desc()).limit(limit).all()
-    read_ids = _read_log_ids(db, user_id)
-    reactions = _reactions_by_log(db, [log.id for log in logs])
+    log_ids = [log.id for log in logs]
+    read_ids = _read_log_ids(db, user_id, log_ids)
+    reactions = _reactions_by_log(db, log_ids)
     return [
         {
             "id": log.id,
@@ -108,7 +116,7 @@ def add_reaction(
 
 def unread_count(db: Session, user_id: uuid.UUID) -> int:
     total = db.query(NotificationLog).count()
-    return total - len(_read_log_ids(db, user_id))
+    return total - db.query(NotificationRead).filter(NotificationRead.user_id == user_id).count()
 
 
 def mark_read(db: Session, user_id: uuid.UUID, notification_log_id: int, now: datetime | None = None) -> None:
@@ -163,7 +171,9 @@ def send_goal_cheer(
         notif_type="goal_cheer",
         related_type="goal",
         related_id=goal_id,
-        year_month=now.isoformat(),
+        # 응원은 dedupe 대상이 아니라 키가 필요 없지만 인박스가 year_month를 그대로 내려주므로 채워 둔다 —
+        # 컬럼이 String(20)이라 마이크로초까지 붙은 isoformat()(26자)은 Postgres에서 거부된다.
+        year_month=now.isoformat(timespec="seconds"),
         status="sent",
         detail=detail[:500],
     )
