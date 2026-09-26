@@ -8,11 +8,12 @@ import { toast } from "@/utils/toast";
 import type { RecurringCreateIn, RecurringOut, RecurringUpdateIn } from "@/types";
 
 /** 반복 내역이 바뀌면 함께 낡는 캐시 — 캘린더의 recurring_due 배지(모든 월), 현금흐름계획의
- * 연결 배지(`recurring_active`)·예산, 이를 읽는 대시보드 코칭. 호출부마다 고르던 것을 여기로 고정한다. */
+ * 연결 배지(`recurring_active`)·예산(이번 달과 연간 모두 — 연동 항목 금액이 반복내역을 read-through), 이를 읽는 대시보드 코칭. 호출부마다 고르던 것을 여기로 고정한다. */
 const RECURRING_RELATED_KEYS: QueryKey[] = [
   QUERY_KEYS.recurring,
   QUERY_KEYS.eventsAll,
   QUERY_KEYS.cashflowPlanAll,
+  QUERY_KEYS.annualPlanAll,
   QUERY_KEYS.dashboardAll,
 ];
 

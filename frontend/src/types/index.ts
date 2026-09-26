@@ -92,7 +92,8 @@ export interface AccountUpdateIn {
   owner_user_id?: string | null;
 }
 
-export interface AccountGrowlioImportIn {
+/** growlio 계좌 가져오기 요청 — 계좌·저축/투자·부동산 가져오기가 백엔드의 같은 GrowlioImportIn을 쓴다. */
+export interface GrowlioImportIn {
   growlio_account_ids: string[];
 }
 
@@ -840,10 +841,6 @@ export interface SavingsProductGrowlioLinkIn {
   auto_sync_enabled: boolean;
 }
 
-export interface SavingsProductGrowlioImportIn {
-  growlio_account_ids: string[];
-}
-
 export interface SavingsProductPlanItemOut {
   id: number;
   name: string;
@@ -952,10 +949,6 @@ export interface GrowlioRealEstateOut {
   purchase_price_krw: number | null;
   purchase_date: string | null;
   as_of: string | null;
-}
-
-export interface RealEstateGrowlioImportIn {
-  growlio_account_ids: string[];
 }
 
 export interface RealEstateImportResultOut {

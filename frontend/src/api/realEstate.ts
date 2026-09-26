@@ -2,13 +2,13 @@ import { apiGet, apiPost } from "@/api/client";
 import type {
   GrowlioRealEstateOut,
   GrowlioSyncAllOut,
-  RealEstateGrowlioImportIn,
+  GrowlioImportIn,
   RealEstateImportResultOut,
 } from "@/types";
 
 export const fetchGrowlioRealEstate = () => apiGet<GrowlioRealEstateOut[]>("/real-estate/growlio-accounts");
 
-export const importGrowlioRealEstate = (payload: RealEstateGrowlioImportIn) =>
+export const importGrowlioRealEstate = (payload: GrowlioImportIn) =>
   apiPost<RealEstateImportResultOut[]>("/real-estate/growlio-import", payload);
 
 export const syncRealEstate = (savingsProductId: number) =>

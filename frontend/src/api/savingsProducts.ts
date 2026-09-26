@@ -6,7 +6,7 @@ import type {
   SavingsProductAnnualPlanListOut,
   SavingsProductAnnualPlanUpsertIn,
   SavingsProductCreateIn,
-  SavingsProductGrowlioImportIn,
+  GrowlioImportIn,
   SavingsProductGrowlioLinkIn,
   SavingsProductOut,
   SavingsProductPlanListOut,
@@ -44,5 +44,5 @@ export const syncSavingsProduct = (id: number) => apiPost<SavingsProductOut>(`/s
 
 export const syncAllSavingsProducts = () => apiPost<GrowlioSyncAllOut>("/savings-products/sync-all");
 
-export const importGrowlioAccounts = (payload: SavingsProductGrowlioImportIn) =>
+export const importGrowlioAccounts = (payload: GrowlioImportIn) =>
   apiPost<SavingsProductOut[]>("/savings-products/growlio-import", payload);
