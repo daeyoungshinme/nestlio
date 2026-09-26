@@ -1,18 +1,17 @@
 import { useState } from "react";
 import { Link, useLocation } from "react-router-dom";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Bell, PiggyBank, Settings } from "lucide-react";
 import Modal from "@/components/common/Modal";
 import EmptyState from "@/components/common/EmptyState";
 import {
-  fetchNotifications,
   markAllNotificationsRead,
   markNotificationRead,
   reactToNotification,
 } from "@/api/notifications";
+import { useNotifications } from "@/hooks/useNotifications";
 import { useMe } from "@/hooks/useReferenceData";
 import { QUERY_KEYS } from "@/constants/queryKeys";
-import { NOTIFICATIONS_REFETCH_INTERVAL } from "@/constants/queryConfig";
 import { pageTitleFor } from "@/constants/nav";
 import { ROUTES } from "@/constants/routes";
 import { TOUCH_TARGET_COMPACT_MOBILE_ONLY, TOUCH_TARGET_MIN } from "@/constants/uiSizes";
@@ -47,11 +46,7 @@ export default function Header() {
   const pageLabel = pageTitleFor(location.pathname);
   const queryClient = useQueryClient();
 
-  const { data, isLoading: notificationsLoading, isError: notificationsError } = useQuery({
-    queryKey: QUERY_KEYS.notifications,
-    queryFn: fetchNotifications,
-    refetchInterval: NOTIFICATIONS_REFETCH_INTERVAL,
-  });
+  const { data, isLoading: notificationsLoading, isError: notificationsError } = useNotifications();
   const { data: me } = useMe();
 
   const invalidate = () => queryClient.invalidateQueries({ queryKey: QUERY_KEYS.notifications });

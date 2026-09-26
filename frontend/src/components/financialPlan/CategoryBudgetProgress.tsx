@@ -1,5 +1,5 @@
-import Button from "@/components/common/Button";
 import ProgressBar from "@/components/common/ProgressBar";
+import SuggestionHint from "@/components/financialPlan/SuggestionHint";
 import { formatKrw, formatPercent } from "@/utils/format";
 import { planStatusBarClass, planStatusTextClass } from "@/utils/colors";
 import type { BudgetRowOut } from "@/types";
@@ -36,23 +36,15 @@ export default function CategoryBudgetProgress({ row, nextYearMonthLabel, onAppl
         <ProgressBar pct={row.pct} barClassName={planStatusBarClass(row.status)} />
       </div>
       {showSuggestion && (
-        <div className="mt-1.5 flex items-center justify-between gap-2 rounded-lg bg-amber-50 dark:bg-amber-950 px-2 py-1.5">
-          <p className="text-xs text-amber-700 dark:text-amber-300">
-            최근 3개월 평균은 {formatKrw(row.suggested_amount!)}이에요.
-            {nextYearMonthLabel ? ` ${nextYearMonthLabel} 예산에 반영해볼까요?` : ""}
-          </p>
-          {onApplySuggestion && (
-            <Button
-              variant="secondary"
-              size="sm"
-              className="shrink-0"
-              loading={applyingCategoryId === row.category_id}
-              onClick={() => onApplySuggestion(row)}
-            >
-              다음 달에 반영
-            </Button>
-          )}
-        </div>
+        <SuggestionHint
+          className="mt-1.5"
+          actionLabel="다음 달에 반영"
+          applying={applyingCategoryId === row.category_id}
+          onApply={onApplySuggestion && (() => onApplySuggestion(row))}
+        >
+          최근 3개월 평균은 {formatKrw(row.suggested_amount!)}이에요.
+          {nextYearMonthLabel ? ` ${nextYearMonthLabel} 예산에 반영해볼까요?` : ""}
+        </SuggestionHint>
       )}
     </div>
   );

@@ -2,7 +2,6 @@ import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowRight, Pencil } from "lucide-react";
 import { Link } from "react-router-dom";
-import Button from "@/components/common/Button";
 import EmptyState from "@/components/common/EmptyState";
 import ErrorState from "@/components/common/ErrorState";
 import Modal from "@/components/common/Modal";
@@ -11,6 +10,7 @@ import StatusBadge from "@/components/common/StatusBadge";
 import Tabs from "@/components/common/Tabs";
 import SavingsProductAnnualPlanForm from "@/components/financialPlan/SavingsProductAnnualPlanForm";
 import SectionAchievementBar from "@/components/financialPlan/SectionAchievementBar";
+import SuggestionHint from "@/components/financialPlan/SuggestionHint";
 import {
   fetchSavingsProductAnnualPlanDetail,
   fetchSavingsProductsAnnualPlan,
@@ -209,20 +209,14 @@ function ProductRow({
         </div>
       </div>
       {showSuggestion && (
-        <div className="mt-2 flex items-center justify-between gap-2 rounded-lg bg-amber-50 dark:bg-amber-950 px-2 py-1.5">
-          <p className="text-xs text-amber-700 dark:text-amber-300">
-            최근 3개월 평균 납입액은 {formatKrw(item.suggestedMonthlySavingAmount!)}이에요.
-          </p>
-          <Button
-            variant="secondary"
-            size="sm"
-            className="shrink-0"
-            loading={applySuggestionMutation.isPending}
-            onClick={() => applySuggestionMutation.mutate()}
-          >
-            월 계획액에 반영
-          </Button>
-        </div>
+        <SuggestionHint
+          className="mt-2"
+          actionLabel="월 계획액에 반영"
+          applying={applySuggestionMutation.isPending}
+          onApply={() => applySuggestionMutation.mutate()}
+        >
+          최근 3개월 평균 납입액은 {formatKrw(item.suggestedMonthlySavingAmount!)}이에요.
+        </SuggestionHint>
       )}
       {isPlanModalOpen && (
         <Modal onClose={() => setIsPlanModalOpen(false)} title={`${item.name} 월별 계획 편집 (${year}년)`}>
