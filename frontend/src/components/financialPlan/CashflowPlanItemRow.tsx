@@ -84,13 +84,13 @@ export default function CashflowPlanItemRow({
         {item.spans_multiple_months && (
           <span
             title="연간계획의 이번 달 금액이에요. 여기서 바꾸면 이번 달에만 적용돼요."
-            className="px-1.5 py-0.5 rounded text-[10px] font-medium whitespace-nowrap bg-primary-50 text-primary-600 dark:bg-primary-950 dark:text-primary-300">
+            className="px-1.5 py-0.5 rounded text-[11px] font-medium whitespace-nowrap bg-primary-50 text-primary-600 dark:bg-primary-950 dark:text-primary-300">
             연간계획
           </span>
         )}
         {(sectionKey === "income" || sectionKey === "fixed") && item.recurring_expense_id !== null && (
           <span
-            className={`px-1.5 py-0.5 rounded text-[10px] font-medium whitespace-nowrap ${recurringLinkBadgeStyle(item.recurring_active ?? false)}`}
+            className={`px-1.5 py-0.5 rounded text-[11px] font-medium whitespace-nowrap ${recurringLinkBadgeStyle(item.recurring_active ?? false)}`}
           >
             {recurringLinkBadgeLabel(item.recurring_active ?? false)}
           </span>

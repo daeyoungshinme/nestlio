@@ -353,26 +353,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/recurring/run-now": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Run Now
-         * @description 수동으로 고정지출 마감 체크를 실행한다 (스케줄러의 daily_due_date_check와 동일 로직).
-         */
-        post: operations["run_now_api_v1_recurring_run_now_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/v1/recurring/{recurring_id}/deactivate": {
         parameters: {
             query?: never;
@@ -2275,8 +2255,6 @@ export interface components {
             owner_totals: components["schemas"]["OwnerTotalsOut"][];
             /** Expense Breakdown */
             expense_breakdown: components["schemas"]["CategoryAmountOut"][];
-            /** Payment Method Breakdown */
-            payment_method_breakdown: components["schemas"]["PaymentMethodAmountOut"][];
             /** Owner Overspend Highlights */
             owner_overspend_highlights: components["schemas"]["OwnerOverspendHighlightOut"][];
             /** Category Benchmarks */
@@ -3169,13 +3147,6 @@ export interface components {
             /** Savings Investment */
             savings_investment: string;
         };
-        /** PaymentMethodAmountOut */
-        PaymentMethodAmountOut: {
-            /** Payment Method */
-            payment_method: ("cash" | "credit_card" | "debit_card" | "transfer" | "other") | null;
-            /** Amount */
-            amount: string;
-        };
         /**
          * RealEstateImportResultOut
          * @description growlio 부동산 계좌 하나를 가져오거나 동기화한 결과 — 자산 항목(저축/투자 상품)과
@@ -3289,11 +3260,6 @@ export interface components {
             end_date?: string | null;
             /** Reminder Days Before */
             reminder_days_before?: number | null;
-        };
-        /** RunNowResultOut */
-        RunNowResultOut: {
-            /** Created Count */
-            created_count: number;
         };
         /** SavingsProductAnnualPlanDetailOut */
         SavingsProductAnnualPlanDetailOut: {
@@ -4662,37 +4628,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["RecurringOut"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    run_now_api_v1_recurring_run_now_post: {
-        parameters: {
-            query?: never;
-            header?: {
-                authorization?: string | null;
-            };
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["RunNowResultOut"];
                 };
             };
             /** @description Validation Error */

@@ -11,7 +11,6 @@ from app.schemas.financial_goal import FinancialGoalOut
 from app.schemas.net_worth import NetWorthOut
 from app.schemas.savings_product import SavingsProductOut
 from app.schemas.settings import SettingsOut
-from app.schemas.transaction import PaymentMethodOut
 from app.schemas.user import UserOut
 
 
@@ -24,11 +23,6 @@ class OwnerOverspendHighlightOut(BaseModel):
     delta: Decimal
 
 
-class PaymentMethodAmountOut(BaseModel):
-    payment_method: PaymentMethodOut | None
-    amount: Decimal
-
-
 class DashboardOut(BaseModel):
     period: Literal["today", "week", "month"]
     start: date
@@ -36,7 +30,6 @@ class DashboardOut(BaseModel):
     totals: TotalsOut
     owner_totals: list[OwnerTotalsOut]
     expense_breakdown: list[CategoryAmountOut]
-    payment_method_breakdown: list[PaymentMethodAmountOut]
     owner_overspend_highlights: list[OwnerOverspendHighlightOut]
     category_benchmarks: list[CategoryBenchmarkRowOut]
     trend: list[TrendRowOut]

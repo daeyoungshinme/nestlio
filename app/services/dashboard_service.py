@@ -47,7 +47,6 @@ def build(
     totals = transaction_report_service.period_totals(db, start, end)
     owner_totals = transaction_report_service.totals_by_owner(db, start, end)
     expense_breakdown = transaction_report_service.category_breakdown(db, start, end, "expense")
-    payment_method_breakdown = transaction_report_service.payment_method_breakdown(db, start, end)
     current_ym = year_month_str(start)
     goals = goal_service.list_goals(db)
     actual_saved = net_worth_service.savings_delta(db, current_ym)
@@ -85,7 +84,6 @@ def build(
         "totals": totals,
         "owner_totals": owner_totals,
         "expense_breakdown": expense_breakdown,
-        "payment_method_breakdown": payment_method_breakdown,
         "owner_overspend_highlights": owner_overspend_highlights,
         "category_benchmarks": category_benchmarks,
         "trend": trend,
