@@ -1,8 +1,8 @@
 import type { QueryKey } from "@tanstack/react-query";
 
 export const QUERY_KEYS = {
-  dashboard: (period: string, anchor: string) => ["dashboard", period, anchor] as const,
-  /** Prefix for invalidating every dashboard period variant at once. */
+  dashboard: (yearMonth: string) => ["dashboard", yearMonth] as const,
+  /** Prefix for invalidating every dashboard month at once. */
   dashboardAll: ["dashboard"] as const,
   monthlyRetrospective: ["monthly-retrospective"] as const,
   categories: (kind?: "income" | "expense") => ["categories", kind ?? "all"] as const,

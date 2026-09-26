@@ -83,7 +83,7 @@ class Settings(BaseSettings):
         pct_fields = [
             name
             for name in self.__class__.model_fields
-            if name.endswith(("_warn", "_critical", "_pct", "_warn_pct"))
+            if name.endswith(("_warn", "_critical", "_pct"))
         ]
         for name in pct_fields:
             value = getattr(self, name)

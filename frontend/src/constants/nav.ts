@@ -8,11 +8,6 @@ export interface NavItem {
   label: string;
 }
 
-export interface NavGroup {
-  header: string | null;
-  items: NavItem[];
-}
-
 const DASHBOARD: NavItem = { to: ROUTES.dashboard, icon: Home, label: "홈" };
 const TRANSACTIONS: NavItem = { to: ROUTES.transactions, icon: Wallet, label: "가계부" };
 const PLAN: NavItem = { to: ROUTES.plan, icon: ClipboardList, label: "계획" };
@@ -27,12 +22,8 @@ const ACCOUNTS: NavItem = { to: ROUTES.accounts, icon: Landmark, label: "자산"
  * "더보기" 시트는 없앴다(숨은 메뉴는 부부가 발견하지 못한다). */
 export const PRIMARY_NAV_ITEMS: NavItem[] = [DASHBOARD, TRANSACTIONS, PLAN, GOALS, ACCOUNTS];
 
-/** 일정은 가계부의 "일정" 보기로, 연간리포트는 계획 › 연간 › 실적 분석으로 흡수돼 보조 메뉴는 없다 —
- * 사이드바도 하단탭과 같은 5개만 보여준다. */
-export const SIDEBAR_NAV_GROUPS: NavGroup[] = [{ header: null, items: PRIMARY_NAV_ITEMS }];
-
 /** 헤더 페이지 타이틀 조회용 — 주/보조 메뉴 외에 헤더 아이콘·설정 하위로만 들어가는 화면까지 포함한다. */
-export const PAGE_TITLES: { to: string; label: string }[] = [
+const PAGE_TITLES: { to: string; label: string }[] = [
   ...PRIMARY_NAV_ITEMS,
   { to: ROUTES.settings, label: "설정" },
   { to: ROUTES.categories, label: "카테고리" },

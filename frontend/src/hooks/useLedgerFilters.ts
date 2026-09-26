@@ -1,9 +1,5 @@
 import { useMemo, useState } from "react";
-import type {
-  ExpenseTypeFilter,
-  TopFilter,
-  UserFilter,
-} from "@/components/transactions/TransactionFilterBar";
+import type { ExpenseTypeFilter, TopFilter, UserFilter } from "@/types/ledgerFilters";
 import type { CategoryOut, TransactionOut } from "@/types";
 
 /** 가계부 목록의 필터 조건 하나가 거래에 맞는지 검사한다. */

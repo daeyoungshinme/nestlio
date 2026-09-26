@@ -195,14 +195,6 @@ def bulk_delete_transactions(
     return {"deleted": deleted, "failed": failed}
 
 
-@router.get("/{tx_id}", response_model=TransactionOut)
-def get_transaction(tx_id: int, db: Session = Depends(get_db), _: User = Depends(get_current_user)):
-    tx = transaction_service.get_transaction(db, tx_id)
-    if tx is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="거래 내역을 찾을 수 없습니다.")
-    return tx
-
-
 @router.put("/{tx_id}", response_model=TransactionOut)
 def update_transaction(
     tx_id: int,

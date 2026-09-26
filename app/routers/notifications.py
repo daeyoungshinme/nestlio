@@ -52,12 +52,3 @@ def react(
         raise HTTPException(status.HTTP_404_NOT_FOUND, str(exc)) from None
     except notification_inbox_service.InvalidReactionError as exc:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, str(exc)) from None
-
-
-@router.delete("/{notification_log_id}/reaction", status_code=status.HTTP_204_NO_CONTENT)
-def unreact(
-    notification_log_id: int,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
-):
-    notification_inbox_service.remove_reaction(db, current_user.id, notification_log_id)

@@ -29,8 +29,8 @@ export default function LoginPage() {
       // 로그인 직후 대시보드 데이터를 백그라운드에서 미리 가져온다.
       const yearMonth = currentYearMonth();
       void queryClient.prefetchQuery({
-        queryKey: QUERY_KEYS.dashboard("month", yearMonth),
-        queryFn: () => fetchDashboard("month", yearMonth),
+        queryKey: QUERY_KEYS.dashboard(yearMonth),
+        queryFn: () => fetchDashboard(yearMonth),
       });
       void queryClient.prefetchQuery({ queryKey: QUERY_KEYS.accounts, queryFn: fetchAccounts });
       navigate("/");

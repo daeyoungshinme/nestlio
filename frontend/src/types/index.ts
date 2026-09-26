@@ -140,8 +140,6 @@ export interface InsightOut {
   message: string;
 }
 
-export type DashboardPeriod = "today" | "week" | "month";
-
 export interface OwnerOverspendHighlightOut {
   owner_user_id: string | null;
   display_name: string;
@@ -152,7 +150,6 @@ export interface OwnerOverspendHighlightOut {
 }
 
 export interface DashboardOut {
-  period: DashboardPeriod;
   start: string;
   end: string;
   totals: TotalsOut;

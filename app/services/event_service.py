@@ -74,10 +74,6 @@ def list_events(db: Session, range_start: date, range_end: date) -> list[dict]:
     return results
 
 
-def get_event(db: Session, event_id: int) -> Event | None:
-    return db.get(Event, event_id)
-
-
 def create_event(
     db: Session,
     created_by: uuid.UUID,

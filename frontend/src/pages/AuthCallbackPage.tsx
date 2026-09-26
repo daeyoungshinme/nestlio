@@ -5,6 +5,7 @@ import { supabase } from "@/lib/supabase";
 import { useAuthStore } from "@/stores/authStore";
 import { acceptInvite } from "@/api/invites";
 import { extractErrorMessage } from "@/utils/error";
+import { ROUTES } from "@/constants/routes";
 
 // 다른 기기/브라우저에서 링크를 열어 PKCE code_verifier가 없는 경우 등
 // SIGNED_IN 이벤트가 영영 오지 않을 수 있어 무한 대기를 방지
@@ -123,7 +124,7 @@ export default function AuthCallbackPage() {
             <div className="p-4 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-700">
               <p className="text-sm text-red-700 dark:text-red-300">{errorMessage}</p>
             </div>
-            <Link to="/login" className="text-sm text-primary-600 dark:text-primary-400 hover:underline">
+            <Link to={ROUTES.login} className="text-sm text-primary-600 dark:text-primary-400 hover:underline">
               로그인으로 이동
             </Link>
           </div>

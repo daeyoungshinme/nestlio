@@ -43,7 +43,7 @@ DEFAULT_CATEGORIES = [
 # 처음부터 budget_service.budget_vs_actual(예산 대비 실적)과 대시보드 초과지출 코칭에 반영된다.
 # 대응되는 카테고리가 없거나 의미가 애매한 항목(관리비/통신비/교육비/용돈/할부금/지원금/휴가비/피복비/
 # 재산세/각 섹션의 "기타")은 억지로 매핑하지 않고 자유 텍스트로 남겨둔다.
-DEFAULT_CASHFLOW_PLAN_ITEMS = [
+DEFAULT_ANNUAL_PLAN_ITEMS = [
     ("income", "근로/사업소득", None),
     ("income", "연금소득", None),
     ("income", "정부연금", None),
@@ -100,10 +100,10 @@ def seed_categories(db):
     db.commit()
 
 
-def seed_cashflow_plan_items(db, year_month: str):
+def seed_annual_plan_items(db, year_month: str):
     """이번 달에 0원짜리 기본 계획 항목을 만든다 — 계획 원본은 연간계획 항목(그 달 target 하나)이다."""
     year = int(year_month[:4])
-    for order, (section, name, category_name) in enumerate(DEFAULT_CASHFLOW_PLAN_ITEMS):
+    for order, (section, name, category_name) in enumerate(DEFAULT_ANNUAL_PLAN_ITEMS):
         existing = db.query(AnnualPlanItem).filter(
             AnnualPlanItem.year == year,
             AnnualPlanItem.section == section,
@@ -149,7 +149,7 @@ def main():
     db = SessionLocal()
     try:
         seed_categories(db)
-        seed_cashflow_plan_items(db, year_month_str(today_kst()))
+        seed_annual_plan_items(db, year_month_str(today_kst()))
         seed_savings_products(db)
     finally:
         db.close()

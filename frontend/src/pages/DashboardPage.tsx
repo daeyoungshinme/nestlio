@@ -60,8 +60,8 @@ export default function DashboardPage() {
   const yearMonth = currentYearMonth();
 
   const { data, isLoading, isError, error, refetch } = useQuery({
-    queryKey: QUERY_KEYS.dashboard("month", yearMonth),
-    queryFn: () => fetchDashboard("month", yearMonth),
+    queryKey: QUERY_KEYS.dashboard(yearMonth),
+    queryFn: () => fetchDashboard(yearMonth),
     staleTime: STALE_TIME.SHORT,
   });
   // 계획 탭과 같은 쿼리 키 — 두 탭을 오가도 캐시를 재사용한다.

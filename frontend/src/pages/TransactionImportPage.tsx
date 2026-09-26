@@ -20,6 +20,7 @@ import { toast } from "@/utils/toast";
 import { triggerBlobDownload } from "@/utils/download";
 import { TOUCH_TARGET_ROW } from "@/constants/uiSizes";
 import type { ImportResultOut, SheetImportIn } from "@/types";
+import { ROUTES } from "@/constants/routes";
 
 const SOURCE_TABS = ["CSV 파일", "구글 시트"] as const;
 type SourceTab = (typeof SOURCE_TABS)[number];
@@ -133,7 +134,7 @@ export default function TransactionImportPage() {
   return (
     <div className="max-w-md space-y-4">
       <Link
-        to="/transactions"
+        to={ROUTES.transactions}
         className={`gap-2 -ml-1 px-1 text-sm text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 ${TOUCH_TARGET_ROW} w-auto inline-flex`}
       >
         <ArrowLeft size={18} />

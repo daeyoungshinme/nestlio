@@ -108,6 +108,10 @@ if FRONTEND_DIST.is_dir():
 
     @app.get("/{full_path:path}", include_in_schema=False)
     def serve_spa(full_path: str):
+        # 없는 API 경로(삭제된 엔드포인트를 부르는 구버전 클라이언트 등)가 index.html 200으로 떨어지면
+        # 프론트가 HTML을 JSON으로 파싱하다 엉뚱한 에러를 내므로 API 네임스페이스는 404로 끊는다.
+        if full_path.startswith(("api/", "internal/")):
+            raise HTTPException(status_code=404)
         frontend_root = FRONTEND_DIST.resolve()
         candidate = (frontend_root / full_path).resolve()
         if full_path and candidate.is_relative_to(frontend_root) and candidate.is_file():
