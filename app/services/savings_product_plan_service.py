@@ -15,12 +15,10 @@ from app.utils.plan_status import pct_of
 PLAN_PRODUCT_TYPES = ("savings", "investment")
 
 
-def actuals_for_month(db: Session, year_month: str) -> dict[int, Decimal]:
-    """이번 달 각 저축/투자 상품에 연결된 지출 거래(Transaction.savings_product_id)의 합.
+def _actuals_between(db: Session, start: date, end: date) -> dict[int, Decimal]:
+    """[start, end] 기간 각 저축/투자 상품에 연결된 지출 거래(Transaction.savings_product_id)의 합.
     저축상품 연결 거래는 type='expense'만 허용되므로(transaction_service._validate_savings_link)
-    별도 type 필터가 필요 없다."""
-    month_start = parse_year_month(year_month)
-    start, end = month_bounds(month_start)
+    별도 type 필터가 필요 없다. 월·연·직전 N개월 실적이 모두 이 하나의 매칭 규칙을 쓴다."""
     rows = (
         db.query(Transaction.savings_product_id, func.sum(Transaction.amount))
         .filter(
@@ -34,23 +32,19 @@ def actuals_for_month(db: Session, year_month: str) -> dict[int, Decimal]:
     return dict(rows)
 
 
+def actuals_for_month(db: Session, year_month: str) -> dict[int, Decimal]:
+    """이번 달 각 저축/투자 상품의 실제 납입액."""
+    return _actuals_between(db, *month_bounds(parse_year_month(year_month)))
+
+
 def trailing_average_actuals(db: Session, year_month: str, months: int = 3) -> dict[int, Decimal]:
     """`year_month` 직전 `months`개월 동안 상품별 실제 납입액 평균 — 부진한 상품의 다음 달 계획
     제안값으로 쓰인다. 직전 N개월치를 달마다 조회하지 않고 한 번의 범위 쿼리로 집계한다."""
     month_start = parse_year_month(year_month)
     window_start, _ = month_bounds(shift_month(month_start, -months))
     _, window_end = month_bounds(shift_month(month_start, -1))
-    rows = (
-        db.query(Transaction.savings_product_id, func.sum(Transaction.amount))
-        .filter(
-            Transaction.savings_product_id.isnot(None),
-            Transaction.transaction_date >= window_start,
-            Transaction.transaction_date <= window_end,
-        )
-        .group_by(Transaction.savings_product_id)
-        .all()
-    )
-    return {product_id: total / months for product_id, total in rows}
+    totals = _actuals_between(db, window_start, window_end)
+    return {product_id: total / months for product_id, total in totals.items()}
 
 
 def get_annual_plan(db: Session, product_id: int, year: int) -> dict | None:
@@ -160,9 +154,12 @@ def planned_by_product_for_month(
     이 값을 쓴다."""
     products = plan_products(db) if products is None else products
     targets_by_product = _monthly_targets_by_product_for_year(db, [p.id for p in products], int(year_month[:4]))
-    return {
-        p.id: targets_by_product.get(p.id, {}).get(year_month, p.monthly_saving_amount) for p in products
-    }
+    return {p.id: _planned_amount(p, targets_by_product.get(p.id, {}), year_month) for p in products}
+
+
+def _planned_amount(product: SavingsProduct, product_targets: dict[str, Decimal], year_month: str) -> Decimal:
+    """그 달 계획액 규칙: 월별 그리드 값이 있으면 그 값, 없으면 product.monthly_saving_amount."""
+    return product_targets.get(year_month, product.monthly_saving_amount)
 
 
 def plan_totals_for_month(db: Session, year_month: str) -> tuple[Decimal, Decimal]:
@@ -222,18 +219,7 @@ def compute_plan_summary(
 def actuals_for_year(db: Session, year: int) -> dict[int, Decimal]:
     """해당 연도(1/1~12/31) 전체에 걸쳐 저축/투자 상품에 연결된 거래 합계.
     `actuals_for_month`와 동일한 매칭 규칙(Transaction.savings_product_id)을 연 단위로 적용한다."""
-    start, end = year_bounds(year)
-    rows = (
-        db.query(Transaction.savings_product_id, func.sum(Transaction.amount))
-        .filter(
-            Transaction.savings_product_id.isnot(None),
-            Transaction.transaction_date >= start,
-            Transaction.transaction_date <= end,
-        )
-        .group_by(Transaction.savings_product_id)
-        .all()
-    )
-    return dict(rows)
+    return _actuals_between(db, *year_bounds(year))
 
 
 def compute_annual_plan_summary(
@@ -256,8 +242,7 @@ def compute_annual_plan_summary(
         actual = actuals.get(product.id, Decimal("0"))
         product_targets = targets_by_product.get(product.id, {})
         monthly_amounts = [
-            product_targets.get(year_month_of(year, month), product.monthly_saving_amount)
-            for month in range(1, 13)
+            _planned_amount(product, product_targets, year_month_of(year, month)) for month in range(1, 13)
         ]
         annual_target = sum(monthly_amounts, Decimal("0"))
         target_to_date = sum(monthly_amounts[:elapsed_months], Decimal("0"))

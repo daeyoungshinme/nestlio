@@ -4,6 +4,7 @@ import Button from "@/components/common/Button";
 import CollapsibleGroup from "@/components/common/CollapsibleGroup";
 import CashflowPlanItemRow from "@/components/financialPlan/CashflowPlanItemRow";
 import CategoryBudgetProgress from "@/components/financialPlan/CategoryBudgetProgress";
+import SuggestionHint from "@/components/financialPlan/SuggestionHint";
 import { ROUTES } from "@/constants/routes";
 import { TOUCH_TARGET_MIN_MOBILE_ONLY } from "@/constants/uiSizes";
 import { groupItemsByCategory } from "@/utils/categoryGroup";
@@ -139,23 +140,17 @@ export default function CashflowPlanSectionPanel({
         <p className="text-xs text-gray-400 dark:text-gray-500 mb-2">{ownerSubtotalParts.join(" · ")}</p>
       )}
       {showIncomeSuggestion && (
-        <div className="mb-2 flex items-center justify-between gap-2 rounded-lg bg-amber-50 dark:bg-amber-950 px-2 py-1.5">
-          <p className="text-xs text-amber-700 dark:text-amber-300">
-            최근 3개월 평균 수입은 {formatKrw(sectionSummary.suggested_amount!)}이에요.
-            {nextYearMonthLabel ? ` ${nextYearMonthLabel} 계획에 반영해볼까요?` : ""}
-          </p>
-          {onApplyIncomeSuggestion && (
-            <Button
-              variant="secondary"
-              size="sm"
-              className="shrink-0"
-              loading={applyingIncomeSuggestion}
-              onClick={() => onApplyIncomeSuggestion(items[0], sectionSummary.suggested_amount!)}
-            >
-              다음 달에 반영
-            </Button>
-          )}
-        </div>
+        <SuggestionHint
+          className="mb-2"
+          actionLabel="다음 달에 반영"
+          applying={applyingIncomeSuggestion}
+          onApply={
+            onApplyIncomeSuggestion && (() => onApplyIncomeSuggestion(items[0], sectionSummary.suggested_amount!))
+          }
+        >
+          최근 3개월 평균 수입은 {formatKrw(sectionSummary.suggested_amount!)}이에요.
+          {nextYearMonthLabel ? ` ${nextYearMonthLabel} 계획에 반영해볼까요?` : ""}
+        </SuggestionHint>
       )}
       <div>
         {showCategoryGroups

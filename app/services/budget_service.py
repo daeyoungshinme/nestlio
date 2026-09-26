@@ -3,14 +3,13 @@ from decimal import Decimal
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
-from app.config import settings
 from app.models.annual_plan_item import AnnualPlanItem
 from app.models.annual_plan_item_monthly_target import AnnualPlanItemMonthlyTarget
 from app.models.category import Category
 from app.services import plan_targets
 from app.services.transaction_report_service import category_breakdown, trailing_average_by_category
 from app.utils.dates import month_bounds, parse_year_month
-from app.utils.plan_status import pct_of, status_from_pct
+from app.utils.plan_status import pct_of
 
 
 def get_budgets_for_month(db: Session, year_month: str) -> dict[int, Decimal]:
@@ -31,12 +30,6 @@ def get_budgets_for_month(db: Session, year_month: str) -> dict[int, Decimal]:
         .all()
     )
     return dict(rows)
-
-
-def _status(pct: float, warn_pct: float | None = None, critical_pct: float | None = None) -> str:
-    warn_pct = settings.budget_warn_pct if warn_pct is None else warn_pct
-    critical_pct = settings.budget_critical_pct if critical_pct is None else critical_pct
-    return status_from_pct(pct, warn_pct, critical_pct)
 
 
 def build_category_rows(
@@ -71,7 +64,7 @@ def build_category_rows(
             "budget": budget_amount,
             "actual": actual,
             "pct": pct,
-            "status": _status(pct, warn_pct, critical_pct) if budget_amount else ("warn" if actual else "ok"),
+            "status": plan_targets.budget_status(cat.type, pct, warn_pct, critical_pct) if budget_amount else ("warn" if actual else "ok"),
         }
         if suggested is not None:
             row["suggested_amount"] = suggested.get(cat.id)

@@ -1,20 +1,16 @@
-import { useState } from "react";
 import { Link } from "react-router-dom";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { CalendarDays, Plus } from "lucide-react";
 import Button from "@/components/common/Button";
 import EmptyState from "@/components/common/EmptyState";
-import Modal from "@/components/common/Modal";
 import StatusBadge from "@/components/common/StatusBadge";
-import EventForm, { emptyEventFormValues } from "@/components/transactions/EventForm";
-import { completeEvent, createEvent, fetchEvents } from "@/api/events";
+import { fetchEvents } from "@/api/events";
+import { useEventActions } from "@/hooks/useEventActions";
 import { QUERY_KEYS } from "@/constants/queryKeys";
 import { ROUTES } from "@/constants/routes";
 import { STALE_TIME } from "@/constants/queryConfig";
 import { occurrenceDate, shiftDateIso } from "@/utils/date";
-import { extractErrorMessage } from "@/utils/error";
 import { formatDate, formatKrw } from "@/utils/format";
-import { toast } from "@/utils/toast";
 import type { UserOut } from "@/types";
 
 interface Props {
@@ -29,9 +25,6 @@ const UPCOMING_RECURRING_LIMIT = 3;
  * 나갈/들어올 반복 거래를 한 카드에 보여준다. 한 번의 events(오늘, 오늘+6) 범위 조회 응답에서 오늘 일정은
  * occurrence 날짜로 거르고, 반복 거래 예정은 같은 응답의 recurring_due를 쓴다(별도 요청 없음). */
 export default function TodayScheduleCard({ day, users }: Props) {
-  const [showAdd, setShowAdd] = useState(false);
-  const queryClient = useQueryClient();
-
   const rangeEnd = shiftDateIso(day, UPCOMING_DAYS - 1);
   const { data, isError, refetch } = useQuery({
     queryKey: QUERY_KEYS.events(day, rangeEnd),
@@ -39,23 +32,8 @@ export default function TodayScheduleCard({ day, users }: Props) {
     staleTime: STALE_TIME.SHORT,
   });
 
-  const invalidateEvents = () => queryClient.invalidateQueries({ queryKey: QUERY_KEYS.eventsAll });
-
-  const createMutation = useMutation({
-    mutationFn: createEvent,
-    onSuccess: () => {
-      invalidateEvents();
-      setShowAdd(false);
-      toast("일정을 등록했습니다.", "success");
-    },
-    onError: (err) => toast(extractErrorMessage(err), "error"),
-  });
-
-  const completeMutation = useMutation({
-    mutationFn: ({ id, completed }: { id: number; completed: boolean }) => completeEvent(id, completed),
-    onSuccess: invalidateEvents,
-    onError: (err) => toast(extractErrorMessage(err), "error"),
-  });
+  // 추가 폼·완료 토글은 가계부의 일정 보기와 같은 훅을 쓴다(토스트·무효화 규칙 공유).
+  const { openCreate, toggleComplete, modals } = useEventActions({ users, dateFrom: day, dateTo: rangeEnd });
 
   const events = (data?.items ?? []).filter((event) => occurrenceDate(event.occurrence_start) === day);
   const upcomingRecurring = (data?.recurring_due ?? [])
@@ -68,7 +46,7 @@ export default function TodayScheduleCard({ day, users }: Props) {
       <div className="flex items-center justify-between">
         <span className="text-sm font-medium text-gray-700 dark:text-gray-300">오늘 일정</span>
         <div className="flex items-center gap-3">
-          <Button size="sm" icon={<Plus size={14} />} onClick={() => setShowAdd(true)}>
+          <Button size="sm" icon={<Plus size={14} />} onClick={() => openCreate(day)}>
             일정 추가
           </Button>
           <Link to={ROUTES.schedule} className="text-xs font-semibold text-primary-600 dark:text-primary-400 hover:underline">
@@ -96,7 +74,7 @@ export default function TodayScheduleCard({ day, users }: Props) {
                 <input
                   type="checkbox"
                   checked={completed}
-                  onChange={() => completeMutation.mutate({ id: event.id, completed: !completed })}
+                  onChange={() => toggleComplete(event)}
                   className="h-4 w-4 shrink-0 rounded border-gray-300"
                   aria-label={`${event.title} 완료 처리`}
                 />
@@ -133,19 +111,7 @@ export default function TodayScheduleCard({ day, users }: Props) {
         </div>
       )}
 
-      {showAdd && (
-        <Modal onClose={() => setShowAdd(false)} title="새 일정">
-          <div className="p-6 overflow-y-auto">
-            <EventForm
-              initialValues={emptyEventFormValues(day)}
-              submitLabel="추가"
-              submitting={createMutation.isPending}
-              users={users}
-              onSubmit={(payload) => createMutation.mutate(payload)}
-            />
-          </div>
-        </Modal>
-      )}
+      {modals}
     </div>
   );
 }
