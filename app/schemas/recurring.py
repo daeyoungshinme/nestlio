@@ -70,7 +70,3 @@ class RecurringUpdateIn(BaseModel):
     reminder_days_before: int | None = None
 
     _validate_days_of_month = field_validator("days_of_month")(_validate_days_of_month)
-
-
-class RunNowResultOut(BaseModel):
-    created_count: int

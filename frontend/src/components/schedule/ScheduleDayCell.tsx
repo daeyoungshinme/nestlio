@@ -39,7 +39,7 @@ function ScheduleDayCell({ date, day, inCurrentMonth, isToday, events, onSelect 
           <span
             key={event.id}
             title={event.title}
-            className={`w-full truncate text-[9px] sm:text-[10px] font-medium px-1 rounded ${
+            className={`w-full truncate text-[11px] sm:text-xs font-medium px-1 rounded ${
               event.completed_at != null
                 ? "bg-gray-100 dark:bg-gray-800 text-gray-400 dark:text-gray-500 line-through"
                 : "bg-primary-50 dark:bg-primary-950 text-primary-700 dark:text-primary-400"
@@ -49,7 +49,7 @@ function ScheduleDayCell({ date, day, inCurrentMonth, isToday, events, onSelect 
           </span>
         ))}
         {overflow > 0 && (
-          <span className="text-[9px] font-medium text-gray-400 dark:text-gray-500">+{overflow}개 더보기</span>
+          <span className="text-[11px] font-medium text-gray-400 dark:text-gray-500">+{overflow}개 더보기</span>
         )}
       </div>
     </button>

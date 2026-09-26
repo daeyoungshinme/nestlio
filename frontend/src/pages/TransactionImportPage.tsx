@@ -139,7 +139,6 @@ export default function TransactionImportPage() {
         <ArrowLeft size={18} />
         가계부
       </Link>
-      <h1 className="text-xl font-bold text-gray-900 dark:text-gray-50">거래 데이터</h1>
 
       <div className="card space-y-3">
         <p className="text-sm font-medium text-gray-900 dark:text-gray-50">CSV 내보내기</p>

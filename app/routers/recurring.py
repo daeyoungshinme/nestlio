@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.dependencies import get_current_user
 from app.models.user import User
-from app.schemas.recurring import RecurringCreateIn, RecurringListOut, RecurringOut, RecurringUpdateIn, RunNowResultOut
+from app.schemas.recurring import RecurringCreateIn, RecurringListOut, RecurringOut, RecurringUpdateIn
 from app.services import recurring_service
 
 # 자동 생성은 app/scheduler/jobs.py의 daily_due_date_check가 recurring_service를 직접
@@ -58,13 +58,6 @@ def update_recurring(
     if recurring is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "고정지출을 찾을 수 없습니다.")
     return recurring
-
-
-@router.post("/run-now", response_model=RunNowResultOut)
-def run_now(db: Session = Depends(get_db), _: User = Depends(get_current_user)):
-    """수동으로 고정지출 마감 체크를 실행한다 (스케줄러의 daily_due_date_check와 동일 로직)."""
-    created = recurring_service.generate_due_transactions(db)
-    return {"created_count": len(created)}
 
 
 @router.post("/{recurring_id}/deactivate", status_code=status.HTTP_204_NO_CONTENT)

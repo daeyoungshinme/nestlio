@@ -48,7 +48,7 @@ function LedgerDayCell({
       key: "income-recurring",
       node: (
         <span
-          className={`inline-flex items-center gap-0.5 text-[9px] sm:text-[10px] font-medium px-1 rounded ${transactionTypeBadgeStyle("income")}`}
+          className={`inline-flex items-center gap-0.5 text-[11px] sm:text-xs font-medium px-1 rounded ${transactionTypeBadgeStyle("income")}`}
           title={`반복 수입 예정 ${incomeRecurring.length}건: ${incomeRecurring.map((r) => r.name).join(", ")}`}
         >
           <Repeat size={9} className="shrink-0" aria-hidden="true" />
@@ -62,7 +62,7 @@ function LedgerDayCell({
       key: "expense-recurring",
       node: (
         <span
-          className={`inline-flex items-center gap-0.5 text-[9px] sm:text-[10px] font-medium px-1 rounded ${transactionTypeBadgeStyle("expense")}`}
+          className={`inline-flex items-center gap-0.5 text-[11px] sm:text-xs font-medium px-1 rounded ${transactionTypeBadgeStyle("expense")}`}
           title={`반복 지출 예정 ${expenseRecurring.length}건: ${expenseRecurring.map((r) => r.name).join(", ")}`}
         >
           <Repeat size={9} className="shrink-0" aria-hidden="true" />
@@ -76,7 +76,7 @@ function LedgerDayCell({
       key: "transactions",
       node: (
         <span
-          className="inline-flex items-center gap-0.5 text-[9px] sm:text-[10px] font-medium text-gray-400 dark:text-gray-500"
+          className="inline-flex items-center gap-0.5 text-[11px] sm:text-xs font-medium text-gray-400 dark:text-gray-500"
           title={`거래 ${transactions.length}건`}
         >
           <Receipt size={9} className="shrink-0" aria-hidden="true" />
@@ -90,7 +90,7 @@ function LedgerDayCell({
       key: "events",
       node: (
         <span
-          className="inline-flex items-center gap-0.5 text-[9px] sm:text-[10px] font-medium px-1 rounded bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400"
+          className="inline-flex items-center gap-0.5 text-[11px] sm:text-xs font-medium px-1 rounded bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400"
           title={`일정 ${events.length}건: ${events.map((e) => e.title).join(", ")}`}
         >
           <CalendarDays size={9} className="shrink-0" aria-hidden="true" />
@@ -122,14 +122,14 @@ function LedgerDayCell({
         {transactions.length > 0 &&
           (net !== 0 ? (
             <span
-              className={`text-[10px] font-semibold truncate w-full ${transactionAmountTextColor(net > 0 ? "income" : "expense")}`}
+              className={`text-[11px] font-semibold truncate w-full ${transactionAmountTextColor(net > 0 ? "income" : "expense")}`}
               title={`수입 ${formatKrw(income)} · 지출 ${formatKrw(expense)}`}
             >
               {net > 0 ? "+" : "-"}
               {formatKrwCompact(Math.abs(net))}
             </span>
           ) : (
-            <span className="text-[10px] font-medium text-gray-400 dark:text-gray-500">거래 {transactions.length}</span>
+            <span className="text-[11px] font-medium text-gray-400 dark:text-gray-500">거래 {transactions.length}</span>
           ))}
         {hasSchedule && (
           <span
