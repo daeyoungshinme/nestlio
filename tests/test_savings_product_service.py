@@ -7,7 +7,6 @@ import pytest
 
 from app.models.category import Category
 from app.services import (
-    goal_service,
     savings_product_growlio_service,
     savings_product_plan_service,
     savings_product_service,
@@ -47,27 +46,6 @@ def test_create_and_update_product_owner_user_id(db_session):
     )
 
     assert updated.owner_user_id is None
-
-
-def test_update_product_ignores_monthly_amount_when_linked_to_goal(db_session):
-    """목표에 연동된 상품은 월 계획액이 목표 저장을 통해서만 바뀐다 (app/services/goal_service.py::
-    _sync_funding_product_monthly_amount) — update_product에 다른 값을 보내도 무시된다."""
-    product = savings_product_service.create_product(db_session, "적금", Decimal("0"), Decimal("50000"))
-    goal_service.create_goal(
-        db_session,
-        1,
-        "여행자금",
-        None,
-        Decimal("5000000"),
-        Decimal("200000"),
-        funding_sources=[{"type": "savings_product", "id": product.id}],
-    )
-
-    updated = savings_product_service.update_product(
-        db_session, product.id, "적금", Decimal("0"), Decimal("999999"), "savings"
-    )
-
-    assert updated.monthly_saving_amount == Decimal("200000")
 
 
 def test_create_product_with_explicit_investment_type(db_session):

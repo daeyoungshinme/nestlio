@@ -160,7 +160,6 @@ function ProductRow({
 
   const showSuggestion =
     product &&
-    !product.monthly_saving_amount_synced &&
     item.status !== "ok" &&
     item.suggestedMonthlySavingAmount !== null &&
     item.planned !== null &&
@@ -184,11 +183,7 @@ function ProductRow({
                 label={`목표: ${product.linked_goal_name}`}
                 toneClassName={linkedGoalBadgeStyle()}
                 className="shrink-0 max-w-[120px] truncate"
-                title={
-                  product.monthly_saving_amount_synced
-                    ? `목표 "${product.linked_goal_name}"에서 월 계획액을 관리해요`
-                    : `목표 "${product.linked_goal_name}"의 잔액 합산에 포함돼요`
-                }
+                title={`목표 "${product.linked_goal_name}"의 잔액·월 계획에 포함돼요`}
               />
             )}
           </div>
@@ -197,7 +192,7 @@ function ProductRow({
           </p>
         </div>
         <div className="flex items-center gap-0.5 shrink-0">
-          {product && !product.monthly_saving_amount_synced && (
+          {product && (
             <button
               type="button"
               onClick={() => setIsPlanModalOpen(true)}

@@ -822,7 +822,6 @@ export interface SavingsProductOut {
   owner_user_id: string | null;
   linked_goal_id: number | null;
   linked_goal_name: string | null;
-  monthly_saving_amount_synced: boolean;
 }
 
 export interface SavingsProductCreateIn {

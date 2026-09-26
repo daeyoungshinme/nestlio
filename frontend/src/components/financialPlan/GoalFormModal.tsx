@@ -1,6 +1,7 @@
 import { useState } from "react";
 import type { FormEvent } from "react";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
+import { Link } from "react-router-dom";
 import { Download } from "lucide-react";
 import Button from "@/components/common/Button";
 import FormInput from "@/components/common/FormInput";
@@ -9,10 +10,14 @@ import Tabs from "@/components/common/Tabs";
 import FundingSourceChecklist from "@/components/financialPlan/FundingSourceChecklist";
 import GoalMonthlyTargetEditor from "@/components/financialPlan/GoalMonthlyTargetEditor";
 import { fetchGrowlioGoalSettings } from "@/api/goals";
+import { fetchSavingsProductsPlan } from "@/api/savingsProducts";
 import { FORM_LABEL, FORM_SECTION_LABEL, TEXTAREA_SM } from "@/constants/inputStyles";
 import { isGrowlioLinkedInvestment } from "@/constants/growlio";
-import { syncTargetsToPeriod } from "@/utils/monthRange";
-import { currentDateIso } from "@/utils/date";
+import { STALE_TIME } from "@/constants/queryConfig";
+import { QUERY_KEYS } from "@/constants/queryKeys";
+import { planViewLink } from "@/constants/routes";
+import { monthsBetween, syncTargetsToPeriod } from "@/utils/monthRange";
+import { currentDateIso, currentYearMonth } from "@/utils/date";
 import { extractErrorMessage } from "@/utils/error";
 import { amountInputPreview, formatKrw, toAmountInputValue } from "@/utils/format";
 import { toast } from "@/utils/toast";
@@ -45,13 +50,6 @@ const KIND_TO_GOAL_KIND_TAB: Record<"goal" | "challenge", GoalKindTab> = {
 /** 장기 목표 폼의 단계 — 한 화면에 모든 입력(기본정보·자금원 3종 체크리스트·월별 계획·제안 계산)을 쌓던 긴 모달을
  * 모바일에서 한 번에 한 가지만 결정하도록 나눴다. */
 const GOAL_STEPS = ["무엇을·언제·얼마", "연동할 자금원", "저축 계획"] as const;
-
-/** start~end 사이 전체 개월 수 — 백엔드 app/utils/dates.py::months_between과 동일한 규칙(일 차이는 무시). */
-function monthsBetween(start: Date, end: Date): number {
-  return (end.getFullYear() - start.getFullYear()) * 12 + (end.getMonth() - start.getMonth());
-}
-
-
 
 export default function GoalFormModal({
   initial,
@@ -104,6 +102,23 @@ export default function GoalFormModal({
   const availableSavingsProducts = savingsProducts.filter(
     (p) => p.linked_goal_id === null || p.linked_goal_id === existingGoal?.id,
   );
+
+  // 저축·투자 상품이 연동된 목표의 월 저축액은 목표에 입력한 값이 아니라 연동 상품들의 이번 달 계획 합계다
+  // (백엔드 goal_progress_service.planned_monthly_for_goal — 계획 원본은 계획 탭의 상품별 월 계획). 폼에서도
+  // 그 합계를 보여주고, 수정은 계획 탭으로 안내한다 — 여기 입력한 값은 연동 목표에선 쓰이지 않기 때문.
+  const hasLinkedProducts = draft.savings_product_ids.length > 0;
+  const thisMonth = currentYearMonth();
+  const { data: productPlan } = useQuery({
+    queryKey: QUERY_KEYS.savingsProductsPlan(thisMonth),
+    queryFn: () => fetchSavingsProductsPlan(thisMonth),
+    staleTime: STALE_TIME.SHORT,
+    enabled: !isChallenge && hasLinkedProducts,
+  });
+  const linkedPlannedMonthly = productPlan
+    ? productPlan.items
+        .filter((item) => draft.savings_product_ids.includes(String(item.id)))
+        .reduce((sum, item) => sum + Number(item.planned), 0)
+    : null;
 
   // 시작일/종료일이 바뀌면 월별 목표금액 행도 그 기간에 맞춰 다시 맞춘다 — 겹치는 달의 금액은 보존.
   const syncMonthlyTargetsToPeriod = (startDate: string, targetDate: string, existing: GoalMonthlyTargetIn[]) =>
@@ -370,10 +385,9 @@ export default function GoalFormModal({
             selectedIds={draft.savings_product_ids}
             onToggle={(id) => toggleId("savings_product_ids", id)}
             emptyMessage="연동 가능한 저축/투자 상품이 없어요."
-            hint="상품을 1개만 연동하면 그 상품의 월 계획액이 이 목표의 월 저축액으로 자동 설정되고
-            저축상품 화면에서 직접 수정할 수 없어져요. 부부가 각자 다른 상품으로 함께 모을 때처럼
-            여러 개를 연동하면 잔액은 합산되지만 월 계획액은 각 상품에서 계속 따로 입력해요.
-            다른 목표에 이미 연동된 상품은 목록에 나오지 않아요."
+            hint="연동한 상품들의 잔액이 합산되고, 이 목표의 월 저축액은 그 상품들의 월 계획 합계가 돼요(계획 탭에서
+            상품별로 조정). 부부가 각자 다른 상품으로 함께 모을 때처럼 여러 개를 연동해도 돼요. 다른 목표에 이미
+            연동된 상품은 목록에 나오지 않아요."
           />
           <FundingSourceChecklist
             label="연동할 계좌 (복수 선택 가능)"
@@ -446,7 +460,12 @@ export default function GoalFormModal({
               />
             </div>
           )}
-          {suggestedMonthly !== null && (
+          {suggestedMonthly !== null && hasLinkedProducts && (
+            <p className="text-sm text-gray-700 dark:text-gray-300">
+              목표까지 필요한 월 저축액: <span className="font-semibold">{formatKrw(suggestedMonthly)}</span>
+            </p>
+          )}
+          {suggestedMonthly !== null && !hasLinkedProducts && (
             <Button
               type="button"
               variant="secondary"
@@ -463,15 +482,31 @@ export default function GoalFormModal({
             (필요금액 - 현재 저축액) ÷ 남은 개월 수로 월 저축금액을 제안해요. 저장되지 않고 계산에만 쓰여요.
           </p>
         </div>
-        <FormInput
-          label="월 저축금액"
-          type="number"
-          inputMode="decimal"
-          value={draft.monthly_saving_amount}
-          onChange={(e) => setDraft((d) => ({ ...d, monthly_saving_amount: e.target.value }))}
-          className="w-full"
-          preview={amountInputPreview(draft.monthly_saving_amount)}
-        />
+        {hasLinkedProducts ? (
+          <div className="space-y-1">
+            <p className={FORM_LABEL}>월 저축금액 (연동 상품의 이번 달 계획 합계)</p>
+            <p className="text-base font-semibold text-gray-900 dark:text-gray-50">
+              {linkedPlannedMonthly !== null ? formatKrw(linkedPlannedMonthly) : "계산 중…"}
+            </p>
+            <p className="text-xs text-gray-500 dark:text-gray-400">
+              상품별 월 계획은{" "}
+              <Link to={planViewLink("이번 달")} className="font-semibold underline hover:no-underline">
+                계획 탭
+              </Link>
+              의 저축·투자에서 바꿔요.
+            </p>
+          </div>
+        ) : (
+          <FormInput
+            label="월 저축금액"
+            type="number"
+            inputMode="decimal"
+            value={draft.monthly_saving_amount}
+            onChange={(e) => setDraft((d) => ({ ...d, monthly_saving_amount: e.target.value }))}
+            className="w-full"
+            preview={amountInputPreview(draft.monthly_saving_amount)}
+          />
+        )}
         <FormInput
           label="기대 연 수익률 % (선택 — 투자로 모을 때)"
           type="number"
@@ -485,12 +520,6 @@ export default function GoalFormModal({
           입력하면 투자 수익을 월 복리로 반영한 예상 달성월도 함께 보여줘요. growlio 투자목표를 불러오면 목표 수익률이
           채워져요.
         </p>
-        {draft.savings_product_ids.length > 0 && (
-          <p className="text-xs text-gray-500 dark:text-gray-400">
-            저축·투자 상품이 연동된 목표는 계획 탭의 상품별 월 계획 합계가 실제 월 저축액으로 쓰여요(예상 달성일·페이스
-            판정 기준).
-          </p>
-        )}
           </>
         )}
         <div className="flex gap-2 mt-2">

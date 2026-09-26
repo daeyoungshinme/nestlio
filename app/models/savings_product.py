@@ -52,18 +52,6 @@ class SavingsProduct(Base):
         return self.goal_funding_source.goal.name if self.goal_funding_source else None
 
     @property
-    def monthly_saving_amount_synced(self) -> bool:
-        """월 계획액이 연동된 목표에서 자동으로 채워지는 중인지 — 그 목표에 연동된 저축상품이 이
-        상품 하나뿐일 때만 참이다. 상품이 여러 개면(부부가 각자 다른 상품으로 한 목표를 모으는
-        경우) 잔액 합산에는 쓰이지만 월 계획액을 어느 상품에 나눠줄지 모호해 계속 수동 입력을
-        받는다(app/services/goal_service.py::_sync_funding_product_monthly_amount와 판정 기준 동일)."""
-        if self.goal_funding_source is None:
-            return False
-        goal = self.goal_funding_source.goal
-        linked_product_count = sum(1 for fs in goal.funding_sources if fs.savings_product_id is not None)
-        return linked_product_count == 1
-
-    @property
     def return_amount(self) -> Decimal | None:
         """투자/부동산 상품의 평가손익(현재 잔액 - 원금). 원금 미입력 시 계산 불가(None)."""
         if self.product_type not in ("investment", "real_estate") or self.principal_amount is None:

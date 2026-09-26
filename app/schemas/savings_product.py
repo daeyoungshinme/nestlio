@@ -28,7 +28,6 @@ class SavingsProductOut(BaseModel):
     owner_user_id: uuid.UUID | None = None
     linked_goal_id: int | None = None
     linked_goal_name: str | None = None
-    monthly_saving_amount_synced: bool = False
 
 
 class SavingsProductCreateIn(BaseModel):

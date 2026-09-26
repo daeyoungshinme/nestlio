@@ -65,11 +65,7 @@ def update_product(
         return None
     product.name = name
     product.current_balance = current_balance
-    # 연동된 목표가 상품을 1개만 쓸 때는 월 계획액이 그 목표의 monthly_saving_amount로만 갱신된다
-    # (app/services/goal_service.py::_sync_funding_product_monthly_amount) — 프론트에서 이미
-    # 입력 자체를 막지만, 여기서도 들어온 값을 무시해 방어한다.
-    if not product.monthly_saving_amount_synced:
-        product.monthly_saving_amount = monthly_saving_amount
+    product.monthly_saving_amount = monthly_saving_amount
     product.product_type = product_type
     product.principal_amount = principal_amount
     product.owner_user_id = owner_user_id

@@ -43,3 +43,8 @@ export function distributeAmountEvenly(total: string, months: string[]): Record<
   });
   return result;
 }
+
+/** start~end 사이 전체 개월 수 — 백엔드 app/utils/dates.py::months_between과 동일한 규칙(일 차이는 무시). */
+export function monthsBetween(start: Date, end: Date): number {
+  return (end.getFullYear() - start.getFullYear()) * 12 + (end.getMonth() - start.getMonth());
+}
