@@ -97,27 +97,12 @@ def test_unlinking_goal_falls_back_to_manual_amount(seeded_db):
     assert goal_progress_service.funding_source_breakdown(db, updated) == []
 
 
-# --- 저축상품 월 계획액 동기화: 목표에 연동된 상품은 monthly_saving_amount를 목표에서 물려받는다 ---
+# --- 저축상품 월 계획액: 원본은 상품(계획 탭)이고 목표 저장이 상품 값을 덮어쓰지 않는다 ---
 
 
-def test_linking_savings_product_syncs_monthly_amount(seeded_db):
-    db = seeded_db["db"]
-    product = savings_product_service.create_product(db, "적금", Decimal("0"), Decimal("50000"))
-    goal_service.create_goal(
-        db,
-        1,
-        "여행자금",
-        None,
-        Decimal("5000000"),
-        Decimal("200000"),
-        funding_sources=[{"type": "savings_product", "id": product.id}],
-    )
-    db.refresh(product)
-    assert product.monthly_saving_amount == Decimal("200000")
-    assert product.monthly_saving_amount_synced is True
-
-
-def test_updating_goal_monthly_amount_resyncs_linked_product(seeded_db):
+def test_linking_savings_product_keeps_product_monthly_plan(seeded_db):
+    """목표의 monthly_saving_amount는 상품 미연동 목표에만 쓰인다 — 연동 상품의 월 계획액은 계획 탭(상품 월 계획)이
+    유일한 원본이라, 목표를 만들거나 고쳐도 상품 값을 건드리지 않는다(예전엔 상품 1개 연동 시 덮어썼다)."""
     db = seeded_db["db"]
     product = savings_product_service.create_product(db, "적금", Decimal("0"), Decimal("50000"))
     goal = goal_service.create_goal(
@@ -139,54 +124,9 @@ def test_updating_goal_monthly_amount_resyncs_linked_product(seeded_db):
         Decimal("300000"),
         funding_sources=[{"type": "savings_product", "id": product.id}],
     )
+
     db.refresh(product)
-    assert product.monthly_saving_amount == Decimal("300000")
-
-
-def test_unlinking_savings_product_preserves_last_synced_amount(seeded_db):
-    db = seeded_db["db"]
-    product = savings_product_service.create_product(db, "적금", Decimal("0"), Decimal("50000"))
-    goal = goal_service.create_goal(
-        db,
-        1,
-        "여행자금",
-        None,
-        Decimal("5000000"),
-        Decimal("200000"),
-        funding_sources=[{"type": "savings_product", "id": product.id}],
-    )
-    goal_service.update_goal(
-        db, goal.id, 1, "여행자금", None, Decimal("5000000"), Decimal("200000"), funding_sources=[]
-    )
-    db.refresh(product)
-    assert product.monthly_saving_amount == Decimal("200000")
-    assert product.goal_funding_source is None
-
-
-def test_linking_two_savings_products_to_one_goal_does_not_auto_sync_either(seeded_db):
-    """부부가 각자 다른 상품으로 한 목표를 함께 모으는 경우 — 잔액 합산은 계속되지만, 목표의
-    월 저축액을 어느 상품에 나눠줄지 모호하므로 두 상품 모두 기존 월 계획액을 그대로 유지한다."""
-    db = seeded_db["db"]
-    product_a = savings_product_service.create_product(db, "적금A", Decimal("0"), Decimal("30000"))
-    product_b = savings_product_service.create_product(db, "적금B", Decimal("0"), Decimal("70000"))
-    goal_service.create_goal(
-        db,
-        1,
-        "여행자금",
-        None,
-        Decimal("5000000"),
-        Decimal("200000"),
-        funding_sources=[
-            {"type": "savings_product", "id": product_a.id},
-            {"type": "savings_product", "id": product_b.id},
-        ],
-    )
-    db.refresh(product_a)
-    db.refresh(product_b)
-    assert product_a.monthly_saving_amount == Decimal("30000")
-    assert product_b.monthly_saving_amount == Decimal("70000")
-    assert product_a.monthly_saving_amount_synced is False
-    assert product_b.monthly_saving_amount_synced is False
+    assert product.monthly_saving_amount == Decimal("50000")
 
 
 def test_linking_savings_product_already_linked_to_another_goal_raises(seeded_db):

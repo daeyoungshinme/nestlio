@@ -30,13 +30,16 @@ import { currentDateIso, currentYearMonth, shiftYearMonth } from "@/utils/date";
 import { formatKrw } from "@/utils/format";
 import { extractErrorMessage } from "@/utils/error";
 import { toast } from "@/utils/toast";
-import type { TransactionOut } from "@/types";
+import type { EventOut, TransactionOut } from "@/types";
 
 const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
 function isLedgerView(value: string | null): value is LedgerView {
   return (LEDGER_VIEWS as readonly string[]).includes(value ?? "");
 }
+
+/** 날짜 시트 안에서 띄운 폼 — 거래 또는 일정의 추가("new")/수정. */
+type DayPanel = { kind: "tx"; target: "new" | TransactionOut } | { kind: "event"; target: "new" | EventOut };
 
 function defaultDateHint(yearMonth: string): string {
   return yearMonth === currentYearMonth() ? currentDateIso() : `${yearMonth}-01`;
@@ -53,6 +56,7 @@ export default function TransactionsPage() {
     return d && ISO_DATE_RE.test(d) ? d.slice(0, 7) : currentYearMonth();
   });
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
+  const [dayPanel, setDayPanel] = useState<DayPanel | null>(null);
   const [formTarget, setFormTarget] = useState<"new" | TransactionOut | null>(null);
   const [createDate, setCreateDate] = useState(currentDateIso());
   const [deleteTarget, setDeleteTarget] = useState<TransactionOut | null>(null);
@@ -71,7 +75,12 @@ export default function TransactionsPage() {
   const { data: settings } = useSettings();
 
   const month = useLedgerMonth(yearMonth, debouncedQuery);
-  const eventActions = useEventActions({ users, dateFrom: month.dateFrom, dateTo: month.dateTo });
+  const eventActions = useEventActions({
+    users,
+    dateFrom: month.dateFrom,
+    dateTo: month.dateTo,
+    onSaved: () => setDayPanel(null),
+  });
 
   // 홈/알림 등에서 ?date=YYYY-MM-DD로 들어오면 그 날 모달을 열고 파라미터를 지운다.
   useEffect(() => {
@@ -117,6 +126,7 @@ export default function TransactionsPage() {
     onSuccess: () => {
       invalidateAll();
       setFormTarget(null);
+      setDayPanel(null);
       toast("내역을 수정했습니다.", "success");
     },
     onError: (err) => toast(extractErrorMessage(err), "error"),
@@ -134,6 +144,7 @@ export default function TransactionsPage() {
 
   const createMutation = useCreateTransaction((created) => {
     setFormTarget(null);
+    setDayPanel(null);
     toast("내역을 추가했습니다.", "success", {
       label: "취소",
       onClick: () => deleteMutation.mutate(created.id),
@@ -141,17 +152,61 @@ export default function TransactionsPage() {
   });
 
   const openCreate = (dateHint?: string) => {
-    setSelectedDate(null);
     setCreateDate(dateHint ?? defaultDateHint(yearMonth));
     setFormTarget("new");
   };
 
-  const openEdit = (tx: TransactionOut) => {
+  const closeDay = () => {
     setSelectedDate(null);
-    setFormTarget(tx);
+    setDayPanel(null);
   };
 
   const isSaving = createMutation.isPending || updateMutation.isPending;
+
+  const renderTransactionForm = (target: "new" | TransactionOut, dateHint: string) => (
+    <TransactionForm
+      categories={categoriesQuery.data!}
+      accounts={accountsQuery.data!}
+      savingsProducts={savingsProductsQuery.data!}
+      users={users ?? []}
+      currentUserId={me?.id}
+      layout="stack"
+      isNew={target === "new"}
+      submitLabel={target === "new" ? "추가" : "저장"}
+      submitting={isSaving}
+      initialValues={
+        target === "new"
+          ? { transaction_date: dateHint }
+          : {
+              amount: target.amount,
+              type: target.type,
+              category_id: String(target.category.id),
+              transaction_date: target.transaction_date,
+              description: target.description ?? "",
+              payment_method: target.payment_method ?? "",
+              account_id: target.account ? String(target.account.id) : "",
+              savings_product_id: target.savings_product_id ? String(target.savings_product_id) : "",
+              owner_user_id: target.owner_user_id ?? "",
+            }
+      }
+      onSubmit={(payload) =>
+        target === "new" ? createMutation.mutate(payload) : updateMutation.mutate({ id: target.id, payload })
+      }
+    />
+  );
+
+  const dayPanelView =
+    selectedDate && dayPanel
+      ? dayPanel.kind === "tx"
+        ? {
+            title: dayPanel.target === "new" ? "내역 추가" : "내역 수정",
+            content: renderTransactionForm(dayPanel.target, selectedDate),
+          }
+        : {
+            title: dayPanel.target === "new" ? "새 일정" : "일정 수정",
+            content: eventActions.renderForm(dayPanel.target, selectedDate),
+          }
+      : null;
 
   return (
     <QueryBoundary
@@ -246,7 +301,7 @@ export default function TransactionsPage() {
               totalExpense={month.totals?.expense ?? "0"}
               users={users}
               showUser={showUser}
-              onEdit={openEdit}
+              onEdit={setFormTarget}
               onDelete={setDeleteTarget}
             />
           </>
@@ -265,64 +320,22 @@ export default function TransactionsPage() {
             recurringDue={month.recurringDueByDate.get(selectedDate) ?? []}
             showUser={showUser}
             users={users}
-            onClose={() => setSelectedDate(null)}
-            onAddTransaction={() => openCreate(selectedDate)}
-            onEditTransaction={openEdit}
-            onDeleteTransaction={(tx) => {
-              setSelectedDate(null);
-              setDeleteTarget(tx);
-            }}
-            onAddEvent={() => {
-              eventActions.openCreate(selectedDate);
-              setSelectedDate(null);
-            }}
-            onEditEvent={(event) => {
-              setSelectedDate(null);
-              eventActions.openEdit(event);
-            }}
-            onDeleteEvent={(event) => {
-              setSelectedDate(null);
-              eventActions.openDelete(event);
-            }}
+            panel={dayPanelView}
+            onBack={() => setDayPanel(null)}
+            onClose={closeDay}
+            onAddTransaction={() => setDayPanel({ kind: "tx", target: "new" })}
+            onEditTransaction={(tx) => setDayPanel({ kind: "tx", target: tx })}
+            onDeleteTransaction={setDeleteTarget}
+            onAddEvent={() => setDayPanel({ kind: "event", target: "new" })}
+            onEditEvent={(event) => setDayPanel({ kind: "event", target: event })}
+            onDeleteEvent={eventActions.openDelete}
             onToggleEventComplete={eventActions.toggleComplete}
           />
         )}
 
         {formTarget && (
           <Modal onClose={() => setFormTarget(null)} title={formTarget === "new" ? "내역 추가" : "내역 수정"}>
-            <div className="p-6 overflow-y-auto">
-              <TransactionForm
-                categories={categoriesQuery.data!}
-                accounts={accountsQuery.data!}
-                savingsProducts={savingsProductsQuery.data!}
-                users={users ?? []}
-                currentUserId={me?.id}
-                layout="stack"
-                isNew={formTarget === "new"}
-                submitLabel={formTarget === "new" ? "추가" : "저장"}
-                submitting={isSaving}
-                initialValues={
-                  formTarget === "new"
-                    ? { transaction_date: createDate }
-                    : {
-                        amount: formTarget.amount,
-                        type: formTarget.type,
-                        category_id: String(formTarget.category.id),
-                        transaction_date: formTarget.transaction_date,
-                        description: formTarget.description ?? "",
-                        payment_method: formTarget.payment_method ?? "",
-                        account_id: formTarget.account ? String(formTarget.account.id) : "",
-                        savings_product_id: formTarget.savings_product_id ? String(formTarget.savings_product_id) : "",
-                        owner_user_id: formTarget.owner_user_id ?? "",
-                      }
-                }
-                onSubmit={(payload) =>
-                  formTarget === "new"
-                    ? createMutation.mutate(payload)
-                    : updateMutation.mutate({ id: formTarget.id, payload })
-                }
-              />
-            </div>
+            <div className="p-6 overflow-y-auto">{renderTransactionForm(formTarget, createDate)}</div>
           </Modal>
         )}
 

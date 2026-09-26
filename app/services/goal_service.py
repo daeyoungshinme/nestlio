@@ -73,16 +73,6 @@ def _apply_funding_sources(db: Session, goal: FinancialGoal, funding_sources: li
     goal.funding_sources = new_sources
 
 
-def _sync_funding_product_monthly_amount(goal: FinancialGoal) -> None:
-    """연동된 저축상품이 정확히 1개일 때만 그 상품의 월 계획액을 이 목표의 월 저축액으로 맞춘다 —
-    상품이 여러 개면(부부가 각자 다른 상품으로 모으는 경우) 목표의 월 저축액을 어느 상품에
-    나눠줄지 모호해 자동 동기화하지 않고 각 상품은 계속 수동 입력을 받는다(SavingsProduct.
-    monthly_saving_amount_synced와 판정 기준이 같다 — app/models/savings_product.py 참고)."""
-    linked_products = [fs.savings_product for fs in goal.funding_sources if fs.savings_product_id is not None]
-    if len(linked_products) == 1:
-        linked_products[0].monthly_saving_amount = goal.monthly_saving_amount
-
-
 def _apply_challenge_completion(db: Session, goal: FinancialGoal, now: datetime | None = None) -> None:
     """kind="challenge"에서만 동작 — 진행금액(goal_progress_service.compute_current_amount,
     funding_sources 연동 시 연동 잔액 합, 미연동 시 manual_current_amount)이 목표금액에 도달하면
@@ -136,7 +126,6 @@ def create_goal(
     db.flush()  # 완료 판정(compute_current_amount)이 funding_sources 관계를 조회하려면 goal/fs가
     # 먼저 세션에 반영(pending -> flushed)되어 있어야 한다 — transient 상태에서는 관계 lazy-load가
     # 동작하지 않는다.
-    _sync_funding_product_monthly_amount(goal)
     _apply_challenge_completion(db, goal, now)
     db.commit()
     db.refresh(goal)
@@ -176,7 +165,6 @@ def update_goal(
     _apply_funding_sources(db, goal, funding_sources)
     plan_targets.apply_monthly_targets(goal, monthly_targets, GoalMonthlyTarget)
     db.flush()
-    _sync_funding_product_monthly_amount(goal)
     _apply_challenge_completion(db, goal, now)
     db.commit()
     db.refresh(goal)
