@@ -36,7 +36,7 @@
 ## coaching_engine.py
 
 - DB 쓰기는 전혀 없다. 대부분의 함수는 순수 계산 함수로, 입력은 이미 조회된 집계값들이고 출력은 `Insight` dataclass다 — 이 함수들은 파라미터화 테스트로 경계값을 촘촘히 검증한다(`tests/test_coaching_engine.py`).
-- 다만 `emergency_fund_context`/`compute_surplus_allocation`/`compute_insights`/`savings_pace_history` 4개는 예외로, `db: Session`을 받아 직접 조회(`savings_product_service.get_emergency_fund_balance`, `transaction_report_service.monthly_trend` 등)까지 겸하는 "DB-aware 래퍼"다 — 호출부(`app/routers/dashboard.py`)가 매번 재조회하지 않도록 조회와 순수 계산을 한데 묶어놓은 것이며, 새 순수 계산 함수를 추가할 때 이 3개까지 순수 함수로 착각하지 않는다.
+- 다만 `emergency_fund_context`/`compute_surplus_allocation`/`compute_insights`/`savings_pace_history` 4개는 예외로, `db: Session`을 받아 직접 조회(`savings_product_service.get_emergency_fund_balance`, `transaction_report_service.monthly_trend` 등)까지 겸하는 "DB-aware 래퍼"다 — 호출부(`app/routers/dashboard.py`)가 매번 재조회하지 않도록 조회와 순수 계산을 한데 묶어놓은 것이며, 새 순수 계산 함수를 추가할 때 이 4개까지 순수 함수로 착각하지 않는다.
 - 임계값(경고/위험 기준)은 하드코딩하지 않고 `app/config.py`의 `settings`에서 가져온다.
 - 예산 경고/위험 %는 가구가 설정 화면에서 바꿀 수 있으므로 예산 상태를 계산하는 곳(계획 화면 라우터, 예산 알림 메일)은 `coaching_settings_service.budget_thresholds(db)`로 꺼내 `budget_vs_actual` 등에 넘긴다 — 인자를 생략하면 env 기본값이 쓰여 화면과 알림 판정이 어긋난다.
 - 새 룰 추가 시 순수 계산 함수는 동일하게 파라미터화 테스트로 경계값을 검증한다.
@@ -72,9 +72,9 @@
 
 ## goal_service.py / goal_progress_service.py
 
-`goal_service.py`는 원래 CRUD·챌린지 동기화·진행률/ETA 계산을 한 파일에 모두 담고 있었으나(454줄), 책임별로 2개 파일로 분리했다(`transaction_service`/`savings_product_service`의 분할과 동일한 동기이지만, growlio 연동이 `fetch_growlio_goal_settings` 단일 함수뿐이라 3분할은 하지 않았다).
+`goal_service.py`는 원래 CRUD·챌린지 동기화·진행률/ETA 계산을 한 파일에 모두 담고 있었으나(454줄), 책임별로 2개 파일로 분리했다(`transaction_service`/`savings_product_service`의 분할과 동일한 동기이지만, growlio 연동이 `fetch_growlio_goal_settings`/`fetch_growlio_insight` 두 얇은 조회 함수뿐이라 3분할은 하지 않았다).
 
-- `goal_service.py`: CRUD(`create_goal`/`update_goal`/`delete_goal`/`list_goals`/`get_goal`/`update_monthly_target_achieved`), 챌린지 상태 동기화(`sync_challenge_statuses`, `_apply_challenge_completion`), 연동 관리(`_apply_funding_sources`, `_sync_funding_product_monthly_amount`), `fetch_growlio_goal_settings`, 예외 클래스(`MonthlyTargetNotFoundError`, `DuplicateFundingSourceProductError`)만 남는다.
+- `goal_service.py`: CRUD(`create_goal`/`update_goal`/`delete_goal`/`list_goals`/`get_goal`/`update_monthly_target_achieved`), 챌린지 상태 동기화(`sync_challenge_statuses`, `_apply_challenge_completion`), 연동 관리(`_apply_funding_sources`, `_sync_funding_product_monthly_amount`), growlio 조회(`fetch_growlio_goal_settings`, `fetch_growlio_insight`), 예외 클래스(`MonthlyTargetNotFoundError`, `DuplicateFundingSourceProductError`)만 남는다.
 - `goal_progress_service.py`: 진행률/ETA 계산 함수들(`funding_source_breakdown`/`current_amount_from_breakdown`/`compute_current_amount`/`compute_linked_monthly_achieved`/`compute_progress_pct`/`effective_status`/`compute_months_remaining`/`compute_suggested_monthly_amount`/`compute_eta_year_month`/`compute_ahead_behind_months`/`to_out`)이 모여 있다. 순수하게 읽기 전용이라 DB를 쓰지 않는다(`compute_current_amount` 등이 조회는 하지만 커밋하지 않음).
 - `goal_service.py`가 `_apply_challenge_completion`(완료 판정)에서 `goal_progress_service.compute_current_amount`를 호출하는 단방향 의존이다 — `goal_progress_service`는 `goal_service`를 참조하지 않는다.
 - 테스트 파일은 나누지 않았다(`tests/CLAUDE.md`에 명시) — `tests/test_goal_service.py`/`tests/test_financial_plan_services.py`가 두 모듈을 모두 다룬다.
@@ -107,7 +107,7 @@ growlio에서 받아 쓰는 값: 계좌 평가액·원금(`fetch_account_balance
 
 ## 연간계획류 공용 헬퍼 (plan_targets.py)
 
-`AnnualPlanItem`/`SavingsProductAnnualPlan`/`FinancialGoal` 도메인 모두 "부모 엔티티 + 월별 target 테이블" 구조를 갖고 있어, `annual_plan_service`/`savings_product_service`/`goal_service`/`cashflow_plan_service`/`budget_service`가 `app/services/plan_targets.py`의 아래 헬퍼를 공유한다 — growlio 연동 공용 헬퍼(`growlio_client.py`)와 같은 원칙으로, 도메인별 upsert/CRUD 골격 자체는 억지로 통합하지 않고 정말 동일한 조각만 뽑았다. (편집 가능한 가구 공동 "연간 순저축 목표" `AnnualSavingsGoal`은 제거됐다 — "얼마 저축할지" 모델 중복을 줄이면서 연간계획 `AnnualPlanItem`의 "저축 가능액(계획 수입 − 계획 지출)"과 `SavingsProductAnnualPlan`로 일원화. growlio가 읽던 `/external/annual-savings-goals`도 소비자가 없어 라우터째 삭제.)
+`AnnualPlanItem`/`SavingsProductAnnualPlan`/`FinancialGoal` 도메인 모두 "부모 엔티티 + 월별 target 테이블" 구조를 갖고 있어, `annual_plan_service`/`savings_product_plan_service`/`goal_service`/`cashflow_plan_service`/`budget_service`가 `app/services/plan_targets.py`의 아래 헬퍼를 공유한다 — growlio 연동 공용 헬퍼(`growlio_client.py`)와 같은 원칙으로, 도메인별 upsert/CRUD 골격 자체는 억지로 통합하지 않고 정말 동일한 조각만 뽑았다. (편집 가능한 가구 공동 "연간 순저축 목표" `AnnualSavingsGoal`은 제거됐다 — "얼마 저축할지" 모델 중복을 줄이면서 연간계획 `AnnualPlanItem`의 "저축 가능액(계획 수입 − 계획 지출)"과 `SavingsProductAnnualPlan`로 일원화. growlio가 읽던 `/external/annual-savings-goals`도 소비자가 없어 라우터째 삭제.)
 
 - `apply_monthly_targets(parent, monthly_targets, target_cls)`: year_month로 기존 월별 target 행을 매칭해 갱신/생성하고 빠진 월은 delete-orphan으로 삭제한다. `GoalMonthlyTarget.achieved_amount`처럼 target_amount 외의 컬럼이 있어도 기존 행은 그대로 재사용하므로 건드리지 않는다.
 - `elapsed_months(year, today)`: 그 해의 몇 월까지 실적을 집계할 수 있는지.
