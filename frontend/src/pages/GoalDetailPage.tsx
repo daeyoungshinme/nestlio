@@ -7,11 +7,11 @@ import EmptyState from "@/components/common/EmptyState";
 import ProgressBar from "@/components/common/ProgressBar";
 import QueryBoundary from "@/components/common/QueryBoundary";
 import SkeletonCard from "@/components/common/SkeletonCard";
-import { cheerGoal, fetchGoals } from "@/api/goals";
+import { cheerGoal, fetchGoalGrowlioInsight, fetchGoals } from "@/api/goals";
 import { fetchNotifications } from "@/api/notifications";
 import { GROWLIO_APP_URL, findGrowlioInvestmentLink, growlioPortfolioUrl } from "@/constants/growlio";
 import { QUERY_KEYS } from "@/constants/queryKeys";
-import { NOTIFICATIONS_REFETCH_INTERVAL } from "@/constants/queryConfig";
+import { NOTIFICATIONS_REFETCH_INTERVAL, STALE_TIME } from "@/constants/queryConfig";
 import { ROUTES } from "@/constants/routes";
 import { INPUT_SM } from "@/constants/inputStyles";
 import { useSavingsProducts } from "@/hooks/useReferenceData";
@@ -137,6 +137,16 @@ function GoalDetail({ goal }: { goal: FinancialGoalOut }) {
                 )}
               </dd>
             </div>
+            {goal.eta_with_return_year_month && goal.expected_annual_return_pct !== null && (
+              <div className="col-span-2">
+                <dt className="text-xs text-gray-500 dark:text-gray-400">
+                  연 {Number(goal.expected_annual_return_pct)}% 수익을 반영하면
+                </dt>
+                <dd className="font-semibold text-primary-600 dark:text-primary-400">
+                  {formatYearMonth(goal.eta_with_return_year_month)} 달성 예상
+                </dd>
+              </div>
+            )}
             {goal.suggested_monthly_amount !== null && (
               <div className="col-span-2">
                 <dt className="text-xs text-gray-500 dark:text-gray-400">목표일에 맞추려면 매달</dt>
@@ -179,6 +189,8 @@ function GoalDetail({ goal }: { goal: FinancialGoalOut }) {
           </p>
         </div>
       )}
+
+      {!isChallenge && GROWLIO_APP_URL && <GrowlioInsightCard goalId={goal.id} />}
 
       <div className="card space-y-3">
         <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300">서로 응원하기</h2>
@@ -263,6 +275,55 @@ function GoalDetail({ goal }: { goal: FinancialGoalOut }) {
               growlio에서 이 목표의 포트폴리오 보기
             </a>
           )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** "투자 수익을 반영하면?" — growlio가 계산한 이 목표의 필요 연수익률과 실제 투자 수익률(XIRR)을 나란히 보여주고,
+ * 가정 수익률별로 매달 얼마를 모아야 하는지 안내한다. growlio 미설정·접속 실패·목표일 없음이면 숨긴다. */
+function GrowlioInsightCard({ goalId }: { goalId: number }) {
+  const { data, isError } = useQuery({
+    queryKey: QUERY_KEYS.financialGoalGrowlioInsight(goalId),
+    queryFn: () => fetchGoalGrowlioInsight(goalId),
+    retry: false,
+    staleTime: STALE_TIME.MEDIUM,
+  });
+  if (isError || !data) return null;
+  const { performance, feasibility } = data;
+  const actualReturn = performance.xirr_pct ?? performance.annual_return_pct;
+  if (!feasibility && actualReturn === null) return null;
+
+  return (
+    <div className="card space-y-3">
+      <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300">투자 수익을 반영하면? (growlio)</h2>
+      <dl className="grid grid-cols-2 gap-3 text-sm">
+        <div>
+          <dt className="text-xs text-gray-500 dark:text-gray-400">이 목표에 필요한 연 수익률</dt>
+          <dd className="font-semibold text-gray-900 dark:text-gray-50">
+            {feasibility?.required_return_pct != null ? formatPercent(feasibility.required_return_pct, 1) : "–"}
+          </dd>
+        </div>
+        <div>
+          <dt className="text-xs text-gray-500 dark:text-gray-400">우리 실제 투자 수익률</dt>
+          <dd className="font-semibold text-gray-900 dark:text-gray-50">
+            {actualReturn !== null ? formatPercent(actualReturn, 1) : "–"}
+          </dd>
+        </div>
+      </dl>
+      {feasibility?.note && <p className="text-xs text-gray-500 dark:text-gray-400">{feasibility.note}</p>}
+      {feasibility && feasibility.deposit_guide.length > 0 && (
+        <div className="space-y-1">
+          <p className="text-xs text-gray-500 dark:text-gray-400">수익률별로 목표일까지 매달 필요한 금액</p>
+          {feasibility.deposit_guide.map((g) => (
+            <div key={g.annual_return_pct} className="flex items-center justify-between text-sm">
+              <span className="text-gray-600 dark:text-gray-300">연 {g.annual_return_pct}%</span>
+              <span className="font-medium text-gray-900 dark:text-gray-50">
+                {g.required_monthly_deposit !== null ? formatKrw(Math.round(g.required_monthly_deposit)) : "–"}
+              </span>
+            </div>
+          ))}
         </div>
       )}
     </div>

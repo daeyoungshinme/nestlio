@@ -3,7 +3,7 @@ from datetime import date, datetime
 from decimal import Decimal
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 from app.schemas.common import KrwAmount
 
@@ -70,6 +70,9 @@ class FinancialGoalOut(BaseModel):
     # 실제 월 계획액 — 저축·투자 상품이 연동되면 그 상품들의 이번 달 계획 합, 아니면 monthly_saving_amount.
     # ETA·페이스 판정은 이 값을 쓴다(goal_progress_service.planned_monthly_for_goal).
     planned_monthly_amount: Decimal
+    expected_annual_return_pct: Decimal | None = None
+    # 기대 연수익률을 월 복리로 반영한 예상 도달 달 — 수익률 미설정이면 None(eta_year_month는 수익 0% 선형).
+    eta_with_return_year_month: str | None = None
     current_amount: Decimal
     progress_pct: Decimal
     sort_order: int
@@ -103,6 +106,7 @@ class FinancialGoalCreateIn(BaseModel):
     funding_sources: list[FundingSourceIn] = []
     start_date: date | None = None
     monthly_targets: list[GoalMonthlyTargetIn] | None = None
+    expected_annual_return_pct: Decimal | None = Field(default=None, ge=-50, le=100)
 
 
 class FinancialGoalUpdateIn(BaseModel):
@@ -117,6 +121,7 @@ class FinancialGoalUpdateIn(BaseModel):
     funding_sources: list[FundingSourceIn] = []
     start_date: date | None = None
     monthly_targets: list[GoalMonthlyTargetIn] | None = None
+    expected_annual_return_pct: Decimal | None = Field(default=None, ge=-50, le=100)
 
 
 class GrowlioGoalSettingsOut(BaseModel):
@@ -134,3 +139,35 @@ class GrowlioGoalSettingsOut(BaseModel):
     goal_initial_amount: float | None = None
     annual_deposit_goal: float | None = None
     annual_dividend_goal: float | None = None
+
+
+class GrowlioPerformanceOut(BaseModel):
+    """growlio `/external/performance` 프록시 — growlio 도메인이 float라 float 그대로 둔다(GrowlioGoalSettingsOut 참고)."""
+
+    xirr_pct: float | None = None
+    annual_return_pct: float | None = None
+    cumulative_return_pct: float | None = None
+    goal_annual_return_pct: float | None = None
+    return_goal_gap_pct: float | None = None
+    annual_deposit_goal: float | None = None
+    annual_deposit_current: float | None = None
+    deposit_achievement_pct: float | None = None
+
+
+class GrowlioDepositGuideOut(BaseModel):
+    annual_return_pct: float
+    required_monthly_deposit: float | None = None
+    required_annual_deposit: float | None = None
+
+
+class GrowlioFeasibilityOut(BaseModel):
+    required_return_pct: float | None = None
+    pv: float
+    n_months: int
+    note: str | None = None
+    deposit_guide: list[GrowlioDepositGuideOut] = []
+
+
+class GrowlioGoalInsightOut(BaseModel):
+    performance: GrowlioPerformanceOut
+    feasibility: GrowlioFeasibilityOut | None = None

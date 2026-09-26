@@ -13,6 +13,7 @@ from app.schemas.financial_goal import (
     GoalCheerIn,
     GoalCheerOut,
     GoalMonthlyTargetAchievedIn,
+    GrowlioGoalInsightOut,
     GrowlioGoalSettingsOut,
 )
 from app.services import goal_progress_service, goal_service, notification_inbox_service, notification_service
@@ -59,6 +60,7 @@ def create_goal(
             created_by_id=current_user.id if payload.kind == "challenge" else None,
             monthly_targets=[mt.model_dump() for mt in payload.monthly_targets] if payload.monthly_targets else None,
             now=now,
+            expected_annual_return_pct=payload.expected_annual_return_pct,
         )
     except goal_service.DuplicateFundingSourceProductError as exc:
         raise HTTPException(status.HTTP_409_CONFLICT, str(exc)) from exc
@@ -94,6 +96,7 @@ def update_goal(
             start_date=payload.start_date,
             monthly_targets=[mt.model_dump() for mt in payload.monthly_targets] if payload.monthly_targets else None,
             now=now,
+            expected_annual_return_pct=payload.expected_annual_return_pct,
         )
     except goal_service.DuplicateFundingSourceProductError as exc:
         raise HTTPException(status.HTTP_409_CONFLICT, str(exc)) from exc
@@ -152,3 +155,17 @@ def cheer_goal(
     except notification_inbox_service.InvalidReactionError as exc:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=str(exc)) from exc
     return {"notification_id": notification_id}
+
+
+@router.get("/{goal_id}/growlio-insight", response_model=GrowlioGoalInsightOut)
+def get_growlio_insight(
+    goal_id: int,
+    db: Session = Depends(get_db),
+    bearer_token: str = Depends(get_bearer_token),
+    _: User = Depends(get_current_user),
+):
+    """목표 상세의 "투자 수익을 반영하면?" — growlio 실적 수익률과 이 목표의 필요 수익률·프리셋별 필요 적립액."""
+    goal = goal_service.get_goal(db, goal_id)
+    if goal is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="목표를 찾을 수 없습니다.")
+    return goal_service.fetch_growlio_insight(db, goal, bearer_token, today_kst())

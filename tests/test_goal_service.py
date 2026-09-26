@@ -786,3 +786,37 @@ def test_unlinked_goal_monthly_plan_is_its_own_amount(seeded_db):
     goal = goal_service.create_goal(db, 1, "비상금", None, Decimal("1000000"), Decimal("250000"))
     out = goal_progress_service.to_out(db, goal, date(2026, 7, 10))
     assert out["planned_monthly_amount"] == Decimal("250000")
+
+
+@pytest.mark.parametrize(
+    "current,required,monthly,annual_pct,expected",
+    [
+        ("0", "1200000", "100000", None, None),  # 수익률 미설정 → 복리 ETA 없음
+        ("0", "1200000", "100000", "0", "2027-07"),  # 0%면 선형과 같다(12개월)
+        ("10000000", "12000000", "100000", "0", "2028-03"),  # 선형 20개월
+        ("10000000", "12000000", "100000", "12", "2027-05"),  # 잔액이 크면 월 복리 수익으로 10개월에 닿는다
+        ("2000000", "1000000", "0", "5", "2026-07"),  # 이미 달성 → 이번 달
+        ("0", "1000000000", "1000", "1", None),  # 50년 안에 못 닿으면 None
+    ],
+)
+def test_compute_eta_with_return(current, required, monthly, annual_pct, expected):
+    result = goal_progress_service.compute_eta_with_return(
+        date(2026, 7, 10),
+        Decimal(current),
+        Decimal(required),
+        Decimal(monthly),
+        Decimal(annual_pct) if annual_pct is not None else None,
+    )
+    assert result == expected
+
+
+def test_to_out_includes_eta_with_return_when_expected_return_set(seeded_db):
+    db = seeded_db["db"]
+    goal = goal_service.create_goal(
+        db, 1, "노후", None, Decimal("12000000"), Decimal("100000"), Decimal("10000000"),
+        expected_annual_return_pct=Decimal("12"),
+    )
+    out = goal_progress_service.to_out(db, goal, date(2026, 7, 10))
+    assert out["expected_annual_return_pct"] == Decimal("12")
+    assert out["eta_year_month"] == "2028-03"
+    assert out["eta_with_return_year_month"] == "2027-05"

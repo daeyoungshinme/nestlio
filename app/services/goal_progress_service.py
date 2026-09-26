@@ -170,6 +170,32 @@ def compute_eta_year_month(
     return year_month_str(shift_month(today, months))
 
 
+MAX_PROJECTION_MONTHS = 600
+
+
+def compute_eta_with_return(
+    today: date,
+    current_amount: Decimal,
+    required_amount: Decimal,
+    monthly_saving_amount: Decimal,
+    annual_return_pct: Decimal | None,
+) -> str | None:
+    """기대 연수익률을 월 복리로 적용했을 때 목표금액에 도달하는 예상 달("YYYY-MM"). 매달 말 잔액에 월 수익률을
+    곱하고 월 저축액을 더한다. 수익률이 없으면 None(선형 ETA만 쓴다), 이미 달성했으면 이번 달, 50년 안에 못
+    닿으면 None — 옛 무제한 복리 프로젝션을 없앴던 이유(비현실적 먼 미래 날짜)를 상한으로 막는다."""
+    if annual_return_pct is None:
+        return None
+    if required_amount <= current_amount:
+        return year_month_str(today)
+    monthly_rate = (Decimal("1") + annual_return_pct / Decimal("100")) ** (Decimal("1") / Decimal("12")) - Decimal("1")
+    balance = max(current_amount, Decimal("0"))
+    for month in range(1, MAX_PROJECTION_MONTHS + 1):
+        balance = balance * (Decimal("1") + monthly_rate) + monthly_saving_amount
+        if balance >= required_amount:
+            return year_month_str(shift_month(today, month))
+    return None
+
+
 def compute_ahead_behind_months(eta_year_month: str | None, target_date: date | None) -> int | None:
     """예상 도달 달이 목표일보다 얼마나 이른지/늦은지(개월). 양수 = 그만큼 빠름, 음수 = 늦음.
     목표일이나 ETA가 없으면 None."""
@@ -213,6 +239,10 @@ def to_out(db: Session, goal: FinancialGoal, today: date) -> dict:
         "required_amount": goal.required_amount,
         "monthly_saving_amount": goal.monthly_saving_amount,
         "planned_monthly_amount": planned_monthly,
+        "expected_annual_return_pct": goal.expected_annual_return_pct,
+        "eta_with_return_year_month": compute_eta_with_return(
+            today, current_amount, goal.required_amount, planned_monthly, goal.expected_annual_return_pct
+        ),
         "current_amount": current_amount,
         "progress_pct": compute_progress_pct(current_amount, goal.required_amount),
         "sort_order": goal.sort_order,

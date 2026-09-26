@@ -451,6 +451,7 @@ function SavingsProductFormModal({
           <GrowlioLinkSection
             productId={product.id}
             growlioAccountId={product.growlio_account_id}
+            autoSyncEnabled={product.auto_sync_enabled}
             queryKey={QUERY_KEYS.growlioInvestmentAccounts}
             fetchRows={fetchGrowlioAccounts}
             getRowId={(account) => account.id}

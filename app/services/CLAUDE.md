@@ -92,6 +92,8 @@
 
 `GrowlioNotConfiguredError`/`GrowlioRequestError`/`GrowlioSyncError`는 모두 `growlio_client.py`에 단일 정의되어 있다 — account_service/savings_product_growlio_service/real_estate_service는 여기서 import해서 쓰고 새로 정의하지 않는다. 라우터에서 이 예외들을 개별적으로 catch할 필요도 없다 — `app/main.py`가 `growlio_client.register_exception_handlers(app)`로 앱 전역에서 501/502/409로 매핑한다.
 
+growlio에서 받아 쓰는 값: 계좌 평가액·원금(`fetch_account_balances` — 투자 상품 동기화/가져오기 시 `invested_amount_krw`를 `principal_amount`로 채워 수익·수익률이 계산된다, `savings_product_growlio_service._apply_balance`. 원금이 없는 응답이면 기존 원금 유지), 부동산 시세·대출(`fetch_real_estate_items`), 투자목표 설정(`fetch_investment_goal`, 목표 폼 프리필 — 목표 수익률은 `FinancialGoal.expected_annual_return_pct`로), 수익률 KPI(`fetch_performance`)와 목표 달성 가능성 역산(`fetch_goal_feasibility`) — 뒤의 둘은 `goal_service.fetch_growlio_insight` → `GET /financial-goals/{id}/growlio-insight`가 목표 상세 "투자 수익을 반영하면?" 카드에 묶어 준다. 목표의 복리 ETA(`goal_progress_service.compute_eta_with_return`, 50년 상한)는 growlio 호출 없이 nestlio가 계산한다.
+
 가져오기(`import_from_growlio`)·동기화(`sync_*`) 로직을 새로 추가할 때는 아래 공용 헬퍼를 재사용한다:
 - `growlio_client.already_linked_growlio_ids(db, model)`: 이미 연동된 growlio 계좌 id 집합 (중복 가져오기 방지)
 - `growlio_client.to_decimal_krw(raw)`: growlio 응답의 `*_krw` 필드를 `Decimal`로 변환

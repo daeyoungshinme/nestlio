@@ -784,3 +784,44 @@ def test_import_from_growlio_propagates_not_configured_error(db_session):
     ):
         with pytest.raises(GrowlioNotConfiguredError):
             savings_product_growlio_service.import_from_growlio(db_session, ["growlio-acc-1"], "token", _OWNER_ID, now=datetime(2026, 8, 6))
+
+
+def test_sync_from_growlio_fills_principal_for_investment_product(db_session):
+    """growlio가 원금(invested_amount_krw)을 주면 투자 상품의 principal_amount를 채워 수익·수익률이 계산된다."""
+    product = savings_product_service.create_product(
+        db_session, "ETF", Decimal("0"), Decimal("0"), product_type="investment"
+    )
+    savings_product_service.set_growlio_link(db_session, product.id, "growlio-acc-1", True)
+
+    with patch(
+        "app.services.savings_product_growlio_service.growlio_client.fetch_account_balances",
+        return_value=[
+            {
+                "id": "growlio-acc-1",
+                "name": "ETF",
+                "asset_type": "STOCK_KIS",
+                "current_value_krw": 1_200_000.0,
+                "invested_amount_krw": 1_000_000.0,
+            }
+        ],
+    ):
+        synced = savings_product_growlio_service.sync_from_growlio(db_session, product.id, "token", now=datetime(2026, 9, 1))
+
+    assert synced.principal_amount == Decimal("1000000.0")
+    assert synced.return_amount == Decimal("200000.0")
+    assert synced.return_rate_pct == Decimal("20")
+
+
+def test_sync_from_growlio_keeps_principal_when_growlio_omits_it(db_session):
+    product = savings_product_service.create_product(
+        db_session, "ETF", Decimal("0"), Decimal("0"), product_type="investment", principal_amount=Decimal("500")
+    )
+    savings_product_service.set_growlio_link(db_session, product.id, "growlio-acc-1", True)
+
+    with patch(
+        "app.services.savings_product_growlio_service.growlio_client.fetch_account_balances",
+        return_value=[{"id": "growlio-acc-1", "name": "ETF", "asset_type": "STOCK_KIS", "current_value_krw": 800.0}],
+    ):
+        synced = savings_product_growlio_service.sync_from_growlio(db_session, product.id, "token", now=datetime(2026, 9, 1))
+
+    assert synced.principal_amount == Decimal("500")
