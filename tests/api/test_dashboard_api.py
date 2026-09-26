@@ -4,16 +4,15 @@ from app.services import goal_service, transaction_service
 from app.utils.dates import month_bounds, shift_month, today_kst, year_month_str
 
 
-def test_dashboard_today_returns_totals_and_insights(client, seeded_db):
+def test_dashboard_month_returns_totals_and_insights(client, seeded_db):
     db, user, food = seeded_db["db"], seeded_db["user"], seeded_db["food"]
     today = today_kst()
     transaction_service.create_transaction(db, user.id, food.id, "income", Decimal("100000"), today)
 
-    resp = client.get("/api/v1/dashboard", params={"period": "today", "date": today.isoformat()})
+    resp = client.get("/api/v1/dashboard", params={"year_month": year_month_str(today)})
 
     assert resp.status_code == 200
     body = resp.json()
-    assert body["period"] == "today"
     assert Decimal(body["totals"]["income"]) == Decimal("100000")
     assert isinstance(body["insights"], list)
     # create_transaction() was called without owner_user_id, so it lands in the "공통"
@@ -58,10 +57,11 @@ def test_dashboard_category_benchmarks_flags_categories_over_guideline(client, s
     ]
 
 
-def test_dashboard_defaults_to_month_period(client):
+def test_dashboard_defaults_to_current_month(client):
     resp = client.get("/api/v1/dashboard")
     assert resp.status_code == 200
-    assert resp.json()["period"] == "month"
+    start, end = month_bounds(today_kst())
+    assert (resp.json()["start"], resp.json()["end"]) == (start.isoformat(), end.isoformat())
 
 
 def test_dashboard_includes_savings_streak_by_default(client):

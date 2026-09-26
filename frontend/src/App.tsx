@@ -10,7 +10,7 @@ import { useAuthStore } from "./stores/authStore";
 import { useThemeStore } from "./stores/themeStore";
 import { clearClientCaches } from "./utils/session";
 import { APP_EVENTS } from "./constants/events";
-import { planAnalysisLink } from "./constants/routes";
+import { ROUTES, planAnalysisLink } from "./constants/routes";
 import LegacyScheduleRedirect from "./pages/LegacyScheduleRedirect";
 
 const LoginPage = lazy(() => import("./pages/LoginPage"));
@@ -31,7 +31,7 @@ function PrivateRoute({ children }: { children: React.ReactNode }) {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const isAuthChecking = useAuthStore((s) => s.isAuthChecking);
   if (isAuthChecking) return <PageLoader />;
-  return isAuthenticated ? <>{children}</> : <Navigate to="/login" replace />;
+  return isAuthenticated ? <>{children}</> : <Navigate to={ROUTES.login} replace />;
 }
 
 function LazyRoute({ Component }: { Component: LazyExoticComponent<() => React.JSX.Element> }) {
@@ -47,9 +47,9 @@ function LazyRoute({ Component }: { Component: LazyExoticComponent<() => React.J
 function AppRoutes() {
   return (
     <Routes>
-      <Route path="/login" element={<LazyRoute Component={LoginPage} />} />
-      <Route path="/invite/accept" element={<LazyRoute Component={InviteAcceptPage} />} />
-      <Route path="/auth/callback" element={<LazyRoute Component={AuthCallbackPage} />} />
+      <Route path={ROUTES.login} element={<LazyRoute Component={LoginPage} />} />
+      <Route path={ROUTES.inviteAccept} element={<LazyRoute Component={InviteAcceptPage} />} />
+      <Route path={ROUTES.authCallback} element={<LazyRoute Component={AuthCallbackPage} />} />
       <Route
         path="/"
         element={
@@ -63,12 +63,14 @@ function AppRoutes() {
         <Route index element={<LazyRoute Component={DashboardPage} />} />
         <Route path="transactions" element={<LazyRoute Component={TransactionsPage} />} />
         <Route path="transactions/import" element={<LazyRoute Component={TransactionImportPage} />} />
-        <Route path="transactions/:id/edit" element={<Navigate to="/transactions" replace />} />
-        <Route path="calendar" element={<Navigate to="/transactions" replace />} />
-        <Route path="budgets" element={<Navigate to="/transactions" replace />} />
-        <Route path="recurring" element={<Navigate to="/transactions" replace />} />
+        <Route path="transactions/:id/edit" element={<Navigate to={ROUTES.transactions} replace />} />
+        <Route path="calendar" element={<Navigate to={ROUTES.transactions} replace />} />
+        <Route path="budgets" element={<Navigate to={ROUTES.transactions} replace />} />
+        <Route path="recurring" element={<Navigate to={ROUTES.transactions} replace />} />
         <Route path="accounts" element={<LazyRoute Component={AccountsPage} />} />
         <Route path="categories" element={<LazyRoute Component={CategoriesPage} />} />
+        {/* 구 경로 호환 리다이렉트 — 일정은 가계부 "일정" 보기로, 연간리포트는 계획 › 연간 › 실적 분석으로,
+            "계획·목표" 통합 페이지는 /plan·/goals로 나뉘었다. */}
         <Route path="schedule" element={<LegacyScheduleRedirect />} />
         <Route path="reports/yearly" element={<Navigate to={planAnalysisLink()} replace />} />
         <Route path="plan" element={<LazyRoute Component={PlanPage} />} />
@@ -78,7 +80,7 @@ function AppRoutes() {
         <Route path="settings" element={<LazyRoute Component={SettingsPage} />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Route>
-      <Route path="*" element={<Navigate to="/login" replace />} />
+      <Route path="*" element={<Navigate to={ROUTES.login} replace />} />
     </Routes>
   );
 }

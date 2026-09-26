@@ -306,8 +306,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Get Transaction */
-        get: operations["get_transaction_api_v1_transactions__tx_id__get"];
+        get?: never;
         /** Update Transaction */
         put: operations["update_transaction_api_v1_transactions__tx_id__put"];
         post?: never;
@@ -1468,8 +1467,7 @@ export interface paths {
         /** React */
         put: operations["react_api_v1_notifications__notification_log_id__reaction_put"];
         post?: never;
-        /** Unreact */
-        delete: operations["unreact_api_v1_notifications__notification_log_id__reaction_delete"];
+        delete?: never;
         options?: never;
         head?: never;
         patch?: never;
@@ -2235,11 +2233,6 @@ export interface components {
         };
         /** DashboardOut */
         DashboardOut: {
-            /**
-             * Period
-             * @enum {string}
-             */
-            period: "today" | "week" | "month";
             /**
              * Start
              * Format: date
@@ -4054,8 +4047,6 @@ export interface operations {
     dashboard_api_v1_dashboard_get: {
         parameters: {
             query?: {
-                period?: "today" | "week" | "month";
-                date?: string | null;
                 year_month?: string | null;
             };
             header?: {
@@ -4422,39 +4413,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["BulkDeleteResultOut"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    get_transaction_api_v1_transactions__tx_id__get: {
-        parameters: {
-            query?: never;
-            header?: {
-                authorization?: string | null;
-            };
-            path: {
-                tx_id: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["TransactionOut"];
                 };
             };
             /** @description Validation Error */
@@ -7032,37 +6990,6 @@ export interface operations {
                 "application/json": components["schemas"]["NotificationReactionIn"];
             };
         };
-        responses: {
-            /** @description Successful Response */
-            204: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    unreact_api_v1_notifications__notification_log_id__reaction_delete: {
-        parameters: {
-            query?: never;
-            header?: {
-                authorization?: string | null;
-            };
-            path: {
-                notification_log_id: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
         responses: {
             /** @description Successful Response */
             204: {

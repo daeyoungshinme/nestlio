@@ -11,7 +11,7 @@ interface Props {
   className?: string;
 }
 
-/** 카드 그리드(`SummaryCard`) 대신 라벨:값을 한 줄로 나열하는 경량 요약 — 항목이 적거나
+/** 큰 요약 카드 대신 라벨:값을 한 줄로 나열하는 경량 요약 — 항목이 적거나
  * 그룹 헤더 등 다른 곳에 이미 총액이 보여서 큰 카드가 필요 없는 곳에 쓴다. */
 export default function InlineStatsBar({ items, className }: Props) {
   return (

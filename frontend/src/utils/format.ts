@@ -72,13 +72,6 @@ export function formatMonthOnly(yearMonth: string): string {
   return `${Number(yearMonth.slice(5, 7))}월`;
 }
 
-/** "2026-07-28", "2026-08-03" -> "7/28 - 8/3" */
-export function formatWeekRange(mondayIso: string, sundayIso: string): string {
-  const [, m1, d1] = mondayIso.split("-").map(Number);
-  const [, m2, d2] = sundayIso.split("-").map(Number);
-  return `${m1}/${d1} - ${m2}/${d2}`;
-}
-
 /** owner_user_id가 없거나 users 목록에서 매칭되지 않으면 "공통"(부부 공동) — AnnualPlanItemRow/
  * CashflowPlanItemRow가 공유한다. */
 export function resolveOwnerLabel(ownerUserId: string | null, users: UserOut[] | undefined): string {

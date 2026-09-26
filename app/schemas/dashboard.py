@@ -1,7 +1,6 @@
 import uuid
 from datetime import date
 from decimal import Decimal
-from typing import Literal
 
 from pydantic import BaseModel
 
@@ -24,7 +23,6 @@ class OwnerOverspendHighlightOut(BaseModel):
 
 
 class DashboardOut(BaseModel):
-    period: Literal["today", "week", "month"]
     start: date
     end: date
     totals: TotalsOut

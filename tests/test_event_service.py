@@ -103,7 +103,7 @@ def test_create_update_delete_event(seeded_db):
     assert updated.start_at == datetime(2026, 7, 16, 11, 0)
 
     assert event_service.delete_event(db, event.id, actor_id=user.id) is True
-    assert event_service.get_event(db, event.id) is None
+    assert db.get(Event, event.id) is None
     assert event_service.delete_event(db, event.id, actor_id=user.id) is False
 
 

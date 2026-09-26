@@ -99,10 +99,6 @@ def create_transaction(
     return tx
 
 
-def get_transaction(db: Session, tx_id: int) -> Transaction | None:
-    return db.get(Transaction, tx_id)
-
-
 def update_transaction(db: Session, tx_id: int, bearer_token: str | None = None, **fields) -> Transaction | None:
     tx = db.get(Transaction, tx_id)
     if tx is None:

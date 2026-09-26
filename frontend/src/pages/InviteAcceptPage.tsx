@@ -9,6 +9,7 @@ import { acceptInvite, fetchInviteByToken } from "@/api/invites";
 import { INPUT_SM } from "@/constants/inputStyles";
 import { QUERY_KEYS } from "@/constants/queryKeys";
 import { extractErrorMessage, getHttpStatus } from "@/utils/error";
+import { ROUTES } from "@/constants/routes";
 
 function AuthCard({ children }: { children: React.ReactNode }) {
   return (
@@ -29,7 +30,7 @@ function InviteMessage({ message }: { message: string }) {
     <AuthCard>
       <div className="text-center space-y-4">
         <p className="text-sm text-gray-600 dark:text-gray-300">{message}</p>
-        <Link to="/login" className="text-sm text-primary-600 dark:text-primary-400 hover:underline">
+        <Link to={ROUTES.login} className="text-sm text-primary-600 dark:text-primary-400 hover:underline">
           로그인으로 이동
         </Link>
       </div>
@@ -115,7 +116,7 @@ export default function InviteAcceptPage() {
         email: inviteQuery.data.email,
         password,
         options: {
-          emailRedirectTo: `${window.location.origin}/auth/callback?${redirectParams.toString()}`,
+          emailRedirectTo: `${window.location.origin}${ROUTES.authCallback}?${redirectParams.toString()}`,
         },
       });
       if (signUpError || !data.user) {
@@ -253,7 +254,7 @@ export default function InviteAcceptPage() {
 
       <p className="text-center text-sm text-gray-500 dark:text-gray-400 mt-4">
         이미 계정이 있으신가요?{" "}
-        <Link to="/login" className="text-primary-600 dark:text-primary-400 hover:underline">
+        <Link to={ROUTES.login} className="text-primary-600 dark:text-primary-400 hover:underline">
           로그인
         </Link>
       </p>

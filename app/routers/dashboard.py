@@ -1,6 +1,5 @@
-from typing import Literal
 
-from fastapi import APIRouter, BackgroundTasks, Depends, Query
+from fastapi import APIRouter, BackgroundTasks, Depends
 from sqlalchemy.orm import Session
 
 from app.database import get_db
@@ -27,15 +26,11 @@ router = APIRouter(prefix="/dashboard", tags=["dashboard"])
 
 @router.get("", response_model=DashboardOut)
 def dashboard(
-    period: Literal["today", "week", "month"] = "month",
-    day: str | None = Query(None, alias="date"),
     year_month: str | None = None,
     db: Session = Depends(get_db),
     _: User = Depends(get_current_user),
 ):
-    return dashboard_service.build(
-        db, period=period, day=day, year_month=year_month, today=today_kst()
-    )
+    return dashboard_service.build(db, year_month=year_month, today=today_kst())
 
 
 @router.get("/bootstrap", response_model=DashboardBootstrapOut)

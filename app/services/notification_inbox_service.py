@@ -106,21 +106,6 @@ def add_reaction(
     db.commit()
 
 
-def remove_reaction(db: Session, user_id: uuid.UUID, notification_log_id: int) -> None:
-    existing = (
-        db.query(NotificationReaction)
-        .filter(
-            NotificationReaction.notification_log_id == notification_log_id,
-            NotificationReaction.user_id == user_id,
-        )
-        .first()
-    )
-    if existing is None:
-        return
-    db.delete(existing)
-    db.commit()
-
-
 def unread_count(db: Session, user_id: uuid.UUID) -> int:
     total = db.query(NotificationLog).count()
     return total - len(_read_log_ids(db, user_id))

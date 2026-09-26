@@ -34,14 +34,11 @@ interface ItemModalState {
   item: AnnualPlanItemOut | null;
 }
 
-/** 현금흐름 계획 탭의 "연간계획" 서브뷰 — 이번 달 계획(CashflowPlanTab)과 완전히 동일한 UI/UX
- * (요약카드 4개 + 클릭형 목적요약 + 섹션 Tabs로 한 번에 하나씩 전환)를 쓴다. 수입/고정지출/
- * 변동지출/비정기지출은 항목을 여러 개 등록하고 항목마다 12개월 목표금액을 입력하는, 월간
- * CashflowPlanTab과 동일한 구조의 연간 버전이다. 저축·투자는 새 항목 개념을 만들지 않고 기존
- * SavingsProduct 데이터를 "올해 누적" 모드로 그대로 재사용하되, 상품마다 적용 시작월~종료월 +
- * 월별 목표금액을 지정할 수 있다(SavingsInvestmentPlanPanel의 ProductRow 참고) — 항목을 새로
- * 만드는 대신 상품 자체에 연도별 계획을 붙이는 방식. 개별 재무목표(목표 탭의 GoalsTab)와는
- * 완전히 별개 개념이다. */
+/** 계획 탭의 "연간" 보기 — 계획의 원본(연간계획)을 편집한다. 위에서부터 연도 이동, 빈 해면 새해 마법사
+ * (PlanYearStartWizard), 수입·지출·저축 균형 요약(PlanBalanceSummary), 섹션 아코디언(PlanSectionAccordion:
+ * 수입/고정/변동/비정기는 항목마다 12개월 목표금액, 저축·투자는 SavingsProduct에 붙인 연도별 월 계획 —
+ * SavingsInvestmentPlanPanel), 맨 아래 실적 분석(YearlyReportSection, 구 연간리포트)이다. 이번 달 보기
+ * (CashflowPlanTab)는 이 계획의 한 달 단면이다. 개별 재무목표(목표 탭)와는 별개 개념이다. */
 export default function AnnualPlanPanel() {
   const [year, setYear] = useState(currentYear());
   const [itemModal, setItemModal] = useState<ItemModalState | null>(null);

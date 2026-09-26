@@ -1,16 +1,15 @@
 import { TOUCH_TARGET_COMPACT_MOBILE_ONLY } from "@/constants/uiSizes";
 import type { CategoryOut } from "@/types";
+import type { ExpenseTypeFilter, TopFilter, UserFilter } from "@/types/ledgerFilters";
 
-export type TopFilter = "all" | "income" | "expense" | "savings";
+export type { ExpenseTypeFilter, TopFilter, UserFilter };
 
-export const TOP_FILTER_OPTIONS: { value: TopFilter; label: string }[] = [
+const TOP_FILTER_OPTIONS: { value: TopFilter; label: string }[] = [
   { value: "all", label: "전체" },
   { value: "income", label: "수입" },
   { value: "expense", label: "지출" },
   { value: "savings", label: "저축/투자" },
 ];
-
-export type ExpenseTypeFilter = "all" | "fixed" | "variable" | "irregular";
 
 export const EXPENSE_TYPE_FILTER_OPTIONS: { value: ExpenseTypeFilter; label: string }[] = [
   { value: "all", label: "전체" },
@@ -20,7 +19,6 @@ export const EXPENSE_TYPE_FILTER_OPTIONS: { value: ExpenseTypeFilter; label: str
 ];
 
 /** "all" | 사용자 id. 옵션 목록(누구를 "나"/표시명으로 부를지)은 호출부가 로그인 사용자 기준으로 만들어 넘긴다. */
-export type UserFilter = string;
 
 interface Props {
   topFilter: TopFilter;

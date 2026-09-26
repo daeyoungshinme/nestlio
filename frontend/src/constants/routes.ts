@@ -7,15 +7,10 @@ export const ROUTES = {
   transactionImport: "/transactions/import",
   /** 부부 일정 — 독립 페이지였다가 가계부의 "일정" 보기로 병합됐다. 구 `/schedule` 경로는 리다이렉트만 남는다. */
   schedule: "/transactions?view=일정",
-  legacySchedule: "/schedule",
   categories: "/categories",
   accounts: "/accounts",
-  /** 구 연간리포트 페이지 — 계획 › 연간 › 실적 분석으로 흡수돼 리다이렉트만 남는다. */
-  legacyReportsYearly: "/reports/yearly",
   plan: "/plan",
   goals: "/goals",
-  /** 구 "계획·목표" 통합 페이지. 이제 `/plan`·`/goals`로 나뉘었고 구 딥링크 호환용 리다이렉트만 남는다. */
-  legacyFinancialPlan: "/financial-plan",
   settings: "/settings",
   login: "/login",
   inviteAccept: "/invite/accept",
@@ -39,6 +34,11 @@ export const PLAN_ANALYSIS_SECTION = "분석";
 
 export function planAnalysisLink(): string {
   return `${planViewLink("연간")}&section=${PLAN_ANALYSIS_SECTION}`;
+}
+
+/** 가계부의 반복 내역 관리 시트를 바로 여는 딥링크 — useRecurringDeepLink가 `recurring=manage`를 소비한다. */
+export function recurringManageLink(): string {
+  return `${ROUTES.transactions}?recurring=manage`;
 }
 
 export function goalDetailLink(goalId: number): string {

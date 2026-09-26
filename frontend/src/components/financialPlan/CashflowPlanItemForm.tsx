@@ -7,6 +7,7 @@ import FormInput from "@/components/common/FormInput";
 import OwnerSelect from "@/components/common/OwnerSelect";
 import { amountInputPreview, formatKrw, toAmountInputValue } from "@/utils/format";
 import type { CashflowSection, CategoryOut, UserOut } from "@/types";
+import { recurringManageLink } from "@/constants/routes";
 
 export interface CashflowPlanItemFormValues {
   name: string;
@@ -61,7 +62,7 @@ export default function CashflowPlanItemForm({
       {isRecurringLinked && (
         <p className="text-xs text-amber-600 dark:text-amber-400">
           반복 거래에 연동된 항목이라 금액/카테고리는 반복 거래 규칙을 그대로 따라가요.{" "}
-          <Link to="/transactions?recurring=manage" className="underline font-medium">
+          <Link to={recurringManageLink()} className="underline font-medium">
             반복 거래 규칙 수정하기
           </Link>
         </p>

@@ -306,7 +306,7 @@ export function formPreviewTextClass(): string {
   return "text-blue-600 dark:text-blue-400";
 }
 
-/** 금액 증감 등 방향성 값의 텍스트 색상 (SummaryCard/InlineStatsBar 공용).
+/** 금액 증감 등 방향성 값의 텍스트 색상 (InlineStatsBar 등).
  * positive는 앱 accent(primary)와 같은 emerald 계열이지만 의미가 "긍정적 방향"이라 별도 함수. */
 const AMOUNT_TONE_TEXT: Record<"default" | "positive" | "negative", string> = {
   default: "text-gray-900 dark:text-gray-50",

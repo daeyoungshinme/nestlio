@@ -473,19 +473,6 @@ def test_add_reaction_unknown_notification_raises(seeded_db):
         notification_inbox_service.add_reaction(db, user.id, 999999, "🎉")
 
 
-@patch("app.services.notification_service.gmail_service.send_email")
-def test_remove_reaction(mock_send, seeded_db):
-    db, user = seeded_db["db"], seeded_db["user"]
-    notification_service.send_weekly_summary(db, today=date(2026, 7, 29))
-    [log] = notification_inbox_service.list_notifications(db, user.id)
-    notification_inbox_service.add_reaction(db, user.id, log["id"], "🎉")
-
-    notification_inbox_service.remove_reaction(db, user.id, log["id"])
-
-    [log_after] = notification_inbox_service.list_notifications(db, user.id)
-    assert log_after["reactions"] == []
-
-
 def test_check_and_alert_budget_threshold_rolls_back_and_reraises_on_failure(seeded_db):
     """라우터는 이 예외를 로그만 남기고 같은 세션으로 응답을 만들므로, 서비스가 먼저 롤백해야 한다."""
     db, food = seeded_db["db"], seeded_db["food"]

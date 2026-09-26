@@ -2,10 +2,11 @@ from datetime import date
 from decimal import Decimal
 from unittest.mock import patch
 
+from app.models.transaction import Transaction
 from app.services import transaction_service
 
 
-def test_create_and_get_transaction(client, seeded_db):
+def test_create_transaction(client, seeded_db):
     food = seeded_db["food"]
     resp = client.post(
         "/api/v1/transactions",
@@ -18,17 +19,8 @@ def test_create_and_get_transaction(client, seeded_db):
         },
     )
     assert resp.status_code == 201
-    tx_id = resp.json()["id"]
     assert resp.json()["category"]["name"] == "식비"
-
-    get_resp = client.get(f"/api/v1/transactions/{tx_id}")
-    assert get_resp.status_code == 200
-    assert get_resp.json()["description"] == "점심"
-
-
-def test_get_unknown_transaction_returns_404(client):
-    resp = client.get("/api/v1/transactions/999999")
-    assert resp.status_code == 404
+    assert resp.json()["description"] == "점심"
 
 
 def test_create_transaction_sets_warning_header_when_growlio_push_fails(client, seeded_db):
@@ -110,7 +102,7 @@ def test_delete_transaction(client, seeded_db):
 
     resp = client.delete(f"/api/v1/transactions/{tx.id}")
     assert resp.status_code == 204
-    assert client.get(f"/api/v1/transactions/{tx.id}").status_code == 404
+    assert db.get(Transaction, tx.id) is None
 
 
 def test_list_transactions_filters_by_date_range(client, seeded_db):
@@ -137,8 +129,8 @@ def test_bulk_delete_transactions(client, seeded_db):
     body = resp.json()
     assert body["deleted"] == 2
     assert body["failed"] == [999999]
-    assert client.get(f"/api/v1/transactions/{tx1.id}").status_code == 404
-    assert client.get(f"/api/v1/transactions/{tx2.id}").status_code == 404
+    assert db.get(Transaction, tx1.id) is None
+    assert db.get(Transaction, tx2.id) is None
 
 
 def test_list_transactions_filters_by_search_query(client, seeded_db):
@@ -288,3 +280,8 @@ def test_export_csv(client, seeded_db):
     assert resp.status_code == 200
     assert resp.headers["content-type"].startswith("text/csv")
     assert "커피" in resp.content.decode("utf-8-sig")
+
+
+def test_unknown_api_path_is_404_not_spa_fallback(client):
+    # 삭제된 GET /transactions/{id} 같은 없는 API 경로가 (dist가 있을 때) SPA index.html 200으로 새지 않는다.
+    assert client.get("/api/v1/transactions/123").status_code in (404, 405)
