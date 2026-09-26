@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 
 from app.models.financial_goal import FinancialGoal
 from app.models.transaction import Transaction
-from app.services import account_service
+from app.services import account_service, savings_product_plan_service
 from app.utils.dates import month_bounds, months_between, parse_year_month, shift_month, year_month_str
 
 
@@ -178,8 +178,21 @@ def compute_ahead_behind_months(eta_year_month: str | None, target_date: date | 
     return months_between(parse_year_month(eta_year_month), month_bounds(target_date)[0])
 
 
+def planned_monthly_for_goal(goal: FinancialGoal, planned_by_product: dict[int, Decimal]) -> Decimal:
+    """목표의 실제 월 계획액. 저축·투자 상품이 연동된 목표는 그 상품들의 이번 달 계획액 합(계획 원본은
+    SavingsProduct 월 계획 — savings_product_plan_service.planned_by_product_for_month)이고, 상품 연동이 없는
+    목표만 목표에 직접 입력한 monthly_saving_amount를 쓴다."""
+    product_ids = [fs.savings_product_id for fs in goal.funding_sources if fs.savings_product_id is not None]
+    if not product_ids:
+        return goal.monthly_saving_amount
+    return sum((planned_by_product.get(pid, Decimal("0")) for pid in product_ids), Decimal("0"))
+
+
 def to_out(db: Session, goal: FinancialGoal, today: date) -> dict:
     breakdown = funding_source_breakdown(db, goal)
+    planned_monthly = planned_monthly_for_goal(
+        goal, savings_product_plan_service.planned_by_product_for_month(db, year_month_str(today))
+    )
     current_amount = current_amount_from_breakdown(goal, breakdown)
     months_remaining = compute_months_remaining(today, goal.target_date)
     is_linked_goal = goal.kind == "goal" and bool(goal.funding_sources)
@@ -188,9 +201,7 @@ def to_out(db: Session, goal: FinancialGoal, today: date) -> dict:
         if is_linked_goal
         else {}
     )
-    eta_year_month = compute_eta_year_month(
-        today, current_amount, goal.required_amount, goal.monthly_saving_amount
-    )
+    eta_year_month = compute_eta_year_month(today, current_amount, goal.required_amount, planned_monthly)
     return {
         "id": goal.id,
         "kind": goal.kind,
@@ -201,6 +212,7 @@ def to_out(db: Session, goal: FinancialGoal, today: date) -> dict:
         "target_date": goal.target_date,
         "required_amount": goal.required_amount,
         "monthly_saving_amount": goal.monthly_saving_amount,
+        "planned_monthly_amount": planned_monthly,
         "current_amount": current_amount,
         "progress_pct": compute_progress_pct(current_amount, goal.required_amount),
         "sort_order": goal.sort_order,

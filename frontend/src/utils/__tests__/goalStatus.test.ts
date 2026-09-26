@@ -13,6 +13,7 @@ function makeGoal(overrides: Partial<FinancialGoalOut>): FinancialGoalOut {
     target_date: null,
     required_amount: "1000000",
     monthly_saving_amount: "100000",
+    planned_monthly_amount: "100000",
     current_amount: "0",
     progress_pct: "0",
     sort_order: 0,
@@ -72,6 +73,7 @@ describe("computeGoalStatus", () => {
           target_date: isoDaysFromNow(90),
           suggested_monthly_amount: "100000",
           monthly_saving_amount: "100000",
+          planned_monthly_amount: "100000",
         }),
       ),
     ).toBe("on_track");
@@ -85,6 +87,7 @@ describe("computeGoalStatus", () => {
           target_date: isoDaysFromNow(90),
           suggested_monthly_amount: "100000",
           monthly_saving_amount: "50000",
+          planned_monthly_amount: "50000",
         }),
       ),
     ).toBe("behind");
@@ -98,6 +101,7 @@ describe("computeGoalStatus", () => {
           target_date: isoDaysFromNow(90),
           suggested_monthly_amount: "100000",
           monthly_saving_amount: "95000",
+          planned_monthly_amount: "95000",
         }),
       ),
     ).toBe("on_track");
