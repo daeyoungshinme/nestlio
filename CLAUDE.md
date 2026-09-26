@@ -5,7 +5,7 @@
 ## 기술 스택
 
 - **백엔드**: FastAPI (JSON API, `/api/v1` 프리픽스) — 서버사이드 템플릿 렌더링 없음
-- **프론트엔드**: React + TypeScript + Vite + Tailwind CSS (`frontend/`) — growlio의 디자인 시스템/컴포넌트 컨벤션을 따른다. 반응형 웹만 지원 (Capacitor/PWA 오프라인 캐싱 없음)
+- **프론트엔드**: React + TypeScript + Vite + Tailwind CSS (`frontend/`) — growlio의 디자인 시스템/컴포넌트 컨벤션을 따른다. 반응형 웹만 지원 (Capacitor/PWA 서비스워커 오프라인 캐싱 없음 — 재방문 즉시 표시용 React Query localStorage 캐시만 있다, [frontend/CLAUDE.md](frontend/CLAUDE.md))
 - **DB/ORM**: SQLAlchemy 2.0 (`Mapped`/`mapped_column` 스타일, 동기 세션), Alembic 마이그레이션 (`migrations/`)
 - **설정**: pydantic-settings (`app/config.py`)
 - **인증**: growlio와 동일 — 프론트엔드가 `@supabase/supabase-js`로 직접 로그인해 Supabase JWT를 발급받고, 백엔드는 `app/dependencies.py`에서 JWKS(`PyJWKClient`)로 서명만 검증한다. 백엔드에는 로그인 엔드포인트가 없다 (세션 쿠키 없음, `Authorization: Bearer <token>` 헤더만 사용)

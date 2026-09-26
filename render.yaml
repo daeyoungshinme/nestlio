@@ -56,3 +56,6 @@ services:
         sync: false
       - key: VITE_SUPABASE_ANON_KEY
         sync: false
+      # growlio 프론트엔드 오리진 — 목표/자산 화면의 growlio 딥링크 버튼용. 비어 있으면 버튼이 숨겨진다.
+      - key: VITE_GROWLIO_APP_URL
+        sync: false
