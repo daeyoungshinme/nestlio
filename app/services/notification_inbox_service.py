@@ -178,7 +178,9 @@ def send_goal_cheer(
         notif_type="goal_cheer",
         related_type="goal",
         related_id=goal_id,
-        year_month=now.isoformat(),
+        # 응원은 dedupe 대상이 아니라 키가 필요 없지만 인박스가 year_month를 그대로 내려주므로 채워 둔다 —
+        # 컬럼이 String(20)이라 마이크로초까지 붙은 isoformat()(26자)은 Postgres에서 거부된다.
+        year_month=now.isoformat(timespec="seconds"),
         status="sent",
         detail=detail[:500],
     )

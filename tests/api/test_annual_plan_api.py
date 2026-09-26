@@ -33,6 +33,26 @@ def test_create_and_list_items(client):
     assert "income" in body["summary"]  # today 기준 elapsed_months 계산의 상세 검증은 서비스 레벨 테스트가 담당
 
 
+def test_upsert_unknown_id_is_404_not_a_silent_create(client):
+    resp = client.put(
+        "/api/v1/annual-plan/items",
+        json={
+            "id": 999,
+            "year": 2026,
+            "section": "fixed",
+            "owner_user_id": None,
+            "name": "관리비",
+            "category_id": None,
+            "sort_order": 0,
+            "start_month": "2026-01",
+            "end_month": "2026-12",
+            "monthly_targets": [],
+        },
+    )
+    assert resp.status_code == 404
+    assert client.get("/api/v1/annual-plan", params={"year": 2026}).json()["items"] == []
+
+
 def test_create_item_with_partial_period(client):
     resp = client.put(
         "/api/v1/annual-plan/items",

@@ -145,6 +145,7 @@ def split_item_into_months(
         sort_order=sort_order,
         installment_total=months,
         installment_total_amount=total_amount,
+        installment_start_month=month_strs[0],
         updated_by=updated_by,
         monthly_targets=[
             AnnualPlanItemMonthlyTarget(

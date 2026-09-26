@@ -2,7 +2,7 @@ import uuid
 from decimal import Decimal
 from typing import Annotated, Literal
 
-from pydantic import BaseModel, BeforeValidator
+from pydantic import BaseModel, BeforeValidator, StringConstraints
 
 
 def _blank_to_zero(v: object) -> object:
@@ -15,6 +15,11 @@ def _blank_to_zero(v: object) -> object:
 # Decimal은 빈 문자열을 파싱할 수 없어 422가 나므로, 입력 폼의 금액 필드(*In 스키마)는 이 타입으로
 # target_amount 등을 선언해 빈 문자열을 0으로 취급한다.
 KrwAmount = Annotated[Decimal, BeforeValidator(_blank_to_zero)]
+
+# 'YYYY-MM' 입력 — 월 문자열은 String(7) 컬럼에 그대로 저장되고 문자열 min/max·동등 비교로 기간을 판정하므로
+# "2026-9" 같은 값이 들어오면 조용히 어긋나고, 형식이 아예 틀리면 parse_year_month에서 500이 난다.
+# 입력 스키마(*In)와 쿼리 파라미터에만 쓰고, 출력 스키마는 서버가 만든 값이라 str 그대로 둔다.
+YearMonth = Annotated[str, StringConstraints(pattern=r"^\d{4}-(0[1-9]|1[0-2])$")]
 
 
 class TotalsOut(BaseModel):

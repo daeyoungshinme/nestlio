@@ -37,9 +37,12 @@ class AnnualPlanItem(Base):
     category_id: Mapped[int | None] = mapped_column(ForeignKey("categories.id"), nullable=True)
     sort_order: Mapped[int] = mapped_column(Integer, default=0)
     # 할부 등록(cashflow_plan_service.split_item_into_months)으로 만든 항목만 채워진다 — 표시용("3/10").
-    # 회차는 저장하지 않고 start_month로부터의 경과 개월로 계산한다(installment_no_for).
+    # 회차는 저장하지 않고 installment_start_month(1회차 달)로부터의 경과 개월로 계산한다(installment_no_for).
+    # start_month는 달을 지우거나 앞 달에 금액을 넣을 때 움직이므로 회차 기준으로 쓰면 남은 회차가 전부
+    # 재번호된다 — 1회차 달은 등록 시 한 번 정하고 바꾸지 않는다.
     installment_total: Mapped[int | None] = mapped_column(Integer, nullable=True)
     installment_total_amount: Mapped[Decimal | None] = mapped_column(Numeric(12, 2), nullable=True)
+    installment_start_month: Mapped[str | None] = mapped_column(String(7), nullable=True)
     recurring_expense_id: Mapped[int | None] = mapped_column(
         ForeignKey(
             "recurring_expenses.id",
@@ -76,6 +79,7 @@ class AnnualPlanItem(Base):
     def installment_no_for(self, year_month: str) -> int | None:
         if self.installment_total is None:
             return None
-        start_y, start_m = int(self.start_month[:4]), int(self.start_month[5:7])
+        first = self.installment_start_month or self.start_month
+        start_y, start_m = int(first[:4]), int(first[5:7])
         y, m = int(year_month[:4]), int(year_month[5:7])
         return (y - start_y) * 12 + (m - start_m) + 1

@@ -53,9 +53,27 @@ def test_safety_net_rolls_back_failed_step_and_runs_the_rest(seeded_db, monkeypa
     monkeypatch.setattr(jobs.notification_service, "check_all_categories_threshold", poison_session)
     monkeypatch.setattr(jobs.goal_service, "sync_challenge_statuses", later_step)
     monkeypatch.setattr(jobs.notification_service, "check_all_goal_milestones", later_step)
+    # 4번째 단계도 막아 둔다 — 안 막으면 실제 today_kst()로 돌아 말일 3일간만 결과가 달라진다.
+    monkeypatch.setattr(jobs.notification_service, "check_savings_pace_reminder", later_step)
 
     with pytest.raises(RuntimeError, match="예산 초과 체크") as exc_info:
         jobs.daily_threshold_safety_net()
 
-    assert ran == ["later", "later"]
+    assert ran == ["later", "later", "later"]
     assert "목표 달성 체크" not in str(exc_info.value)
+
+
+def test_safety_net_runs_savings_pace_reminder_with_kst_today(seeded_db, monkeypatch):
+    seen: list[date] = []
+    noop = lambda db, **_kwargs: []  # noqa: E731
+    monkeypatch.setattr(jobs.notification_service, "check_all_categories_threshold", noop)
+    monkeypatch.setattr(jobs.goal_service, "sync_challenge_statuses", noop)
+    monkeypatch.setattr(jobs.notification_service, "check_all_goal_milestones", noop)
+    monkeypatch.setattr(
+        jobs.notification_service, "check_savings_pace_reminder", lambda db, today: seen.append(today)
+    )
+    monkeypatch.setattr(jobs, "today_kst", lambda: date(2026, 9, 28))
+
+    jobs.daily_threshold_safety_net()
+
+    assert seen == [date(2026, 9, 28)]

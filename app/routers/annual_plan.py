@@ -35,7 +35,7 @@ def upsert_plan_item(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    annual_plan_service.upsert_item(
+    item = annual_plan_service.upsert_item(
         db,
         payload.id,
         payload.year,
@@ -49,6 +49,8 @@ def upsert_plan_item(
         payload.end_month,
         monthly_targets=[mt.model_dump() for mt in payload.monthly_targets],
     )
+    if item is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "연간계획 항목을 찾을 수 없습니다.")
     return _plan_list(db, payload.year, today_kst())
 
 
