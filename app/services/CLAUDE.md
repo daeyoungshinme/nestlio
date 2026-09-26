@@ -105,7 +105,7 @@
 
 ## 연간계획류 공용 헬퍼 (plan_targets.py)
 
-`AnnualPlanItem`/`SavingsProductAnnualPlan`/`FinancialGoal` 도메인 모두 "부모 엔티티 + 월별 target 테이블" 구조를 갖고 있어, `annual_plan_service`/`savings_product_service`/`goal_service`/`cashflow_plan_service`가 `app/services/plan_targets.py`의 아래 헬퍼를 공유한다 — growlio 연동 공용 헬퍼(`growlio_client.py`)와 같은 원칙으로, 도메인별 upsert/CRUD 골격 자체는 억지로 통합하지 않고 정말 동일한 조각만 뽑았다. (편집 가능한 가구 공동 "연간 순저축 목표" `AnnualSavingsGoal`은 제거됐다 — "얼마 저축할지" 모델 중복을 줄이면서 연간계획 `AnnualPlanItem`의 "저축 가능액(계획 수입 − 계획 지출)"과 `SavingsProductAnnualPlan`로 일원화. growlio가 읽던 `/external/annual-savings-goals`도 소비자가 없어 라우터째 삭제.)
+`AnnualPlanItem`/`SavingsProductAnnualPlan`/`FinancialGoal` 도메인 모두 "부모 엔티티 + 월별 target 테이블" 구조를 갖고 있어, `annual_plan_service`/`savings_product_service`/`goal_service`/`cashflow_plan_service`/`budget_service`가 `app/services/plan_targets.py`의 아래 헬퍼를 공유한다 — growlio 연동 공용 헬퍼(`growlio_client.py`)와 같은 원칙으로, 도메인별 upsert/CRUD 골격 자체는 억지로 통합하지 않고 정말 동일한 조각만 뽑았다. (편집 가능한 가구 공동 "연간 순저축 목표" `AnnualSavingsGoal`은 제거됐다 — "얼마 저축할지" 모델 중복을 줄이면서 연간계획 `AnnualPlanItem`의 "저축 가능액(계획 수입 − 계획 지출)"과 `SavingsProductAnnualPlan`로 일원화. growlio가 읽던 `/external/annual-savings-goals`도 소비자가 없어 라우터째 삭제.)
 
 - `apply_monthly_targets(parent, monthly_targets, target_cls)`: year_month로 기존 월별 target 행을 매칭해 갱신/생성하고 빠진 월은 delete-orphan으로 삭제한다. `GoalMonthlyTarget.achieved_amount`처럼 target_amount 외의 컬럼이 있어도 기존 행은 그대로 재사용하므로 건드리지 않는다.
 - `elapsed_months(year, today)`: 그 해의 몇 월까지 실적을 집계할 수 있는지.
@@ -113,12 +113,12 @@
 
 새 "부모 + 월별 target" 도메인을 추가할 때도 이 4개를 먼저 재사용할 수 있는지 확인한다.
 
-## 연간계획 → 이번 달 계획 폴백 (annual_plan_service ↔ cashflow_plan_service)
+## 계획 원본은 연간계획 하나 (annual_plan_service ↔ cashflow_plan_service)
 
-`cashflow_plan_service.list_items_with_annual_fallback(db, year_month)`는 실제 `CashflowPlanItem` 목록에 더해, 연간계획(`AnnualPlanItem`)에는 그 달 금액이 있지만 아직 `CashflowPlanItem`으로 저장된 적은 없는 항목을 조회 시점에만 가상으로 만들어 끼워 넣는다 — 사용자가 연간계획에서 월별 금액을 미리 채워두면 매달 "이번 달 계획"에 직접 항목을 복사해 넣지 않아도 되게 하기 위함이다. 라우터는 `list_items` 대신 이 함수를 쓴다.
+현금흐름 계획(수입/고정/변동/비정기)의 원본은 `AnnualPlanItem` + `AnnualPlanItemMonthlyTarget` 하나뿐이다. 구 월간 테이블 `CashflowPlanItem`은 2026-09 마이그레이션 `0db19c3552b1`로 연간계획에 흡수·삭제됐다 — 조회 시점 폴백으로만 이어져 있어 한 번 저장한 달이 연간계획과 끊기고, `budget_service`가 월간 행만 읽어 연간계획에만 있는 카테고리 예산이 예산 경고·코칭에서 0으로 빠지는 문제가 있었다.
 
-- 가상 항목은 `_AnnualPlanFallbackItem` dataclass로 만든다 — `CashflowPlanItem`과 같은 속성 이름(`section`/`amount`/`category_id`/... )을 가져 `compute_summary`/`CashflowPlanItemOut` 양쪽에서 실제 항목과 구분 없이 duck typing으로 다뤄진다. 저장된 적이 없으므로 `id=None`, `from_annual_plan=True`로만 구분한다.
-- 매칭은 `_annual_fallback_key()`(`(section, category_id, name)` — 카테고리와 이름이 모두 같아야 매칭)로 한다 — `AnnualPlanItem`도 같은 속성을 가지므로 이 함수를 그대로 재사용할 수 있다. `copy_from_previous_month`가 쓰는 `_item_key()`(카테고리 태깅 항목은 `(section, category_id)`만으로 "카테고리당 한 줄" 개념으로 매칭)와는 의도적으로 다르다 — `_item_key()`를 여기서도 그대로 썼더니 같은 카테고리를 쓰는 다른 이름의 연간계획 항목까지 전부 가려지는 버그가 있었다. 이미 실제 항목이 있는 조합은 건드리지 않으므로, 사용자가 한 번 저장하면 그 순간부터 실제 항목이 되어 이후 연간계획을 바꿔도 그 달 값은 그대로 유지된다.
-- 라우터/스키마 쪽에서 `id`가 `None`일 수 있다는 점을 항상 감안한다 — 반복거래 연결·삭제처럼 실제 행이 있어야만 가능한 동작은 `item.id is not None`으로 먼저 가드한다(`CashflowPlanItemRow.tsx`의 `canLinkRecurring`/삭제 버튼 참고).
-
-같은 패턴(월별 목표를 상위 계획에서 상세 화면으로 자동 폴백)이 필요해지면 `_item_key`/`_AnnualPlanFallbackItem`을 그대로 본떠 만들되, 실제로 상위/하위 계획이 같은 식별 키를 공유하는 경우에만 이 duck-typing 재사용이 성립한다는 점을 확인한다.
+- `cashflow_plan_service`는 연간계획을 **한 달 단면으로 읽고 쓰는** 얇은 서비스다. `list_items(db, ym)`은 그 달 target이 있는 연간 항목을 `MonthPlanItem`(id = `AnnualPlanItem.id`)으로 돌려준다. `upsert_item`은 항목 정보(이름·섹션·카테고리·소유자)는 모든 달 공통으로, 금액은 **그 달 target만** 바꾼다(`annual_plan_service.set_month_target` — 적용 기간 밖의 달이면 start/end_month를 넓힌다). id 없이 저장하면 그 달에만 금액이 있는 새 항목이 된다. `delete_month`는 그 달 target만 지우고 마지막 달이면 항목째 삭제한다.
+- 할부(`split_item_into_months`)는 남은 달에 target을 나눠 가진 항목 **하나**다(`installment_total`/`installment_total_amount`, 회차는 `installment_no_for(ym)`으로 계산). 한 해를 넘기면 `ValueError` — 라우터가 그 해 남은 달 수만 넘긴다.
+- 반복거래 연동(`recurring_expense_id`)은 항목 단위다. 연동되면 target이 있는 모든 달의 금액·카테고리가 반복거래 값으로 read-through된다(`AnnualPlanItem.amount_for`/`effective_category*`). **SQL 집계는 이 파이썬 프로퍼티를 거치지 않으므로** `plan_targets.EFFECTIVE_TARGET_AMOUNT`/`EFFECTIVE_CATEGORY_ID` 식과 `plan_targets.join_recurring(query)`를 반드시 함께 쓴다(`budget_service.get_budgets_for_month`, `annual_plan_service._section_monthly_targets`/`category_budgets_for_year`).
+- `copy_from_previous_month`의 중복 판정은 `_budget_line_key`(카테고리 태깅 항목은 `(section, category_id)` "카테고리당 한 줄", 자유 텍스트는 `(section, name)`)다. 1월로 복사할 때(전월이 작년)는 올해의 같은 항목(`_item_key` = `(section, category_id, name)`)을 찾아 쓰거나 새로 만든다.
+- 저축·투자는 이 모델에 포함하지 않는다 — `SavingsProduct` + `SavingsProductAnnualPlan`(`savings_product_plan_service`)이 원본이다.

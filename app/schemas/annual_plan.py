@@ -34,6 +34,10 @@ class AnnualPlanItemOut(BaseModel):
     updated_at: datetime
     start_month: str
     end_month: str
+    installment_total: int | None = None
+    installment_total_amount: Decimal | None = None
+    recurring_expense_id: int | None = None
+    recurring_active: bool | None = None
     annual_target: Decimal
     monthly_targets: list[AnnualPlanItemMonthlyTargetOut]
 

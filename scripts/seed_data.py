@@ -13,7 +13,8 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from app.database import SessionLocal
-from app.models.cashflow_plan_item import CashflowPlanItem
+from app.models.annual_plan_item import AnnualPlanItem
+from app.models.annual_plan_item_monthly_target import AnnualPlanItemMonthlyTarget
 from app.models.category import Category
 from app.models.savings_product import SavingsProduct
 from app.utils.dates import today_kst, year_month_str
@@ -100,11 +101,13 @@ def seed_categories(db):
 
 
 def seed_cashflow_plan_items(db, year_month: str):
+    """이번 달에 0원짜리 기본 계획 항목을 만든다 — 계획 원본은 연간계획 항목(그 달 target 하나)이다."""
+    year = int(year_month[:4])
     for order, (section, name, category_name) in enumerate(DEFAULT_CASHFLOW_PLAN_ITEMS):
-        existing = db.query(CashflowPlanItem).filter(
-            CashflowPlanItem.section == section,
-            CashflowPlanItem.name == name,
-            CashflowPlanItem.year_month == year_month,
+        existing = db.query(AnnualPlanItem).filter(
+            AnnualPlanItem.year == year,
+            AnnualPlanItem.section == section,
+            AnnualPlanItem.name == name,
         ).first()
         if existing:
             continue
@@ -112,15 +115,17 @@ def seed_cashflow_plan_items(db, year_month: str):
         if category_name:
             category = db.query(Category).filter(Category.name == category_name).first()
             category_id = category.id if category else None
-        db.add(CashflowPlanItem(
+        db.add(AnnualPlanItem(
+            year=year,
             section=section,
             name=name,
-            own_amount=0,
-            own_category_id=category_id,
+            category_id=category_id,
             sort_order=order,
-            year_month=year_month,
+            start_month=year_month,
+            end_month=year_month,
+            monthly_targets=[AnnualPlanItemMonthlyTarget(year_month=year_month, target_amount=0)],
         ))
-        print(f"created cashflow plan item: [{section}] {name}")
+        print(f"created plan item: [{section}] {name}")
     db.commit()
 
 

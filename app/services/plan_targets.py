@@ -5,8 +5,31 @@ upsert/CRUD 골격 자체는 도메인마다 따로 두지만, 아래 조각들�
 억지로 통합하지 않는다" 원칙을 따른다)."""
 from datetime import date
 
+from sqlalchemy import case
+from sqlalchemy.orm import Query
+
 from app.config import settings
+from app.models.annual_plan_item import AnnualPlanItem
+from app.models.annual_plan_item_monthly_target import AnnualPlanItemMonthlyTarget
+from app.models.recurring_expense import RecurringExpense
 from app.utils.plan_status import PlanStatus, status_from_pct
+
+# 계획 항목(AnnualPlanItem)을 SQL로 집계할 때 반복거래 연동을 반영한 금액/카테고리 식.
+# SQL 집계는 AnnualPlanItem.amount_for/effective_category_id 파이썬 read-through를 거치지 않으므로
+# 연동된 RecurringExpense 값을 CASE로 직접 끌어온다 — 쓰는 쿼리는 반드시 join_recurring()을 거친다.
+# 이 둘을 빼먹으면 반복거래 금액을 바꿔도 예산 상한/섹션 합계가 갱신되지 않는 드리프트가 생긴다.
+EFFECTIVE_TARGET_AMOUNT = case(
+    (AnnualPlanItem.recurring_expense_id.isnot(None), RecurringExpense.amount),
+    else_=AnnualPlanItemMonthlyTarget.target_amount,
+)
+EFFECTIVE_CATEGORY_ID = case(
+    (AnnualPlanItem.recurring_expense_id.isnot(None), RecurringExpense.category_id),
+    else_=AnnualPlanItem.category_id,
+)
+
+
+def join_recurring(query: Query) -> Query:
+    return query.outerjoin(RecurringExpense, AnnualPlanItem.recurring_expense_id == RecurringExpense.id)
 
 
 def apply_monthly_targets(parent, monthly_targets: list[dict] | None, target_cls: type) -> None:

@@ -32,8 +32,7 @@ export default function CashflowPlanItemRow({
 }: Props) {
   const ownerLabel = resolveOwnerLabel(item.owner_user_id, users);
 
-  const canLinkRecurring =
-    item.id !== null && (sectionKey === "income" || sectionKey === "fixed") && item.recurring_expense_id === null;
+  const canLinkRecurring = (sectionKey === "income" || sectionKey === "fixed") && item.recurring_expense_id === null;
 
   const menuItems: AccountActionsMenuItem[] = [];
   if (canLinkRecurring) {
@@ -44,9 +43,7 @@ export default function CashflowPlanItemRow({
   const mobileMenuItems: AccountActionsMenuItem[] = [
     ...menuItems,
     { icon: <Pencil size={16} />, label: "수정", onClick: onEdit },
-    ...(item.id !== null
-      ? [{ icon: <Trash2 size={16} />, label: "삭제", onClick: onDelete, variant: "danger" as const }]
-      : []),
+    { icon: <Trash2 size={16} />, label: "이번 달에서 삭제", onClick: onDelete, variant: "danger" as const },
   ];
 
   return (
@@ -84,8 +81,10 @@ export default function CashflowPlanItemRow({
       </div>
       <div className="flex items-center gap-1 shrink-0">
         <span className="text-sm font-semibold text-gray-700 dark:text-gray-300">{formatKrw(item.amount)}</span>
-        {item.from_annual_plan && (
-          <span className="px-1.5 py-0.5 rounded text-[10px] font-medium whitespace-nowrap bg-primary-50 text-primary-600 dark:bg-primary-950 dark:text-primary-300">
+        {item.spans_multiple_months && (
+          <span
+            title="연간계획의 이번 달 금액이에요. 여기서 바꾸면 이번 달에만 적용돼요."
+            className="px-1.5 py-0.5 rounded text-[10px] font-medium whitespace-nowrap bg-primary-50 text-primary-600 dark:bg-primary-950 dark:text-primary-300">
             연간계획
           </span>
         )}
@@ -98,7 +97,7 @@ export default function CashflowPlanItemRow({
         )}
         <div className="hidden sm:flex items-center gap-1">
           <AccountActionsMenu items={menuItems} ariaLabel={`${item.name} 작업 더 보기`} />
-          <RowActionButtons onEdit={onEdit} onDelete={item.id !== null ? onDelete : undefined} />
+          <RowActionButtons onEdit={onEdit} onDelete={onDelete} />
         </div>
         <div className="sm:hidden">
           <AccountActionsMenu items={mobileMenuItems} ariaLabel={`${item.name} 작업 더 보기`} />

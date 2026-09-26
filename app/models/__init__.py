@@ -1,7 +1,6 @@
 from app.models.account import Account
 from app.models.annual_plan_item import AnnualPlanItem
 from app.models.annual_plan_item_monthly_target import AnnualPlanItemMonthlyTarget
-from app.models.cashflow_plan_item import CashflowPlanItem
 from app.models.category import Category
 from app.models.event import Event
 from app.models.financial_goal import FinancialGoal
@@ -26,7 +25,6 @@ __all__ = [
     "Account",
     "AnnualPlanItem",
     "AnnualPlanItemMonthlyTarget",
-    "CashflowPlanItem",
     "Category",
     "Event",
     "FinancialGoal",

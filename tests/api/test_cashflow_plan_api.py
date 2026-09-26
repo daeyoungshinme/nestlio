@@ -177,7 +177,7 @@ def test_link_recurring_endpoint_success(client, seeded_db):
     recurring_id = recurring_resp.json()["id"]
 
     link_resp = client.post(
-        f"/api/v1/cashflow-plan/items/{item_id}/link-recurring", json={"recurring_expense_id": recurring_id}
+        f"/api/v1/cashflow-plan/items/{item_id}/link-recurring", json={"recurring_expense_id": recurring_id, "year_month": "2026-07"}
     )
 
     assert link_resp.status_code == 200
@@ -222,10 +222,10 @@ def test_link_recurring_endpoint_409_when_already_linked(client, seeded_db):
             "start_date": "2026-07-05",
         },
     ).json()
-    client.post(f"/api/v1/cashflow-plan/items/{item_id}/link-recurring", json={"recurring_expense_id": first["id"]})
+    client.post(f"/api/v1/cashflow-plan/items/{item_id}/link-recurring", json={"recurring_expense_id": first["id"], "year_month": "2026-07"})
 
     resp = client.post(
-        f"/api/v1/cashflow-plan/items/{item_id}/link-recurring", json={"recurring_expense_id": second["id"]}
+        f"/api/v1/cashflow-plan/items/{item_id}/link-recurring", json={"recurring_expense_id": second["id"], "year_month": "2026-07"}
     )
 
     assert resp.status_code == 409
@@ -233,7 +233,7 @@ def test_link_recurring_endpoint_409_when_already_linked(client, seeded_db):
 
 def test_link_recurring_endpoint_404_for_missing_item(client, seeded_db):
     resp = client.post(
-        "/api/v1/cashflow-plan/items/999999/link-recurring", json={"recurring_expense_id": 1}
+        "/api/v1/cashflow-plan/items/999999/link-recurring", json={"recurring_expense_id": 1, "year_month": "2026-07"}
     )
     assert resp.status_code == 404
 
@@ -254,13 +254,13 @@ def test_link_recurring_endpoint_404_for_missing_recurring_expense(client, seede
     item_id = plan_resp.json()["items"][0]["id"]
 
     resp = client.post(
-        f"/api/v1/cashflow-plan/items/{item_id}/link-recurring", json={"recurring_expense_id": 999999}
+        f"/api/v1/cashflow-plan/items/{item_id}/link-recurring", json={"recurring_expense_id": 999999, "year_month": "2026-07"}
     )
 
     assert resp.status_code == 404
 
 
-def test_annual_plan_monthly_target_auto_fills_month_with_no_plan_item(client, seeded_db):
+def test_annual_plan_item_is_the_month_plan_and_month_edit_writes_back(client, seeded_db):
     rent = seeded_db["rent"]
     annual_resp = client.put(
         "/api/v1/annual-plan/items",
@@ -274,7 +274,10 @@ def test_annual_plan_monthly_target_auto_fills_month_with_no_plan_item(client, s
             "sort_order": 0,
             "start_month": "2026-01",
             "end_month": "2026-12",
-            "monthly_targets": [{"year_month": "2026-07", "target_amount": "800000"}],
+            "monthly_targets": [
+                {"year_month": "2026-07", "target_amount": "800000"},
+                {"year_month": "2026-08", "target_amount": "800000"},
+            ],
         },
     )
     annual_item_id = annual_resp.json()["items"][0]["id"]
@@ -283,15 +286,15 @@ def test_annual_plan_monthly_target_auto_fills_month_with_no_plan_item(client, s
 
     assert resp.status_code == 200
     body = resp.json()
-    assert len(body["items"]) == 1
-    item = body["items"][0]
-    assert item["id"] is None
-    assert item["from_annual_plan"] is True
-    assert item["annual_plan_item_id"] == annual_item_id
+    [item] = body["items"]
+    assert item["id"] == annual_item_id
+    assert item["spans_multiple_months"] is True
     assert Decimal(item["amount"]) == Decimal("800000")
     assert Decimal(body["summary"]["fixed"]["planned"]) == Decimal("800000")
+    # 연간계획에만 있는 카테고리 예산도 이번 달 카테고리 예산에 잡힌다(구 폴백 모델에선 0으로 빠졌다)
+    [budget_row] = [r for r in body["category_budgets"] if r["category_id"] == rent.id]
+    assert Decimal(budget_row["budget"]) == Decimal("800000")
 
-    # Editing/saving the auto-filled item promotes it to a real, independently-owned plan item.
     save_resp = client.put(
         "/api/v1/cashflow-plan/items",
         json={
@@ -305,11 +308,29 @@ def test_annual_plan_monthly_target_auto_fills_month_with_no_plan_item(client, s
             "sort_order": item["sort_order"],
         },
     )
-    saved_item = save_resp.json()["items"][0]
-    assert saved_item["id"] is not None
-    assert saved_item["from_annual_plan"] is False
-    assert saved_item["annual_plan_item_id"] is None
+    [saved_item] = save_resp.json()["items"]
+    assert saved_item["id"] == annual_item_id
     assert Decimal(saved_item["amount"]) == Decimal("900000")
+
+    annual = client.get("/api/v1/annual-plan", params={"year": 2026}).json()
+    targets = {mt["year_month"]: Decimal(mt["target_amount"]) for mt in annual["items"][0]["monthly_targets"]}
+    assert targets == {"2026-07": Decimal("900000"), "2026-08": Decimal("800000")}
+
+
+def test_upsert_plan_item_404_for_missing_item(client, seeded_db):
+    resp = client.put(
+        "/api/v1/cashflow-plan/items",
+        json={
+            "id": 999999,
+            "section": "fixed",
+            "year_month": "2026-07",
+            "owner_user_id": None,
+            "name": "월세",
+            "amount": "1",
+            "sort_order": 0,
+        },
+    )
+    assert resp.status_code == 404
 
 
 def test_delete_plan_item(client, seeded_db):
@@ -327,8 +348,11 @@ def test_delete_plan_item(client, seeded_db):
     )
     item_id = put_resp.json()["items"][0]["id"]
 
-    del_resp = client.delete(f"/api/v1/cashflow-plan/items/{item_id}")
+    del_resp = client.delete(f"/api/v1/cashflow-plan/items/{item_id}", params={"year_month": "2026-07"})
     assert del_resp.status_code == 204
 
     list_resp = client.get("/api/v1/cashflow-plan", params={"year_month": "2026-07"})
     assert list_resp.json()["items"] == []
+
+    missing_resp = client.delete(f"/api/v1/cashflow-plan/items/{item_id}", params={"year_month": "2026-07"})
+    assert missing_resp.status_code == 404

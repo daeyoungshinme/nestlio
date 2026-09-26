@@ -1659,6 +1659,14 @@ export interface components {
             start_month: string;
             /** End Month */
             end_month: string;
+            /** Installment Total */
+            installment_total?: number | null;
+            /** Installment Total Amount */
+            installment_total_amount?: string | null;
+            /** Recurring Expense Id */
+            recurring_expense_id?: number | null;
+            /** Recurring Active */
+            recurring_active?: boolean | null;
             /** Annual Target */
             annual_target: string;
             /** Monthly Targets */
@@ -1789,7 +1797,7 @@ export interface components {
         /** CashflowPlanItemOut */
         CashflowPlanItemOut: {
             /** Id */
-            id: number | null;
+            id: number;
             /**
              * Section
              * @enum {string}
@@ -1822,12 +1830,10 @@ export interface components {
             /** Recurring Active */
             recurring_active?: boolean | null;
             /**
-             * From Annual Plan
+             * Spans Multiple Months
              * @default false
              */
-            from_annual_plan: boolean;
-            /** Annual Plan Item Id */
-            annual_plan_item_id?: number | null;
+            spans_multiple_months: boolean;
         };
         /** CashflowPlanItemSplitIn */
         CashflowPlanItemSplitIn: {
@@ -1876,13 +1882,13 @@ export interface components {
              * @default 0
              */
             sort_order: number;
-            /** Annual Plan Item Id */
-            annual_plan_item_id?: number | null;
         };
         /** CashflowPlanLinkRecurringIn */
         CashflowPlanLinkRecurringIn: {
             /** Recurring Expense Id */
             recurring_expense_id: number;
+            /** Year Month */
+            year_month: string;
         };
         /** CashflowPlanListOut */
         CashflowPlanListOut: {
@@ -5557,7 +5563,10 @@ export interface operations {
     };
     delete_plan_item_api_v1_cashflow_plan_items__item_id__delete: {
         parameters: {
-            query?: never;
+            query: {
+                /** @description 이 달의 금액만 지운다(다른 달 금액이 없으면 항목째 삭제) */
+                year_month: string;
+            };
             header?: {
                 authorization?: string | null;
             };

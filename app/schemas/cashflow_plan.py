@@ -12,7 +12,7 @@ CashflowSection = Literal["income", "fixed", "variable", "irregular"]
 class CashflowPlanItemOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
-    id: int | None
+    id: int  # AnnualPlanItem.id — 이번 달 계획은 연간계획의 한 달 단면이다
     section: CashflowSection
     year_month: str
     owner_user_id: uuid.UUID | None
@@ -27,14 +27,9 @@ class CashflowPlanItemOut(BaseModel):
     installment_total_amount: Decimal | None = None
     recurring_expense_id: int | None = None
     recurring_active: bool | None = None
-    # 연간계획 월별 금액이 이번 달 CashflowPlanItem이 없을 때 자동으로 채워 넣은(아직 저장 안 된) 항목이면 true.
-    # 저장하면(id가 생기면) 다시 조회해도 false로 바뀐다 — cashflow_plan_service.list_items_with_annual_fallback 참고.
-    from_annual_plan: bool = False
-    # 가상 폴백 항목(from_annual_plan=true)은 원본 AnnualPlanItem.id — 같은 카테고리에 연간계획 항목이 여러
-    # 개 있을 때 프론트엔드가 React key로 구분할 유일한 값이 이것뿐이다. 폴백을 수정/저장해 승격시키면 이 값이
-    # 실제 행의 annual_plan_item_id 컬럼에 저장되어(cashflow_plan_service.upsert_item) 승격 후에도 계속
-    # 채워진 채로 조회된다 — 연간계획 항목의 이름이 나중에 바뀌어도 이 값으로 원본과의 연결을 유지한다.
-    annual_plan_item_id: int | None = None
+    # 이 항목이 이번 달 말고도 다른 달에 금액을 갖는 연간계획 항목이면 true — 여기서 바꾸는 금액은
+    # 이번 달에만 적용된다(cashflow_plan_service.MonthPlanItem).
+    spans_multiple_months: bool = False
 
 
 class CashflowPlanItemUpsertIn(BaseModel):
@@ -46,10 +41,6 @@ class CashflowPlanItemUpsertIn(BaseModel):
     amount: KrwAmount
     category_id: int | None = None
     sort_order: int = 0
-    # 연간계획 폴백 항목(CashflowPlanItemOut.annual_plan_item_id)을 수정/저장해 승격시킬 때 프론트엔드가
-    # 그대로 실어 보낸다 — cashflow_plan_service.upsert_item이 실제 행에 이 값을 저장해 원본 AnnualPlanItem과의
-    # 연결을 유지한다.
-    annual_plan_item_id: int | None = None
 
 
 class CashflowPlanItemSplitIn(BaseModel):
@@ -117,3 +108,5 @@ class CashflowPlanCopyResultOut(BaseModel):
 
 class CashflowPlanLinkRecurringIn(BaseModel):
     recurring_expense_id: int
+    # 응답으로 돌려줄 이번 달 계획의 월 — 항목 자체는 여러 달에 걸칠 수 있어 요청자가 보던 달을 받는다.
+    year_month: str

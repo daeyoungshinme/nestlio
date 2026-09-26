@@ -93,7 +93,7 @@ export default function CashflowPlanSectionPanel({
 
   const renderItem = (item: CashflowPlanItemOut, showCategory: boolean) => (
     <CashflowPlanItemRow
-      key={item.id ?? `annual-${item.annual_plan_item_id}`}
+      key={item.id}
       item={item}
       sectionKey={sectionKey}
       users={users}

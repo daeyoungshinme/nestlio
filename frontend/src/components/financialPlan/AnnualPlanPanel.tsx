@@ -66,8 +66,7 @@ export default function AnnualPlanPanel() {
   const invalidate = () => {
     void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.annualPlan(year) });
     void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.dashboardAll });
-    // "이번 달 계획"은 서브뷰 전환만으로는 언마운트되지 않아 자동으로 다시 fetch되지 않으므로,
-    // 연간계획 저장 직후 폴백 항목이 즉시 반영되도록 월과 무관하게 전부 무효화한다.
+    // "이번 달 계획"은 연간계획의 한 달 단면이라 연간계획을 저장하면 모든 달 화면이 바뀐다 — 월과 무관하게 전부 무효화한다.
     void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.cashflowPlanAll });
   };
 
@@ -165,8 +164,8 @@ export default function AnnualPlanPanel() {
 
       <p className="text-xs text-gray-400 dark:text-gray-500">
         연간 계획 금액과 올해 지금까지의 실제 내역을 비교해 달성율을 보여줘요. 카테고리를 태깅하면 그 카테고리의
-        실제 지출과도 비교돼요. 여기서 입력한 월별 금액은 아직 해당 월에 계획 항목이 없으면 "이번 달 계획"에도
-        자동으로 반영돼요.
+        실제 지출과도 비교돼요. 여기서 입력한 월별 금액이 곧 "이번 달" 계획이고, 이번 달 화면에서 조정한 금액도
+        여기에 그대로 반영돼요.
       </p>
       <div className="flex flex-col gap-1">
         <Link

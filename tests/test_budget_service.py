@@ -137,3 +137,17 @@ def test_copy_from_previous_month_skips_existing(seeded_db):
     assert copied == 1  # only food was missing
     assert august_budgets[food.id] == Decimal("100000")
     assert august_budgets[rent.id] == Decimal("900000")  # untouched
+
+
+def test_budget_includes_category_budgeted_only_in_annual_plan(seeded_db):
+    """회귀: 구 모델에선 월간 행만 읽어 연간계획에만 있는 카테고리 예산이 0으로 빠졌다(예산 경고·코칭 누락)."""
+    from app.services import annual_plan_service
+
+    db, user, food = seeded_db["db"], seeded_db["user"], seeded_db["food"]
+    annual_plan_service.upsert_item(
+        db, None, 2026, "variable", None, "식비", food.id, 0, user.id, "2026-01", "2026-12",
+        monthly_targets=[{"year_month": "2026-07", "target_amount": Decimal("500000")}],
+    )
+
+    assert budget_service.get_budgets_for_month(db, "2026-07") == {food.id: Decimal("500000")}
+    assert budget_service.get_budgets_for_month(db, "2026-08") == {}
