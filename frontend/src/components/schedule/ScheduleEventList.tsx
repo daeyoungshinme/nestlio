@@ -21,7 +21,7 @@ interface Props {
 }
 
 /** 일정 목록 렌더링(추가 버튼 + 반복 내역 예정 카드 + 일정 카드) - 가계부(LedgerDayModal)의
- * "일정" 탭과 독립 일정 페이지(SchedulePage)의 날짜별 모달이 공유한다. */
+ * 날짜 모달과 홈 등이 공유한다. */
 export default function ScheduleEventList({
   events,
   recurringDue,

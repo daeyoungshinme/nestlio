@@ -5,7 +5,9 @@ export const ROUTES = {
   dashboard: "/",
   transactions: "/transactions",
   transactionImport: "/transactions/import",
-  schedule: "/schedule",
+  /** 부부 일정 — 독립 페이지였다가 가계부의 "일정" 보기로 병합됐다. 구 `/schedule` 경로는 리다이렉트만 남는다. */
+  schedule: "/transactions?view=일정",
+  legacySchedule: "/schedule",
   categories: "/categories",
   accounts: "/accounts",
   /** 구 연간리포트 페이지 — 계획 › 연간 › 실적 분석으로 흡수돼 리다이렉트만 남는다. */
@@ -19,6 +21,10 @@ export const ROUTES = {
   inviteAccept: "/invite/accept",
   authCallback: "/auth/callback",
 } as const;
+
+/** `/transactions`의 세그먼트(`?view=`) — 캘린더는 공유하고 아래 목록만 바뀐다. */
+export const LEDGER_VIEWS = ["내역", "일정"] as const;
+export type LedgerView = (typeof LEDGER_VIEWS)[number];
 
 /** `/plan`의 세그먼트(`?view=`). PlanPage가 이 값을 그대로 탭 라벨로 쓴다. */
 export const PLAN_VIEWS = ["이번 달", "연간"] as const;

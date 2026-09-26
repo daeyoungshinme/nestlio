@@ -1,8 +1,8 @@
-import { Link } from "react-router-dom";
-import { CalendarDays, Plus } from "lucide-react";
+import { Plus } from "lucide-react";
 import Button from "@/components/common/Button";
 import EmptyState from "@/components/common/EmptyState";
 import Modal from "@/components/common/Modal";
+import ScheduleEventList from "@/components/schedule/ScheduleEventList";
 import TransactionListItem from "@/components/transactions/TransactionListItem";
 import { formatDate } from "@/utils/format";
 import type { EventOut, RecurringOut, TransactionOut, UserOut } from "@/types";
@@ -18,10 +18,15 @@ interface Props {
   onAddTransaction: () => void;
   onEditTransaction: (tx: TransactionOut) => void;
   onDeleteTransaction: (tx: TransactionOut) => void;
+  onAddEvent: () => void;
+  onEditEvent: (event: EventOut) => void;
+  onDeleteEvent: (event: EventOut) => void;
+  onToggleEventComplete: (event: EventOut) => void;
 }
 
-/** 캘린더 날짜를 탭했을 때 뜨는 그날의 거래 목록 모달 — 거래 전용이다. 일정은 `/schedule`에서
- * 담당자 배분·완료 체크와 함께 관리하므로 여기서는 건수만 알려주고 링크로 넘긴다. */
+/** 캘린더 날짜를 탭했을 때 뜨는 그날의 모달 — 그날 거래와 부부 일정(+예정된 반복 거래)을 한 곳에서 보고
+ * 추가·수정한다. 구 버전은 거래 전용이라 일정은 `/schedule?date=` 링크로 다른 페이지에 넘겼는데, 일정이 가계부에
+ * 병합되면서 페이지 이동 없이 여기서 처리한다. */
 export default function LedgerDayModal({
   date,
   transactions,
@@ -33,40 +38,50 @@ export default function LedgerDayModal({
   onAddTransaction,
   onEditTransaction,
   onDeleteTransaction,
+  onAddEvent,
+  onEditEvent,
+  onDeleteEvent,
+  onToggleEventComplete,
 }: Props) {
-  const scheduleCount = events.length + recurringDue.length;
-
   return (
     <Modal onClose={onClose} title={formatDate(date)}>
-      <div className="p-6 space-y-4 overflow-y-auto">
-        <Button size="sm" icon={<Plus size={14} />} onClick={onAddTransaction}>
-          내역 추가
-        </Button>
-
-        {transactions.length === 0 ? (
-          <EmptyState title="내역이 없어요" compact />
-        ) : (
-          <div className="space-y-2">
-            {transactions.map((tx) => (
-              <TransactionListItem
-                key={tx.id}
-                tx={tx}
-                onEdit={onEditTransaction}
-                onDelete={onDeleteTransaction}
-                showUser={showUser}
-                users={users}
-              />
-            ))}
+      <div className="p-6 space-y-5 overflow-y-auto">
+        <section className="space-y-2">
+          <div className="flex items-center justify-between">
+            <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300">내역</h3>
+            <Button size="sm" icon={<Plus size={14} />} onClick={onAddTransaction}>
+              내역 추가
+            </Button>
           </div>
-        )}
+          {transactions.length === 0 ? (
+            <EmptyState title="내역이 없어요" compact />
+          ) : (
+            <div className="space-y-2">
+              {transactions.map((tx) => (
+                <TransactionListItem
+                  key={tx.id}
+                  tx={tx}
+                  onEdit={onEditTransaction}
+                  onDelete={onDeleteTransaction}
+                  showUser={showUser}
+                  users={users}
+                />
+              ))}
+            </div>
+          )}
+        </section>
 
-        <Link
-          to={`/schedule?date=${date}`}
-          className="flex items-center gap-2 pt-3 border-t border-gray-100 dark:border-gray-800 text-xs font-medium text-gray-500 dark:text-gray-400 hover:text-primary-600 dark:hover:text-primary-400"
-        >
-          <CalendarDays size={14} aria-hidden="true" />
-          {scheduleCount > 0 ? `이 날 일정 ${scheduleCount}건 보기` : "이 날 일정 추가·관리"} →
-        </Link>
+        <section className="space-y-2 pt-4 border-t border-gray-100 dark:border-gray-800">
+          <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300">일정</h3>
+          <ScheduleEventList
+            events={events}
+            recurringDue={recurringDue}
+            onAdd={onAddEvent}
+            onEdit={onEditEvent}
+            onDelete={onDeleteEvent}
+            onToggleComplete={onToggleEventComplete}
+          />
+        </section>
       </div>
     </Modal>
   );
