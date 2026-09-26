@@ -216,7 +216,7 @@ function ProductRow({
           <Button
             variant="secondary"
             size="sm"
-            className="shrink-0 !min-h-0 !py-1 !px-2 text-xs"
+            className="shrink-0"
             loading={applySuggestionMutation.isPending}
             onClick={() => applySuggestionMutation.mutate()}
           >
