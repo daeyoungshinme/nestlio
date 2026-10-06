@@ -285,3 +285,12 @@ def test_export_csv(client, seeded_db):
 def test_unknown_api_path_is_404_not_spa_fallback(client):
     # 삭제된 GET /transactions/{id} 같은 없는 API 경로가 (dist가 있을 때) SPA index.html 200으로 새지 않는다.
     assert client.get("/api/v1/transactions/123").status_code in (404, 405)
+
+
+def test_import_csv_over_size_limit_returns_413(client, monkeypatch):
+    monkeypatch.setattr("app.routers.transactions.settings.max_upload_size_mb", 1)
+    oversized = b"a" * (1024 * 1024 + 1)
+
+    resp = client.post("/api/v1/transactions/import", files={"file": ("big.csv", oversized, "text/csv")})
+
+    assert resp.status_code == 413
