@@ -14,6 +14,8 @@ from app.services import (
     notification_settings_service,
     transaction_service,
 )
+from app.services.gmail_service import GmailSendError
+from app.services.google_auth import GoogleAuthError
 
 
 @patch("app.services.notification_service.is_connected", return_value=True)
@@ -52,6 +54,38 @@ def test_weekly_summary_logs_even_when_google_not_connected(mock_send, mock_conn
     mock_send.assert_not_called()
     [log] = notification_inbox_service.list_notifications(db, user.id)
     assert log["notif_type"] == "email_weekly"
+
+
+@patch("app.services.notification_service.is_connected", return_value=True)
+@patch(
+    "app.services.notification_service.gmail_service.send_email",
+    side_effect=GoogleAuthError("구글 연동이 만료됐어요."),
+)
+def test_summaries_survive_expired_google_token_and_flag_reauth_once(mock_send, mock_connected, seeded_db):
+    """운영 장애 회귀: 리프레시 토큰이 만료되면 send_email이 GoogleAuthError를 던져 예약 잡이 500으로
+    끝나고 인앱 알림(log_sent)까지 유실됐다. 메일은 best-effort, 인앱 알림은 항상 남아야 한다."""
+    db, user = seeded_db["db"], seeded_db["user"]
+
+    assert notification_service.send_weekly_summary(db, today=date(2026, 7, 29)) is True
+    assert notification_service.send_monthly_summary(db, today=date(2026, 8, 3)) is True
+
+    types = [n["notif_type"] for n in notification_inbox_service.list_notifications(db, user.id)]
+    assert sorted(types) == ["email_monthly", "email_weekly", notification_service.GOOGLE_REAUTH_NOTIF_TYPE]
+    assert mock_send.call_count == 2
+
+
+@patch("app.services.notification_service.is_connected", return_value=True)
+@patch(
+    "app.services.notification_service.gmail_service.send_email",
+    side_effect=GmailSendError("Gmail 발송에 실패했습니다 (HTTP 503)."),
+)
+def test_weekly_summary_logs_in_app_when_gmail_api_fails(mock_send, mock_connected, seeded_db):
+    db, user = seeded_db["db"], seeded_db["user"]
+
+    assert notification_service.send_weekly_summary(db, today=date(2026, 7, 29)) is True
+
+    [log] = notification_inbox_service.list_notifications(db, user.id)
+    assert log["notif_type"] == "email_weekly"  # 일시 장애는 재연결 알림 대상이 아니다
 
 
 @patch("app.services.notification_service.is_connected", return_value=True)

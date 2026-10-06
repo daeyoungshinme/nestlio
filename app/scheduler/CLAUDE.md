@@ -28,7 +28,7 @@
 ## Google 연동 가드
 
 - `daily_due_date_check`의 캘린더 동기화와 `event_reminder_check`는 `jobs.py` 안에서 직접 `google_auth.is_connected()`를 확인한 뒤에만 Google API를 호출한다.
-- `weekly_summary_email`/`monthly_summary_email`/`daily_threshold_safety_net`은 `jobs.py`에는 가드가 없다 — 대신 한 단계 아래 `notification_service`의 각 send 함수(`send_weekly_summary`/`send_monthly_summary`/threshold·milestone 체크)가 내부적으로 `is_connected()`를 확인해, 미연결 상태여도 인앱 알림(`NotificationLog`)은 항상 남기고 실제 이메일 발송만 건너뛴다.
+- `weekly_summary_email`/`monthly_summary_email`/`daily_threshold_safety_net`은 `jobs.py`에는 가드가 없다 — 대신 한 단계 아래 `notification_service`의 각 send 함수가 메일을 `_send_email_best_effort`로만 보낸다. 미연결이면 건너뛰고, 토큰 만료/revoke(`GoogleAuthError`)나 Gmail API 오류(`GmailSendError`)는 경고 로그만 남긴다 — 어떤 경우에도 인앱 알림(`NotificationLog`)은 남고 잡은 성공한다. 토큰 만료는 `google_reauth` 인앱 알림(월 1회)으로 부부에게 알려 `scripts/google_auth_setup.py` 재실행을 유도한다. (2026-09-27~10-05 주간·월간 요약과 월말 저축 리마인더가 만료 토큰 때문에 500으로 실패하며 인앱 알림까지 유실된 적이 있다.)
 - 결과적으로 연동 안 된 상태에서도 앱이 정상 동작한다는 목표는 동일하지만, 가드 위치는 잡마다 다르다 — 새 잡을 추가할 때 어느 계층에서 가드할지 확인한다.
 
 ## 보안
@@ -45,4 +45,6 @@
 
 ## 운영 주의
 
+- 워크플로가 쓰는 Actions 시크릿: `APP_URL`(배포 URL), `INTERNAL_JOB_SECRET`(Render 환경변수와 같은 값), 선택 `GROWLIO_APP_URL`(growlio 슬립 해제용 warm-up, 없으면 건너뜀). 앞의 둘 중 하나라도 비면 첫 스텝이 `::error::Missing repository secrets`로 실패한다.
+- curl은 `--fail-with-body`라 500 응답 본문(`job '<name>' failed: <예외 클래스명>`)이 Actions 로그에 남는다 — 스택트레이스는 Render 로그에서 본다.
 - GitHub은 **60일간 저장소 활동이 없으면 예약(schedule) 워크플로를 자동 비활성화**한다 — 모든 잡이 조용히 멈춘다. 오래 커밋이 없었다면 Actions 탭에서 "nestlio scheduled jobs"가 활성 상태인지 확인한다.

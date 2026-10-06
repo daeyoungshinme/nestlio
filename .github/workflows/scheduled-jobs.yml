@@ -53,7 +53,7 @@ jobs:
       - name: daily_due_date_check
         if: github.event.schedule == '0 22 * * *' || github.event_name == 'workflow_dispatch'
         run: |
-          curl -fsS --retry 2 --retry-delay 15 --retry-all-errors --max-time 170 -X POST "$APP_URL/internal/jobs/daily-due-date-check" \
+          curl -sS --fail-with-body --retry 2 --retry-delay 15 --retry-all-errors --max-time 170 -X POST "$APP_URL/internal/jobs/daily-due-date-check" \
             -H "X-Internal-Job-Secret: $INTERNAL_JOB_SECRET"
 
       # 요일/말일 판정은 실행 시점의 KST 날짜로 한다 — cron 실행이 수십 분 밀려 UTC 자정을 넘겨도
@@ -63,7 +63,7 @@ jobs:
         if: github.event.schedule == '0 23 * * *' || github.event_name == 'workflow_dispatch'
         run: |
           if [ "$(TZ=Asia/Seoul date +%u)" = "1" ] || [ -n "$FORCE_RUN" ]; then
-            curl -fsS --retry 2 --retry-delay 15 --retry-all-errors --max-time 170 -X POST "$APP_URL/internal/jobs/weekly-summary-email" \
+            curl -sS --fail-with-body --retry 2 --retry-delay 15 --retry-all-errors --max-time 170 -X POST "$APP_URL/internal/jobs/weekly-summary-email" \
               -H "X-Internal-Job-Secret: $INTERNAL_JOB_SECRET"
           else
             echo "not Monday KST, skipping weekly_summary_email"
@@ -73,7 +73,7 @@ jobs:
         if: github.event.schedule == '0 23 * * *' || github.event_name == 'workflow_dispatch'
         run: |
           if [ "$(TZ=Asia/Seoul date +%d)" = "01" ] || [ -n "$FORCE_RUN" ]; then
-            curl -fsS --retry 2 --retry-delay 15 --retry-all-errors --max-time 170 -X POST "$APP_URL/internal/jobs/monthly-summary-email" \
+            curl -sS --fail-with-body --retry 2 --retry-delay 15 --retry-all-errors --max-time 170 -X POST "$APP_URL/internal/jobs/monthly-summary-email" \
               -H "X-Internal-Job-Secret: $INTERNAL_JOB_SECRET"
           else
             echo "not the 1st (KST), skipping monthly_summary_email"
@@ -83,7 +83,7 @@ jobs:
         if: github.event.schedule == '5 23 * * *' || github.event_name == 'workflow_dispatch'
         run: |
           if [ "$(TZ=Asia/Seoul date +%d)" = "01" ] || [ -n "$FORCE_RUN" ]; then
-            curl -fsS --retry 2 --retry-delay 15 --retry-all-errors --max-time 170 -X POST "$APP_URL/internal/jobs/monthly-net-worth-snapshot" \
+            curl -sS --fail-with-body --retry 2 --retry-delay 15 --retry-all-errors --max-time 170 -X POST "$APP_URL/internal/jobs/monthly-net-worth-snapshot" \
               -H "X-Internal-Job-Secret: $INTERNAL_JOB_SECRET"
           else
             echo "not the 1st (KST), skipping monthly_net_worth_snapshot"
@@ -92,13 +92,13 @@ jobs:
       - name: daily_threshold_safety_net
         if: github.event.schedule == '0 11 * * *' || github.event_name == 'workflow_dispatch'
         run: |
-          curl -fsS --retry 2 --retry-delay 15 --retry-all-errors --max-time 170 -X POST "$APP_URL/internal/jobs/daily-threshold-safety-net" \
+          curl -sS --fail-with-body --retry 2 --retry-delay 15 --retry-all-errors --max-time 170 -X POST "$APP_URL/internal/jobs/daily-threshold-safety-net" \
             -H "X-Internal-Job-Secret: $INTERNAL_JOB_SECRET"
 
       - name: event_reminder_check
         if: github.event.schedule == '*/15 * * * *' || github.event_name == 'workflow_dispatch'
         run: |
-          curl -fsS --retry 2 --retry-delay 15 --retry-all-errors --max-time 170 -X POST "$APP_URL/internal/jobs/event-reminder-check" \
+          curl -sS --fail-with-body --retry 2 --retry-delay 15 --retry-all-errors --max-time 170 -X POST "$APP_URL/internal/jobs/event-reminder-check" \
             -H "X-Internal-Job-Secret: $INTERNAL_JOB_SECRET"
 
       # growlio(자산관리 앱)는 Render 무료 티어라 15분 미사용 시 슬립하는데 nestlio처럼
@@ -114,5 +114,5 @@ jobs:
           if [ -z "$GROWLIO_APP_URL" ]; then
             echo "GROWLIO_APP_URL secret not set, skipping growlio warm-up"
           else
-            curl -fsS --max-time 10 "$GROWLIO_APP_URL/health" || echo "growlio warm-up failed (ignored)"
+            curl -sS --fail-with-body --max-time 10 "$GROWLIO_APP_URL/health" || echo "growlio warm-up failed (ignored)"
           fi
