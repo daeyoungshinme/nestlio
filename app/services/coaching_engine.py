@@ -350,9 +350,10 @@ def savings_pace_history(db: Session, trend: list[dict], goals: list[FinancialGo
     """trend(transaction_report_service.monthly_trend 출력, 오래된 달부터)의 각 달에 대해 savings_pace_basis를
     계산하는 DB-aware 래퍼 — 대시보드와 요약 메일이 같은 연속 달성 개월 수를 보이도록 공유한다."""
     goals_monthly = goals_monthly_total(goals)
+    totals_by_month = savings_product_plan_service.plan_totals_for_months(db, [row["year_month"] for row in trend])
     history = []
     for row in trend:
-        planned, deposits = savings_product_plan_service.plan_totals_for_month(db, row["year_month"])
+        planned, deposits = totals_by_month[row["year_month"]]
         history.append(savings_pace_basis(planned, deposits, goals_monthly, row["income"] - row["expense"]))
     return history
 
