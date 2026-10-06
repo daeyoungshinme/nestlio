@@ -77,6 +77,8 @@ export default function GoalFormModal({
 }) {
   const [draft, setDraft] = useState<Draft>(initial);
   const [currentAge, setCurrentAge] = useState("");
+  // 렌더 중 new Date()는 비순수 호출이라(oxlint) 모달이 열린 시점을 한 번만 잡는다.
+  const [openedAt] = useState(() => new Date());
   const isChallenge = draft.kind === "challenge";
   // 유형 선택은 생성 시에만 가능하다(백엔드 FinancialGoalUpdateIn에 kind 필드 자체가 없어 생성 후
   // 유형 변경이 불가능) — 수정 모드에서는 토글을 숨기고 기존 kind별 폼만 보여준다. 이름은 유형을
@@ -262,7 +264,7 @@ export default function GoalFormModal({
     draft.required_amount === toAmountInputValue(existingGoal.required_amount) &&
     draft.current_amount === toAmountInputValue(existingGoal.current_amount);
 
-  const monthsRemainingFromDate = draft.target_date !== "" ? monthsBetween(new Date(), new Date(draft.target_date)) : null;
+  const monthsRemainingFromDate = draft.target_date !== "" ? monthsBetween(openedAt, new Date(draft.target_date)) : null;
   const monthsRemainingFromAge =
     currentAge !== "" && draft.target_age !== "" ? (Number(draft.target_age) - Number(currentAge)) * 12 : null;
   const monthsRemaining =
