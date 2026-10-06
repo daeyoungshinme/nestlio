@@ -87,6 +87,13 @@ def import_from_google(db: Session, range_start: date, range_end: date, actor_id
         .filter(RecurringExpense.calendar_event_id.isnot(None))
     }
 
+    # 이미 가져온 일정을 한 번에 맵으로 — 구글 일정마다 SELECT 하던 N+1을 없앤다. 이번 루프에서 새로
+    # 만든 일정도 맵에 넣어, 같은 id가 한 응답에 두 번 와도 중복 생성하지 않는다.
+    imported_by_google_id = {
+        event.google_calendar_event_id: event
+        for event in db.query(Event).filter(Event.source == "google_import", Event.google_calendar_event_id.isnot(None))
+    }
+
     created = updated = skipped = 0
     for item in google_calendar_service.list_events(range_start, range_end):
         if item.get("status") == "cancelled":
@@ -107,11 +114,7 @@ def import_from_google(db: Session, range_start: date, range_end: date, actor_id
             skipped += 1
             continue
 
-        existing = (
-            db.query(Event)
-            .filter(Event.google_calendar_event_id == item["id"], Event.source == "google_import")
-            .first()
-        )
+        existing = imported_by_google_id.get(item["id"])
         if existing:
             if existing.dismissed_at is not None:
                 skipped += 1
@@ -120,14 +123,9 @@ def import_from_google(db: Session, range_start: date, range_end: date, actor_id
                 setattr(existing, key, value)
             updated += 1
         else:
-            db.add(
-                Event(
-                    **parsed,
-                    google_calendar_event_id=item["id"],
-                    source="google_import",
-                    created_by=actor_id,
-                )
-            )
+            event = Event(**parsed, google_calendar_event_id=item["id"], source="google_import", created_by=actor_id)
+            db.add(event)
+            imported_by_google_id[item["id"]] = event
             created += 1
 
     db.commit()

@@ -11,7 +11,7 @@ psycopg2-binary==2.9.13
 pydantic==2.13.5
 pydantic-settings==2.15.0
 python-multipart==0.0.32
-pyjwt==2.14.0
+pyjwt==2.15.1
 # cryptography: 직접 import하진 않지만 PyJWT가 JWKS(RS256/ES256) 서명 검증에 쓴다 — 빼면 인증이 깨진다.
 cryptography==50.0.1
 google-auth==2.58.0
