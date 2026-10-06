@@ -182,3 +182,18 @@ def test_remove_already_removed_user_returns_404(client, seeded_db):
 
     second = client.delete(f"/api/v1/users/{spouse.id}")
     assert second.status_code == 404
+
+
+def test_rename_removed_user_returns_404(client, seeded_db):
+    db = seeded_db["db"]
+    spouse = User(email="spouse2@example.com", display_name="Spouse 2")
+    db.add(spouse)
+    db.commit()
+    db.refresh(spouse)
+    assert client.delete(f"/api/v1/users/{spouse.id}").status_code == 204
+
+    resp = client.put(f"/api/v1/users/{spouse.id}", json={"display_name": "아내"})
+
+    assert resp.status_code == 404
+    db.refresh(spouse)
+    assert spouse.display_name == "Spouse 2"

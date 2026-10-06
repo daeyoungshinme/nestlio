@@ -48,10 +48,11 @@ def is_enabled(db: Session, notif_type: str) -> bool:
 
 
 def set_prefs(db: Session, values: dict[str, bool], updated_by: uuid.UUID) -> dict[str, bool]:
-    for notif_type in NOTIF_TYPES:
-        if notif_type not in values:
-            continue
-        user_setting_service.set_shared_setting(db, _setting_key(notif_type), "on" if values[notif_type] else "off", updated_by)
+    user_setting_service.set_shared_settings(
+        db,
+        {_setting_key(t): "on" if values[t] else "off" for t in NOTIF_TYPES if t in values},
+        updated_by,
+    )
     return get_prefs(db)
 
 

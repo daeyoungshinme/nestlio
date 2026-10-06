@@ -10,7 +10,7 @@ import RowActionButtons from "@/components/common/RowActionButtons";
 import SkeletonCard from "@/components/common/SkeletonCard";
 import { COLOR_INPUT_SM, INLINE_BUTTON_OFFSET, INPUT_SM, LABEL_SM } from "@/constants/inputStyles";
 import { createCategory, deactivateCategory, updateCategory } from "@/api/categories";
-import { QUERY_KEYS } from "@/constants/queryKeys";
+import { CATEGORY_RELATED_KEYS } from "@/constants/queryKeys";
 import { BENCHMARK_GROUP_LABELS, BENCHMARK_GROUP_ORDER } from "@/constants/benchmarkGroups";
 import { useCrudMutations } from "@/hooks/useCrudMutations";
 import { useCategories } from "@/hooks/useReferenceData";
@@ -49,18 +49,8 @@ export default function CategoriesSection() {
   const { data, isLoading } = useCategories();
 
   const { createMutation, updateMutation, removeMutation: deactivateMutation } = useCrudMutations({
-    // 카테고리 이름/활성 여부는 거래 목록뿐 아니라 계획(월/연간)의 카테고리 예산 행, 최근 거래,
-    // 연간 리포트, 대시보드 응답에도 박혀 있다.
-    invalidateKeys: [
-      QUERY_KEYS.categoriesAll,
-      QUERY_KEYS.transactionsAll,
-      QUERY_KEYS.categoryBreakdownAll,
-      QUERY_KEYS.recentTransactionsAll,
-      QUERY_KEYS.cashflowPlanAll,
-      QUERY_KEYS.annualPlanAll,
-      QUERY_KEYS.yearlyReportAll,
-      QUERY_KEYS.dashboardAll,
-    ],
+    // 카테고리 이름/색/활성 여부가 박힌 응답 전부(목록은 CATEGORY_RELATED_KEYS 주석 참고).
+    invalidateKeys: CATEGORY_RELATED_KEYS,
     api: { create: createCategory, update: updateCategory, remove: deactivateCategory },
     messages: {
       create: "카테고리를 추가했습니다.",

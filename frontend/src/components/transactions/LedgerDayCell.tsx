@@ -5,6 +5,7 @@ import { transactionAmountTextColor, transactionTypeBadgeStyle } from "@/utils/c
 import { formatKrw, formatKrwCompact } from "@/utils/format";
 import { LEDGER_DAY_CELL_MIN_HEIGHT } from "@/constants/uiSizes";
 import type { EventOut, RecurringOut, TransactionOut } from "@/types";
+import { sumAmounts } from "@/utils/amount";
 
 interface Props {
   date: string;
@@ -27,10 +28,11 @@ function LedgerDayCell({
   recurringDue,
   onSelect,
 }: Props) {
-  const income = transactions.filter((t) => t.type === "income").reduce((sum, t) => sum + Number(t.amount), 0);
-  const expense = transactions
-    .filter((t) => t.type === "expense" && !t.category.is_savings)
-    .reduce((sum, t) => sum + Number(t.amount), 0);
+  const income = sumAmounts(transactions.filter((t) => t.type === "income"), (t) => t.amount);
+  const expense = sumAmounts(
+    transactions.filter((t) => t.type === "expense" && !t.category.is_savings),
+    (t) => t.amount,
+  );
   const showIncome = income > 0;
   const showExpense = expense > 0;
   // 모바일은 셀이 좁아 수입·지출·배지를 다 넣으면 행 높이가 들쭉날쭉해진다 — 순액 한 줄 + 활동

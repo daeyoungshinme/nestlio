@@ -1,4 +1,5 @@
 import type { LoanOut, SavingsProductOut } from "@/types";
+import { sumAmounts } from "@/utils/amount";
 
 /** 백엔드 `savings_total`은 저축·투자 상품 전체(부동산 포함) 합계다(app/services/net_worth_service.py).
  * 순자산 화면에서 "저축·투자"와 "부동산"을 별개 항목으로 보여줄 때는 항상 이 함수로 구성값을
@@ -8,7 +9,7 @@ export function splitSavingsAndRealEstate(
   products: SavingsProductOut[] | undefined,
 ): { savingsInvestmentTotal: number; realEstateTotal: number } {
   const realEstateTotal =
-    products?.filter((p) => p.product_type === "real_estate").reduce((sum, p) => sum + Number(p.current_balance), 0) ?? 0;
+    sumAmounts(products?.filter((p) => p.product_type === "real_estate"), (p) => p.current_balance);
   return { savingsInvestmentTotal: savingsTotal - realEstateTotal, realEstateTotal };
 }
 
@@ -25,8 +26,9 @@ export function computeRealEstateNet(
       .filter((p) => p.product_type === "real_estate" && p.growlio_account_id)
       .map((p) => p.growlio_account_id as string),
   );
-  const realEstateMortgageTotal = (loans ?? [])
-    .filter((loan) => loan.growlio_account_id && realEstateGrowlioIds.has(loan.growlio_account_id))
-    .reduce((sum, loan) => sum + Number(loan.balance), 0);
+  const realEstateMortgageTotal = sumAmounts(
+    loans?.filter((loan) => loan.growlio_account_id && realEstateGrowlioIds.has(loan.growlio_account_id)),
+    (loan) => loan.balance,
+  );
   return Math.max(realEstateTotal - realEstateMortgageTotal, 0);
 }

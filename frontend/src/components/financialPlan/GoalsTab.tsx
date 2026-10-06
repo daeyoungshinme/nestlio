@@ -28,6 +28,7 @@ import { extractErrorMessage } from "@/utils/error";
 import { amountInputPreview, formatDate, formatKrw, formatYearMonth, toAmountInputValue } from "@/utils/format";
 import { toast } from "@/utils/toast";
 import type { FinancialGoalOut, FinancialGoalUpdateIn, GoalKind } from "@/types";
+import { sumAmounts } from "@/utils/amount";
 
 const GOAL_MILESTONES = [25, 50, 75, 100];
 
@@ -113,8 +114,8 @@ export default function GoalsTab() {
   return (
     <QueryBoundary query={goalsQuery}>
       {(data) => {
-  const totalRequired = data.reduce((sum, g) => sum + Number(g.required_amount), 0);
-  const totalMonthly = data.reduce((sum, g) => sum + Number(g.planned_monthly_amount), 0);
+  const totalRequired = sumAmounts(data, (g) => g.required_amount);
+  const totalMonthly = sumAmounts(data, (g) => g.planned_monthly_amount);
   const isSaving = createMutation.isPending || updateMutation.isPending;
   const priorityOrderedGoals = data.slice().sort((a, b) => a.priority - b.priority);
   // 달성한 목표는 활성 목록에서 분리해 아래 접이식으로 옮긴다 — 완료된 항목이 계속 쌓여

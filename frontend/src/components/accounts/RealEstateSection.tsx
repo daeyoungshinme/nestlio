@@ -29,7 +29,6 @@ import {
   formatPercent,
   formatSyncedAt,
   resolveOwnerLabel,
-  toAmountInputValue,
 } from "@/utils/format";
 import {
   linkedGoalBadgeStyle,
@@ -38,24 +37,13 @@ import {
   savingsProductTypeLabel,
 } from "@/utils/colors";
 import type { FinancialGoalOut, RealEstateImportResultOut, SavingsProductOut, UserOut } from "@/types";
+import { baseDraftFromProduct, type ProductBaseDraft } from "@/components/accounts/productDraft";
+import { sumAmounts } from "@/utils/amount";
 
-interface Draft {
-  name: string;
-  current_balance: string;
-  principal_amount: string;
-  owner_user_id: string;
-}
+type Draft = ProductBaseDraft;
 
 const EMPTY_DRAFT: Draft = { name: "", current_balance: "0", principal_amount: "", owner_user_id: "" };
-
-function draftFromProduct(product: SavingsProductOut): Draft {
-  return {
-    name: product.name,
-    current_balance: toAmountInputValue(product.current_balance),
-    principal_amount: product.principal_amount !== null ? toAmountInputValue(product.principal_amount) : "",
-    owner_user_id: product.owner_user_id ?? "",
-  };
-}
+const draftFromProduct = baseDraftFromProduct;
 
 function toRealEstatePayload(draft: Draft) {
   return {
@@ -113,7 +101,7 @@ export default function RealEstateSection({ users }: Props) {
           data.filter((p): p is SavingsProductOut & { growlio_account_id: string } => !!p.growlio_account_id).map((p) => p.growlio_account_id)
         );
         const rowsWithGain = data.filter((p) => p.return_amount !== null);
-        const totalGain = rowsWithGain.reduce((sum, p) => sum + Number(p.return_amount), 0);
+        const totalGain = sumAmounts(rowsWithGain, (p) => p.return_amount);
 
         return (
           <div className="space-y-4">

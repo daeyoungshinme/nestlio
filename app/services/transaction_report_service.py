@@ -3,14 +3,14 @@ from datetime import date
 from decimal import Decimal
 from typing import Literal
 
-from sqlalchemy import func
+from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
 
 from app.models.category import Category
 from app.models.transaction import Transaction
 from app.models.user import User
-from app.services import user_service
 from app.utils.dates import month_bounds, shift_month, today_kst, year_bounds, year_month_str
+from app.utils.money import whole_won
 
 
 def _period_filters(date_from: date, date_to: date):
@@ -51,17 +51,35 @@ def _category_row(cat_id, name, color, cat_type, is_discretionary, is_debt, benc
     }
 
 
-def period_totals(db: Session, date_from: date, date_to: date) -> dict:
-    """Income / expense / fixed / variable / irregular totals for a date range."""
-    rows = (
+def period_totals(
+    db: Session,
+    date_from: date,
+    date_to: date,
+    *,
+    category_id: int | None = None,
+    type_: str | None = None,
+    user_id: uuid.UUID | None = None,
+    q: str | None = None,
+) -> dict:
+    """Income / expense / fixed / variable / irregular totals for a date range.
+
+    선택 필터는 transaction_service.list_transactions와 같은 의미다 — 가계부 목록 아래 합계가
+    검색/필터된 목록과 같은 집합을 합산하도록(필터를 빼면 검색 중에도 기간 전체 합계가 나왔다)."""
+    query = (
         db.query(Transaction.type, Category.type.label("cat_type"), func.sum(Transaction.amount))
         .join(Category, Transaction.category_id == Category.id)
-        .filter(
-            *_period_expense_filters(date_from, date_to),
-        )
-        .group_by(Transaction.type, Category.type)
-        .all()
+        .filter(*_period_expense_filters(date_from, date_to))
     )
+    if category_id is not None:
+        query = query.filter(Transaction.category_id == category_id)
+    if type_ is not None:
+        query = query.filter(Transaction.type == type_)
+    if user_id is not None:
+        query = query.filter(Transaction.user_id == user_id)
+    if q and q.strip():
+        like = f"%{q.strip()}%"
+        query = query.filter(or_(Transaction.description.ilike(like), Category.name.ilike(like)))
+    rows = query.group_by(Transaction.type, Category.type).all()
     totals = _empty_totals()
     for tx_type, cat_type, amount in rows:
         amount = amount or Decimal("0")
@@ -97,7 +115,9 @@ def totals_by_owner(db: Session, date_from: date, date_to: date) -> list[dict]:
         .all()
     )
 
-    all_display_names = {u.id: u.display_name for u in db.query(User).all()}
+    # 제거된 배우자도 과거 거래의 소유자로 남아 있으므로 이름 맵은 전체 사용자로, 기본 행(0원)은 현재 구성원만.
+    all_users = db.query(User).all()
+    all_display_names = {u.id: u.display_name for u in all_users}
 
     def _blank_entry(owner_id: uuid.UUID | None) -> dict:
         display_name = "공통" if owner_id is None else all_display_names.get(owner_id, "알 수 없음")
@@ -109,7 +129,8 @@ def totals_by_owner(db: Session, date_from: date, date_to: date) -> list[dict]:
             "savings_investment": Decimal("0"),
         }
 
-    by_owner: dict[uuid.UUID | None, dict] = {u.id: _blank_entry(u.id) for u in user_service.list_users(db)}
+    active_users = sorted((u for u in all_users if u.removed_at is None), key=lambda u: u.display_name)
+    by_owner: dict[uuid.UUID | None, dict] = {u.id: _blank_entry(u.id) for u in active_users}
     by_owner[None] = _blank_entry(None)
 
     for owner_id, tx_type, amount in income_expense_rows:
@@ -248,7 +269,7 @@ def _trailing_average_by_owner_batch(
         bucket = totals.setdefault(owner_key, {})
         bucket[cat_id] = bucket.get(cat_id, Decimal("0")) + (amount or Decimal("0"))
     return {
-        owner_key: {cat_id: total / months for cat_id, total in cat_totals.items()}
+        owner_key: {cat_id: whole_won(total / months) for cat_id, total in cat_totals.items()}
         for owner_key, cat_totals in totals.items()
     }
 
@@ -385,7 +406,7 @@ def trailing_average_by_category(db: Session, anchor: date, months: int = 3, typ
     for rows in breakdown_by_month.values():
         for row in rows:
             totals[row["category_id"]] = totals.get(row["category_id"], Decimal("0")) + row["amount"]
-    return {cat_id: total / months for cat_id, total in totals.items()}
+    return {cat_id: whole_won(total / months) for cat_id, total in totals.items()}
 
 
 
@@ -401,7 +422,7 @@ def trailing_average_by_section(db: Session, anchor: date, months: int = 3) -> d
     for totals in totals_by_month.values():
         for section in sections:
             sums[section] += totals[section]
-    return {section: total / months for section, total in sums.items()}
+    return {section: whole_won(total / months) for section, total in sums.items()}
 
 
 def category_monthly_trend(

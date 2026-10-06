@@ -29,6 +29,7 @@ import { useGrowlioSyncMutation } from "@/hooks/useGrowlioSyncMutation";
 import { useAccounts } from "@/hooks/useReferenceData";
 import { amountInputPreview, formatKrw, formatSyncedAt, resolveOwnerLabel, toAmountInputValue } from "@/utils/format";
 import type { AccountOut, AccountWithBalanceOut, UserOut } from "@/types";
+import { sumAmounts } from "@/utils/amount";
 
 const ACCOUNT_TYPE_LABEL: Record<AccountOut["account_type"], string> = {
   bank: "은행",
@@ -107,12 +108,13 @@ export default function AccountsSection({ users }: Props) {
         const balanceByType = ACCOUNT_TYPES.map((type) => ({
           type,
           rows: data.filter((row) => row.account.account_type === type),
-          total: data
-            .filter((row) => row.account.account_type === type)
-            .reduce((sum, row) => sum + Number(row.balance), 0),
+          total: sumAmounts(
+            data.filter((row) => row.account.account_type === type),
+            (row) => row.balance,
+          ),
         })).filter((entry) => entry.rows.length > 0);
 
-        const totalBalance = data.reduce((sum, row) => sum + Number(row.balance), 0);
+        const totalBalance = sumAmounts(data, (row) => row.balance);
 
         const shouldGroup = data.length >= GROUP_THRESHOLD;
 
@@ -206,7 +208,7 @@ export default function AccountsSection({ users }: Props) {
                 renderRowMeta={(account) => ({ name: account.name, badge: growlioAssetTypeLabel(account.asset_type) })}
                 importRows={importGrowlioAccounts}
                 buildSuccessMessage={(created) => {
-                  const total = created.reduce((sum, account) => sum + Number(account.initial_balance), 0);
+                  const total = sumAmounts(created, (account) => account.initial_balance);
                   return `growlio 계좌 ${created.length}개를 가져왔습니다. 합계 ${formatKrw(total)}`;
                 }}
                 existingGrowlioAccountIds={existingGrowlioAccountIds}

@@ -17,6 +17,7 @@ import type {
   CategoryOut,
   UserOut,
 } from "@/types";
+import { sumAmounts } from "@/utils/amount";
 
 interface Props {
   sectionKey: CashflowSection;
@@ -87,7 +88,7 @@ export default function AnnualPlanSectionPanel({
       <div>
         {showCategoryGroups
           ? categoryGroups.map((group) => {
-              const groupTotal = group.items.reduce((sum, item) => sum + Number(item.annual_target), 0);
+              const groupTotal = sumAmounts(group.items, (item) => item.annual_target);
               return (
                 <CollapsibleGroup
                   key={group.category_id ?? "uncategorized"}

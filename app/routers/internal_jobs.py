@@ -41,5 +41,9 @@ def run_job(job_name: str):
     try:
         job()
     except Exception as exc:
-        raise HTTPException(status.HTTP_500_INTERNAL_SERVER_ERROR, f"job '{job_name}' failed") from exc
+        # 예외 클래스명을 detail에 싣는다 — GitHub Actions 로그(curl)만으로 원인 갈래를 알 수 있게.
+        # 메시지 본문은 싣지 않는다(시크릿 보호 엔드포인트지만 내부 상세가 로그에 남는 것을 피함).
+        raise HTTPException(
+            status.HTTP_500_INTERNAL_SERVER_ERROR, f"job '{job_name}' failed: {type(exc).__name__}"
+        ) from exc
     return {"job": job_name, "status": "ok"}

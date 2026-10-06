@@ -82,10 +82,12 @@ export default function TransactionsPage() {
     onSaved: () => setDayPanel(null),
   });
 
-  // 홈/알림 등에서 ?date=YYYY-MM-DD로 들어오면 그 날 모달을 열고 파라미터를 지운다.
+  // ?date=YYYY-MM-DD로 들어오면(옛 일정 경로 리다이렉트 등) 그 달로 이동해 그 날 모달을 열고 파라미터를
+  // 지운다. 이미 마운트된 상태에서 파라미터만 바뀌어도 맞는 달의 거래를 보이도록 달도 함께 맞춘다.
   useEffect(() => {
     const d = searchParams.get("date");
     if (!d || !ISO_DATE_RE.test(d)) return;
+    setYearMonth(d.slice(0, 7));
     setSelectedDate(d);
     setSearchParams(
       (prev) => {

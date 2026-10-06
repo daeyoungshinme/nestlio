@@ -111,9 +111,7 @@ function ProductRow({
   const queryClient = useQueryClient();
 
   const invalidate = () => {
-    void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.savingsProductsPlan(yearMonth) });
-    void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.savingsProductsAnnualPlan(year) });
-    void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.savingsProductAnnualPlanDetail(item.id, year) });
+    // savingsProducts는 계획·연간계획·상품별 연간계획 캐시의 공통 프리픽스라 이 하나로 전부 무효화된다.
     void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.savingsProducts });
     void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.dashboardBootstrap });
     // 목표의 계획 월액·예상 달성월(planned_monthly_amount/eta)과 홈의 목표 페이스 코칭이 상품 월 계획을 원본으로 쓴다.

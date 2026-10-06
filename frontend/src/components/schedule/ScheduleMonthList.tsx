@@ -2,7 +2,7 @@ import { useMemo } from "react";
 import CollapsibleGroup from "@/components/common/CollapsibleGroup";
 import EmptyState from "@/components/common/EmptyState";
 import ScheduleEventRow from "@/components/schedule/ScheduleEventRow";
-import { currentDateIso, occurrenceDate } from "@/utils/date";
+import { currentDateIso, formatDayHeader, occurrenceDate } from "@/utils/date";
 import type { EventOut } from "@/types";
 
 interface Props {
@@ -12,14 +12,6 @@ interface Props {
   onEdit: (event: EventOut) => void;
   onDelete: (event: EventOut) => void;
   onToggleComplete: (event: EventOut) => void;
-}
-
-const WEEKDAY_LABELS = ["일", "월", "화", "수", "목", "금", "토"];
-
-function formatDayHeader(date: string): string {
-  const [y, m, d] = date.split("-").map(Number);
-  const weekday = WEEKDAY_LABELS[new Date(y, m - 1, d).getDay()];
-  return `${m}.${d} (${weekday})`;
 }
 
 /** 캘린더 아래에 이번 달 일정을 날짜별 접이식 목록으로 보여준다 - 가계부(/transactions)의
