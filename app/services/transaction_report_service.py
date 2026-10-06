@@ -9,7 +9,6 @@ from sqlalchemy.orm import Session
 from app.models.category import Category
 from app.models.transaction import Transaction
 from app.models.user import User
-from app.services import user_service
 from app.utils.dates import month_bounds, shift_month, today_kst, year_bounds, year_month_str
 from app.utils.money import whole_won
 
@@ -116,7 +115,9 @@ def totals_by_owner(db: Session, date_from: date, date_to: date) -> list[dict]:
         .all()
     )
 
-    all_display_names = {u.id: u.display_name for u in db.query(User).all()}
+    # 제거된 배우자도 과거 거래의 소유자로 남아 있으므로 이름 맵은 전체 사용자로, 기본 행(0원)은 현재 구성원만.
+    all_users = db.query(User).all()
+    all_display_names = {u.id: u.display_name for u in all_users}
 
     def _blank_entry(owner_id: uuid.UUID | None) -> dict:
         display_name = "공통" if owner_id is None else all_display_names.get(owner_id, "알 수 없음")
@@ -128,7 +129,8 @@ def totals_by_owner(db: Session, date_from: date, date_to: date) -> list[dict]:
             "savings_investment": Decimal("0"),
         }
 
-    by_owner: dict[uuid.UUID | None, dict] = {u.id: _blank_entry(u.id) for u in user_service.list_users(db)}
+    active_users = sorted((u for u in all_users if u.removed_at is None), key=lambda u: u.display_name)
+    by_owner: dict[uuid.UUID | None, dict] = {u.id: _blank_entry(u.id) for u in active_users}
     by_owner[None] = _blank_entry(None)
 
     for owner_id, tx_type, amount in income_expense_rows:

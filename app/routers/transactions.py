@@ -6,6 +6,7 @@ from typing import Literal
 from fastapi import APIRouter, Depends, File, HTTPException, Response, UploadFile, status
 from sqlalchemy.orm import Session
 
+from app.config import settings
 from app.database import get_db
 from app.dependencies import get_bearer_token, get_current_user
 from app.models.user import User
@@ -155,7 +156,13 @@ def import_csv(
     current_user: User = Depends(get_current_user),
 ):
     # async def가 아니라 def — 가져오기 전체가 동기 DB 작업이라 이벤트 루프를 막지 않게 스레드풀에서 돈다.
-    raw = file.file.read()
+    # 상한+1바이트까지만 읽는다 — 통째로 read()하면 거대한 업로드 하나가 Render 무료 인스턴스 메모리를 다 쓴다.
+    max_bytes = settings.max_upload_size_mb * 1024 * 1024
+    raw = file.file.read(max_bytes + 1)
+    if len(raw) > max_bytes:
+        raise HTTPException(
+            status.HTTP_413_CONTENT_TOO_LARGE, f"CSV 파일은 {settings.max_upload_size_mb}MB를 넘을 수 없습니다."
+        )
     try:
         text = raw.decode("utf-8-sig")
     except UnicodeDecodeError:
