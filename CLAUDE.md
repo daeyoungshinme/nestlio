@@ -30,7 +30,7 @@
 - **schemas** (`app/schemas/`): 리소스별 Pydantic 요청/응답 모델. ORM 객체를 그대로 반환해도 되도록 출력 모델은 `ConfigDict(from_attributes=True)`를 쓴다. 사용자가 지울 수 있는 금액 입력 필드(`*In` 스키마의 `target_amount` 등)는 `Decimal` 대신 `app/schemas/common.py`의 `KrwAmount`를 쓴다 — `<input type="number">`를 비우면 `e.target.value`가 빈 문자열로 전송되는데 `Decimal`은 이를 파싱하지 못해 422가 나므로, 빈 문자열을 0으로 취급하는 `BeforeValidator`가 붙어 있다. 같은 이유로 DB 컬럼이 여전히 자유텍스트인 필드를 출력에서 `Literal`로 좁힐 때는 `app/schemas/transaction.py`의 `PaymentMethodOut` 패턴을 쓴다 — `Transaction.payment_method`는 `String(50)` 컬럼이라 `Literal` 도입 전에 다른 값으로 저장된 기존 행이 있으면 응답 직렬화가 422가 아니라 500으로 터진다. 미지 값을 `"other"`로 폴백하는 `BeforeValidator`를 출력 전용 타입에만 씌우고, 입력 스키마는 여전히 순수 `Literal`로 엄격하게 막는다.
 - **models**: SQLAlchemy 2.0 스타일로 `app.database.Base` 상속. 자주 조인되는 관계는 `lazy="joined"`로 선언 (예: `Transaction.user`/`category`/`account`).
 - **utils**: 날짜 연산은 반드시 `app/utils/dates.py`의 헬퍼(`month_bounds`, `year_bounds`, `shift_month`, `advance_due_date` 등)를 재사용한다. 직접 `timedelta` 연산으로 월/연 경계를 계산하지 않는다.
-- **금액**: 항상 `Decimal` 사용 (float 금지).
+- **금액**: 항상 `Decimal` 사용 (float 금지). 평균처럼 나눗셈으로 만든 금액은 `app/utils/money.py`의 `whole_won()`으로 원 단위 반올림해서 내보낸다(소수가 남으면 `Numeric(12,2)`에 저장된 값과 제안값이 영원히 달라진다).
 
 ## 실행 / 커맨드
 
@@ -41,7 +41,7 @@
 - 의존성 설치: 런타임은 `pip install -r requirements.txt`, 테스트/개발은 여기에 `-r requirements-dev.txt`를 더한다 (`pytest` 등 테스트 전용 의존성은 프로덕션 이미지에 넣지 않는다)
 - pre-commit 훅: `pre-commit install` 로 활성화(`.pre-commit-config.yaml` — ruff-check `--fix`, oxlint, 기본 위생 훅). CI 를 대체하지 않고 CI 왕복을 줄이는 용도. 포매터 전면 재정렬은 하지 않는다.
 - 테스트: `pytest` (설정은 `pyproject.toml`의 `[tool.pytest.ini_options]` — `--strict-markers`, `--durations=10`, `filterwarnings=["error", ...]`로 deprecation 경고를 에러로 승격. 상세 컨벤션은 [tests/CLAUDE.md](tests/CLAUDE.md))
-- 백엔드 린트: `ruff check .` (설정은 `pyproject.toml` `[tool.ruff]` — 포매팅 전면 재정렬은 안 하고 미사용 import/변수·bugbear·import 정렬만 강제). CI(`ci.yml`)가 `ruff check` + `pip check` + `pip-audit` + `pytest` + `migration-drift`(모델↔마이그레이션) + `api-types-drift`(백엔드 스키마↔`frontend/src/types/api.generated.ts`) + 프론트 잡(`npm audit --audit-level=high`, raw `emerald-`/`indigo-` 색상 grep 가드, `npm run lint`/`test`/`build`/`check:bundle-size`)을 돌린다.
+- 백엔드 린트: `ruff check .` (설정은 `pyproject.toml` `[tool.ruff]` — 포매팅 전면 재정렬은 안 하고 미사용 import/변수·bugbear·import 정렬만 강제). CI(`ci.yml`)가 `ruff check` + `pip check` + `pip-audit` + `pytest` + `migration-drift`(모델↔마이그레이션) + `api-types-drift`(백엔드 스키마↔`frontend/src/types/api.generated.ts`) + 프론트 잡(`npm audit --omit=dev --audit-level=high` 게이트 — dev 포함 전체 audit은 정보용,  raw `emerald-`/`indigo-` 색상 grep 가드, `npm run lint`/`test`/`build`/`check:bundle-size`)을 돌린다.
 - 마이그레이션: Alembic (`alembic.ini`, `migrations/`) — 모델 변경 시 리비전 생성 필요. 배포는 `alembic upgrade head`(`render.yaml`)라 체인이 깨지면 배포 전체가 실패하므로, `tests/test_migrations.py`가 Postgres 없이도 CI에서 head 1개·down_revision 연결·base 1개를 가드하고, CI `migration-drift` 잡이 `scripts/check_migration_drift.py`(임베디드 Postgres)로 "모델 == 마이그레이션 head"까지 가드한다(리비전 누락 방지). 2026-09-01에 51개 선형 체인을 단일 베이스라인(`bdba3c3b3277_squashed_baseline`) 하나로 스쿼시했다(운영 DB도 같은 날 stamp 완료). 구 리비전 파일과 일회성 검증 스크립트(`verify_migration_squash.py`)는 2026-09-25에 삭제했고 git 히스토리에만 남아 있다.
 - 배포: FastAPI가 `frontend/dist`(빌드된 SPA)를 정적 파일로 서빙하는 단일 프로세스 구조 (growlio의 nginx/Render+Vercel 분리 구조와 다른, nestlio 규모에 맞춘 의도적 단순화). Render 무료 웹서비스 1개로 배포한다 (`render.yaml` 참고) — DB는 별도로 마련할 필요 없이 growlio와 공유하는 Supabase Postgres를 그대로 쓴다. Render 무료 티어는 디스크가 완전히 휘발성이라 부부 사진은 Supabase Storage에, 구글 OAuth 토큰은 Postgres에 저장한다(아래 참고). 15분 미사용 시 슬립하므로 예약 작업은 인프로세스 스케줄러 대신 GitHub Actions가 트리거한다([app/scheduler/CLAUDE.md](app/scheduler/CLAUDE.md)).
 

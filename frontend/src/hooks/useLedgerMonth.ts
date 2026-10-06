@@ -5,6 +5,7 @@ import { fetchEvents } from "@/api/events";
 import { QUERY_KEYS } from "@/constants/queryKeys";
 import { monthBounds, occurrenceDate } from "@/utils/date";
 import type { EventOut, RecurringOut, TransactionOut } from "@/types";
+import { sumAmounts } from "@/utils/amount";
 
 const EMPTY_TRANSACTIONS: TransactionOut[] = [];
 
@@ -38,7 +39,7 @@ export function useLedgerMonth(yearMonth: string, debouncedQuery: string) {
   }, [items]);
 
   const savingsTotal = useMemo(
-    () => items.filter((tx) => tx.category.is_savings).reduce((sum, tx) => sum + Number(tx.amount), 0),
+    () => sumAmounts(items.filter((tx) => tx.category.is_savings), (tx) => tx.amount),
     [items],
   );
 

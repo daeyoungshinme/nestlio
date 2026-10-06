@@ -63,8 +63,7 @@ def budget_thresholds(db: Session) -> tuple[float, float]:
 
 
 def set_thresholds(db: Session, values: dict[str, float], updated_by: uuid.UUID) -> dict[str, float]:
-    for field in THRESHOLD_FIELDS:
-        if field not in values:
-            continue
-        user_setting_service.set_shared_setting(db, _setting_key(field), str(values[field]), updated_by)
+    user_setting_service.set_shared_settings(
+        db, {_setting_key(field): str(values[field]) for field in THRESHOLD_FIELDS if field in values}, updated_by
+    )
     return get_thresholds(db)

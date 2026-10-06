@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import GroupedTransactionList from "@/components/transactions/GroupedTransactionList";
-import { currentDateIso } from "@/utils/date";
+import { currentDateIso, formatDayHeader } from "@/utils/date";
 import { formatKrw } from "@/utils/format";
 import type { TransactionOut, UserOut } from "@/types";
 
@@ -11,14 +11,6 @@ interface Props {
   onDelete: (tx: TransactionOut) => void;
   showUser: boolean;
   users?: UserOut[];
-}
-
-const WEEKDAY_LABELS = ["일", "월", "화", "수", "목", "금", "토"];
-
-function formatDayHeader(date: string): string {
-  const [y, m, d] = date.split("-").map(Number);
-  const weekday = WEEKDAY_LABELS[new Date(y, m - 1, d).getDay()];
-  return `${m}.${d} (${weekday})`;
 }
 
 /** Groups an already-sorted transaction list by day into collapsible sections, reusing the

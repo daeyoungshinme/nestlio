@@ -90,11 +90,13 @@ def create_transaction(
         owner_user_id=owner_user_id,
     )
     db.add(tx)
+    # 거래 저장과 저축상품 잔액 조정은 한 커밋으로 묶는다 — 따로 커밋하면 두 번째가 실패했을 때
+    # 거래만 남고 current_balance가 어긋난다. growlio push는 되돌릴 수 없는 외부 호출이라 커밋 뒤에.
+    if savings_product_id is not None:
+        savings_product_service.adjust_balance(db, savings_product_id, amount)
     db.commit()
     db.refresh(tx)
     if savings_product_id is not None:
-        savings_product_service.adjust_balance(db, savings_product_id, amount)
-        db.refresh(tx)
         _push_growlio(db, tx, savings_product_id, "DEPOSIT", amount, transaction_date, bearer_token)
     return tx
 
@@ -113,25 +115,25 @@ def update_transaction(db: Session, tx_id: int, bearer_token: str | None = None,
     old_transaction_date = tx.transaction_date
     for key, value in fields.items():
         setattr(tx, key, value)
-    db.commit()
-    db.refresh(tx)
 
     # 라우터는 수정 폼의 모든 필드를 보내므로, 메모만 고쳐도 아래 -old/+new 잔액조정과 growlio
     # 출금+입금 한 쌍이 나간다(growlio 원장에 의미 없는 내역이 쌓이고, 반쪽 실패 시 잔액이 어긋남).
     # 저축 연동에 영향을 주는 값이 그대로면 건너뛴다.
-    if (tx.savings_product_id, tx.amount, tx.transaction_date) == (
+    savings_changed = (tx.savings_product_id, tx.amount, tx.transaction_date) != (
         old_savings_product_id,
         old_amount,
         old_transaction_date,
-    ):
+    )
+    # 잔액 조정도 거래 수정과 같은 커밋에 넣는다(create_transaction 주석 참고).
+    if savings_changed:
+        if old_savings_product_id is not None:
+            savings_product_service.adjust_balance(db, old_savings_product_id, -old_amount)
+        if new_savings_product_id is not None:
+            savings_product_service.adjust_balance(db, new_savings_product_id, tx.amount)
+    db.commit()
+    db.refresh(tx)
+    if not savings_changed:
         return tx
-
-    if old_savings_product_id is not None:
-        savings_product_service.adjust_balance(db, old_savings_product_id, -old_amount)
-    if new_savings_product_id is not None:
-        savings_product_service.adjust_balance(db, new_savings_product_id, tx.amount)
-    if old_savings_product_id is not None or new_savings_product_id is not None:
-        db.refresh(tx)
 
     if old_savings_product_id is not None:
         _push_growlio(db, tx, old_savings_product_id, "WITHDRAWAL", old_amount, old_transaction_date, bearer_token)
@@ -144,11 +146,14 @@ def delete_transaction(db: Session, tx_id: int, bearer_token: str | None = None)
     tx = db.get(Transaction, tx_id)
     if tx is None:
         return False
-    if tx.savings_product_id is not None:
-        savings_product_service.adjust_balance(db, tx.savings_product_id, -tx.amount)
-        _push_growlio(db, tx, tx.savings_product_id, "WITHDRAWAL", tx.amount, tx.transaction_date, bearer_token)
+    savings_product_id, amount, transaction_date = tx.savings_product_id, tx.amount, tx.transaction_date
+    if savings_product_id is not None:
+        savings_product_service.adjust_balance(db, savings_product_id, -amount)
     db.delete(tx)
     db.commit()
+    # 삭제가 커밋된 뒤에만 growlio 출금을 보낸다 — 먼저 보내고 삭제가 실패하면 growlio만 빠진다.
+    if savings_product_id is not None:
+        _push_growlio(db, tx, savings_product_id, "WITHDRAWAL", amount, transaction_date, bearer_token)
     return True
 
 

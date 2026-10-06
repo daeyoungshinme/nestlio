@@ -7,6 +7,7 @@ import pytest
 
 from app.models.category import Category
 from app.models.savings_product import SavingsProduct
+from app.models.transaction import Transaction
 from app.models.user import User
 from app.services import growlio_client, transaction_report_service, transaction_service
 
@@ -737,3 +738,52 @@ def test_delete_transaction_pushes_withdrawal(seeded_db):
         transaction_service.delete_transaction(db, tx.id, bearer_token="token-abc")
 
     mock_push.assert_called_once_with("token-abc", "growlio-acct-1", "WITHDRAWAL", Decimal("50000"), date(2026, 7, 1))
+
+
+def test_trailing_averages_are_whole_won(seeded_db):
+    """평균이 33333.333…으로 나가면 Numeric(12,2)에 33333.33으로 저장돼 제안값과 영원히 달라진다."""
+    db, user, food = seeded_db["db"], seeded_db["user"], seeded_db["food"]
+    transaction_service.create_transaction(db, user.id, food.id, "expense", Decimal("100000"), date(2026, 6, 10))
+
+    by_category = transaction_report_service.trailing_average_by_category(db, date(2026, 7, 15), months=3)
+    by_section = transaction_report_service.trailing_average_by_section(db, date(2026, 7, 15), months=3)
+
+    assert by_category[food.id] == Decimal("33333")
+    assert by_section["variable"] == Decimal("33333")
+
+
+def test_create_transaction_rolls_back_with_balance_adjustment_failure(seeded_db):
+    """거래 저장과 잔액 조정은 한 커밋 — 잔액 조정이 실패하면 거래도 남지 않아야 한다."""
+    db, user = seeded_db["db"], seeded_db["user"]
+    savings_category, product = _add_savings_category_and_product(db)
+
+    with patch.object(transaction_service.savings_product_service, "adjust_balance", side_effect=RuntimeError("boom")):
+        with pytest.raises(RuntimeError):
+            transaction_service.create_transaction(
+                db, user.id, savings_category.id, "expense", Decimal("50000"), date(2026, 7, 1),
+                savings_product_id=product.id,
+            )
+    db.rollback()
+
+    assert db.query(Transaction).count() == 0
+    db.refresh(product)
+    assert product.current_balance == Decimal("100000")
+
+
+def test_delete_transaction_pushes_growlio_only_after_commit(seeded_db):
+    db, user = seeded_db["db"], seeded_db["user"]
+    savings_category, product = _add_savings_category_and_product(db, growlio_account_id="growlio-acct-1")
+    with patch.object(growlio_client, "push_transaction"):
+        tx = transaction_service.create_transaction(
+            db, user.id, savings_category.id, "expense", Decimal("50000"), date(2026, 7, 1),
+            savings_product_id=product.id, bearer_token="tok",
+        )
+    tx_id = tx.id
+
+    with patch.object(db, "commit", side_effect=RuntimeError("db down")), patch.object(
+        growlio_client, "push_transaction"
+    ) as mock_push:
+        with pytest.raises(RuntimeError):
+            transaction_service.delete_transaction(db, tx_id, bearer_token="tok")
+
+    mock_push.assert_not_called()

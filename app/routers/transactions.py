@@ -6,6 +6,7 @@ from typing import Literal
 from fastapi import APIRouter, Depends, File, HTTPException, Response, UploadFile, status
 from sqlalchemy.orm import Session
 
+from app.config import settings
 from app.database import get_db
 from app.dependencies import get_bearer_token, get_current_user
 from app.models.user import User
@@ -36,6 +37,8 @@ logger = logging.getLogger("transactions")
 # 검색(q)만 주고 기간을 안 주면 "전체 기간" 합계를 낸다 — 하한을 이 앱에 거래가 있을 리 없는
 # 먼 과거로 잡아 사실상 무한 하한처럼 쓴다.
 _ALL_TIME_START = date(2000, 1, 1)
+# 검색 모드(기간 미지정)의 목록엔 미래 날짜 거래도 포함되므로 합계도 상한을 두지 않는다.
+_ALL_TIME_END = date(9999, 12, 31)
 
 
 @router.get("", response_model=TransactionListOut)
@@ -53,7 +56,9 @@ def list_transactions(
     df = date_from or (None if q else default_from)
     dt = date_to or (None if q else default_to)
     items = transaction_service.list_transactions(db, df, dt, category_id, type, user_id, q=q)
-    totals = transaction_report_service.period_totals(db, df or _ALL_TIME_START, dt or today_kst())
+    totals = transaction_report_service.period_totals(
+        db, df or _ALL_TIME_START, dt or _ALL_TIME_END, category_id=category_id, type_=type, user_id=user_id, q=q
+    )
     return {"items": items, "totals": totals}
 
 
@@ -151,7 +156,13 @@ def import_csv(
     current_user: User = Depends(get_current_user),
 ):
     # async def가 아니라 def — 가져오기 전체가 동기 DB 작업이라 이벤트 루프를 막지 않게 스레드풀에서 돈다.
-    raw = file.file.read()
+    # 상한+1바이트까지만 읽는다 — 통째로 read()하면 거대한 업로드 하나가 Render 무료 인스턴스 메모리를 다 쓴다.
+    max_bytes = settings.max_upload_size_mb * 1024 * 1024
+    raw = file.file.read(max_bytes + 1)
+    if len(raw) > max_bytes:
+        raise HTTPException(
+            status.HTTP_413_CONTENT_TOO_LARGE, f"CSV 파일은 {settings.max_upload_size_mb}MB를 넘을 수 없습니다."
+        )
     try:
         text = raw.decode("utf-8-sig")
     except UnicodeDecodeError:

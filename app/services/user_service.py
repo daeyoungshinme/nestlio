@@ -58,6 +58,13 @@ def get_user(db: Session, user_id: uuid.UUID) -> User | None:
     return db.get(User, user_id)
 
 
+def get_active_user(db: Session, user_id: uuid.UUID) -> User | None:
+    """제거(소프트 삭제)되지 않은 가구 구성원만 — 제거된 배우자는 목록(list_users)에서 빠지므로
+    이름 변경·재제거 같은 수정 대상도 아니다(없는 사용자와 똑같이 취급)."""
+    user = get_user(db, user_id)
+    return user if user is not None and user.removed_at is None else None
+
+
 def update_display_name(db: Session, user: User, display_name: str) -> User:
     user.display_name = display_name
     db.commit()

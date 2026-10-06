@@ -42,3 +42,18 @@ def test_correct_secret_runs_registered_job(client, monkeypatch):
     assert resp.status_code == 200
     assert resp.json() == {"job": "daily-due-date-check", "status": "ok"}
     assert calls == [1]
+
+
+def test_failed_job_reports_exception_class_in_detail(client, monkeypatch):
+    monkeypatch.setattr("app.routers.internal_jobs.settings.internal_job_secret", "test-secret")
+
+    def boom():
+        raise KeyError("secret-ish detail")
+
+    monkeypatch.setitem(internal_jobs.JOB_REGISTRY, "daily-due-date-check", boom)
+
+    resp = client.post(
+        "/internal/jobs/daily-due-date-check", headers={"X-Internal-Job-Secret": "test-secret"}
+    )
+    assert resp.status_code == 500
+    assert resp.json()["detail"] == "job 'daily-due-date-check' failed: KeyError"

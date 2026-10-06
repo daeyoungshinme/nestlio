@@ -19,6 +19,7 @@
 ## Google 연동 가드 (google_auth / gmail_service / google_calendar_service / google_sheets_service)
 
 - `google_calendar_service`/`gmail_service`/`google_sheets_service.read_values`(OAuth 경로)를 호출하기 전에 반드시 `google_auth.is_connected()`로 연결 여부를 확인한다. `google_sheets_service.read_public_csv`(공개 링크 경로)는 OAuth를 쓰지 않으므로 이 가드가 필요 없다.
+- 알림 메일(`notification_service`)은 `gmail_service.send_email`을 직접 부르지 않고 `_send_email_best_effort`를 거친다 — 연결 가드 + `GoogleAuthError`/`GmailSendError`를 경고 로그로 흡수해, 메일 실패가 인앱 알림(`log_sent`)이나 예약 잡을 막지 않게 한다. 사용자가 직접 누른 발송(설정의 테스트 메일, 초대장)은 반대로 예외를 라우터까지 올려 메시지를 보여준다.
 - 순환 의존/불필요한 부팅 비용을 피하기 위해 지연 import(함수 내부 import)를 쓰는 경우가 있다.
 - 연결되지 않은 상태에서 호출되면 `GoogleNotConnectedError`를 던지므로, 호출부에서 이를 인지하고 가드 없이 직접 호출하지 않는다.
 
@@ -46,7 +47,7 @@
 
 `transaction_service.py`는 원래 CRUD·집계·CSV import/export를 한 파일에 모두 담고 있었으나(583줄), 책임별로 3개 파일로 분리했다.
 
-- `transaction_service.py`: CRUD(`create_transaction`/`update_transaction`/`delete_transaction`/`get_transaction`/`list_transactions`/`frequent_unique_transactions`)와 저축상품 연결 검증(`_validate_savings_link`), growlio push(`_push_growlio`)만 남는다.
+- `transaction_service.py`: CRUD(`create_transaction`/`update_transaction`/`delete_transaction`/`list_transactions`/`frequent_unique_transactions`)와 저축상품 연결 검증(`_validate_savings_link`), growlio push(`_push_growlio`)만 남는다.
 - `transaction_report_service.py`: 기간 집계 함수들(`period_totals`, `totals_by_owner`, `category_breakdown`/`category_breakdown_by_owner`, `owner_spending_detail`, `rank_owner_contributions`, `monthly_trend`, `trailing_average_by_category`, `trailing_average_by_section`, `category_monthly_trend`, `yearly_monthly_breakdown`, `yearly_totals`)이 모여 있다. `Transaction.user_id`(누가 "기록했는지" — `category_breakdown(user_id=...)`)와 `*_by_owner`(`Transaction.owner_user_id`, 실제 소비 주체 — 공통 지출은 `NULL`)는 서로 다른 축이다: 배우자가 서로 대신 입력해주는 경우가 있어 "부부별 지출" 표시(대시보드/연간리포트)는 `user_id`가 아니라 `by_owner` 계열을 쓴다. 새 집계 함수를 추가할 때 어느 축이 필요한지 먼저 확인한다.
 - `transaction_import_service.py`: CSV export/import 관련 상수(`CSV_HEADER`, `CSV_TYPE_LABELS`, `CSV_TYPE_BY_LABEL`)와 `export_csv`, `import_rows`, `import_csv`, `import_from_sheet_url`, `import_from_spreadsheet`가 있다. 헤더나 라벨을 바꿀 때는 세 상수를 함께 갱신한다. 행 파싱/생성 로직은 `import_rows(db, rows: list[list[str]], user_id)`에 모여 있고, `import_csv`(CSV 파일 문자열)와 `import_from_sheet_url`/`import_from_spreadsheet`(구글 시트, `google_sheets_service` 경유)는 모두 이미 셀 단위로 분리된 `rows`만 만들어 이 함수에 위임하는 얇은 래퍼다 — 카테고리/구분 매칭이나 skip 처리 로직을 바꿀 때는 `import_rows` 하나만 고치면 세 경로 모두에 반영된다.
 
@@ -54,7 +55,7 @@
 
 `event_service.py`는 원래 CRUD·구글 캘린더 연동·리마인더를 한 파일에 모두 담고 있었으나(426줄), 책임별로 3개 파일로 분리했다(`transaction_service`/`savings_product_service`의 분할과 동일한 동기).
 
-- `event_service.py`: CRUD(`create_event`/`update_event`/`delete_event`/`get_event`/`set_completed`)와 반복일정 전개(`occurrences_in_range`), `to_out_dict`, `ImportedEventReadOnlyError`만 남는다.
+- `event_service.py`: CRUD(`create_event`/`update_event`/`delete_event`/`set_completed`)와 반복일정 전개(`occurrences_in_range`), `to_out_dict`, `ImportedEventReadOnlyError`만 남는다.
 - `event_calendar_service.py`: 구글 캘린더 연동(`import_from_google`/`sync_to_google`/`remove_from_google`/`_parse_google_event`)이 모여 있다.
 - `event_reminder_service.py`: 리마인더(`send_due_reminders`/`_due_occurrences`/`_already_notified_pairs`/`_log_notified`/`_send_reminder_email`)와 배우자 알림(`notify_other_spouse`)이 모여 있다. `_due_occurrences`는 `event_service.occurrences_in_range`를 그대로 재사용한다.
 - `event_service.create_event`/`update_event`/`delete_event`는 저장 직후 `event_calendar_service.sync_to_google`/`remove_from_google`과 `event_reminder_service.notify_other_spouse`를 호출해야 하는데, 이 두 모듈이 반대로 `event_service.occurrences_in_range`를 참조하므로 core가 이 둘을 모듈 상단에서 import하면 순환 의존이 생긴다 — 위 "Google 연동 가드" 절의 지연 import 관례를 그대로 가져와 `create_event`/`update_event`/`delete_event` 함수 본문에서만 import한다.
@@ -86,7 +87,7 @@
 - `notification_service.py`: 이메일 발송/알림 판정 로직(`send_weekly_summary`/`send_monthly_summary`/`check_and_alert_budget_threshold`/`check_and_celebrate_goal_milestone`/`check_all_goal_milestones`/`check_all_categories_threshold`/`check_savings_pace_reminder` — 월말 3일 전 이번 달 저축·투자 계획 미달분 알림, 월 1회 dedup)만 남는다. 위 "알림 dedup" 절이 설명하는 `NotificationLog` 기반 dedup 헬퍼(`already_sent`/`log_sent`)는 `notification_log_service.py`로 분리돼 있다 — `milestone_service`(목표 달성 축하, 마일스톤 값을 기간 키로 사용)도 같은 헬퍼를 쓰므로, `notification_service`를 import하면 순환 의존이 되는 모듈에서도 쓸 수 있게 따로 뒀다.
 - `notification_inbox_service.py`(신규): 알림 목록/읽음/반응 CRUD(`list_notifications`/`add_reaction`/`unread_count`/`mark_read`/`mark_all_read`)와 목표 응원(`send_goal_cheer` — `goal_cheer` 알림 + 보낸 사람 리액션 + 본인 읽음 처리), `REACTION_EMOJIS` 상수, 예외 클래스(`NotificationError`, `NotificationNotFoundError`, `InvalidReactionError`)가 모여 있다.
 - 두 모듈 사이에 의존 관계는 없다(서로 import하지 않음) — 알림을 "발송"하는 것과 발송된 알림을 "조회/읽음 처리"하는 것은 완전히 분리된 관심사다.
-- 테스트 파일은 나누지 않았다(`tests/CLAUDE.md`에 명시) — `tests/test_notification_service.py`가 두 모듈을 모두 다룬다.
+- 테스트도 모듈별로 나뉘어 있다 — `tests/test_notification_service.py`(발송·dedup), `tests/test_notification_inbox_service.py`(알림 목록/읽음/반응).
 
 ## growlio 연동 공통 헬퍼 (growlio_client.py)
 

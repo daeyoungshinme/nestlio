@@ -10,6 +10,7 @@ from app.models.savings_product_annual_plan_monthly_target import SavingsProduct
 from app.models.transaction import Transaction
 from app.services import plan_targets, savings_product_service
 from app.utils.dates import month_bounds, parse_year_month, shift_month, year_bounds, year_month_of
+from app.utils.money import whole_won
 from app.utils.plan_status import pct_of
 
 PLAN_PRODUCT_TYPES = ("savings", "investment")
@@ -44,7 +45,7 @@ def trailing_average_actuals(db: Session, year_month: str, months: int = 3) -> d
     window_start, _ = month_bounds(shift_month(month_start, -months))
     _, window_end = month_bounds(shift_month(month_start, -1))
     totals = _actuals_between(db, window_start, window_end)
-    return {product_id: total / months for product_id, total in totals.items()}
+    return {product_id: whole_won(total / months) for product_id, total in totals.items()}
 
 
 def get_annual_plan(db: Session, product_id: int, year: int) -> dict | None:
@@ -164,13 +165,49 @@ def _planned_amount(product: SavingsProduct, product_targets: dict[str, Decimal]
 
 def plan_totals_for_month(db: Session, year_month: str) -> tuple[Decimal, Decimal]:
     """(그 달 저축·투자 계획 합계, 그 달 실제 납입 합계) — 부동산·비상금 상품은 계획 대상이 아니라 뺀다."""
+    return plan_totals_for_months(db, [year_month])[year_month]
+
+
+def plan_totals_for_months(db: Session, year_months: list[str]) -> dict[str, tuple[Decimal, Decimal]]:
+    """plan_totals_for_month의 여러 달 버전 — 연속 달성(coaching_engine.savings_pace_history)처럼 6개월을
+    한꺼번에 볼 때 달마다 상품 목록·월별 목표·실적을 다시 조회하지 않는다(상품 1회 + 연도별 목표 + 실적 1회)."""
+    if not year_months:
+        return {}
     products = plan_products(db)
-    planned = planned_by_product_for_month(db, year_month, products)
-    actuals = actuals_for_month(db, year_month)
-    return (
-        sum(planned.values(), Decimal("0")),
-        sum((actuals.get(p.id, Decimal("0")) for p in products), Decimal("0")),
+    product_ids = [p.id for p in products]
+    targets_by_year = {
+        year: _monthly_targets_by_product_for_year(db, product_ids, year)
+        for year in sorted({int(ym[:4]) for ym in year_months})
+    }
+    month_starts = [parse_year_month(ym) for ym in year_months]
+    actuals_by_month = _actuals_by_month_between(db, month_bounds(min(month_starts))[0], month_bounds(max(month_starts))[1])
+    result = {}
+    for ym in year_months:
+        targets = targets_by_year[int(ym[:4])]
+        actuals = actuals_by_month.get(ym, {})
+        result[ym] = (
+            sum((_planned_amount(p, targets.get(p.id, {}), ym) for p in products), Decimal("0")),
+            sum((actuals.get(p.id, Decimal("0")) for p in products), Decimal("0")),
+        )
+    return result
+
+
+def _actuals_by_month_between(db: Session, start: date, end: date) -> dict[str, dict[int, Decimal]]:
+    """_actuals_between과 같은 매칭 규칙을 달별로 나눠 담는다(year_month -> product_id -> 합계)."""
+    rows = (
+        db.query(Transaction.savings_product_id, Transaction.transaction_date, Transaction.amount)
+        .filter(
+            Transaction.savings_product_id.isnot(None),
+            Transaction.transaction_date >= start,
+            Transaction.transaction_date <= end,
+        )
+        .all()
     )
+    result: dict[str, dict[int, Decimal]] = {}
+    for product_id, tx_date, amount in rows:
+        bucket = result.setdefault(year_month_of(tx_date.year, tx_date.month), {})
+        bucket[product_id] = bucket.get(product_id, Decimal("0")) + amount
+    return result
 
 
 def compute_plan_summary(
