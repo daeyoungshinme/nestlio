@@ -294,3 +294,33 @@ def test_export_csv(client, seeded_db):
 def test_unknown_api_path_is_404_not_spa_fallback(client):
     # 삭제된 GET /transactions/{id} 같은 없는 API 경로가 (dist가 있을 때) SPA index.html 200으로 새지 않는다.
     assert client.get("/api/v1/transactions/123").status_code in (404, 405)
+
+
+def test_list_transactions_totals_follow_search_query(client, seeded_db):
+    """합계는 목록과 같은 집합이어야 한다 — 검색 중에도 기간 전체 합계가 나오던 회귀."""
+    db, user, food, rent = seeded_db["db"], seeded_db["user"], seeded_db["food"], seeded_db["rent"]
+    transaction_service.create_transaction(
+        db, user.id, food.id, "expense", Decimal("10000"), date(2026, 7, 5), description="스타벅스 커피"
+    )
+    transaction_service.create_transaction(
+        db, user.id, rent.id, "expense", Decimal("800000"), date(2026, 7, 1), description="월세"
+    )
+
+    resp = client.get(
+        "/api/v1/transactions",
+        params={"date_from": "2026-07-01", "date_to": "2026-07-31", "q": "커피"},
+    )
+
+    assert Decimal(resp.json()["totals"]["expense"]) == Decimal("10000")
+
+
+def test_list_transactions_search_without_dates_includes_future_rows_in_totals(client, seeded_db):
+    db, user, food = seeded_db["db"], seeded_db["user"], seeded_db["food"]
+    transaction_service.create_transaction(
+        db, user.id, food.id, "expense", Decimal("7000"), date(2099, 1, 1), description="미래 커피"
+    )
+
+    body = client.get("/api/v1/transactions", params={"q": "커피"}).json()
+
+    assert len(body["items"]) == 1
+    assert Decimal(body["totals"]["expense"]) == Decimal("7000")

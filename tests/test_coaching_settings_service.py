@@ -42,3 +42,19 @@ def test_get_thresholds_falls_back_on_corrupted_value(seeded_db):
     thresholds = coaching_settings_service.get_thresholds(db)
 
     assert thresholds["budget_warn_pct"] == settings.budget_warn_pct
+
+
+def test_set_thresholds_saves_all_fields_in_one_commit(seeded_db):
+    """키마다 커밋하면 중간 실패 시 일부 임계값만 저장돼 warn < critical 짝이 깨진다."""
+    from unittest.mock import patch
+
+    db, user = seeded_db["db"], seeded_db["user"]
+    coaching_settings_service.set_thresholds(db, {"budget_warn_pct": 70.0}, user.id)  # 기존 행 + 새 행 섞기
+
+    with patch.object(db, "commit", wraps=db.commit) as spy:
+        result = coaching_settings_service.set_thresholds(
+            db, {"budget_warn_pct": 75.0, "budget_critical_pct": 95.0, "savings_rate_warn": 22.0}, user.id
+        )
+
+    assert spy.call_count == 1
+    assert (result["budget_warn_pct"], result["budget_critical_pct"], result["savings_rate_warn"]) == (75.0, 95.0, 22.0)

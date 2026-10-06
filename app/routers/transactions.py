@@ -37,6 +37,8 @@ logger = logging.getLogger("transactions")
 # 검색(q)만 주고 기간을 안 주면 "전체 기간" 합계를 낸다 — 하한을 이 앱에 거래가 있을 리 없는
 # 먼 과거로 잡아 사실상 무한 하한처럼 쓴다.
 _ALL_TIME_START = date(2000, 1, 1)
+# 검색 모드(기간 미지정)의 목록엔 미래 날짜 거래도 포함되므로 합계도 상한을 두지 않는다.
+_ALL_TIME_END = date(9999, 12, 31)
 
 
 @router.get("", response_model=TransactionListOut)
@@ -54,7 +56,9 @@ def list_transactions(
     df = date_from or (None if q else default_from)
     dt = date_to or (None if q else default_to)
     items = transaction_service.list_transactions(db, df, dt, category_id, type, user_id, q=q)
-    totals = transaction_report_service.period_totals(db, df or _ALL_TIME_START, dt or today_kst())
+    totals = transaction_report_service.period_totals(
+        db, df or _ALL_TIME_START, dt or _ALL_TIME_END, category_id=category_id, type_=type, user_id=user_id, q=q
+    )
     return {"items": items, "totals": totals}
 
 
