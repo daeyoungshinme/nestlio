@@ -1,7 +1,7 @@
 # 테스트/개발 전용 의존성. 프로덕션 이미지(render.yaml: requirements.txt만 설치)에는 들어가지 않는다.
 # CI backend job과 로컬 개발에서만: pip install -r requirements.txt -r requirements-dev.txt
 pytest==9.1.1
-ruff==0.16.8
+ruff==0.16.10
 # pre-commit 훅 러너 (.pre-commit-config.yaml). `pre-commit install` 로 훅 활성화.
 pre-commit==4.6.2
 # 의존성 취약점 스캔. CI backend 잡이 `pip-audit -r requirements.txt` 로 돈다.
@@ -11,4 +11,4 @@ pip-audit==2.10.1
 pgserver==0.1.4
 # Google OAuth 최초 연결용 로컬 스크립트(scripts/google_auth_setup.py) 전용 — 서버 런타임은
 # 저장된 토큰을 google-auth로 갱신만 하므로 프로덕션 이미지엔 필요 없다.
-google-auth-oauthlib==1.4.1
+google-auth-oauthlib==1.5.0
