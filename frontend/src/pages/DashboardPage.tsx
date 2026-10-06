@@ -57,6 +57,8 @@ function latestPartnerCheer(
 export default function DashboardPage() {
   const [showQuickAdd, setShowQuickAdd] = useState(false);
   const [quickAddPrefill, setQuickAddPrefill] = useState<Record<string, string> | null>(null);
+  // 렌더 중 new Date()는 비순수 호출이라(oxlint) 마운트 시점 날짜를 한 번만 잡는다.
+  const [mountedAt] = useState(() => new Date());
   const yearMonth = currentYearMonth();
 
   const { data, isLoading, isError, error, refetch } = useQuery({
@@ -141,7 +143,7 @@ export default function DashboardPage() {
       )
     : null;
   const paceMessage = data.insights.find((i) => i.rule_code === "goal_pace")?.message ?? null;
-  const showRetrospective = new Date().getDate() <= RETROSPECTIVE_DAYS;
+  const showRetrospective = mountedAt.getDate() <= RETROSPECTIVE_DAYS;
 
   return (
     <div className="space-y-4">
