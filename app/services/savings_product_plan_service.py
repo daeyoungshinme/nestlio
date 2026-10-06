@@ -10,6 +10,7 @@ from app.models.savings_product_annual_plan_monthly_target import SavingsProduct
 from app.models.transaction import Transaction
 from app.services import plan_targets, savings_product_service
 from app.utils.dates import month_bounds, parse_year_month, shift_month, year_bounds, year_month_of
+from app.utils.money import whole_won
 from app.utils.plan_status import pct_of
 
 PLAN_PRODUCT_TYPES = ("savings", "investment")
@@ -44,7 +45,7 @@ def trailing_average_actuals(db: Session, year_month: str, months: int = 3) -> d
     window_start, _ = month_bounds(shift_month(month_start, -months))
     _, window_end = month_bounds(shift_month(month_start, -1))
     totals = _actuals_between(db, window_start, window_end)
-    return {product_id: total / months for product_id, total in totals.items()}
+    return {product_id: whole_won(total / months) for product_id, total in totals.items()}
 
 
 def get_annual_plan(db: Session, product_id: int, year: int) -> dict | None:

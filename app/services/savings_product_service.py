@@ -88,10 +88,10 @@ def deactivate_product(db: Session, product_id: int) -> bool:
 
 
 def adjust_balance(db: Session, product_id: int, delta: Decimal) -> None:
+    """커밋하지 않는다 — 호출부(transaction_service)가 거래 저장과 같은 커밋으로 묶는다."""
     product = db.get(SavingsProduct, product_id)
     if product is not None:
         product.current_balance += delta
-        db.commit()
 
 
 def set_growlio_link(

@@ -498,7 +498,7 @@ def test_compute_plan_summary_includes_suggested_monthly_saving_amount(seeded_db
     summary = savings_product_plan_service.compute_plan_summary(db, "2026-07")
 
     item = next(i for i in summary["items"] if i["id"] == product.id)
-    assert item["suggested_monthly_saving_amount"] == Decimal("80000") / 3
+    assert item["suggested_monthly_saving_amount"] == Decimal("26667")  # 80000/3, 원 단위 반올림
 
 
 def test_compute_plan_summary_excludes_real_estate_products(seeded_db):
