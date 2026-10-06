@@ -803,3 +803,29 @@ def test_sync_from_growlio_keeps_principal_when_growlio_omits_it(db_session):
         synced = savings_product_growlio_service.sync_from_growlio(db_session, product.id, "token", now=datetime(2026, 9, 1))
 
     assert synced.principal_amount == Decimal("500")
+
+
+def test_plan_totals_for_months_matches_per_month_and_spans_years(seeded_db, count_selects):
+    """연속 달성(6개월) 계산용 일괄 버전 — 달마다 부르던 결과와 같고, 연도 경계를 넘어도 맞으며,
+    조회 수가 달 수에 비례하지 않는다."""
+    db, user = seeded_db["db"], seeded_db["user"]
+    savings_category = _add_savings_category(db)
+    product = savings_product_service.create_product(db, "적금", Decimal("0"), Decimal("50000"))
+    savings_product_plan_service.upsert_annual_plan(
+        db, product.id, 2026, "2026-01", "2026-12", [{"year_month": "2026-01", "target_amount": Decimal("70000")}]
+    )
+    transaction_service.create_transaction(
+        db, user.id, savings_category.id, "expense", Decimal("60000"), date(2025, 12, 5), savings_product_id=product.id
+    )
+    transaction_service.create_transaction(
+        db, user.id, savings_category.id, "expense", Decimal("80000"), date(2026, 1, 20), savings_product_id=product.id
+    )
+    months = ["2025-11", "2025-12", "2026-01", "2026-02"]
+
+    with count_selects() as n:
+        batch = savings_product_plan_service.plan_totals_for_months(db, months)
+
+    assert batch == {ym: savings_product_plan_service.plan_totals_for_month(db, ym) for ym in months}
+    assert batch["2025-12"] == (Decimal("50000"), Decimal("60000"))
+    assert batch["2026-01"] == (Decimal("70000"), Decimal("80000"))
+    assert n[0] <= 4  # 상품 1 + 연도별 목표 2 + 실적 1

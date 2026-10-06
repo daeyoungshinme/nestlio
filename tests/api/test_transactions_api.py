@@ -190,6 +190,15 @@ def test_import_csv_undecodable_file_returns_400(client):
     assert "인코딩" in resp.json()["detail"]
 
 
+def test_import_csv_over_size_limit_returns_413(client, monkeypatch):
+    monkeypatch.setattr("app.routers.transactions.settings.max_upload_size_mb", 1)
+    oversized = b"a" * (1024 * 1024 + 1)
+
+    resp = client.post("/api/v1/transactions/import", files={"file": ("big.csv", oversized, "text/csv")})
+
+    assert resp.status_code == 413
+
+
 def test_import_sheet_public_mode(client):
     csv_text = "날짜,구분,카테고리,금액,메모\n2026-07-05,지출,식비,10000,점심\n"
     with patch("app.services.google_sheets_service.read_public_csv", return_value=csv_text):
