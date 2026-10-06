@@ -51,6 +51,7 @@ import {
 } from "@/utils/colors";
 import { GROWLIO_APP_URL, growlioAssetTypeLabel, growlioPortfolioUrl, isGrowlioLinkedInvestment } from "@/constants/growlio";
 import type { FinancialGoalOut, SavingsProductOut, SavingsProductType, UserOut } from "@/types";
+import { sumAmounts } from "@/utils/amount";
 
 interface Draft {
   name: string;
@@ -152,11 +153,11 @@ export default function SavingsProductsSection({ users }: Props) {
         const existingGrowlioAccountIds = new Set(
           data.filter((p): p is SavingsProductOut & { growlio_account_id: string } => !!p.growlio_account_id).map((p) => p.growlio_account_id)
         );
-        const totalMonthly = data.reduce((sum, p) => sum + Number(monthlyPlanOf(p)), 0);
+        const totalMonthly = sumAmounts(data, (p) => monthlyPlanOf(p));
         const balanceByType = PRODUCT_TYPES.map((type) => ({
           type,
           rows: data.filter((p) => p.product_type === type),
-          total: data.filter((p) => p.product_type === type).reduce((sum, p) => sum + Number(p.current_balance), 0),
+          total: sumAmounts(data.filter((p) => p.product_type === type), (p) => p.current_balance),
         })).filter((entry) => entry.rows.length > 0);
         const shouldGroup = data.length >= GROUP_THRESHOLD;
 
@@ -258,7 +259,7 @@ export default function SavingsProductsSection({ users }: Props) {
                 renderRowMeta={(account) => ({ name: account.name, badge: growlioAssetTypeLabel(account.asset_type) })}
                 importRows={importGrowlioAccounts}
                 buildSuccessMessage={(created) => {
-                  const total = created.reduce((sum, p) => sum + Number(p.current_balance), 0);
+                  const total = sumAmounts(created, (p) => p.current_balance);
                   return `growlio 계좌 ${created.length}개를 가져왔습니다. 합계 ${formatKrw(total)}`;
                 }}
                 existingGrowlioAccountIds={existingGrowlioAccountIds}

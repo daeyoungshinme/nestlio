@@ -12,6 +12,10 @@ import { ACCOUNTS_SECTIONS, type AccountsSection as AccountsSectionName } from "
 const SECTIONS = ACCOUNTS_SECTIONS;
 type Section = AccountsSectionName;
 
+function isSection(value: string | null): value is Section {
+  return (SECTIONS as readonly string[]).includes(value ?? "");
+}
+
 function sectionId(name: Section): string {
   return `section-${name.replace(/·/g, "")}`;
 }
@@ -22,15 +26,13 @@ function sectionId(name: Section): string {
 export default function AccountsPage() {
   const [searchParams] = useSearchParams();
   const requested = searchParams.get("section") ?? searchParams.get("tab");
-  const openSection: Section = (SECTIONS as readonly string[]).includes(requested ?? "")
-    ? (requested as Section)
-    : "계좌";
+  const openSection: Section = isSection(requested) ? requested : "계좌";
 
   const { data: users } = useUsers();
 
   useEffect(() => {
-    if (requested && (SECTIONS as readonly string[]).includes(requested)) {
-      document.getElementById(sectionId(requested as Section))?.scrollIntoView({ block: "start" });
+    if (isSection(requested)) {
+      document.getElementById(sectionId(requested))?.scrollIntoView({ block: "start" });
     }
     // eslint-disable-next-line react/exhaustive-deps -- 마운트 시 1회만 딥링크(?section=)로 스크롤
   }, []);
