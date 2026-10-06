@@ -8,7 +8,7 @@ import { SettingsSectionCard, onMutationError } from "@/components/settings/shar
 import { cancelInvite, createInvite, fetchInvites } from "@/api/invites";
 import { removeUser } from "@/api/users";
 import { useMe, useUsers } from "@/hooks/useReferenceData";
-import { QUERY_KEYS } from "@/constants/queryKeys";
+import { QUERY_KEYS, USER_RELATED_KEYS } from "@/constants/queryKeys";
 import { inviteStatusLabel, inviteStatusTextClass } from "@/utils/colors";
 import type { InviteStatus } from "@/utils/colors";
 import { toast } from "@/utils/toast";
@@ -58,11 +58,7 @@ export default function HouseholdSection() {
   const removeSpouseMutation = useMutation({
     mutationFn: () => removeUser(spouse!.id),
     onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.users });
-      void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.me });
-      void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.dashboardAll });
-      void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.dashboardBootstrap });
-      void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.monthlyRetrospective });
+      USER_RELATED_KEYS.forEach((key) => void queryClient.invalidateQueries({ queryKey: key }));
       setRemoveSpouseOpen(false);
       setRemoveSpouseConfirmText("");
       toast("배우자를 제거했습니다.", "success");

@@ -6,7 +6,7 @@ import FormInput from "@/components/common/FormInput";
 import { SettingsSectionCard, onMutationError } from "@/components/settings/shared";
 import { updateMe, updateUser } from "@/api/users";
 import { useMe, useUsers } from "@/hooks/useReferenceData";
-import { QUERY_KEYS } from "@/constants/queryKeys";
+import { USER_RELATED_KEYS } from "@/constants/queryKeys";
 import { useThemeStore } from "@/stores/themeStore";
 import { toast } from "@/utils/toast";
 
@@ -20,13 +20,14 @@ export default function AccountSection() {
   const [displayNameEdit, setDisplayNameEdit] = useState<string | null>(null);
   const [spouseDisplayNameEdit, setSpouseDisplayNameEdit] = useState<string | null>(null);
 
+  // 표시 이름은 거래·일정·알림·대시보드·회고 응답에도 박혀 있다(USER_RELATED_KEYS).
+  const invalidateUserRelated = () =>
+    USER_RELATED_KEYS.forEach((key) => void queryClient.invalidateQueries({ queryKey: key }));
+
   const updateDisplayNameMutation = useMutation({
     mutationFn: updateMe,
     onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.me });
-      void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.users });
-      void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.dashboardAll });
-      void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.dashboardBootstrap });
+      invalidateUserRelated();
       setDisplayNameEdit(null);
       toast("표시 이름을 저장했습니다.", "success");
     },
@@ -36,10 +37,7 @@ export default function AccountSection() {
   const updateSpouseDisplayNameMutation = useMutation({
     mutationFn: (display_name: string) => updateUser(spouse!.id, display_name),
     onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.users });
-      void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.dashboardAll });
-      void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.dashboardBootstrap });
-      void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.monthlyRetrospective });
+      invalidateUserRelated();
       setSpouseDisplayNameEdit(null);
       toast("배우자 표시 이름을 저장했습니다.", "success");
     },

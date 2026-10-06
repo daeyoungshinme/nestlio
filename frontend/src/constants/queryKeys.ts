@@ -81,3 +81,35 @@ export const ASSET_RELATED_KEYS: QueryKey[] = [
   QUERY_KEYS.financialGoals,
   QUERY_KEYS.dashboardAll,
 ];
+
+/** 카테고리 이름·색·활성 여부를 응답에 박아 두는 캐시 묶음 — 카테고리를 추가/수정/비활성화하면
+ * 전부 무효화한다. 거래(TransactionOut.category), 고정지출(RecurringOut.category), 카테고리 추이
+ * 차트·월간 회고(name/color), 계획·리포트·대시보드의 카테고리 행이 여기에 해당한다.
+ * 새 응답이 카테고리 정보를 싣게 되면 여기에 추가한다(queryKeyGroups.test.ts가 일부를 가드). */
+export const CATEGORY_RELATED_KEYS: QueryKey[] = [
+  QUERY_KEYS.categoriesAll,
+  QUERY_KEYS.transactionsAll,
+  QUERY_KEYS.categoryBreakdownAll,
+  QUERY_KEYS.recentTransactionsAll,
+  QUERY_KEYS.recurring,
+  QUERY_KEYS.categoryTrendAll,
+  QUERY_KEYS.cashflowPlanAll,
+  QUERY_KEYS.annualPlanAll,
+  QUERY_KEYS.yearlyReportAll,
+  QUERY_KEYS.dashboardAll,
+  QUERY_KEYS.monthlyRetrospective,
+];
+
+/** 가구 구성원의 표시 이름을 응답에 박아 두는 캐시 묶음 — 본인/배우자 이름 변경, 배우자 제거 시
+ * 전부 무효화한다. 거래 기록자(TransactionOut.user), 일정 작성자·담당자(EventOut), 알림 응원
+ * 반응, 대시보드·월간 회고의 부부 기여도(OwnerTotalsOut)가 여기에 해당한다. */
+export const USER_RELATED_KEYS: QueryKey[] = [
+  QUERY_KEYS.me,
+  QUERY_KEYS.users,
+  QUERY_KEYS.transactionsAll,
+  QUERY_KEYS.eventsAll,
+  QUERY_KEYS.notifications,
+  QUERY_KEYS.dashboardAll,
+  QUERY_KEYS.dashboardBootstrap,
+  QUERY_KEYS.monthlyRetrospective,
+];
