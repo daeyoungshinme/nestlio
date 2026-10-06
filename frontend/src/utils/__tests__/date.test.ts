@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { currentDateIso, currentYearMonth, currentYear, monthBounds, occurrenceDate, shiftDateIso, shiftYearMonth } from "@/utils/date";
+import { currentDateIso, currentYearMonth, currentYear, formatDayHeader, monthBounds, occurrenceDate, shiftDateIso, shiftYearMonth } from "@/utils/date";
 
 afterEach(() => {
   vi.useRealTimers();
@@ -44,5 +44,12 @@ describe("occurrenceDate", () => {
   it("keeps only the date part", () => {
     expect(occurrenceDate("2026-05-01T09:00:00+09:00")).toBe("2026-05-01");
     expect(occurrenceDate("2026-05-01")).toBe("2026-05-01");
+  });
+});
+
+describe("formatDayHeader", () => {
+  it("M.D (요일) 형식, 월·일 앞자리 0 없음", () => {
+    expect(formatDayHeader("2026-10-04")).toBe("10.4 (일)");
+    expect(formatDayHeader("2026-01-31")).toBe("1.31 (토)");
   });
 });

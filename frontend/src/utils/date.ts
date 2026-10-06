@@ -58,3 +58,12 @@ export function monthBounds(yearMonth: string): { date_from: string; date_to: st
 export function occurrenceDate(iso: string): string {
   return iso.split("T")[0];
 }
+
+/** 일요일부터 시작하는 요일 라벨(Date#getDay 인덱스와 같은 순서). */
+export const WEEKDAY_LABELS = ["일", "월", "화", "수", "목", "금", "토"] as const;
+
+/** "YYYY-MM-DD" → "M.D (요일)" — 가계부·일정의 날짜별 접이식 목록 헤더. */
+export function formatDayHeader(dateIso: string): string {
+  const [y, m, d] = dateIso.split("-").map(Number);
+  return `${m}.${d} (${WEEKDAY_LABELS[new Date(y, m - 1, d).getDay()]})`;
+}

@@ -19,6 +19,7 @@ import { useLoans } from "@/hooks/useReferenceData";
 import { accountsSectionLink } from "@/constants/routes";
 import { amountInputPreview, formatKrw, formatSyncedAt, resolveOwnerLabel, toAmountInputValue } from "@/utils/format";
 import type { LoanOut, RepaymentMethod, UserOut } from "@/types";
+import { sumAmounts } from "@/utils/amount";
 
 const REPAYMENT_METHOD_LABEL: Record<RepaymentMethod, string> = {
   equal_payment: "원리금균등",
@@ -108,7 +109,7 @@ export default function LoansSection({ users }: Props) {
   return (
     <QueryBoundary query={loansQuery} errorMessage="대출을 불러오지 못했어요">
       {(data) => {
-        const totalMonthly = data.reduce((sum, l) => sum + Number(l.monthly_payment), 0);
+        const totalMonthly = sumAmounts(data, (l) => l.monthly_payment);
 
         return (
           <div className="space-y-4">

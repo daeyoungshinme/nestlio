@@ -1,6 +1,6 @@
 import { Fragment, useMemo } from "react";
 import type { ReactNode } from "react";
-import { currentDateIso, toDateIso } from "@/utils/date";
+import { currentDateIso, toDateIso, WEEKDAY_LABELS } from "@/utils/date";
 
 export interface MonthGridCell {
   date: string;
@@ -13,8 +13,6 @@ interface Props {
   yearMonth: string;
   renderCell: (cell: MonthGridCell) => ReactNode;
 }
-
-const WEEKDAY_LABELS = ["일", "월", "화", "수", "목", "금", "토"];
 
 function buildGrid(yearMonth: string): Omit<MonthGridCell, "isToday">[] {
   const [y, m] = yearMonth.split("-").map(Number);

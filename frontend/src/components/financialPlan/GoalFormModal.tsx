@@ -35,6 +35,7 @@ import type {
   SavingsProductOut,
 } from "@/types";
 import { formErrorTextClass } from "@/utils/colors";
+import { sumAmounts } from "@/utils/amount";
 
 const GOAL_KIND_TABS = ["장기 목표", "챌린지"] as const;
 type GoalKindTab = (typeof GOAL_KIND_TABS)[number];
@@ -115,9 +116,10 @@ export default function GoalFormModal({
     enabled: !isChallenge && hasLinkedProducts,
   });
   const linkedPlannedMonthly = productPlan
-    ? productPlan.items
-        .filter((item) => draft.savings_product_ids.includes(String(item.id)))
-        .reduce((sum, item) => sum + Number(item.planned), 0)
+    ? sumAmounts(
+        productPlan.items.filter((item) => draft.savings_product_ids.includes(String(item.id))),
+        (item) => item.planned,
+      )
     : null;
 
   // 시작일/종료일이 바뀌면 월별 목표금액 행도 그 기간에 맞춰 다시 맞춘다 — 겹치는 달의 금액은 보존.
