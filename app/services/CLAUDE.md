@@ -19,6 +19,7 @@
 ## Google 연동 가드 (google_auth / gmail_service / google_calendar_service / google_sheets_service)
 
 - `google_calendar_service`/`gmail_service`/`google_sheets_service.read_values`(OAuth 경로)를 호출하기 전에 반드시 `google_auth.is_connected()`로 연결 여부를 확인한다. `google_sheets_service.read_public_csv`(공개 링크 경로)는 OAuth를 쓰지 않으므로 이 가드가 필요 없다.
+- 알림 메일(`notification_service`)은 `gmail_service.send_email`을 직접 부르지 않고 `_send_email_best_effort`를 거친다 — 연결 가드 + `GoogleAuthError`/`GmailSendError`를 경고 로그로 흡수해, 메일 실패가 인앱 알림(`log_sent`)이나 예약 잡을 막지 않게 한다. 사용자가 직접 누른 발송(설정의 테스트 메일, 초대장)은 반대로 예외를 라우터까지 올려 메시지를 보여준다.
 - 순환 의존/불필요한 부팅 비용을 피하기 위해 지연 import(함수 내부 import)를 쓰는 경우가 있다.
 - 연결되지 않은 상태에서 호출되면 `GoogleNotConnectedError`를 던지므로, 호출부에서 이를 인지하고 가드 없이 직접 호출하지 않는다.
 

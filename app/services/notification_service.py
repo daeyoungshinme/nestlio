@@ -18,12 +18,41 @@ from app.services import (
     savings_product_plan_service,
     transaction_report_service,
 )
-from app.services.google_auth import is_connected
+from app.services.gmail_service import GmailSendError
+from app.services.google_auth import GoogleAuthError, is_connected
 from app.utils.dates import month_bounds, today_kst, week_bounds, year_month_str
 
 logger = logging.getLogger(__name__)
 
+GOOGLE_REAUTH_NOTIF_TYPE = "google_reauth"
 
+
+def _send_email_best_effort(db: Session, subject: str, body: str, html_body: str | None = None) -> bool:
+    """알림 메일은 부가 채널이다 — 인앱 알림(NotificationLog)이 정본이라, 메일 발송 실패가 호출부의
+    log_sent까지 막아 인앱 알림이 유실되거나 예약 잡이 500으로 끝나면 안 된다. Google 미연결이면
+    보내지 않고, 토큰 만료/revoke(GoogleAuthError)나 Gmail API 오류(GmailSendError)는 경고 로그만
+    남기고 False를 돌려준다. 토큰 만료는 부부가 알아야 고칠 수 있으므로 인앱 알림도 (월 1회) 남긴다."""
+    if not is_connected():
+        return False
+    try:
+        gmail_service.send_email(
+            subject, body, to=notification_settings_service.get_recipients(db), html_body=html_body
+        )
+    except GoogleAuthError as exc:
+        logger.warning("알림 메일 미발송 — 구글 재연결 필요: %s", subject)
+        _log_google_reauth_needed(db, str(exc))
+        return False
+    except GmailSendError:
+        logger.warning("알림 메일 발송 실패: %s", subject, exc_info=True)
+        return False
+    return True
+
+
+def _log_google_reauth_needed(db: Session, message: str) -> None:
+    period_key = year_month_str(today_kst())
+    if notification_log_service.already_sent(db, GOOGLE_REAUTH_NOTIF_TYPE, period_key):
+        return
+    notification_log_service.log_sent(db, GOOGLE_REAUTH_NOTIF_TYPE, period_key, detail=message)
 
 
 def _format_summary(title: str, start: date, end: date, totals: dict, breakdown: list[dict]) -> str:
@@ -95,13 +124,10 @@ def send_weekly_summary(db: Session, today: date | None = None, force: bool = Fa
     body = _format_summary("주간 가계부 요약", start, end, totals, breakdown)
     body = _with_streak_and_contribution(body, streak=streak, owner_totals=owner_totals)
 
-    if is_connected():
-        html = email_templates.build_weekly_summary_html(
-            start, end, totals, breakdown, owner_totals=owner_totals, streak=streak
-        )
-        gmail_service.send_email(
-            f"[Nestlio] 주간 요약 ({start} ~ {end})", body, to=notification_settings_service.get_recipients(db), html_body=html
-        )
+    html = email_templates.build_weekly_summary_html(
+        start, end, totals, breakdown, owner_totals=owner_totals, streak=streak
+    )
+    _send_email_best_effort(db, f"[Nestlio] 주간 요약 ({start} ~ {end})", body, html_body=html)
     notification_log_service.log_sent(db, "email_weekly", period_key, detail=body[:500])
     return True
 
@@ -123,13 +149,10 @@ def send_monthly_summary(db: Session, today: date | None = None, force: bool = F
         body += "\n\n자산증식 코칭:\n"
         body += "\n".join(f"  - [{i.severity}] {i.message}" for i in insights)
 
-    if is_connected():
-        html = email_templates.build_monthly_summary_html(
-            start, end, totals, breakdown, insights, owner_totals=owner_totals, streak=streak
-        )
-        gmail_service.send_email(
-            f"[Nestlio] {period_key} 월간 요약", body, to=notification_settings_service.get_recipients(db), html_body=html
-        )
+    html = email_templates.build_monthly_summary_html(
+        start, end, totals, breakdown, insights, owner_totals=owner_totals, streak=streak
+    )
+    _send_email_best_effort(db, f"[Nestlio] {period_key} 월간 요약", body, html_body=html)
     notification_log_service.log_sent(db, "email_monthly", period_key, detail=body[:500])
     return True
 
@@ -151,10 +174,7 @@ def _send_threshold_alert(db: Session, row: dict, year_month: str) -> bool:
         f"예산: {row['budget']:,.0f}원\n"
         f"실제 지출: {row['actual']:,.0f}원 ({row['pct']:.0f}%)"
     )
-    if is_connected():
-        gmail_service.send_email(
-            f"[Nestlio] 예산 {level} - {row['name']}", body, to=notification_settings_service.get_recipients(db)
-        )
+    _send_email_best_effort(db, f"[Nestlio] 예산 {level} - {row['name']}", body)
     notification_log_service.log_sent(db, "threshold_alert", period_key, related_id=category_id, detail=body[:200])
     return True
 
@@ -219,8 +239,7 @@ def _celebrate_goal_milestone(db: Session, goal, today: date | None = None) -> b
             if remaining_days > 0:
                 body += f"\n목표일까지 D-{remaining_days}, 이제 {remaining_amount:,.0f}원만 더 모으면 돼요."
         subject = f"[Nestlio] 우리 부부 목표 달성 축하 - {goal.name} {milestone}%"
-    if is_connected():
-        gmail_service.send_email(subject, body, to=notification_settings_service.get_recipients(db))
+    _send_email_best_effort(db, subject, body)
     milestone_service.log(db, notif_type, related_type, goal.id, milestone, body)
     return True
 
@@ -287,10 +306,7 @@ def check_savings_pace_reminder(db: Session, today: date | None = None) -> bool:
     body = f"이번 달 저축·투자 계획 {planned:,.0f}원 중 {remaining:,.0f}원이 남았어요. 월말 전에 함께 채워봐요!"
     if streak > 0:
         body += f" 지금까지 {streak}개월 연속 달성 중이에요."
-    if is_connected():
-        gmail_service.send_email(
-            "[Nestlio] 이번 달 저축 계획까지 조금 남았어요", body, to=notification_settings_service.get_recipients(db)
-        )
+    _send_email_best_effort(db, "[Nestlio] 이번 달 저축 계획까지 조금 남았어요", body)
     notification_log_service.log_sent(db, "savings_pace_reminder", year_month, detail=body)
     db.commit()
     return True

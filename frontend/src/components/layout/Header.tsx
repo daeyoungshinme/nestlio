@@ -29,6 +29,7 @@ const NOTIF_TYPE_LABEL: Record<string, string> = {
   event_reminder: "일정 알림",
   goal_cheer: "목표 응원",
   savings_pace_reminder: "월말 저축 리마인더",
+  google_reauth: "구글 연동 만료",
 };
 
 // 목표 마일스톤 축하 알림에만 응원 반응을 남길 수 있다 — 다른 알림 종류(예산 경고 등)는
