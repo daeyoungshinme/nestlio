@@ -1999,8 +1999,11 @@ export interface components {
         };
         /** CategoryBenchmarkRowOut */
         CategoryBenchmarkRowOut: {
-            /** Group */
-            group: string;
+            /**
+             * Group
+             * @enum {string}
+             */
+            group: "food" | "housing" | "communication" | "transport" | "leisure" | "healthcare" | "education" | "insurance" | "other";
             /** Label */
             label: string;
             /** Amount */

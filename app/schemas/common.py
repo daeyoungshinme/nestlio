@@ -4,6 +4,10 @@ from typing import Annotated, Any, Literal
 
 from pydantic import BaseModel, BeforeValidator, Field, StringConstraints
 
+from app.constants.benchmark_groups import BENCHMARK_GROUPS
+
+BenchmarkGroup = Literal[tuple(BENCHMARK_GROUPS)]  # type: ignore[valid-type]
+
 
 def _blank_to_zero(v: object) -> object:
     if isinstance(v, str) and v.strip() == "":
@@ -81,7 +85,7 @@ class CategoryAmountOut(BaseModel):
 
 
 class CategoryBenchmarkRowOut(BaseModel):
-    group: str
+    group: BenchmarkGroup
     label: str
     amount: Decimal
     pct: float
