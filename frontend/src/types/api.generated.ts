@@ -2846,9 +2846,9 @@ export interface components {
             job: string;
             /**
              * Status
-             * @constant
+             * @enum {string}
              */
-            status: "ok";
+            status: "ok" | "skipped";
         };
         /** LoanCreateIn */
         LoanCreateIn: {

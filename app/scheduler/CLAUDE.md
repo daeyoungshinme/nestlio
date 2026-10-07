@@ -39,7 +39,7 @@
 ## 새 잡 추가 체크리스트
 
 1. `jobs.py`에 `@_job(...)` 함수 작성, 외부 연동은 `is_connected()` 가드. 예외는 삼키지 말고 전파한다(실패가 Actions에 보여야 함) — 한 항목 실패가 나머지를 막으면 안 되는 루프만 항목 단위로 잡고 롤백한다.
-2. **멱등하게** 만든다 — curl이 `--retry 2 --retry-all-errors --max-time 170`이라 느리거나 부분 실패(500)한 잡은 첫 실행이 아직 도는 중에 다시 호출될 수 있다. 기존 잡은 `notification_log_service.already_sent`/스냅샷 upsert/`next_due_date` 전진으로 중복을 막는다.
+2. **멱등하게** 만든다 — curl이 `--retry 2 --retry-all-errors --max-time 170`이라 느리거나 부분 실패(500)한 잡은 첫 실행이 아직 도는 중에 다시 호출될 수 있다. 기존 잡은 `notification_log_service.already_sent`/스냅샷 upsert/`next_due_date` 전진으로 중복을 막는다. 다만 이 dedup들은 "확인 → 실행 → 기록" 사이에 창이 있어 두 실행이 겹치면 둘 다 통과하므로, `run_job`(`app/routers/internal_jobs.py`)이 잡 이름별 Postgres advisory lock(`app/scheduler/job_lock.py`)으로 같은 잡의 동시 실행을 막는다 — 겹친 호출은 잡을 돌리지 않고 `200 {"status": "skipped"}`. (NotificationLog 유니크 인덱스는 `force=True` 테스트 발송·`goal_cheer`·NULL `related_id` 때문에 쓰지 않는다.)
 3. `app/routers/internal_jobs.py`의 `JOB_REGISTRY`에 `"job-name": job_function` 추가
 4. `.github/workflows/scheduled-jobs.yml`에 필요한 cron 트리거(UTC 환산)와 curl 스텝 추가. 요일/날짜 조건은 `TZ=Asia/Seoul date`로 KST 기준 판정한다(cron이 밀려 UTC 자정을 넘겨도 흔들리지 않게). `concurrency.group`이 cron별로 나뉘어 있으니 새 cron도 자동으로 자기 그룹을 갖는다.
 

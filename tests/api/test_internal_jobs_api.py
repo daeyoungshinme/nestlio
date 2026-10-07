@@ -57,3 +57,24 @@ def test_failed_job_reports_exception_class_in_detail(client, monkeypatch):
     )
     assert resp.status_code == 500
     assert resp.json()["detail"] == "job 'daily-due-date-check' failed: KeyError"
+
+
+def test_overlapping_run_of_same_job_is_skipped_not_rerun(client, monkeypatch):
+    # curl 재시도가 아직 도는 첫 실행과 겹치면 잡을 다시 돌리지 않고 200 skipped.
+    from contextlib import contextmanager
+
+    monkeypatch.setattr("app.routers.internal_jobs.settings.internal_job_secret", "test-secret")
+    calls = []
+    monkeypatch.setitem(internal_jobs.JOB_REGISTRY, "daily-due-date-check", lambda: calls.append(1))
+
+    @contextmanager
+    def _held(_job_name):
+        yield False
+
+    monkeypatch.setattr(internal_jobs, "job_lock", _held)
+    resp = client.post(
+        "/internal/jobs/daily-due-date-check", headers={"X-Internal-Job-Secret": "test-secret"}
+    )
+    assert resp.status_code == 200
+    assert resp.json() == {"job": "daily-due-date-check", "status": "skipped"}
+    assert calls == []
