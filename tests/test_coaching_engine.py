@@ -516,3 +516,33 @@ def test_emergency_fund_context_treats_zero_balance_as_empty_fund_not_missing(se
 
 def test_emergency_fund_context_none_when_no_fund_registered(seeded_db):
     assert savings_coaching_service.emergency_fund_context(seeded_db["db"], date(2026, 7, 1)) == (None, None)
+
+
+def test_savings_pace_history_uses_plan_when_present_and_falls_back_per_month(monkeypatch):
+    # 계획이 있는 달은 (납입액, 계획액), 없는 달은 (수입−지출, 목표 월 저축액 합) — 대시보드·요약 메일이 공유한다.
+    from types import SimpleNamespace
+
+    from app.services import savings_coaching_service, savings_product_plan_service
+
+    monkeypatch.setattr(
+        savings_product_plan_service,
+        "plan_totals_for_months",
+        lambda _db, months: {"2026-06": (Decimal("0"), Decimal("0")), "2026-07": (Decimal("300000"), Decimal("250000"))},
+    )
+    trend = [
+        {"year_month": "2026-06", "income": Decimal("3000000"), "expense": Decimal("2600000")},
+        {"year_month": "2026-07", "income": Decimal("3000000"), "expense": Decimal("2000000")},
+    ]
+    goals = [SimpleNamespace(monthly_saving_amount=Decimal("200000")), SimpleNamespace(monthly_saving_amount=Decimal("100000"))]
+
+    history = savings_coaching_service.savings_pace_history(None, trend, goals)
+
+    assert history == [(Decimal("400000"), Decimal("300000")), (Decimal("250000"), Decimal("300000"))]
+    assert savings_coaching_service.savings_streak_months(history) == 0
+
+
+def test_compute_surplus_allocation_without_emergency_fund_invests_everything(seeded_db):
+    from app.services import savings_coaching_service
+
+    result = savings_coaching_service.compute_surplus_allocation(seeded_db["db"], date(2026, 7, 1), Decimal("500000"))
+    assert result == {"emergency_fund_portion": Decimal("0"), "investable_portion": Decimal("500000")}

@@ -549,3 +549,31 @@ def test_sync_to_google_rolls_back_session_when_upsert_fails(seeded_db):
     ):
         event_calendar_service.sync_to_google(db, event)
     rollback.assert_called_once()
+
+
+def test_calendar_side_effects_are_skipped_when_google_not_connected(seeded_db):
+    db, user = seeded_db["db"], seeded_db["user"]
+    event = event_service.create_event(db, created_by=user.id, title="병원", start_at=datetime(2026, 7, 15, 10, 0))
+
+    with (
+        patch.object(event_calendar_service, "is_connected", return_value=False),
+        patch("app.services.google_calendar_service.upsert_event") as upsert,
+        patch("app.services.google_calendar_service.delete_event") as delete,
+    ):
+        event_calendar_service.sync_to_google(db, event)
+        event_calendar_service.remove_from_google(event)
+    upsert.assert_not_called()
+    delete.assert_not_called()
+
+
+def test_remove_from_google_swallows_api_errors(seeded_db):
+    # 구글 삭제는 best-effort 부수효과 — 실패해도 로컬 삭제 흐름을 막지 않는다.
+    db, user = seeded_db["db"], seeded_db["user"]
+    event = event_service.create_event(db, created_by=user.id, title="병원", start_at=datetime(2026, 7, 15, 10, 0))
+
+    with (
+        patch.object(event_calendar_service, "is_connected", return_value=True),
+        patch("app.services.google_calendar_service.delete_event", side_effect=RuntimeError("api down")) as delete,
+    ):
+        event_calendar_service.remove_from_google(event)
+    delete.assert_called_once_with(event)

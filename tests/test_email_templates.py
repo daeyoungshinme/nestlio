@@ -54,3 +54,46 @@ def test_contribution_section_omits_crown_on_tie():
     html = email_templates._contribution_section(owner_totals)
 
     assert "\U0001F451" not in html
+
+
+def _summary_inputs():
+    from datetime import date
+
+    totals = {
+        "income": Decimal("3000000"),
+        "expense": Decimal("1234567"),
+        "savings": Decimal("1765433"),
+        "fixed": Decimal("800000"),
+        "variable": Decimal("400000"),
+        "irregular": Decimal("34567"),
+    }
+    breakdown = [{"name": "식비", "color": "#14b8a6", "amount": Decimal("400000")}]
+    return date(2026, 7, 1), date(2026, 7, 31), totals, breakdown
+
+
+def test_weekly_summary_html_renders_totals_categories_and_streak():
+    start, end, totals, breakdown = _summary_inputs()
+    html = email_templates.build_weekly_summary_html(start, end, totals, breakdown, streak=3)
+    assert html.startswith("<!doctype html>")
+    assert "1,234,567원" in html
+    assert "식비" in html
+    assert "2026-07-01 ~ 2026-07-31" in html
+    assert "3개월" in html
+
+
+def test_monthly_summary_html_includes_insights_only_when_present():
+    from app.services.coaching_engine import Insight
+
+    start, end, totals, breakdown = _summary_inputs()
+    without = email_templates.build_monthly_summary_html(start, end, totals, breakdown, [])
+    with_insight = email_templates.build_monthly_summary_html(
+        start, end, totals, breakdown, [Insight("savings_rate", "warning", "저축률이 낮아요")]
+    )
+    assert "자산증식 코칭" not in without
+    assert "자산증식 코칭" in with_insight and "저축률이 낮아요" in with_insight
+
+
+def test_summary_html_handles_empty_breakdown():
+    start, end, totals, _ = _summary_inputs()
+    html = email_templates.build_weekly_summary_html(start, end, totals, [])
+    assert "이 기간 지출 내역이 없어요." in html
