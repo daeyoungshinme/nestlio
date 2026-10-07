@@ -7,7 +7,7 @@ import FormInput from "@/components/common/FormInput";
 import { SettingsSectionCard, onMutationError } from "@/components/settings/shared";
 import { cancelInvite, createInvite, fetchInvites } from "@/api/invites";
 import { removeUser } from "@/api/users";
-import { useMe, useUsers } from "@/hooks/useReferenceData";
+import { useSpouse, useUsers } from "@/hooks/useReferenceData";
 import { QUERY_KEYS, USER_RELATED_KEYS } from "@/constants/queryKeys";
 import { inviteStatusLabel, inviteStatusTextClass } from "@/utils/colors";
 import type { InviteStatus } from "@/utils/colors";
@@ -22,10 +22,9 @@ function inviteStatus(invite: InviteOut): InviteStatus {
 
 export default function HouseholdSection() {
   const queryClient = useQueryClient();
-  const meQuery = useMe();
   const usersQuery = useUsers();
   const invitesQuery = useQuery({ queryKey: QUERY_KEYS.invites, queryFn: fetchInvites });
-  const spouse = meQuery.data && usersQuery.data?.find((u) => u.id !== meQuery.data!.id);
+  const spouse = useSpouse();
   const householdFull = (usersQuery.data?.length ?? 0) >= 2;
 
   const [inviteEmail, setInviteEmail] = useState("");

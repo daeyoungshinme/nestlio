@@ -8,12 +8,12 @@ import ProgressBar from "@/components/common/ProgressBar";
 import QueryBoundary from "@/components/common/QueryBoundary";
 import SkeletonCard from "@/components/common/SkeletonCard";
 import { cheerGoal, fetchGoalGrowlioInsight } from "@/api/goals";
-import { fetchNotifications } from "@/api/notifications";
 import { GROWLIO_APP_URL, findGrowlioInvestmentLink, growlioPortfolioUrl } from "@/constants/growlio";
 import { QUERY_KEYS } from "@/constants/queryKeys";
-import { NOTIFICATIONS_REFETCH_INTERVAL, STALE_TIME } from "@/constants/queryConfig";
+import { STALE_TIME } from "@/constants/queryConfig";
 import { ROUTES } from "@/constants/routes";
 import { INPUT_SM } from "@/constants/inputStyles";
+import { useNotifications } from "@/hooks/useNotifications";
 import { useGoals, useSavingsProducts } from "@/hooks/useReferenceData";
 import { monthsToGoalWithExtra } from "@/utils/goalAcceleration";
 import { computeCardStatus, daysUntil } from "@/utils/goalStatus";
@@ -62,11 +62,7 @@ function GoalDetail({ goal }: { goal: FinancialGoalOut }) {
   const [cheerMessage, setCheerMessage] = useState("");
   const queryClient = useQueryClient();
   const { data: savingsProducts } = useSavingsProducts();
-  const { data: notifications } = useQuery({
-    queryKey: QUERY_KEYS.notifications,
-    queryFn: fetchNotifications,
-    refetchInterval: NOTIFICATIONS_REFETCH_INTERVAL,
-  });
+  const { data: notifications } = useNotifications();
 
   const cheerMutation = useMutation({
     mutationFn: (emoji: string) => cheerGoal(goal.id, { emoji, message: cheerMessage.trim() || null }),

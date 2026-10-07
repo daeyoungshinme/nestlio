@@ -107,7 +107,7 @@ export default function SavingsProductsSection({ users }: Props) {
   const { data: goals } = useGoals();
   // "월 N원"은 상품의 폴백 필드(monthly_saving_amount)가 아니라 이번 달 실제 계획액(계획 탭의 월별 그리드가 있으면
   // 그 값)을 보여준다 — 계획 탭·목표 화면과 같은 숫자여야 한다(savings_product_plan_service.planned_by_product_for_month).
-  const thisMonth = currentYearMonth();
+  const [thisMonth] = useState(currentYearMonth);
   const { data: productPlan } = useQuery({
     queryKey: QUERY_KEYS.savingsProductsPlan(thisMonth),
     queryFn: () => fetchSavingsProductsPlan(thisMonth),

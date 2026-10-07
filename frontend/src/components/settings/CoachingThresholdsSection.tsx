@@ -39,6 +39,8 @@ export default function CoachingThresholdsSection({ thresholds }: { thresholds: 
       void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.settings });
       void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.dashboardAll });
       void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.dashboardBootstrap });
+      // 연간 리포트의 벤치마크 비교도 이 임계값으로 계산된다(routers/reports.py).
+      void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.yearlyReportAll });
       setThresholdEdits({});
       toast("코칭 임계값을 저장했습니다.", "success");
     },

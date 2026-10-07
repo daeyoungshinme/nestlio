@@ -1,11 +1,17 @@
-import { MutationCache, QueryClient } from "@tanstack/react-query";
+import { MutationCache, QueryClient, defaultShouldDehydrateQuery } from "@tanstack/react-query";
 import { PersistQueryClientProvider, removeOldestQuery } from "@tanstack/react-query-persist-client";
 import { createSyncStoragePersister } from "@tanstack/query-sync-storage-persister";
 import React from "react";
 import ReactDOM from "react-dom/client";
 import App from "./App";
 import "./index.css";
-import { DEFAULT_GC_TIME, PERSIST_CACHE_KEY, PERSIST_QUERY_KEYS, STALE_TIME } from "./constants/queryConfig";
+import {
+  DEFAULT_GC_TIME,
+  PERSIST_CACHE_KEY,
+  PERSIST_MAX_AGE,
+  PERSIST_QUERY_KEYS,
+  STALE_TIME,
+} from "./constants/queryConfig";
 import { installNumberInputWheelGuard } from "./utils/numberInputWheel";
 import { extractErrorMessage } from "./utils/error";
 import { toast } from "./utils/toast";
@@ -45,9 +51,11 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
       persistOptions={{
         persister,
         buster: "v2",
-        maxAge: 24 * 60 * 60 * 1000,
+        maxAge: PERSIST_MAX_AGE,
         dehydrateOptions: {
-          shouldDehydrateQuery: (query) => PERSIST_QUERY_KEYS.has(query.queryKey[0] as string),
+          // 기본 판정(성공한 쿼리만)을 대체하지 않고 좁힌다 — 로딩 중·에러 상태가 저장되면 재방문 시 그대로 복원된다.
+          shouldDehydrateQuery: (query) =>
+            defaultShouldDehydrateQuery(query) && PERSIST_QUERY_KEYS.has(query.queryKey[0] as string),
         },
       }}
     >

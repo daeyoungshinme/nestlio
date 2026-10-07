@@ -4,7 +4,9 @@ export const QUERY_KEYS = {
   dashboard: (yearMonth: string) => ["dashboard", yearMonth] as const,
   /** Prefix for invalidating every dashboard month at once. */
   dashboardAll: ["dashboard"] as const,
-  monthlyRetrospective: ["monthly-retrospective"] as const,
+  /** dashboardAll 하위 — 지난달 회고의 코칭 인사이트는 계획·목표·자산·코칭 임계값을 모두 읽으므로,
+   * 그 변경들이 이미 무효화하는 dashboardAll에 자동으로 걸리게 둔다(따로 나열하면 빠뜨린다). */
+  monthlyRetrospective: ["dashboard", "retrospective"] as const,
   categories: (kind?: "income" | "expense") => ["categories", kind ?? "all"] as const,
   /** Prefix for invalidating every categories kind variant at once. */
   categoriesAll: ["categories"] as const,
