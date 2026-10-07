@@ -65,3 +65,8 @@ def test_effective_status_marks_overdue_active_challenge_expired():
     challenge = SimpleNamespace(kind="challenge", status="active", target_date=date(2026, 9, 30))
     assert gps.effective_status(challenge, TODAY) == "expired"
     assert gps.effective_status(SimpleNamespace(kind="goal", status="active", target_date=None), TODAY) is None
+
+
+def test_suggested_monthly_amount_is_whole_won():
+    # 1,000,000 / 3 = 333,333.33… — 제안값에 소수가 남으면 Numeric(12,2)에 저장된 값과 영원히 어긋난다.
+    assert gps.compute_suggested_monthly_amount(Decimal("0"), Decimal("1000000"), 3) == Decimal("333333")

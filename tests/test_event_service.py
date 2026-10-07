@@ -517,3 +517,35 @@ def test_dismissed_imported_event_does_not_revive_on_reimport(mock_connected, mo
 
     assert second == {"created": 0, "updated": 0, "skipped": 1}
     assert event_service.list_events(db, date(2026, 7, 1), date(2026, 7, 31)) == []
+
+
+def test_delete_event_removes_from_google_only_after_local_delete_commits(seeded_db):
+    # 로컬 커밋이 실패했는데 구글 원본만 지워지면 앱엔 일정이 남고 구글 쪽만 사라진다 — 순서를 고정한다.
+    db, user = seeded_db["db"], seeded_db["user"]
+    event = event_service.create_event(db, created_by=user.id, title="병원", start_at=datetime(2026, 7, 15, 10, 0))
+    event_id = event.id
+    seen: list[bool] = []
+
+    def _remove(ev):
+        seen.append(db.get(Event, event_id) is None)
+        assert ev.title == "병원"  # detached여도 이미 로드된 컬럼은 읽힌다
+
+    with (
+        patch.object(event_calendar_service, "remove_from_google", side_effect=_remove),
+        patch.object(event_reminder_service, "notify_other_spouse"),
+    ):
+        assert event_service.delete_event(db, event_id, actor_id=user.id) is True
+    assert seen == [True]
+
+
+def test_sync_to_google_rolls_back_session_when_upsert_fails(seeded_db):
+    db, user = seeded_db["db"], seeded_db["user"]
+    event = event_service.create_event(db, created_by=user.id, title="병원", start_at=datetime(2026, 7, 15, 10, 0))
+
+    with (
+        patch.object(event_calendar_service, "is_connected", return_value=True),
+        patch("app.services.google_calendar_service.upsert_event", side_effect=RuntimeError("commit failed")),
+        patch.object(db, "rollback", wraps=db.rollback) as rollback,
+    ):
+        event_calendar_service.sync_to_google(db, event)
+    rollback.assert_called_once()
