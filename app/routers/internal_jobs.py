@@ -3,6 +3,7 @@ import hmac
 from fastapi import APIRouter, Depends, Header, HTTPException, status
 
 from app.config import settings
+from app.scheduler.job_lock import job_lock
 from app.scheduler.jobs import (
     daily_due_date_check,
     daily_threshold_safety_net,
@@ -38,12 +39,17 @@ def run_job(job_name: str):
     job = JOB_REGISTRY.get(job_name)
     if job is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "unknown job")
-    try:
-        job()
-    except Exception as exc:
-        # 예외 클래스명을 detail에 싣는다 — GitHub Actions 로그(curl)만으로 원인 갈래를 알 수 있게.
-        # 메시지 본문은 싣지 않는다(시크릿 보호 엔드포인트지만 내부 상세가 로그에 남는 것을 피함).
-        raise HTTPException(
-            status.HTTP_500_INTERNAL_SERVER_ERROR, f"job '{job_name}' failed: {type(exc).__name__}"
-        ) from exc
+    with job_lock(job_name) as acquired:
+        if not acquired:
+            # curl 재시도가 아직 도는 첫 실행과 겹친 경우 — 첫 실행이 일을 끝내므로 성공(200)으로 돌려
+            # 워크플로를 실패로 만들지 않는다. 첫 실행이 실패하면 그쪽이 로그를 남긴다.
+            return {"job": job_name, "status": "skipped"}
+        try:
+            job()
+        except Exception as exc:
+            # 예외 클래스명을 detail에 싣는다 — GitHub Actions 로그(curl)만으로 원인 갈래를 알 수 있게.
+            # 메시지 본문은 싣지 않는다(시크릿 보호 엔드포인트지만 내부 상세가 로그에 남는 것을 피함).
+            raise HTTPException(
+                status.HTTP_500_INTERNAL_SERVER_ERROR, f"job '{job_name}' failed: {type(exc).__name__}"
+            ) from exc
     return {"job": job_name, "status": "ok"}
