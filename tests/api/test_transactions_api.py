@@ -2,6 +2,8 @@ from datetime import date
 from decimal import Decimal
 from unittest.mock import patch
 
+import pytest
+
 from app.models.transaction import Transaction
 from app.services import transaction_service
 
@@ -197,6 +199,40 @@ def test_import_csv_over_size_limit_returns_413(client, monkeypatch):
     resp = client.post("/api/v1/transactions/import", files={"file": ("big.csv", oversized, "text/csv")})
 
     assert resp.status_code == 413
+
+
+def test_bulk_delete_is_all_or_nothing_when_commit_fails(client, seeded_db):
+    # 행마다 커밋하던 시절엔 중간 실패 시 앞쪽 일부만 지워진 채 남았다 — 한 번의 커밋으로 묶였는지 확인.
+    db, user, food = seeded_db["db"], seeded_db["user"], seeded_db["food"]
+    tx1 = transaction_service.create_transaction(db, user.id, food.id, "expense", Decimal("1000"), date(2026, 7, 1))
+    tx2 = transaction_service.create_transaction(db, user.id, food.id, "expense", Decimal("2000"), date(2026, 7, 2))
+    ids = [tx1.id, tx2.id]
+
+    with patch.object(db, "commit", side_effect=RuntimeError("db down")), pytest.raises(RuntimeError):
+        transaction_service.bulk_delete_transactions(db, ids)
+
+    assert db.query(Transaction).filter(Transaction.id.in_(ids)).count() == 2
+
+
+def test_bulk_delete_rejects_more_than_max_ids(client):
+    from app.schemas.transaction import BULK_DELETE_MAX
+
+    resp = client.post("/api/v1/transactions/bulk-delete", json={"ids": list(range(1, BULK_DELETE_MAX + 2))})
+    assert resp.status_code == 422
+
+
+def test_overlong_description_is_422_not_500(client, seeded_db):
+    resp = client.post(
+        "/api/v1/transactions",
+        json={
+            "amount": "1000",
+            "type": "expense",
+            "category_id": seeded_db["food"].id,
+            "transaction_date": "2026-07-05",
+            "description": "가" * 256,
+        },
+    )
+    assert resp.status_code == 422
 
 
 def test_import_sheet_public_mode(client):

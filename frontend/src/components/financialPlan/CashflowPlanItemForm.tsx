@@ -102,6 +102,7 @@ export default function CashflowPlanItemForm({
       <FormInput
         label="항목명"
         value={values.name}
+        maxLength={100}
         onChange={(e) => setValues((v) => ({ ...v, name: e.target.value }))}
         required
       />

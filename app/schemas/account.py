@@ -5,7 +5,7 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict
 
-from app.schemas.common import KrwAmount
+from app.schemas.common import SignedKrwBalance, bounded_str
 from app.schemas.growlio import GrowlioImportIn, GrowlioSyncAllOut
 
 
@@ -29,16 +29,16 @@ class AccountWithBalanceOut(BaseModel):
 
 
 class AccountCreateIn(BaseModel):
-    name: str
+    name: bounded_str(100)
     account_type: Literal["bank", "cash", "card"]
-    initial_balance: KrwAmount = Decimal("0")
+    initial_balance: SignedKrwBalance = Decimal("0")
     owner_user_id: uuid.UUID | None = None
 
 
 class AccountUpdateIn(BaseModel):
-    name: str
+    name: bounded_str(100)
     account_type: Literal["bank", "cash", "card"]
-    current_balance: KrwAmount
+    current_balance: SignedKrwBalance
     owner_user_id: uuid.UUID | None = None
 
 

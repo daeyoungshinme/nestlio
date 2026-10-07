@@ -4,6 +4,7 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict
 
+from app.schemas.common import bounded_str
 from app.schemas.recurring import RecurringOut
 from app.schemas.user import UserOut
 
@@ -47,9 +48,9 @@ class EventImportResultOut(BaseModel):
 
 
 class EventCreateIn(BaseModel):
-    title: str
-    description: str | None = None
-    location: str | None = None
+    title: bounded_str(200)
+    description: bounded_str(1000) | None = None
+    location: bounded_str(255) | None = None
     all_day: bool = False
     start_at: datetime
     end_at: datetime | None = None

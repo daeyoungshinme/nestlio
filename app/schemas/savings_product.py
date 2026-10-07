@@ -5,7 +5,7 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict
 
-from app.schemas.common import KrwAmount, YearMonth
+from app.schemas.common import KrwAmount, KrwBalance, YearMonth, bounded_str
 from app.schemas.growlio import GrowlioImportIn, GrowlioSyncAllOut
 
 
@@ -31,20 +31,20 @@ class SavingsProductOut(BaseModel):
 
 
 class SavingsProductCreateIn(BaseModel):
-    name: str
-    current_balance: KrwAmount = Decimal("0")
+    name: bounded_str(100)
+    current_balance: KrwBalance = Decimal("0")
     monthly_saving_amount: KrwAmount = Decimal("0")
     product_type: Literal["savings", "investment", "real_estate", "emergency_fund"] = "savings"
-    principal_amount: KrwAmount | None = None
+    principal_amount: KrwBalance | None = None
     owner_user_id: uuid.UUID | None = None
 
 
 class SavingsProductUpdateIn(BaseModel):
-    name: str
-    current_balance: KrwAmount
+    name: bounded_str(100)
+    current_balance: KrwBalance
     monthly_saving_amount: KrwAmount
     product_type: Literal["savings", "investment", "real_estate", "emergency_fund"]
-    principal_amount: KrwAmount | None = None
+    principal_amount: KrwBalance | None = None
     owner_user_id: uuid.UUID | None = None
 
 
@@ -127,7 +127,7 @@ class SavingsProductAnnualPlanUpsertIn(BaseModel):
 
 
 class SavingsProductGrowlioLinkIn(BaseModel):
-    growlio_account_id: str | None
+    growlio_account_id: bounded_str(36) | None
     auto_sync_enabled: bool = False
 
 

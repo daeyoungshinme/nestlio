@@ -241,6 +241,7 @@ function LoanFormModal({
         <FormInput
           label="상품명"
           value={draft.name}
+          maxLength={100}
           onChange={(e) => setDraft((d) => ({ ...d, name: e.target.value }))}
           className="w-full"
           required

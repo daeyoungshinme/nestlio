@@ -6,7 +6,7 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict
 
 from app.schemas.cashflow_plan import CashflowSection
-from app.schemas.common import KrwAmount, YearMonth
+from app.schemas.common import KrwAmount, YearMonth, bounded_str
 
 
 class AnnualPlanItemMonthlyTargetOut(BaseModel):
@@ -47,7 +47,7 @@ class AnnualPlanItemUpsertIn(BaseModel):
     year: int
     section: CashflowSection
     owner_user_id: uuid.UUID | None = None
-    name: str
+    name: bounded_str(100)
     category_id: int | None = None
     sort_order: int = 0
     start_month: YearMonth

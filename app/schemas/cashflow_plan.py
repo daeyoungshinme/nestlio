@@ -4,7 +4,7 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict
 
-from app.schemas.common import KrwAmount, YearMonth
+from app.schemas.common import KrwAmount, YearMonth, bounded_str
 
 CashflowSection = Literal["income", "fixed", "variable", "irregular"]
 
@@ -37,7 +37,7 @@ class CashflowPlanItemUpsertIn(BaseModel):
     section: CashflowSection
     year_month: YearMonth
     owner_user_id: uuid.UUID | None = None
-    name: str
+    name: bounded_str(100)
     amount: KrwAmount
     category_id: int | None = None
     sort_order: int = 0
@@ -46,7 +46,7 @@ class CashflowPlanItemUpsertIn(BaseModel):
 class CashflowPlanItemSplitIn(BaseModel):
     section: CashflowSection
     owner_user_id: uuid.UUID | None = None
-    name: str
+    name: bounded_str(100)
     total_amount: KrwAmount
     start_year_month: YearMonth
     category_id: int | None = None

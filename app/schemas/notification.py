@@ -3,6 +3,8 @@ from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict
 
+from app.schemas.common import bounded_str
+
 
 class NotificationReactionOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
@@ -15,8 +17,8 @@ class NotificationReactionOut(BaseModel):
 
 
 class NotificationReactionIn(BaseModel):
-    emoji: str
-    message: str | None = None
+    emoji: bounded_str(8)
+    message: bounded_str(200) | None = None
 
 
 class NotificationOut(BaseModel):

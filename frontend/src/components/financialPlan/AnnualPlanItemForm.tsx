@@ -109,6 +109,7 @@ export default function AnnualPlanItemForm({
       <FormInput
         label="항목명"
         value={name}
+        maxLength={100}
         onChange={(e) => setName(e.target.value)}
         required
       />
