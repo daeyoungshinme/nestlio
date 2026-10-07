@@ -3,6 +3,7 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict
 
 from app.constants.benchmark_groups import BENCHMARK_GROUPS
+from app.schemas.common import bounded_str
 
 BenchmarkGroup = Literal[tuple(BENCHMARK_GROUPS)]  # type: ignore[valid-type]
 
@@ -25,16 +26,16 @@ class CategoryOut(BaseModel):
 
 
 class CategoryCreateIn(BaseModel):
-    name: str
+    name: bounded_str(100)
     kind: Literal["income", "expense"] = "expense"
     type: Literal["fixed", "variable", "irregular"]
-    color: str
+    color: bounded_str(20)
     benchmark_group: BenchmarkGroup | None = None
 
 
 class CategoryUpdateIn(BaseModel):
-    name: str
+    name: bounded_str(100)
     kind: Literal["income", "expense"]
     type: Literal["fixed", "variable", "irregular"]
-    color: str
+    color: bounded_str(20)
     benchmark_group: BenchmarkGroup | None = None

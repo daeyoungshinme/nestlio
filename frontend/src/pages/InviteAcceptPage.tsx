@@ -200,6 +200,7 @@ export default function InviteAcceptPage() {
             id="invite-display-name"
             type="text"
             value={displayName}
+            maxLength={100}
             onChange={(e) => setDisplayName(e.target.value)}
             required
             className={`w-full ${INPUT_SM}`}

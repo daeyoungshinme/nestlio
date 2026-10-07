@@ -1,23 +1,13 @@
-import re
 import uuid
 from datetime import datetime
 from decimal import Decimal
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, field_validator
+from pydantic import BaseModel, ConfigDict
 
-from app.schemas.common import KrwAmount
+from app.schemas.common import KrwAmount, KrwBalance, Pct, YearMonth, bounded_str
 
 RepaymentMethod = Literal["equal_payment", "equal_principal", "bullet", "grace_period", "other"]
-
-_YEAR_MONTH_RE = re.compile(r"^\d{4}-\d{2}$")
-
-
-def _validate_year_month(value: str | None) -> str | None:
-    if value is not None and not _YEAR_MONTH_RE.match(value):
-        raise ValueError("origination_year_month must be in YYYY-MM format")
-    return value
-
 
 class LoanOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
@@ -39,26 +29,23 @@ class LoanOut(BaseModel):
 
 
 class LoanCreateIn(BaseModel):
-    name: str
-    balance: KrwAmount = Decimal("0")
+    name: bounded_str(100)
+    balance: KrwBalance = Decimal("0")
     monthly_payment: KrwAmount = Decimal("0")
-    origination_year_month: str | None = None
+    origination_year_month: YearMonth | None = None
     term_months: int | None = None
-    interest_rate: Decimal | None = None
+    interest_rate: Pct | None = None
     repayment_method: RepaymentMethod | None = None
     owner_user_id: uuid.UUID | None = None
 
-    _validate_origination_year_month = field_validator("origination_year_month")(_validate_year_month)
-
 
 class LoanUpdateIn(BaseModel):
-    name: str
-    balance: KrwAmount
+    name: bounded_str(100)
+    balance: KrwBalance
     monthly_payment: KrwAmount
-    origination_year_month: str | None
+    origination_year_month: YearMonth | None
     term_months: int | None
-    interest_rate: Decimal | None
+    interest_rate: Pct | None
     repayment_method: RepaymentMethod | None
     owner_user_id: uuid.UUID | None = None
 
-    _validate_origination_year_month = field_validator("origination_year_month")(_validate_year_month)

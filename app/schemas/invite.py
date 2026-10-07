@@ -3,13 +3,15 @@ from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict
 
+from app.schemas.common import bounded_str
+
 
 class InviteCreateIn(BaseModel):
-    email: str
+    email: bounded_str(255)
 
 
 class InviteAcceptIn(BaseModel):
-    display_name: str
+    display_name: bounded_str(100)
 
 
 class InviteOut(BaseModel):

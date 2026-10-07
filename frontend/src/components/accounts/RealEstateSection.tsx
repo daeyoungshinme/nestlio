@@ -322,6 +322,7 @@ function RealEstateFormModal({
         <FormInput
           label="이름"
           value={draft.name}
+          maxLength={100}
           onChange={(e) => setDraft((d) => ({ ...d, name: e.target.value }))}
           className="w-full"
           required

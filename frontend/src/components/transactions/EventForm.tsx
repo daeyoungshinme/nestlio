@@ -104,6 +104,7 @@ export default function EventForm({ initialValues, submitLabel, submitting, user
       <FormInput
         label="제목"
         value={form.title}
+        maxLength={200}
         onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))}
         required
       />
@@ -159,6 +160,7 @@ export default function EventForm({ initialValues, submitLabel, submitting, user
       <FormInput
         label="장소 (선택)"
         value={form.location}
+        maxLength={255}
         onChange={(e) => setForm((f) => ({ ...f, location: e.target.value }))}
       />
       <OwnerSelect
@@ -173,6 +175,7 @@ export default function EventForm({ initialValues, submitLabel, submitting, user
           className={`w-full ${INPUT_SM}`}
           rows={2}
           value={form.description}
+          maxLength={1000}
           onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
         />
       </div>

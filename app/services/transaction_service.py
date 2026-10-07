@@ -142,35 +142,50 @@ def update_transaction(db: Session, tx_id: int, bearer_token: str | None = None,
     return tx
 
 
+def _stage_delete(db: Session, tx: Transaction) -> tuple[Transaction, int | None, Decimal, date]:
+    """커밋하지 않고 삭제·저축잔액 롤백만 세션에 올린다. 커밋 뒤 growlio 출금에 쓸 값을 돌려준다
+    (삭제된 객체에서 다시 읽지 않도록 미리 꺼내 둔다)."""
+    pending = (tx, tx.savings_product_id, tx.amount, tx.transaction_date)
+    if tx.savings_product_id is not None:
+        savings_product_service.adjust_balance(db, tx.savings_product_id, -tx.amount)
+    db.delete(tx)
+    return pending
+
+
+def _push_withdrawals(db: Session, pending: list[tuple[Transaction, int | None, Decimal, date]], bearer_token: str | None) -> None:
+    # 삭제가 커밋된 뒤에만 growlio 출금을 보낸다 — 먼저 보내고 삭제가 실패하면 growlio만 빠진다.
+    for tx, savings_product_id, amount, transaction_date in pending:
+        if savings_product_id is not None:
+            _push_growlio(db, tx, savings_product_id, "WITHDRAWAL", amount, transaction_date, bearer_token)
+
+
 def delete_transaction(db: Session, tx_id: int, bearer_token: str | None = None) -> bool:
     tx = db.get(Transaction, tx_id)
     if tx is None:
         return False
-    savings_product_id, amount, transaction_date = tx.savings_product_id, tx.amount, tx.transaction_date
-    if savings_product_id is not None:
-        savings_product_service.adjust_balance(db, savings_product_id, -amount)
-    db.delete(tx)
+    pending = [_stage_delete(db, tx)]
     db.commit()
-    # 삭제가 커밋된 뒤에만 growlio 출금을 보낸다 — 먼저 보내고 삭제가 실패하면 growlio만 빠진다.
-    if savings_product_id is not None:
-        _push_growlio(db, tx, savings_product_id, "WITHDRAWAL", amount, transaction_date, bearer_token)
+    _push_withdrawals(db, pending, bearer_token)
     return True
 
 
 def bulk_delete_transactions(
     db: Session, tx_ids: list[int], bearer_token: str | None = None
 ) -> tuple[int, list[int]]:
-    """가져오기 되돌리기 등에서 여러 건을 한 번에 지울 때 쓴다. 한 건씩 delete_transaction을
-    재사용해 저축잔액 롤백/growlio push를 단건 삭제와 동일하게 유지하고, 존재하지 않는 id는
-    실패 목록에 담아 나머지를 계속 처리한다(부분 실패로 전체를 막지 않음)."""
-    deleted = 0
-    failed: list[int] = []
-    for tx_id in tx_ids:
-        if delete_transaction(db, tx_id, bearer_token=bearer_token):
-            deleted += 1
-        else:
-            failed.append(tx_id)
-    return deleted, failed
+    """가져오기 되돌리기 등에서 여러 건을 한 번에 지울 때 쓴다. 단건 삭제와 같은 저축잔액 롤백을
+    전부 세션에 올린 뒤 **한 번에 커밋**한다 — 중간에 DB 오류가 나면 아무것도 지워지지 않는다(행마다
+    커밋하던 시절엔 앞쪽 일부만 지워진 채 남았다). 존재하지 않는 id만 실패 목록으로 돌려주고 나머지는
+    지운다(그 경우의 부분 성공은 의도된 동작). growlio 출금은 커밋 후 best-effort로 보낸다."""
+    unique_ids = list(dict.fromkeys(tx_ids))
+    found = {tx.id: tx for tx in db.query(Transaction).filter(Transaction.id.in_(unique_ids))} if unique_ids else {}
+    try:
+        pending = [_stage_delete(db, found[tx_id]) for tx_id in unique_ids if tx_id in found]
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise
+    _push_withdrawals(db, pending, bearer_token)
+    return len(pending), [tx_id for tx_id in unique_ids if tx_id not in found]
 
 
 def list_transactions(

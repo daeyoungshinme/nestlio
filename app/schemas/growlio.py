@@ -1,5 +1,7 @@
 from pydantic import BaseModel
 
+from app.schemas.common import bounded_str
+
 
 class GrowlioImportIn(BaseModel):
     """growlio 계좌 가져오기 요청 — 대상 growlio_account_id 목록.
@@ -8,7 +10,7 @@ class GrowlioImportIn(BaseModel):
     여기 하나로 정의하고 각 스키마 모듈이 리소스별 이름으로 alias해서 쓴다.
     """
 
-    growlio_account_ids: list[str]
+    growlio_account_ids: list[bounded_str(36)]
 
 
 class GrowlioSyncFailureOut(BaseModel):

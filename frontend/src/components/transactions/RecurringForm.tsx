@@ -111,6 +111,7 @@ export default function RecurringForm({ categories, initial, submitLabel, submit
       <FormInput
         label="항목명"
         value={values.name}
+        maxLength={150}
         onChange={(e) => setValues((v) => ({ ...v, name: e.target.value }))}
         required
       />

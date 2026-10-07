@@ -5,7 +5,7 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from app.schemas.common import KrwAmount, YearMonth
+from app.schemas.common import KrwAmount, KrwBalance, Pct, YearMonth, bounded_str
 
 FundingSourceType = Literal["savings_product", "account", "loan"]
 GoalKind = Literal["goal", "challenge"]
@@ -43,8 +43,8 @@ class GoalMonthlyTargetOut(BaseModel):
 
 
 class GoalCheerIn(BaseModel):
-    emoji: str
-    message: str | None = None
+    emoji: bounded_str(8)
+    message: bounded_str(200) | None = None
 
 
 class GoalCheerOut(BaseModel):
@@ -96,32 +96,32 @@ class FinancialGoalOut(BaseModel):
 class FinancialGoalCreateIn(BaseModel):
     kind: GoalKind = "goal"
     priority: int = 1
-    name: str
-    description: str | None = None
+    name: bounded_str(100)
+    description: bounded_str(500) | None = None
     target_age: int | None = None
     target_date: date | None = None
-    required_amount: KrwAmount = Decimal("0")
+    required_amount: KrwBalance = Decimal("0")
     monthly_saving_amount: KrwAmount = Decimal("0")
-    current_amount: KrwAmount = Decimal("0")
+    current_amount: KrwBalance = Decimal("0")
     funding_sources: list[FundingSourceIn] = []
     start_date: date | None = None
     monthly_targets: list[GoalMonthlyTargetIn] | None = None
-    expected_annual_return_pct: Decimal | None = Field(default=None, ge=-50, le=100)
+    expected_annual_return_pct: Pct | None = Field(default=None, ge=-50, le=100)
 
 
 class FinancialGoalUpdateIn(BaseModel):
     priority: int
-    name: str
-    description: str | None = None
+    name: bounded_str(100)
+    description: bounded_str(500) | None = None
     target_age: int | None
     target_date: date | None = None
-    required_amount: KrwAmount
+    required_amount: KrwBalance
     monthly_saving_amount: KrwAmount
-    current_amount: KrwAmount = Decimal("0")
+    current_amount: KrwBalance = Decimal("0")
     funding_sources: list[FundingSourceIn] = []
     start_date: date | None = None
     monthly_targets: list[GoalMonthlyTargetIn] | None = None
-    expected_annual_return_pct: Decimal | None = Field(default=None, ge=-50, le=100)
+    expected_annual_return_pct: Pct | None = Field(default=None, ge=-50, le=100)
 
 
 class GrowlioGoalSettingsOut(BaseModel):

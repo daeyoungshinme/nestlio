@@ -194,6 +194,7 @@ export default function GoalFormModal({
           <FormInput
             label="챌린지 제목"
             value={draft.name}
+            maxLength={100}
             onChange={(e) => setDraft((d) => ({ ...d, name: e.target.value }))}
             className="w-full"
             required
@@ -202,6 +203,7 @@ export default function GoalFormModal({
             <label className={FORM_LABEL}>설명 (선택)</label>
             <textarea
               value={draft.description}
+              maxLength={500}
               onChange={(e) => setDraft((d) => ({ ...d, description: e.target.value }))}
               className={`w-full ${TEXTAREA_SM}`}
               rows={2}
@@ -325,6 +327,7 @@ export default function GoalFormModal({
         <FormInput
           label="재무목표"
           value={draft.name}
+          maxLength={100}
           onChange={(e) => setDraft((d) => ({ ...d, name: e.target.value }))}
           className="w-full"
           required

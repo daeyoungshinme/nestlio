@@ -101,6 +101,7 @@ export default function CategoriesSection() {
             <FormInput
               label="이름"
               value={form.name}
+              maxLength={100}
               onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
               required
             />
@@ -207,6 +208,7 @@ export default function CategoriesSection() {
               <FormInput
                 label="이름"
                 value={editing.name}
+                maxLength={100}
                 onChange={(e) => setEditing((c) => (c ? { ...c, name: e.target.value } : c))}
                 required
               />

@@ -3240,7 +3240,7 @@ export interface components {
             /** Category Id */
             category_id?: number | null;
             /** Amount */
-            amount?: number | string | null;
+            amount?: (number | string) | null;
             /** Type */
             type?: ("income" | "expense") | null;
             /** Frequency */
@@ -3364,7 +3364,7 @@ export interface components {
              */
             product_type: "savings" | "investment" | "real_estate" | "emergency_fund";
             /** Principal Amount */
-            principal_amount?: number | string | null;
+            principal_amount?: (number | string) | null;
             /** Owner User Id */
             owner_user_id?: string | null;
         };
@@ -3479,7 +3479,7 @@ export interface components {
              */
             product_type: "savings" | "investment" | "real_estate" | "emergency_fund";
             /** Principal Amount */
-            principal_amount?: number | string | null;
+            principal_amount?: (number | string) | null;
             /** Owner User Id */
             owner_user_id?: string | null;
         };

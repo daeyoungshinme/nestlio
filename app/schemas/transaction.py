@@ -3,11 +3,11 @@ from datetime import date, datetime
 from decimal import Decimal
 from typing import Annotated, Literal
 
-from pydantic import BaseModel, BeforeValidator, ConfigDict
+from pydantic import BaseModel, BeforeValidator, ConfigDict, Field
 
 from app.schemas.account import AccountOut
 from app.schemas.category import CategoryOut
-from app.schemas.common import KrwAmount, TotalsOut
+from app.schemas.common import KrwAmount, TotalsOut, bounded_str
 from app.schemas.savings_product import SavingsProductOut
 from app.schemas.user import UserOut
 
@@ -53,7 +53,7 @@ class TransactionCreateIn(BaseModel):
     type: Literal["income", "expense"]
     category_id: int
     transaction_date: date
-    description: str | None = None
+    description: bounded_str(255) | None = None
     payment_method: PaymentMethod | None = None
     account_id: int | None = None
     savings_product_id: int | None = None
@@ -88,8 +88,13 @@ class SheetImportIn(BaseModel):
     sheet_name: str | None = None  # mode == "oauth"에서만 선택 사용
 
 
+BULK_DELETE_MAX = 500
+
+
 class BulkDeleteIn(BaseModel):
-    ids: list[int]
+    # 한 요청이 지울 수 있는 상한 — 화면의 다중 선택은 한 달치 목록 단위라 이 정도면 충분하고,
+    # 무제한이면 행마다 growlio 호출(최대 5초)이 이어져 요청이 타임아웃된다.
+    ids: list[int] = Field(max_length=BULK_DELETE_MAX)
 
 
 class BulkDeleteResultOut(BaseModel):

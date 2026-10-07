@@ -263,6 +263,7 @@ export default function TransactionForm({
         label="메모"
         type="text"
         value={values.description}
+        maxLength={255}
         onChange={(e) => setValues((v) => ({ ...v, description: e.target.value }))}
         className={isStack ? "w-full" : "w-40"}
       />

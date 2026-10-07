@@ -5,7 +5,7 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict, field_validator
 
 from app.schemas.category import CategoryOut
-from app.schemas.common import KrwAmount
+from app.schemas.common import KrwAmount, bounded_str
 
 
 def _validate_days_of_month(days: list[int] | None) -> list[int] | None:
@@ -45,7 +45,7 @@ class RecurringListOut(BaseModel):
 
 
 class RecurringCreateIn(BaseModel):
-    name: str
+    name: bounded_str(150)
     category_id: int
     amount: KrwAmount
     type: Literal["income", "expense"] = "expense"
@@ -59,7 +59,7 @@ class RecurringCreateIn(BaseModel):
 
 
 class RecurringUpdateIn(BaseModel):
-    name: str | None = None
+    name: bounded_str(150) | None = None
     category_id: int | None = None
     amount: KrwAmount | None = None
     type: Literal["income", "expense"] | None = None
