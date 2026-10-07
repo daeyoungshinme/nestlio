@@ -8,6 +8,7 @@ from app.models.financial_goal import FinancialGoal
 from app.models.transaction import Transaction
 from app.services import account_service, savings_product_plan_service
 from app.utils.dates import month_bounds, months_between, parse_year_month, shift_month, year_month_str
+from app.utils.money import whole_won
 
 
 def funding_source_breakdown(db: Session, goal: FinancialGoal) -> list[dict]:
@@ -150,7 +151,7 @@ def compute_suggested_monthly_amount(
 ) -> Decimal | None:
     if not months_remaining:
         return None
-    return max(Decimal("0"), (required_amount - current_amount) / months_remaining)
+    return whole_won(max(Decimal("0"), (required_amount - current_amount) / months_remaining))
 
 
 def compute_eta_year_month(

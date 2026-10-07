@@ -488,3 +488,28 @@ def test_compute_insights_includes_emergency_fund_when_balance_set(seeded_db):
     insights = coaching_engine.compute_insights(db, "2026-07")
 
     assert any(i.rule_code == "emergency_fund" for i in insights)
+
+
+def test_emergency_fund_context_treats_zero_balance_as_empty_fund_not_missing(seeded_db):
+    # 잔액 0원짜리 비상금 상품은 "설정 없음"이 아니라 "바닥남" — 경고가 가장 필요한 상태다.
+    from app.models.savings_product import SavingsProduct
+
+    db, user, rent = seeded_db["db"], seeded_db["user"], seeded_db["rent"]
+    db.add(SavingsProduct(name="비상금", product_type="emergency_fund", current_balance=Decimal("0"),
+                          monthly_saving_amount=Decimal("0")))
+    db.commit()
+    # 3개월 중 한 달만 고정지출 → 평균 100000/3 = 33333.33… → 원 단위로 반올림
+    transaction_service.create_transaction(db, user.id, rent.id, "expense", Decimal("100000"), date(2026, 7, 1))
+
+    balance, avg_fixed = coaching_engine.emergency_fund_context(db, date(2026, 7, 1))
+
+    assert balance == Decimal("0")
+    assert avg_fixed == Decimal("33333")
+    insight = emergency_fund_insight(balance, avg_fixed)
+    assert insight is not None and insight.severity == "warning"
+    allocation = coaching_engine.compute_surplus_allocation(db, date(2026, 7, 1), Decimal("50000"))
+    assert allocation["emergency_fund_portion"] == Decimal("50000")
+
+
+def test_emergency_fund_context_none_when_no_fund_registered(seeded_db):
+    assert coaching_engine.emergency_fund_context(seeded_db["db"], date(2026, 7, 1)) == (None, None)

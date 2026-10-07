@@ -59,6 +59,8 @@ def _sync_upcoming_calendar_events(db) -> None:
         except GoogleNotConnectedError:
             return
         except Exception:
+            # 커밋 도중 실패했으면 세션을 되돌려야 다음 항목이 PendingRollbackError 없이 진행된다.
+            db.rollback()
             logger.exception("캘린더 이벤트 동기화 실패: %s", recurring.name)
 
 

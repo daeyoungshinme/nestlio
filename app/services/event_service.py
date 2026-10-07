@@ -142,10 +142,12 @@ def delete_event(db: Session, event_id: int, actor_id: uuid.UUID, now: datetime 
         db.commit()
         event_reminder_service.notify_other_spouse(db, event, actor_id=actor_id, action_label="Google 캘린더 일정이 목록에서 숨겨졌습니다")
         return True
-    event_calendar_service.remove_from_google(event)
-    event_reminder_service.notify_other_spouse(db, event, actor_id=actor_id, action_label="일정이 삭제되었습니다")
+    # 로컬 삭제를 먼저 확정한다 — 커밋이 실패했는데 구글 원본·배우자 알림만 나가면 앱엔 일정이 남은 채로
+    # 구글 쪽만 사라진다. 삭제된 객체는 커밋 후 detached여도 이미 로드된 컬럼은 그대로 읽힌다.
     db.delete(event)
     db.commit()
+    event_calendar_service.remove_from_google(event)
+    event_reminder_service.notify_other_spouse(db, event, actor_id=actor_id, action_label="일정이 삭제되었습니다")
     return True
 
 

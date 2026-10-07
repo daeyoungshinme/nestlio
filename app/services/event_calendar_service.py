@@ -142,6 +142,8 @@ def sync_to_google(db: Session, event: Event) -> None:
     except GoogleNotConnectedError:
         pass
     except Exception:  # best-effort 부수효과, 로그만 남기고 진행
+        # upsert_event가 커밋 도중 실패했으면 세션이 오염돼 이후 쿼리가 PendingRollbackError로 터진다.
+        db.rollback()
         logger.exception("캘린더 이벤트 동기화 실패: %s", event.title)
 
 

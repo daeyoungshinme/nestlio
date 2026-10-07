@@ -19,6 +19,7 @@ from app.services import (
     transaction_report_service,
 )
 from app.utils.dates import month_bounds, parse_year_month, today_kst, year_month_str
+from app.utils.money import whole_won
 
 # 코칭 임계값은 app/config.py의 settings에 있다 (app/services/CLAUDE.md 컨벤션). 뜻:
 #   emergency_fund_min/target_months — 비상금 런웨이(고정지출 기준 개월수)
@@ -287,10 +288,11 @@ def emergency_fund_context(db: Session, month_start: date) -> tuple[Decimal | No
     같은 달을 대상으로 함께 호출될 때(app/routers/dashboard.py) 각자 재조회하지 않고 공유할 수
     있도록 뽑아낸 조회 헬퍼. 등록된 비상금 상품이 없으면 (None, None)."""
     balance = savings_product_service.get_emergency_fund_balance(db)
-    if not balance:
+    # 0원은 "비상금 없음"이 아니라 "비상금이 바닥남" — 가장 경고가 필요한 상태라 None과 구분한다.
+    if balance is None:
         return None, None
     trend = transaction_report_service.monthly_trend(db, months=3, anchor=month_start)
-    avg_fixed = sum((row["fixed"] for row in trend), Decimal("0")) / len(trend)
+    avg_fixed = whole_won(sum((row["fixed"] for row in trend), Decimal("0")) / len(trend))
     return balance, avg_fixed
 
 
