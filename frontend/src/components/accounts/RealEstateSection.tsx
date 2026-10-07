@@ -1,10 +1,9 @@
 import { useState } from "react";
 import type { FormEvent } from "react";
-import { Download, Plus, RefreshCw } from "lucide-react";
+import { RefreshCw } from "lucide-react";
 import Button from "@/components/common/Button";
 import AssetRow from "@/components/accounts/AssetRow";
-import ConfirmModal from "@/components/common/ConfirmModal";
-import EmptyState from "@/components/common/EmptyState";
+import AssetSectionShell from "@/components/accounts/AssetSectionShell";
 import FormInput from "@/components/common/FormInput";
 import GrowlioImportModal from "@/components/common/GrowlioImportModal";
 import GrowlioLinkSection from "@/components/accounts/GrowlioLinkSection";
@@ -20,8 +19,7 @@ import {
 } from "@/api/savingsProducts";
 import { fetchGrowlioRealEstate, importGrowlioRealEstate, syncRealEstate } from "@/api/realEstate";
 import { ASSET_RELATED_KEYS, QUERY_KEYS } from "@/constants/queryKeys";
-import { useCrudMutations } from "@/hooks/useCrudMutations";
-import { useGrowlioSyncMutation } from "@/hooks/useGrowlioSyncMutation";
+import { useAssetSection } from "@/hooks/useAssetSection";
 import { useGoals, useSavingsProducts } from "@/hooks/useReferenceData";
 import {
   amountInputPreview,
@@ -31,7 +29,14 @@ import {
   resolveOwnerLabel,
 } from "@/utils/format";
 import { cautionTextClass, linkedGoalBadgeStyle, returnRateTextColor, savingsProductTypeBadgeStyle, savingsProductTypeLabel } from "@/utils/colors";
-import type { FinancialGoalOut, RealEstateImportResultOut, SavingsProductOut, UserOut } from "@/types";
+import type {
+  FinancialGoalOut,
+  RealEstateImportResultOut,
+  SavingsProductCreateIn,
+  SavingsProductOut,
+  SavingsProductUpdateIn,
+  UserOut,
+} from "@/types";
 import { baseDraftFromProduct, type ProductBaseDraft } from "@/components/accounts/productDraft";
 import { sumAmounts } from "@/utils/amount";
 
@@ -56,35 +61,25 @@ interface Props {
 }
 
 export default function RealEstateSection({ users }: Props) {
-  const [formTarget, setFormTarget] = useState<"new" | SavingsProductOut | null>(null);
-  const [deactivateTarget, setDeactivateTarget] = useState<number | null>(null);
-  const [importOpen, setImportOpen] = useState(false);
   const savingsProductsQuery = useSavingsProducts();
   const { data: goals } = useGoals();
-
-  const { createMutation, updateMutation, removeMutation: deactivateMutation } = useCrudMutations({
-    invalidateKeys: ASSET_RELATED_KEYS,
-    api: { create: createSavingsProduct, update: updateSavingsProduct, remove: deactivateSavingsProduct },
-    messages: { create: "부동산을 추가했습니다.", update: "저장했습니다.", remove: "비활성화했습니다." },
-    onCreateSuccess: () => setFormTarget(null),
-    onUpdateSuccess: () => setFormTarget(null),
-    onRemoveSuccess: () => setDeactivateTarget(null),
+  const section = useAssetSection<SavingsProductOut, SavingsProductCreateIn, SavingsProductUpdateIn>({
+    api: {
+      create: createSavingsProduct,
+      update: updateSavingsProduct,
+      deactivate: deactivateSavingsProduct,
+      sync: syncRealEstate,
+    },
+    getId: (product) => product.id,
+    messages: { create: "부동산을 추가했습니다.", sync: "growlio 시세/담보대출을 동기화했습니다." },
   });
-
-  const syncMutation = useGrowlioSyncMutation(syncRealEstate, "growlio 시세/담보대출을 동기화했습니다.");
-
-  const isSaving = createMutation.isPending || updateMutation.isPending;
 
   const goalsFor = (product: SavingsProductOut) =>
     goals?.filter((g) => g.funding_sources.some((fs) => fs.type === "savings_product" && fs.id === product.id)) ?? [];
 
   const handleSubmit = (draft: Draft) => {
     const payload = toRealEstatePayload(draft);
-    if (formTarget === "new") {
-      createMutation.mutate(payload);
-    } else if (formTarget) {
-      updateMutation.mutate({ id: formTarget.id, payload });
-    }
+    section.submit(payload, payload);
   };
 
   return (
@@ -99,101 +94,92 @@ export default function RealEstateSection({ users }: Props) {
         const totalGain = sumAmounts(rowsWithGain, (p) => p.return_amount);
 
         return (
-          <div className="space-y-4">
-            <div className="flex justify-end gap-2 flex-wrap">
-              <Button size="sm" variant="secondary" icon={<Download size={14} />} onClick={() => setImportOpen(true)}>
-                growlio에서 가져오기
-              </Button>
-              <Button size="sm" icon={<Plus size={14} />} onClick={() => setFormTarget("new")}>
-                부동산 추가
-              </Button>
-            </div>
-
-            {data.length === 0 ? (
-              <EmptyState title="등록된 부동산이 없어요" compact />
-            ) : (
-              <div className="space-y-4">
-                {rowsWithGain.length > 0 && (
-                  <InlineStatsBar
-                    items={[
-                      { label: "평가손익 합계", value: formatKrw(totalGain), tone: totalGain >= 0 ? "positive" : "negative" },
-                    ]}
+          <AssetSectionShell
+            addLabel="부동산 추가"
+            onAdd={section.openNew}
+            onImport={section.openImport}
+            isEmpty={data.length === 0}
+            emptyTitle="등록된 부동산이 없어요"
+            deactivateMessage="이 부동산을 비활성화할까요?"
+            deactivateOpen={section.deactivateTarget !== null}
+            onConfirmDeactivate={section.confirmDeactivate}
+            onCancelDeactivate={section.cancelDeactivate}
+            overlays={
+              <>
+                {section.formTarget && (
+                  <RealEstateFormModal
+                    initial={section.editing ? draftFromProduct(section.editing) : EMPTY_DRAFT}
+                    product={section.editing}
+                    title={section.isNew ? "부동산 추가" : "부동산 수정"}
+                    submitLabel={section.isNew ? "추가" : "저장"}
+                    submitting={section.isSaving}
+                    users={users}
+                    onClose={section.closeForm}
+                    onSubmit={handleSubmit}
                   />
                 )}
+                {section.importOpen && (
+                  <GrowlioImportModal
+                    title="부동산 가져오기"
+                    queryKey={QUERY_KEYS.growlioRealEstateAccounts}
+                    fetchRows={() => fetchGrowlioRealEstate().then((rows) => [...rows].sort((a, b) => a.name.localeCompare(b.name)))}
+                    getRowId={(item) => item.id}
+                    getRowAmount={(item) => item.market_value_krw}
+                    renderRowMeta={(item) => ({
+                      name: item.name,
+                      badge: "부동산",
+                      subtext: item.address,
+                      amountNote: item.mortgage_balance_krw > 0 && (
+                        <span className={`block text-[11px] ${cautionTextClass()}`}>
+                          대출 {formatKrw(item.mortgage_balance_krw)}
+                        </span>
+                      ),
+                    })}
+                    importRows={importGrowlioRealEstate}
+                    buildSuccessMessage={(results) => {
+                      const total = results.reduce(
+                        (sum: number, r: RealEstateImportResultOut) => sum + Number(r.savings_product.current_balance),
+                        0,
+                      );
+                      const loanCount = results.filter((r) => r.loan !== null).length;
+                      return (
+                        `growlio 계좌 ${results.length}개를 가져왔습니다. 합계 ${formatKrw(total)}` +
+                        (loanCount > 0 ? ` · 담보대출 ${loanCount}건도 함께 등록했어요.` : "")
+                      );
+                    }}
+                    existingGrowlioAccountIds={existingGrowlioAccountIds}
+                    invalidateKeys={ASSET_RELATED_KEYS}
+                    onClose={section.closeImport}
+                  />
+                )}
+              </>
+            }
+          >
+            <div className="space-y-4">
+              {rowsWithGain.length > 0 && (
+                <InlineStatsBar
+                  items={[
+                    { label: "평가손익 합계", value: formatKrw(totalGain), tone: totalGain >= 0 ? "positive" : "negative" },
+                  ]}
+                />
+              )}
 
-                <div className="space-y-2">
-                  {data.map((product) => (
-                    <RealEstateRow
-                      key={product.id}
-                      product={product}
-                      users={users}
-                      linkedGoals={goalsFor(product)}
-                      syncPending={syncMutation.isPending}
-                      onSync={() => syncMutation.mutate(product.id)}
-                      onEdit={() => setFormTarget(product)}
-                      onDelete={() => setDeactivateTarget(product.id)}
-                    />
-                  ))}
-                </div>
+              <div className="space-y-2">
+                {data.map((product) => (
+                  <RealEstateRow
+                    key={product.id}
+                    product={product}
+                    users={users}
+                    linkedGoals={goalsFor(product)}
+                    syncPending={section.syncPending}
+                    onSync={() => section.sync(product)}
+                    onEdit={() => section.openEdit(product)}
+                    onDelete={() => section.askDeactivate(product)}
+                  />
+                ))}
               </div>
-            )}
-
-            {formTarget && (
-              <RealEstateFormModal
-                initial={formTarget === "new" ? EMPTY_DRAFT : draftFromProduct(formTarget)}
-                product={formTarget === "new" ? null : formTarget}
-                title={formTarget === "new" ? "부동산 추가" : "부동산 수정"}
-                submitLabel={formTarget === "new" ? "추가" : "저장"}
-                submitting={isSaving}
-                users={users}
-                onClose={() => setFormTarget(null)}
-                onSubmit={handleSubmit}
-              />
-            )}
-
-            {deactivateTarget !== null && (
-              <ConfirmModal
-                message="이 부동산을 비활성화할까요?"
-                onConfirm={() => deactivateMutation.mutate(deactivateTarget)}
-                onCancel={() => setDeactivateTarget(null)}
-              />
-            )}
-
-            {importOpen && (
-              <GrowlioImportModal
-                title="부동산 가져오기"
-                queryKey={QUERY_KEYS.growlioRealEstateAccounts}
-                fetchRows={() => fetchGrowlioRealEstate().then((rows) => [...rows].sort((a, b) => a.name.localeCompare(b.name)))}
-                getRowId={(item) => item.id}
-                getRowAmount={(item) => item.market_value_krw}
-                renderRowMeta={(item) => ({
-                  name: item.name,
-                  badge: "부동산",
-                  subtext: item.address,
-                  amountNote: item.mortgage_balance_krw > 0 && (
-                    <span className={`block text-[11px] ${cautionTextClass()}`}>
-                      대출 {formatKrw(item.mortgage_balance_krw)}
-                    </span>
-                  ),
-                })}
-                importRows={importGrowlioRealEstate}
-                buildSuccessMessage={(results) => {
-                  const total = results.reduce(
-                    (sum: number, r: RealEstateImportResultOut) => sum + Number(r.savings_product.current_balance),
-                    0,
-                  );
-                  const loanCount = results.filter((r) => r.loan !== null).length;
-                  return (
-                    `growlio 계좌 ${results.length}개를 가져왔습니다. 합계 ${formatKrw(total)}` +
-                    (loanCount > 0 ? ` · 담보대출 ${loanCount}건도 함께 등록했어요.` : "")
-                  );
-                }}
-                existingGrowlioAccountIds={existingGrowlioAccountIds}
-                invalidateKeys={ASSET_RELATED_KEYS}
-                onClose={() => setImportOpen(false)}
-              />
-            )}
-          </div>
+            </div>
+          </AssetSectionShell>
         );
       }}
     </QueryBoundary>
