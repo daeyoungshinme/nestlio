@@ -1,14 +1,13 @@
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import type { FormEvent } from "react";
-import { ArrowRight, Download, ExternalLink, Plus, RefreshCw } from "lucide-react";
+import { ArrowRight, ExternalLink, RefreshCw } from "lucide-react";
 import { Link } from "react-router-dom";
 import Button from "@/components/common/Button";
 import AssetRow from "@/components/accounts/AssetRow";
 import type { AssetRowAction } from "@/components/accounts/AssetRow";
+import AssetSectionShell from "@/components/accounts/AssetSectionShell";
 import CollapsibleGroup from "@/components/common/CollapsibleGroup";
-import ConfirmModal from "@/components/common/ConfirmModal";
-import EmptyState from "@/components/common/EmptyState";
 import FormInput from "@/components/common/FormInput";
 import Modal from "@/components/common/Modal";
 import GrowlioImportModal from "@/components/common/GrowlioImportModal";
@@ -27,8 +26,7 @@ import {
   updateSavingsProduct,
 } from "@/api/savingsProducts";
 import { ASSET_RELATED_KEYS, QUERY_KEYS } from "@/constants/queryKeys";
-import { useCrudMutations } from "@/hooks/useCrudMutations";
-import { useGrowlioSyncMutation } from "@/hooks/useGrowlioSyncMutation";
+import { useAssetSection } from "@/hooks/useAssetSection";
 import { useGoals, useSavingsProducts } from "@/hooks/useReferenceData";
 import { fetchSavingsProductsPlan } from "@/api/savingsProducts";
 import { STALE_TIME } from "@/constants/queryConfig";
@@ -50,7 +48,14 @@ import {
   savingsProductTypeLabel,
 } from "@/utils/colors";
 import { GROWLIO_APP_URL, growlioAssetTypeLabel, growlioPortfolioUrl, isGrowlioLinkedInvestment } from "@/constants/growlio";
-import type { FinancialGoalOut, SavingsProductOut, SavingsProductType, UserOut } from "@/types";
+import type {
+  FinancialGoalOut,
+  SavingsProductCreateIn,
+  SavingsProductOut,
+  SavingsProductType,
+  SavingsProductUpdateIn,
+  UserOut,
+} from "@/types";
 import { sumAmounts } from "@/utils/amount";
 
 interface Draft {
@@ -100,9 +105,6 @@ interface Props {
 }
 
 export default function SavingsProductsSection({ users }: Props) {
-  const [formTarget, setFormTarget] = useState<"new" | SavingsProductOut | null>(null);
-  const [deactivateTarget, setDeactivateTarget] = useState<number | null>(null);
-  const [importOpen, setImportOpen] = useState(false);
   const savingsProductsQuery = useSavingsProducts();
   const { data: goals } = useGoals();
   // "월 N원"은 상품의 폴백 필드(monthly_saving_amount)가 아니라 이번 달 실제 계획액(계획 탭의 월별 그리드가 있으면
@@ -119,29 +121,23 @@ export default function SavingsProductsSection({ users }: Props) {
   );
   const monthlyPlanOf = (product: SavingsProductOut) => plannedById.get(product.id) ?? product.monthly_saving_amount;
 
-  const { createMutation, updateMutation, removeMutation: deactivateMutation } = useCrudMutations({
-    invalidateKeys: ASSET_RELATED_KEYS,
-    api: { create: createSavingsProduct, update: updateSavingsProduct, remove: deactivateSavingsProduct },
-    messages: { create: "저축/투자 상품을 추가했습니다.", update: "저장했습니다.", remove: "비활성화했습니다." },
-    onCreateSuccess: () => setFormTarget(null),
-    onUpdateSuccess: () => setFormTarget(null),
-    onRemoveSuccess: () => setDeactivateTarget(null),
+  const section = useAssetSection<SavingsProductOut, SavingsProductCreateIn, SavingsProductUpdateIn>({
+    api: {
+      create: createSavingsProduct,
+      update: updateSavingsProduct,
+      deactivate: deactivateSavingsProduct,
+      sync: syncSavingsProduct,
+    },
+    getId: (product) => product.id,
+    messages: { create: "저축/투자 상품을 추가했습니다.", sync: "growlio 잔액을 동기화했습니다." },
   });
-
-  const syncMutation = useGrowlioSyncMutation(syncSavingsProduct, "growlio 잔액을 동기화했습니다.");
-
-  const isSaving = createMutation.isPending || updateMutation.isPending;
 
   const goalsFor = (product: SavingsProductOut) =>
     goals?.filter((g) => g.funding_sources.some((fs) => fs.type === "savings_product" && fs.id === product.id)) ?? [];
 
   const handleSubmit = (draft: Draft) => {
     const payload = toSavingsProductPayload(draft);
-    if (formTarget === "new") {
-      createMutation.mutate(payload);
-    } else if (formTarget) {
-      updateMutation.mutate({ id: formTarget.id, payload });
-    }
+    section.submit(payload, payload);
   };
 
   return (
@@ -168,106 +164,97 @@ export default function SavingsProductsSection({ users }: Props) {
             monthlyPlan={monthlyPlanOf(product)}
             users={users}
             linkedGoals={goalsFor(product)}
-            syncPending={syncMutation.isPending}
-            onSync={() => syncMutation.mutate(product.id)}
-            onEdit={() => setFormTarget(product)}
-            onDelete={() => setDeactivateTarget(product.id)}
+            syncPending={section.syncPending}
+            onSync={() => section.sync(product)}
+            onEdit={() => section.openEdit(product)}
+            onDelete={() => section.askDeactivate(product)}
           />
         );
 
         return (
-          <div className="space-y-4">
-            <div className="flex justify-end gap-2 flex-wrap">
-              <Button size="sm" variant="secondary" icon={<Download size={14} />} onClick={() => setImportOpen(true)}>
-                growlio에서 가져오기
-              </Button>
-              <Button size="sm" icon={<Plus size={14} />} onClick={() => setFormTarget("new")}>
-                상품 추가
-              </Button>
-            </div>
-
-            {data.length === 0 ? (
-              <EmptyState title="등록된 저축/투자 상품이 없어요" compact />
-            ) : (
-              <div className="space-y-4">
-                <InlineStatsBar
-                  items={[
-                    { label: "월 저축액 합계", value: formatKrw(totalMonthly) },
-                    ...(balanceByType.length > 1
-                      ? balanceByType.map(({ type, total }) => ({
-                          label: savingsProductTypeLabel(type),
-                          value: formatKrw(total),
-                        }))
-                      : []),
-                  ]}
-                />
-
-                {shouldGroup ? (
-                  <div className="space-y-4">
-                    {balanceByType.map(({ type, rows, total }) => (
-                      <CollapsibleGroup
-                        key={type}
-                        header={
-                          <>
-                            <span className={`w-2 h-2 rounded-full shrink-0 ${savingsProductTypeDotClass(type)}`} />
-                            <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                              {savingsProductTypeLabel(type)} ({rows.length})
-                            </span>
-                          </>
-                        }
-                        amount={formatKrw(total)}
-                        defaultOpen
-                      >
-                        {rows.map(renderRow)}
-                      </CollapsibleGroup>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="space-y-2">{data.map(renderRow)}</div>
+          <AssetSectionShell
+            addLabel="상품 추가"
+            onAdd={section.openNew}
+            onImport={section.openImport}
+            isEmpty={data.length === 0}
+            emptyTitle="등록된 저축/투자 상품이 없어요"
+            deactivateMessage="이 저축/투자 상품을 비활성화할까요?"
+            deactivateOpen={section.deactivateTarget !== null}
+            onConfirmDeactivate={section.confirmDeactivate}
+            onCancelDeactivate={section.cancelDeactivate}
+            overlays={
+              <>
+                {section.formTarget && (
+                  <SavingsProductFormModal
+                    initial={section.editing ? draftFromProduct(section.editing) : EMPTY_DRAFT}
+                    product={section.editing}
+                    title={section.isNew ? "저축/투자 상품 추가" : "저축/투자 상품 수정"}
+                    submitLabel={section.isNew ? "추가" : "저장"}
+                    submitting={section.isSaving}
+                    users={users}
+                    onClose={section.closeForm}
+                    onSubmit={handleSubmit}
+                  />
                 )}
-              </div>
-            )}
-
-            {formTarget && (
-              <SavingsProductFormModal
-                initial={formTarget === "new" ? EMPTY_DRAFT : draftFromProduct(formTarget)}
-                product={formTarget === "new" ? null : formTarget}
-                title={formTarget === "new" ? "저축/투자 상품 추가" : "저축/투자 상품 수정"}
-                submitLabel={formTarget === "new" ? "추가" : "저장"}
-                submitting={isSaving}
-                users={users}
-                onClose={() => setFormTarget(null)}
-                onSubmit={handleSubmit}
+                {section.importOpen && (
+                  <GrowlioImportModal
+                    title="투자 계좌 가져오기"
+                    queryKey={QUERY_KEYS.growlioInvestmentAccounts}
+                    fetchRows={() => fetchGrowlioAccounts().then((rows) => [...rows].sort((a, b) => a.name.localeCompare(b.name)))}
+                    getRowId={(account) => account.id}
+                    getRowAmount={(account) => account.current_value_krw}
+                    renderRowMeta={(account) => ({ name: account.name, badge: growlioAssetTypeLabel(account.asset_type) })}
+                    importRows={importGrowlioAccounts}
+                    buildSuccessMessage={(created) => {
+                      const total = sumAmounts(created, (p) => p.current_balance);
+                      return `growlio 계좌 ${created.length}개를 가져왔습니다. 합계 ${formatKrw(total)}`;
+                    }}
+                    existingGrowlioAccountIds={existingGrowlioAccountIds}
+                    invalidateKeys={ASSET_RELATED_KEYS}
+                    onClose={section.closeImport}
+                  />
+                )}
+              </>
+            }
+          >
+            <div className="space-y-4">
+              <InlineStatsBar
+                items={[
+                  { label: "월 저축액 합계", value: formatKrw(totalMonthly) },
+                  ...(balanceByType.length > 1
+                    ? balanceByType.map(({ type, total }) => ({
+                        label: savingsProductTypeLabel(type),
+                        value: formatKrw(total),
+                      }))
+                    : []),
+                ]}
               />
-            )}
 
-            {deactivateTarget !== null && (
-              <ConfirmModal
-                message="이 저축/투자 상품을 비활성화할까요?"
-                onConfirm={() => deactivateMutation.mutate(deactivateTarget)}
-                onCancel={() => setDeactivateTarget(null)}
-              />
-            )}
-
-            {importOpen && (
-              <GrowlioImportModal
-                title="투자 계좌 가져오기"
-                queryKey={QUERY_KEYS.growlioInvestmentAccounts}
-                fetchRows={() => fetchGrowlioAccounts().then((rows) => [...rows].sort((a, b) => a.name.localeCompare(b.name)))}
-                getRowId={(account) => account.id}
-                getRowAmount={(account) => account.current_value_krw}
-                renderRowMeta={(account) => ({ name: account.name, badge: growlioAssetTypeLabel(account.asset_type) })}
-                importRows={importGrowlioAccounts}
-                buildSuccessMessage={(created) => {
-                  const total = sumAmounts(created, (p) => p.current_balance);
-                  return `growlio 계좌 ${created.length}개를 가져왔습니다. 합계 ${formatKrw(total)}`;
-                }}
-                existingGrowlioAccountIds={existingGrowlioAccountIds}
-                invalidateKeys={ASSET_RELATED_KEYS}
-                onClose={() => setImportOpen(false)}
-              />
-            )}
-          </div>
+              {shouldGroup ? (
+                <div className="space-y-4">
+                  {balanceByType.map(({ type, rows, total }) => (
+                    <CollapsibleGroup
+                      key={type}
+                      header={
+                        <>
+                          <span className={`w-2 h-2 rounded-full shrink-0 ${savingsProductTypeDotClass(type)}`} />
+                          <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                            {savingsProductTypeLabel(type)} ({rows.length})
+                          </span>
+                        </>
+                      }
+                      amount={formatKrw(total)}
+                      defaultOpen
+                    >
+                      {rows.map(renderRow)}
+                    </CollapsibleGroup>
+                  ))}
+                </div>
+              ) : (
+                <div className="space-y-2">{data.map(renderRow)}</div>
+              )}
+            </div>
+          </AssetSectionShell>
         );
       }}
     </QueryBoundary>

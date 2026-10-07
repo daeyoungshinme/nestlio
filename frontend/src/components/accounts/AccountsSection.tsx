@@ -1,11 +1,10 @@
 import { useId, useState } from "react";
 import type { FormEvent } from "react";
-import { Download, Plus, RefreshCw } from "lucide-react";
+import { RefreshCw } from "lucide-react";
 import Button from "@/components/common/Button";
 import AssetRow from "@/components/accounts/AssetRow";
+import AssetSectionShell from "@/components/accounts/AssetSectionShell";
 import CollapsibleGroup from "@/components/common/CollapsibleGroup";
-import ConfirmModal from "@/components/common/ConfirmModal";
-import EmptyState from "@/components/common/EmptyState";
 import FormInput from "@/components/common/FormInput";
 import GrowlioImportModal from "@/components/common/GrowlioImportModal";
 import Modal from "@/components/common/Modal";
@@ -24,11 +23,10 @@ import {
   updateAccount,
 } from "@/api/accounts";
 import { ASSET_RELATED_KEYS, QUERY_KEYS } from "@/constants/queryKeys";
-import { useCrudMutations } from "@/hooks/useCrudMutations";
-import { useGrowlioSyncMutation } from "@/hooks/useGrowlioSyncMutation";
+import { useAssetSection } from "@/hooks/useAssetSection";
 import { useAccounts } from "@/hooks/useReferenceData";
 import { amountInputPreview, formatKrw, formatSyncedAt, resolveOwnerLabel, toAmountInputValue } from "@/utils/format";
-import type { AccountOut, AccountWithBalanceOut, UserOut } from "@/types";
+import type { AccountCreateIn, AccountOut, AccountUpdateIn, AccountWithBalanceOut, UserOut } from "@/types";
 import { sumAmounts } from "@/utils/amount";
 
 const ACCOUNT_TYPE_LABEL: Record<AccountOut["account_type"], string> = {
@@ -63,39 +61,17 @@ interface Props {
 }
 
 export default function AccountsSection({ users }: Props) {
-  const [formTarget, setFormTarget] = useState<"new" | AccountWithBalanceOut | null>(null);
-  const [deactivateTarget, setDeactivateTarget] = useState<number | null>(null);
-  const [importOpen, setImportOpen] = useState(false);
   const accountsQuery = useAccounts();
-
-  const { createMutation, updateMutation, removeMutation: deactivateMutation } = useCrudMutations({
-    invalidateKeys: ASSET_RELATED_KEYS,
-    api: { create: createAccount, update: updateAccount, remove: deactivateAccount },
-    messages: { create: "계좌를 추가했습니다.", update: "저장했습니다.", remove: "계좌를 비활성화했습니다." },
-    onCreateSuccess: () => setFormTarget(null),
-    onUpdateSuccess: () => setFormTarget(null),
-    onRemoveSuccess: () => setDeactivateTarget(null),
+  const section = useAssetSection<AccountWithBalanceOut, AccountCreateIn, AccountUpdateIn>({
+    api: { create: createAccount, update: updateAccount, deactivate: deactivateAccount, sync: syncAccount },
+    getId: (row) => row.account.id,
+    messages: { create: "계좌를 추가했습니다.", deactivate: "계좌를 비활성화했습니다.", sync: "growlio 잔액을 동기화했습니다." },
   });
 
-  const syncMutation = useGrowlioSyncMutation(syncAccount, "growlio 잔액을 동기화했습니다.");
-
-  const isSaving = createMutation.isPending || updateMutation.isPending;
-
+  // 생성은 "초기 잔액", 수정은 "현재 잔액"(서버가 initial_balance를 역산) — 같은 입력칸이 페이로드에선 다른 필드다.
   const handleSubmit = (draft: Draft) => {
-    const owner_user_id = draft.owner_user_id || null;
-    if (formTarget === "new") {
-      createMutation.mutate({
-        name: draft.name,
-        account_type: draft.account_type,
-        initial_balance: draft.amount,
-        owner_user_id,
-      });
-    } else if (formTarget) {
-      updateMutation.mutate({
-        id: formTarget.account.id,
-        payload: { name: draft.name, account_type: draft.account_type, current_balance: draft.amount, owner_user_id },
-      });
-    }
+    const base = { name: draft.name, account_type: draft.account_type, owner_user_id: draft.owner_user_id || null };
+    section.submit({ ...base, initial_balance: draft.amount }, { ...base, current_balance: draft.amount });
   };
 
   return (
@@ -123,100 +99,90 @@ export default function AccountsSection({ users }: Props) {
             key={row.account.id}
             row={row}
             users={users}
-            syncPending={syncMutation.isPending}
-            onSync={() => syncMutation.mutate(row.account.id)}
-            onEdit={() => setFormTarget(row)}
-            onDelete={() => setDeactivateTarget(row.account.id)}
+            syncPending={section.syncPending}
+            onSync={() => section.sync(row)}
+            onEdit={() => section.openEdit(row)}
+            onDelete={() => section.askDeactivate(row)}
           />
         );
 
         return (
-          <div className="space-y-6">
-            <div className="flex justify-end gap-2">
-              <Button size="sm" variant="secondary" icon={<Download size={14} />} onClick={() => setImportOpen(true)}>
-                growlio에서 가져오기
-              </Button>
-              <Button size="sm" icon={<Plus size={14} />} onClick={() => setFormTarget("new")}>
-                계좌 추가
-              </Button>
-            </div>
-
-            {data.length === 0 ? (
-              <EmptyState title="등록된 계좌가 없어요" compact />
-            ) : (
+          <AssetSectionShell
+            className="space-y-6"
+            addLabel="계좌 추가"
+            onAdd={section.openNew}
+            onImport={section.openImport}
+            isEmpty={data.length === 0}
+            emptyTitle="등록된 계좌가 없어요"
+            deactivateMessage="이 계좌를 비활성화할까요?"
+            deactivateOpen={section.deactivateTarget !== null}
+            onConfirmDeactivate={section.confirmDeactivate}
+            onCancelDeactivate={section.cancelDeactivate}
+            overlays={
               <>
-                <InlineStatsBar
-                  items={[
-                    { label: "전체 합계", value: formatKrw(totalBalance) },
-                    ...(balanceByType.length > 1
-                      ? balanceByType.map(({ type, total }) => ({ label: ACCOUNT_TYPE_LABEL[type], value: formatKrw(total) }))
-                      : []),
-                  ]}
-                />
-
-                {shouldGroup ? (
-                  <div className="space-y-4">
-                    {balanceByType.map(({ type, rows, total }) => (
-                      <CollapsibleGroup
-                        key={type}
-                        header={
-                          <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                            {ACCOUNT_TYPE_LABEL[type]} ({rows.length})
-                          </span>
-                        }
-                        amount={formatKrw(total)}
-                        defaultOpen
-                      >
-                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">{rows.map(renderRow)}</div>
-                      </CollapsibleGroup>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">{data.map(renderRow)}</div>
+                {section.formTarget && (
+                  <AccountFormModal
+                    initial={section.editing ? draftFromAccount(section.editing) : EMPTY_DRAFT}
+                    title={section.isNew ? "계좌 추가" : "계좌 수정"}
+                    amountLabel={section.isNew ? "초기 잔액" : "현재 잔액"}
+                    submitLabel={section.isNew ? "추가" : "저장"}
+                    submitting={section.isSaving}
+                    users={users}
+                    onClose={section.closeForm}
+                    onSubmit={handleSubmit}
+                  />
+                )}
+                {section.importOpen && (
+                  <GrowlioImportModal
+                    title="growlio 계좌 가져오기"
+                    queryKey={QUERY_KEYS.growlioBankAccounts}
+                    fetchRows={fetchGrowlioAccounts}
+                    getRowId={(account) => account.id}
+                    getRowAmount={(account) => account.current_value_krw}
+                    renderRowMeta={(account) => ({ name: account.name, badge: growlioAssetTypeLabel(account.asset_type) })}
+                    importRows={importGrowlioAccounts}
+                    buildSuccessMessage={(created) => {
+                      const total = sumAmounts(created, (account) => account.initial_balance);
+                      return `growlio 계좌 ${created.length}개를 가져왔습니다. 합계 ${formatKrw(total)}`;
+                    }}
+                    existingGrowlioAccountIds={existingGrowlioAccountIds}
+                    invalidateKeys={ASSET_RELATED_KEYS}
+                    onClose={section.closeImport}
+                  />
                 )}
               </>
-            )}
+            }
+          >
+            <InlineStatsBar
+              items={[
+                { label: "전체 합계", value: formatKrw(totalBalance) },
+                ...(balanceByType.length > 1
+                  ? balanceByType.map(({ type, total }) => ({ label: ACCOUNT_TYPE_LABEL[type], value: formatKrw(total) }))
+                  : []),
+              ]}
+            />
 
-            {formTarget && (
-              <AccountFormModal
-                initial={formTarget === "new" ? EMPTY_DRAFT : draftFromAccount(formTarget)}
-                title={formTarget === "new" ? "계좌 추가" : "계좌 수정"}
-                amountLabel={formTarget === "new" ? "초기 잔액" : "현재 잔액"}
-                submitLabel={formTarget === "new" ? "추가" : "저장"}
-                submitting={isSaving}
-                users={users}
-                onClose={() => setFormTarget(null)}
-                onSubmit={handleSubmit}
-              />
+            {shouldGroup ? (
+              <div className="space-y-4">
+                {balanceByType.map(({ type, rows, total }) => (
+                  <CollapsibleGroup
+                    key={type}
+                    header={
+                      <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                        {ACCOUNT_TYPE_LABEL[type]} ({rows.length})
+                      </span>
+                    }
+                    amount={formatKrw(total)}
+                    defaultOpen
+                  >
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">{rows.map(renderRow)}</div>
+                  </CollapsibleGroup>
+                ))}
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">{data.map(renderRow)}</div>
             )}
-
-            {deactivateTarget !== null && (
-              <ConfirmModal
-                message="이 계좌를 비활성화할까요?"
-                onConfirm={() => deactivateMutation.mutate(deactivateTarget)}
-                onCancel={() => setDeactivateTarget(null)}
-              />
-            )}
-
-            {importOpen && (
-              <GrowlioImportModal
-                title="growlio 계좌 가져오기"
-                queryKey={QUERY_KEYS.growlioBankAccounts}
-                fetchRows={fetchGrowlioAccounts}
-                getRowId={(account) => account.id}
-                getRowAmount={(account) => account.current_value_krw}
-                renderRowMeta={(account) => ({ name: account.name, badge: growlioAssetTypeLabel(account.asset_type) })}
-                importRows={importGrowlioAccounts}
-                buildSuccessMessage={(created) => {
-                  const total = sumAmounts(created, (account) => account.initial_balance);
-                  return `growlio 계좌 ${created.length}개를 가져왔습니다. 합계 ${formatKrw(total)}`;
-                }}
-                existingGrowlioAccountIds={existingGrowlioAccountIds}
-                invalidateKeys={ASSET_RELATED_KEYS}
-                onClose={() => setImportOpen(false)}
-              />
-            )}
-          </div>
+          </AssetSectionShell>
         );
       }}
     </QueryBoundary>
