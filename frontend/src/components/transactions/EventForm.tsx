@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useId, useState } from "react";
 import type { FormEvent } from "react";
 import Button from "@/components/common/Button";
 import FormInput from "@/components/common/FormInput";
@@ -80,6 +80,7 @@ interface Props {
 }
 
 export default function EventForm({ initialValues, submitLabel, submitting, users, onSubmit }: Props) {
+  const fieldId = useId();
   const [form, setForm] = useState<EventFormValues>(initialValues);
 
   const handleSubmit = (e: FormEvent) => {
@@ -168,8 +169,9 @@ export default function EventForm({ initialValues, submitLabel, submitting, user
         users={users}
       />
       <div>
-        <label className={`block mb-1 font-medium ${LABEL_SM}`}>설명 (선택)</label>
+        <label htmlFor={`${fieldId}-0`} className={`block mb-1 font-medium ${LABEL_SM}`}>설명 (선택)</label>
         <textarea
+          id={`${fieldId}-0`}
           className={`w-full ${INPUT_SM}`}
           rows={2}
           value={form.description}
@@ -178,8 +180,9 @@ export default function EventForm({ initialValues, submitLabel, submitting, user
       </div>
       <div className="flex flex-wrap gap-3">
         <div>
-          <label className={`block mb-1 font-medium ${LABEL_SM}`}>반복</label>
+          <label htmlFor={`${fieldId}-1`} className={`block mb-1 font-medium ${LABEL_SM}`}>반복</label>
           <select
+            id={`${fieldId}-1`}
             className={`${INPUT_SM} w-28`}
             value={form.frequency}
             onChange={(e) => setForm((f) => ({ ...f, frequency: e.target.value as EventFrequency }))}
@@ -199,8 +202,9 @@ export default function EventForm({ initialValues, submitLabel, submitting, user
           />
         )}
         <div>
-          <label className={`block mb-1 font-medium ${LABEL_SM}`}>리마인더</label>
+          <label htmlFor={`${fieldId}-2`} className={`block mb-1 font-medium ${LABEL_SM}`}>리마인더</label>
           <select
+            id={`${fieldId}-2`}
             className={`${INPUT_SM} w-28`}
             value={form.reminder_minutes_before}
             onChange={(e) => setForm((f) => ({ ...f, reminder_minutes_before: e.target.value }))}

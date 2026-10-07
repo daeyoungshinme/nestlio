@@ -3,6 +3,8 @@ import { GROWLIO_APP_URL, growlioPortfolioUrl, isGrowlioLinkedInvestment } from 
 import { formatKrw } from "@/utils/format";
 import type { GoalAcceleration } from "@/utils/goalAcceleration";
 import type { SavingsProductOut, SurplusAllocationOut } from "@/types";
+import { cautionCalloutClass, cautionCalloutTextClass, cautionTextClass } from "@/utils/colors";
+import { TOUCH_TARGET_MIN_HEIGHT } from "@/constants/uiSizes";
 
 interface Props {
   surplusAllocation: SurplusAllocationOut;
@@ -45,9 +47,9 @@ export default function InvestSurplusCard({
       </div>
 
       {emergencyFundPortion > 0 && (
-        <div className="flex items-start gap-2 rounded-lg bg-amber-50 dark:bg-amber-950 px-3 py-2">
-          <ShieldCheck size={16} className="text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
-          <p className="text-xs text-amber-700 dark:text-amber-300">
+        <div className={`flex items-start gap-2 rounded-lg ${cautionCalloutClass()} px-3 py-2`}>
+          <ShieldCheck size={16} className={`${cautionTextClass()} shrink-0 mt-0.5`} />
+          <p className={`text-xs ${cautionCalloutTextClass()}`}>
             비상금이 목표치보다 부족해요. {formatKrw(surplusAllocation.emergency_fund_portion)}은 비상금으로
             먼저 채워보세요.
           </p>
@@ -69,7 +71,7 @@ export default function InvestSurplusCard({
                   <button
                     type="button"
                     onClick={() => onRecordInvestment(product, surplusAllocation.investable_portion)}
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-white bg-primary-600 hover:bg-primary-700 transition-colors"
+                    className={`inline-flex items-center gap-1.5 px-3 py-1.5 ${TOUCH_TARGET_MIN_HEIGHT} rounded-lg text-xs font-semibold text-white bg-primary-600 hover:bg-primary-700 transition-colors`}
                   >
                     <PlusCircle size={12} />
                     {product.name}에 {formatKrw(surplusAllocation.investable_portion)} 저축 기록
@@ -79,7 +81,7 @@ export default function InvestSurplusCard({
                   href={growlioPortfolioUrl(product.growlio_account_id!)}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-primary-600 dark:text-primary-400 bg-primary-50 dark:bg-primary-950 hover:bg-primary-100 dark:hover:bg-primary-900 transition-colors"
+                  className={`inline-flex items-center gap-1.5 px-3 py-1.5 ${TOUCH_TARGET_MIN_HEIGHT} rounded-lg text-xs font-semibold text-primary-600 dark:text-primary-400 bg-primary-50 dark:bg-primary-950 hover:bg-primary-100 dark:hover:bg-primary-900 transition-colors`}
                 >
                   <ExternalLink size={12} />
                   포트폴리오 열기

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useId, useState } from "react";
 import type { FormEvent } from "react";
 import AnnualPlanMonthlyGrid from "@/components/financialPlan/AnnualPlanMonthlyGrid";
 import Button from "@/components/common/Button";
@@ -45,6 +45,7 @@ export default function AnnualPlanItemForm({
   submitting,
   onSubmit,
 }: Props) {
+  const fieldId = useId();
   const [name, setName] = useState(initialValues?.name ?? "");
   const [ownerUserId, setOwnerUserId] = useState(initialValues?.owner_user_id ?? "");
   const [categoryId, setCategoryId] = useState(initialValues?.category_id ?? "");
@@ -115,8 +116,9 @@ export default function AnnualPlanItemForm({
       <OwnerSelect label="구분" value={ownerUserId} onChange={setOwnerUserId} users={users} />
       <div className="grid grid-cols-2 gap-2">
         <div>
-          <label className={`block mb-1 font-medium ${LABEL_SM}`}>적용 시작월</label>
+          <label htmlFor={`${fieldId}-0`} className={`block mb-1 font-medium ${LABEL_SM}`}>적용 시작월</label>
           <select
+            id={`${fieldId}-0`}
             className={`${INPUT_SM} w-full`}
             value={startMonth}
             onChange={(e) => changeStartMonth(e.target.value)}
@@ -131,8 +133,8 @@ export default function AnnualPlanItemForm({
           </select>
         </div>
         <div>
-          <label className={`block mb-1 font-medium ${LABEL_SM}`}>적용 종료월</label>
-          <select className={`${INPUT_SM} w-full`} value={endMonth} onChange={(e) => changeEndMonth(e.target.value)}>
+          <label htmlFor={`${fieldId}-1`} className={`block mb-1 font-medium ${LABEL_SM}`}>적용 종료월</label>
+          <select id={`${fieldId}-1`} className={`${INPUT_SM} w-full`} value={endMonth} onChange={(e) => changeEndMonth(e.target.value)}>
             {monthOptions
               .filter((ym) => ym >= startMonth)
               .map((ym) => (

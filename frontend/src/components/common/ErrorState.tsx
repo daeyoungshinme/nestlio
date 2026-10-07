@@ -1,4 +1,5 @@
 import { AlertTriangle } from "lucide-react";
+import { TOUCH_TARGET_MIN_HEIGHT } from "@/constants/uiSizes";
 
 interface Props {
   title?: string;
@@ -17,7 +18,7 @@ export default function ErrorState({ title = "불러오지 못했습니다", mes
       <p className="text-sm font-medium text-gray-500 dark:text-gray-400">{title}</p>
       {message && <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">{message}</p>}
       {onRetry && (
-        <button type="button" onClick={onRetry} className="mt-3 text-sm text-primary dark:text-primary-400 hover:underline">
+        <button type="button" onClick={onRetry} className={`mt-1 text-sm text-primary dark:text-primary-400 hover:underline ${TOUCH_TARGET_MIN_HEIGHT} px-3`}>
           다시 시도
         </button>
       )}

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useId, useState } from "react";
 import type { FormEvent } from "react";
 import { useNavigate } from "react-router-dom";
 import { Link2, Plus } from "lucide-react";
@@ -227,6 +227,7 @@ function LoanFormModal({
   onClose: () => void;
   onSubmit: (draft: Draft) => void;
 }) {
+  const fieldId = useId();
   const [draft, setDraft] = useState<Draft>(initial);
 
   const handleSubmit = (e: FormEvent) => {
@@ -292,8 +293,9 @@ function LoanFormModal({
             className="w-full"
           />
           <div>
-            <label className={`block mb-1 font-medium ${LABEL_SM}`}>상환방식</label>
+            <label htmlFor={`${fieldId}-0`} className={`block mb-1 font-medium ${LABEL_SM}`}>상환방식</label>
             <select
+              id={`${fieldId}-0`}
               className={`${INPUT_SM} w-full`}
               value={draft.repayment_method}
               onChange={(e) => setDraft((d) => ({ ...d, repayment_method: e.target.value as RepaymentMethod | "" }))}

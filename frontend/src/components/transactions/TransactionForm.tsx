@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useId, useState } from "react";
 import type { FormEvent } from "react";
 import { ChevronDown, ChevronUp } from "lucide-react";
 import Button from "@/components/common/Button";
@@ -22,6 +22,7 @@ import type {
   TransactionType,
   UserOut,
 } from "@/types";
+import { TOUCH_TARGET_MIN_HEIGHT } from "@/constants/uiSizes";
 
 export interface TransactionFormValues {
   amount: string;
@@ -67,6 +68,7 @@ export default function TransactionForm({
   layout = "row",
   isNew,
 }: Props) {
+  const fieldId = useId();
   const savingsCategory = categories.find((c) => c.is_savings);
   const nonSavingsCategories = categories.filter((c) => !c.is_savings);
 
@@ -272,7 +274,8 @@ export default function TransactionForm({
           <button
             type="button"
             onClick={() => setShowDetails((s) => !s)}
-            className={`flex items-center gap-1 ${LABEL_SM} font-medium py-1`}
+            aria-expanded={showDetails}
+            className={`flex items-center gap-1 ${LABEL_SM} font-medium ${TOUCH_TARGET_MIN_HEIGHT}`}
           >
             상세 입력 (계좌 · 소유자)
             {showDetails ? <ChevronUp size={14} aria-hidden="true" /> : <ChevronDown size={14} aria-hidden="true" />}
@@ -280,8 +283,9 @@ export default function TransactionForm({
           {showDetails && (
             <div className={`grid gap-3 mt-1 ${users.length > 1 ? "grid-cols-2" : "grid-cols-1"}`}>
               <div>
-                <label className={`block mb-1 font-medium ${LABEL_SM}`}>계좌</label>
+                <label htmlFor={`${fieldId}-0`} className={`block mb-1 font-medium ${LABEL_SM}`}>계좌</label>
                 <select
+                  id={`${fieldId}-0`}
                   className={`${INPUT_SM} w-full`}
                   value={values.account_id}
                   onChange={(e) => setValues((v) => ({ ...v, account_id: e.target.value }))}
@@ -297,8 +301,9 @@ export default function TransactionForm({
 
               {uiType === "expense" && (
                 <div>
-                  <label className={`block mb-1 font-medium ${LABEL_SM}`}>결제수단</label>
+                  <label htmlFor={`${fieldId}-1`} className={`block mb-1 font-medium ${LABEL_SM}`}>결제수단</label>
                   <select
+                    id={`${fieldId}-1`}
                     className={`${INPUT_SM} w-full`}
                     value={values.payment_method}
                     onChange={(e) =>
@@ -328,8 +333,9 @@ export default function TransactionForm({
       ) : (
         <>
           <div>
-            <label className={`block mb-1 font-medium ${LABEL_SM}`}>계좌</label>
+            <label htmlFor={`${fieldId}-2`} className={`block mb-1 font-medium ${LABEL_SM}`}>계좌</label>
             <select
+              id={`${fieldId}-2`}
               className={`${INPUT_SM} w-32`}
               value={values.account_id}
               onChange={(e) => setValues((v) => ({ ...v, account_id: e.target.value }))}
@@ -345,8 +351,9 @@ export default function TransactionForm({
 
           {uiType === "expense" && (
             <div>
-              <label className={`block mb-1 font-medium ${LABEL_SM}`}>결제수단</label>
+              <label htmlFor={`${fieldId}-3`} className={`block mb-1 font-medium ${LABEL_SM}`}>결제수단</label>
               <select
+                id={`${fieldId}-3`}
                 className={`${INPUT_SM} w-32`}
                 value={values.payment_method}
                 onChange={(e) => setValues((v) => ({ ...v, payment_method: e.target.value as PaymentMethod | "" }))}
@@ -374,8 +381,9 @@ export default function TransactionForm({
 
       {uiType === "savings" && (
         <div>
-          <label className={`block mb-1 font-medium ${LABEL_SM}`}>저축상품</label>
+          <label htmlFor={`${fieldId}-4`} className={`block mb-1 font-medium ${LABEL_SM}`}>저축상품</label>
           <select
+            id={`${fieldId}-4`}
             className={`${INPUT_SM} ${isStack ? "w-full" : "w-32"}`}
             value={values.savings_product_id}
             onChange={(e) => setValues((v) => ({ ...v, savings_product_id: e.target.value }))}

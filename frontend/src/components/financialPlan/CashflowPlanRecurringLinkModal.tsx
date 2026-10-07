@@ -7,6 +7,7 @@ import { useRecurringMutations } from "@/hooks/useRecurringMutations";
 import { extractErrorMessage } from "@/utils/error";
 import { toast } from "@/utils/toast";
 import type { CashflowPlanItemOut, CashflowPlanLinkRecurringIn, CategoryOut } from "@/types";
+import { cautionTextClass } from "@/utils/colors";
 
 interface Props {
   item: CashflowPlanItemOut;
@@ -56,7 +57,7 @@ export default function CashflowPlanRecurringLinkModal({ item, categories, onClo
           반영되지 않으니, 금액을 바꾸고 싶으면 "반복 내역 관리"에서 직접 수정해 주세요.
         </p>
         {item.category_id === null && (
-          <p className="mb-3 text-xs text-amber-600 dark:text-amber-400">
+          <p className={`mb-3 text-xs ${cautionTextClass()}`}>
             이 계획 항목엔 카테고리가 없어요. 반복내역 등록에는 카테고리가 꼭 필요하니 아래에서 선택해 주세요.
           </p>
         )}

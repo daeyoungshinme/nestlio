@@ -3,7 +3,7 @@ import AccountActionsMenu, { type AccountActionsMenuItem } from "@/components/co
 import RowActionButtons from "@/components/common/RowActionButtons";
 import { formatKrw, resolveOwnerLabel } from "@/utils/format";
 import { installmentProgressLabel } from "@/utils/installment";
-import { recurringLinkBadgeLabel, recurringLinkBadgeStyle } from "@/utils/colors";
+import { cautionTextClass, recurringLinkBadgeLabel, recurringLinkBadgeStyle } from "@/utils/colors";
 import type { CashflowPlanItemOut, CashflowSection, UserOut } from "@/types";
 
 interface Props {
@@ -69,7 +69,7 @@ export default function CashflowPlanItemRow({
           )
         ) : (
           sectionKey !== "income" && (
-            <p className="mt-0.5 text-xs text-amber-600 dark:text-amber-400">
+            <p className={`mt-0.5 text-xs ${cautionTextClass()}`}>
               카테고리 미연결 — 실제 지출과 비교되지 않아요
             </p>
           )

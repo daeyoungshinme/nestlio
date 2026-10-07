@@ -301,6 +301,25 @@ export function formErrorTextClass(): string {
   return "text-red-500";
 }
 
+/** 폼 바깥에 단독으로 뜨는 에러 문구(로그인·초대 수락·가져오기 실패 등) — 다크모드 대비까지 맞춘 버전. */
+export function errorMessageTextClass(): string {
+  return "text-red-600 dark:text-red-400";
+}
+
+/** 주의·제안 문구(amber) — "최근 평균 제안값", 반복거래 연동 안내, 벤치마크 초과 등. PlanStatus "warn"과 같은 톤. */
+export function cautionTextClass(): string {
+  return PLAN_STATUS_TEXT.warn;
+}
+
+/** 주의·제안 콜아웃 박스(amber 배경 + 진한 본문) — SuggestionHint, 비상금 보충 안내. */
+export function cautionCalloutClass(): string {
+  return "bg-amber-50 dark:bg-amber-950";
+}
+
+export function cautionCalloutTextClass(): string {
+  return "text-amber-700 dark:text-amber-300";
+}
+
 /** FormInput의 실시간 프리뷰(정보성) 텍스트 색상. */
 export function formPreviewTextClass(): string {
   return "text-blue-600 dark:text-blue-400";

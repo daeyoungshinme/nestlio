@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useId, useState } from "react";
 import type { FormEvent } from "react";
 import { Download, Plus, RefreshCw } from "lucide-react";
 import Button from "@/components/common/Button";
@@ -293,6 +293,7 @@ function AccountFormModal({
   onClose: () => void;
   onSubmit: (draft: Draft) => void;
 }) {
+  const fieldId = useId();
   const [draft, setDraft] = useState<Draft>(initial);
 
   const handleSubmit = (e: FormEvent) => {
@@ -312,8 +313,9 @@ function AccountFormModal({
           required
         />
         <div>
-          <label className={`block mb-1 font-medium ${LABEL_SM}`}>종류</label>
+          <label htmlFor={`${fieldId}-0`} className={`block mb-1 font-medium ${LABEL_SM}`}>종류</label>
           <select
+            id={`${fieldId}-0`}
             className={`${INPUT_SM} w-full`}
             value={draft.account_type}
             onChange={(e) => setDraft((d) => ({ ...d, account_type: e.target.value as AccountOut["account_type"] }))}

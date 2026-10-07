@@ -17,6 +17,7 @@ import { useRecurringMutations } from "@/hooks/useRecurringMutations";
 import { transactionTypeBadgeStyle } from "@/utils/colors";
 import { formatKrw } from "@/utils/format";
 import type { CategoryOut, RecurringOut } from "@/types";
+import { TOUCH_TARGET_MIN_HEIGHT } from "@/constants/uiSizes";
 
 const FREQUENCY_LABEL: Record<RecurringOut["frequency"], string> = {
   weekly: "매주",
@@ -124,7 +125,7 @@ export default function RecurringManageSheet({ categories, onClose }: Props) {
             <button
               type="button"
               onClick={() => setFormTarget(null)}
-              className="mb-3 flex items-center gap-1 text-sm text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300"
+              className={`mb-3 flex items-center gap-1 ${TOUCH_TARGET_MIN_HEIGHT} text-sm text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300`}
             >
               <ChevronLeft size={16} aria-hidden="true" /> 목록으로
             </button>

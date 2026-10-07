@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useId, useState } from "react";
 import type { FormEvent } from "react";
 import Button from "@/components/common/Button";
 import FormInput from "@/components/common/FormInput";
@@ -63,6 +63,7 @@ interface Props {
 }
 
 export default function RecurringForm({ categories, initial, submitLabel, submitting, onSubmit }: Props) {
+  const fieldId = useId();
   const [values, setValues] = useState<RecurringFormValues>({
     name: initial?.name ?? "",
     category_id: initial?.category_id != null ? String(initial.category_id) : "",
@@ -133,8 +134,9 @@ export default function RecurringForm({ categories, initial, submitLabel, submit
         preview={amountInputPreview(values.amount)}
       />
       <div>
-        <label className={`block mb-1 font-medium ${LABEL_SM}`}>주기</label>
+        <label htmlFor={`${fieldId}-0`} className={`block mb-1 font-medium ${LABEL_SM}`}>주기</label>
         <select
+          id={`${fieldId}-0`}
           className={`${INPUT_SM} w-full`}
           value={values.frequency}
           onChange={(e) => setValues((v) => ({ ...v, frequency: e.target.value as RecurringFrequency }))}
@@ -148,10 +150,11 @@ export default function RecurringForm({ categories, initial, submitLabel, submit
       </div>
       {values.frequency === "monthly" && (
         <div>
-          <label className={`block mb-1 font-medium ${LABEL_SM}`}>
+          {/* 날짜 칩 여러 개를 묶는 제목이라 <label>(단일 컨트롤용) 대신 group 레이블로 연결한다. */}
+          <p id={`${fieldId}-days`} className={`block mb-1 font-medium ${LABEL_SM}`}>
             반복 일자 {values.days_of_month.length === 0 && "(선택 안 하면 시작일 기준)"}
-          </label>
-          <div className="grid grid-cols-7 gap-1">
+          </p>
+          <div role="group" aria-labelledby={`${fieldId}-days`} className="grid grid-cols-7 gap-1">
             {DAYS_IN_MONTH.map((day) => (
               <button
                 key={day}

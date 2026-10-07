@@ -18,9 +18,10 @@ import { currentYear, currentYearMonth, monthBounds } from "@/utils/date";
 import { extractErrorMessage } from "@/utils/error";
 import { toast } from "@/utils/toast";
 import { triggerBlobDownload } from "@/utils/download";
-import { TOUCH_TARGET_ROW } from "@/constants/uiSizes";
+import { TOUCH_TARGET_MIN_HEIGHT, TOUCH_TARGET_ROW } from "@/constants/uiSizes";
 import type { ImportResultOut, SheetImportIn } from "@/types";
 import { ROUTES } from "@/constants/routes";
+import { errorMessageTextClass } from "@/utils/colors";
 
 const SOURCE_TABS = ["CSV 파일", "구글 시트"] as const;
 type SourceTab = (typeof SOURCE_TABS)[number];
@@ -35,7 +36,7 @@ function ImportResultCard({ result, onUndo }: { result: ImportResultOut; onUndo?
         {result.created}건 생성됨, {result.skipped.length}건 건너뜀
       </p>
       {result.skipped.length > 0 && (
-        <ul className="text-xs text-red-500 space-y-1">
+        <ul className={`text-xs ${errorMessageTextClass()} space-y-1`}>
           {result.skipped.map((row, i) => (
             <li key={i}>
               {row.line}행: {row.reason}
@@ -47,7 +48,7 @@ function ImportResultCard({ result, onUndo }: { result: ImportResultOut; onUndo?
         <button
           type="button"
           onClick={onUndo}
-          className="text-xs text-red-600 dark:text-red-400 hover:underline"
+          className={`inline-flex items-center ${TOUCH_TARGET_MIN_HEIGHT} text-xs ${errorMessageTextClass()} hover:underline`}
         >
           방금 가져온 {result.created_ids.length}건 되돌리기
         </button>
@@ -275,7 +276,7 @@ export default function TransactionImportPage() {
         </div>
       )}
 
-      {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
+      {error && <p className={`text-sm ${errorMessageTextClass()}`}>{error}</p>}
       {result && <ImportResultCard result={result} onUndo={() => setShowUndoConfirm(true)} />}
 
       {showUndoConfirm && result && (

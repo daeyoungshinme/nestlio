@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import Button from "@/components/common/Button";
+import { cautionCalloutClass, cautionCalloutTextClass } from "@/utils/colors";
 
 interface Props {
   /** 안내 문구 — "최근 3개월 평균은 N원이에요." 등 */
@@ -15,9 +16,9 @@ interface Props {
 export default function SuggestionHint({ children, actionLabel, onApply, applying, className = "" }: Props) {
   return (
     <div
-      className={`flex items-center justify-between gap-2 rounded-lg bg-amber-50 dark:bg-amber-950 px-2 py-1.5 ${className}`}
+      className={`flex items-center justify-between gap-2 rounded-lg ${cautionCalloutClass()} px-2 py-1.5 ${className}`}
     >
-      <p className="text-xs text-amber-700 dark:text-amber-300">{children}</p>
+      <p className={`text-xs ${cautionCalloutTextClass()}`}>{children}</p>
       {onApply && (
         <Button variant="secondary" size="sm" className="shrink-0" loading={applying} onClick={onApply}>
           {actionLabel}

@@ -1,4 +1,5 @@
 import type { ComponentType } from "react";
+import { TOUCH_TARGET_MIN_HEIGHT } from "@/constants/uiSizes";
 
 interface Props {
   icon?: ComponentType<{ size?: number; className?: string }>;
@@ -18,7 +19,7 @@ export default function EmptyState({ icon: Icon, title, description, action, com
       <p className="text-sm font-medium text-gray-500 dark:text-gray-400">{title}</p>
       {description && <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">{description}</p>}
       {action && (
-        <button type="button" onClick={action.onClick} className="mt-3 text-sm text-primary-600 dark:text-primary-400 hover:underline">
+        <button type="button" onClick={action.onClick} className={`mt-1 text-sm text-primary-600 dark:text-primary-400 hover:underline ${TOUCH_TARGET_MIN_HEIGHT} px-3`}>
           {action.label}
         </button>
       )}

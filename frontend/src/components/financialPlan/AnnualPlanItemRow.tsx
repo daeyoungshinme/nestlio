@@ -3,6 +3,7 @@ import AccountActionsMenu, { type AccountActionsMenuItem } from "@/components/co
 import RowActionButtons from "@/components/common/RowActionButtons";
 import { formatKrw, resolveOwnerLabel } from "@/utils/format";
 import type { AnnualPlanItemOut, UserOut } from "@/types";
+import { cautionTextClass } from "@/utils/colors";
 
 interface Props {
   item: AnnualPlanItemOut;
@@ -40,7 +41,7 @@ export default function AnnualPlanItemRow({ item, users, showCategory = true, on
           )
         ) : (
           item.section !== "income" && (
-            <p className="mt-0.5 text-xs text-amber-600 dark:text-amber-400">
+            <p className={`mt-0.5 text-xs ${cautionTextClass()}`}>
               카테고리 미연결 — 카테고리별 연간 실적과 비교되지 않아요
             </p>
           )
