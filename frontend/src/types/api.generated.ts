@@ -3523,7 +3523,7 @@ export interface components {
         /**
          * SurplusAllocationOut
          * @description 이번달 투자 가능 여유자금(investable_surplus)을 비상금 보충분/투자 가능분으로 나눈 제안.
-         *     coaching_engine.recommend_surplus_allocation 참고.
+         *     savings_coaching_service.recommend_surplus_allocation 참고.
          */
         SurplusAllocationOut: {
             /** Emergency Fund Portion */
