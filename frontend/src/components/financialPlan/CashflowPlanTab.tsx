@@ -45,7 +45,7 @@ interface ModalState {
 }
 
 export default function CashflowPlanTab({ view }: { view: "monthly" | "annual" }) {
-  const [yearMonth, setYearMonth] = useState(currentYearMonth());
+  const [yearMonth, setYearMonth] = useState(currentYearMonth);
   const [modal, setModal] = useState<ModalState | null>(null);
   const [splitModalOpen, setSplitModalOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<number | null>(null);

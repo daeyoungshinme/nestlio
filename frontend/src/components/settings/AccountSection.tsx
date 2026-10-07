@@ -5,7 +5,7 @@ import Button from "@/components/common/Button";
 import FormInput from "@/components/common/FormInput";
 import { SettingsSectionCard, onMutationError } from "@/components/settings/shared";
 import { updateMe, updateUser } from "@/api/users";
-import { useMe, useUsers } from "@/hooks/useReferenceData";
+import { useMe, useSpouse } from "@/hooks/useReferenceData";
 import { USER_RELATED_KEYS } from "@/constants/queryKeys";
 import { useThemeStore } from "@/stores/themeStore";
 import { toast } from "@/utils/toast";
@@ -14,8 +14,7 @@ export default function AccountSection() {
   const queryClient = useQueryClient();
   const { isDark, toggle: toggleTheme } = useThemeStore();
   const meQuery = useMe();
-  const usersQuery = useUsers();
-  const spouse = meQuery.data && usersQuery.data?.find((u) => u.id !== meQuery.data!.id);
+  const spouse = useSpouse();
 
   const [displayNameEdit, setDisplayNameEdit] = useState<string | null>(null);
   const [spouseDisplayNameEdit, setSpouseDisplayNameEdit] = useState<string | null>(null);

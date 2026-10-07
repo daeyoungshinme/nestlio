@@ -19,7 +19,11 @@ export function currentDateIso(): string {
 
 /** 이번 달 "YYYY-MM" (로컬). */
 export function currentYearMonth(): string {
-  const d = new Date();
+  return yearMonthOfDate(new Date());
+}
+
+/** Date → 'YYYY-MM' (로컬). 렌더 중 고정해 둔 시각(useState(() => new Date()))에서 달을 뽑을 때 쓴다. */
+export function yearMonthOfDate(d: Date): string {
   return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}`;
 }
 

@@ -6,8 +6,12 @@ export const STALE_TIME = {
   LONG: 30 * 60 * 1000,
 };
 
-/** React Query 캐시 gcTime의 기본값 (= 영속 캐시 TTL과 맞춘다). */
-export const DEFAULT_GC_TIME = STALE_TIME.LONG;
+/** localStorage 영속 캐시 TTL(main.tsx persistOptions.maxAge). */
+export const PERSIST_MAX_AGE = 24 * 60 * 60 * 1000;
+
+/** React Query 캐시 gcTime의 기본값 — 영속 캐시 TTL 이상이어야 한다. 더 짧으면 한동안 안 쓴 쿼리가
+ * 메모리에서 GC되고, 다음 저장 때 localStorage에서도 빠져 "재방문 즉시 표시"가 깨진다. */
+export const DEFAULT_GC_TIME = PERSIST_MAX_AGE;
 
 /** 헤더 알림함 폴링 주기. */
 export const NOTIFICATIONS_REFETCH_INTERVAL = 60 * 1000;

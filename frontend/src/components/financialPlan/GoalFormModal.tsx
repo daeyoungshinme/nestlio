@@ -17,7 +17,7 @@ import { STALE_TIME } from "@/constants/queryConfig";
 import { QUERY_KEYS } from "@/constants/queryKeys";
 import { planViewLink } from "@/constants/routes";
 import { monthsBetween, syncTargetsToPeriod } from "@/utils/monthRange";
-import { currentDateIso, currentYearMonth } from "@/utils/date";
+import { currentDateIso, yearMonthOfDate } from "@/utils/date";
 import { extractErrorMessage } from "@/utils/error";
 import { amountInputPreview, formatKrw, toAmountInputValue } from "@/utils/format";
 import { toast } from "@/utils/toast";
@@ -110,7 +110,7 @@ export default function GoalFormModal({
   // (백엔드 goal_progress_service.planned_monthly_for_goal — 계획 원본은 계획 탭의 상품별 월 계획). 폼에서도
   // 그 합계를 보여주고, 수정은 계획 탭으로 안내한다 — 여기 입력한 값은 연동 목표에선 쓰이지 않기 때문.
   const hasLinkedProducts = draft.savings_product_ids.length > 0;
-  const thisMonth = currentYearMonth();
+  const thisMonth = yearMonthOfDate(openedAt);
   const { data: productPlan } = useQuery({
     queryKey: QUERY_KEYS.savingsProductsPlan(thisMonth),
     queryFn: () => fetchSavingsProductsPlan(thisMonth),
@@ -443,7 +443,7 @@ export default function GoalFormModal({
         )}
         {draft.target_date !== "" && (
           <GoalMonthlyTargetEditor
-            startMonth={toYearMonth(currentDateIso())}
+            startMonth={thisMonth}
             endMonth={toYearMonth(draft.target_date)}
             targets={draft.monthly_targets}
             onChange={(monthly_targets) => setDraft((d) => ({ ...d, monthly_targets }))}

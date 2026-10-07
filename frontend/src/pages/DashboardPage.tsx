@@ -23,7 +23,7 @@ import { useNotifications } from "@/hooks/useNotifications";
 import { useAccounts, useCategories, useDashboardBootstrap, useMe } from "@/hooks/useReferenceData";
 import { QUERY_KEYS } from "@/constants/queryKeys";
 import { STALE_TIME } from "@/constants/queryConfig";
-import { currentDateIso, currentYearMonth } from "@/utils/date";
+import { currentDateIso, toDateIso, yearMonthOfDate } from "@/utils/date";
 import { estimateGoalAcceleration } from "@/utils/goalAcceleration";
 import { extractErrorMessage } from "@/utils/error";
 import { toast } from "@/utils/toast";
@@ -59,7 +59,10 @@ export default function DashboardPage() {
   const [quickAddPrefill, setQuickAddPrefill] = useState<Record<string, string> | null>(null);
   // 렌더 중 new Date()는 비순수 호출이라(oxlint) 마운트 시점 날짜를 한 번만 잡는다.
   const [mountedAt] = useState(() => new Date());
-  const yearMonth = currentYearMonth();
+  // 같은 기준 시각에서 뽑는다 — 렌더마다 currentYearMonth()를 다시 부르면 자정·월말을 넘긴 채 열어 둔 화면에서
+  // 쿼리 키(달)와 mountedAt 기반 계산이 서로 다른 달을 가리킨다.
+  const yearMonth = yearMonthOfDate(mountedAt);
+  const today = toDateIso(mountedAt);
 
   const { data, isLoading, isError, error, refetch } = useQuery({
     queryKey: QUERY_KEYS.dashboard(yearMonth),
@@ -179,7 +182,7 @@ export default function DashboardPage() {
         categoryBenchmarks={data.category_benchmarks}
       />
 
-      <TodayScheduleCard day={currentDateIso()} users={users} />
+      <TodayScheduleCard day={today} users={users} />
 
       {!showRetrospective && (
         <CoupleContributionCard
@@ -209,7 +212,7 @@ export default function DashboardPage() {
                 isNew
                 submitLabel="추가"
                 submitting={createMutation.isPending}
-                initialValues={quickAddPrefill ?? { transaction_date: currentDateIso() }}
+                initialValues={quickAddPrefill ?? { transaction_date: today }}
                 onSubmit={(payload) => createMutation.mutate(payload)}
               />
             </QueryBoundary>

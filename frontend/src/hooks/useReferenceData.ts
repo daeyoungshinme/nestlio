@@ -114,3 +114,10 @@ export function useDashboardBootstrap(options?: RefDataOptions) {
     ...options,
   });
 }
+
+/** 배우자(나를 뺀 가구 구성원) — useMe/useUsers와 같은 캐시를 읽는다. 아직 로딩 중이거나 혼자면 undefined. */
+export function useSpouse() {
+  const me = useMe().data;
+  const users = useUsers().data;
+  return me ? users?.find((u) => u.id !== me.id) : undefined;
+}
