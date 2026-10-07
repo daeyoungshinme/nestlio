@@ -50,7 +50,7 @@ cd frontend && npm run generate:api-types
 `api.generated.ts` 를 함께 커밋해야 한다 — 안 하면 `api-types-drift` 잡이
 `git diff --exit-code` 로 실패한다. `types/index.ts` 는 그 diff를 보고 사람이 맞춘다.
 사람이 맞추는 걸 잊으면 `src/types/apiDrift.check.ts`(타입 전용, 런타임 코드 없음)가 손 타입과
-생성 타입의 **필드 이름**이 어긋날 때 `tsc`(=`npm run build`)를 실패시킨다. 손 타입을 새로
+생성 타입의 **필드 이름**, 그리고 양쪽 다 문자열 리터럴 유니온인 필드(`PaymentMethod`·`status` 등)의 **허용 값 집합**이 어긋날 때 `tsc`(=`npm run build`)를 실패시킨다 — 백엔드 `Literal`에 값을 추가하면 손 타입 alias와 그 라벨 맵(`Record<X, string>`)까지 맞춰야 빌드가 통과한다. 백엔드가 `str`로 열어 둔 필드를 손 타입이 좁혀 두는 건 가드가 잡지 못하므로, 좁히려면 백엔드 출력 스키마도 `Literal`로 맞춘다. 손 타입을 새로
 추가하면 그 파일 목록에도 한 줄 추가한다.
 
 ### 테스트

@@ -4,8 +4,10 @@
  * CI `api-types-drift` 잡은 생성 파일 ↔ 백엔드만 비교하므로, 백엔드에 필드를 추가/삭제하고
  * `npm run generate:api-types`만 돌린 채 손 타입을 안 고치면 이 파일이 잡아낸다.
  *
- * 필드 "이름"만 비교한다 — 생성 타입은 백엔드 기본값이 있는 응답 필드를 optional(`?`)로 표시해서
- * optional 여부까지 비교하면 오탐이 많다. 새 손 타입을 추가하면 아래 목록에도 한 줄 추가한다.
+ * 필드 "이름"과, 양쪽 모두 문자열 리터럴 유니온인 필드(`PaymentMethod`·`account_type`·`status` 등)의
+ * "허용 값 집합"을 비교한다 — 백엔드 `Literal`에 값을 추가/삭제하고 손 타입을 안 고치면 select 옵션이나
+ * 라벨 맵이 조용히 어긋나기 때문. optional 여부·null 허용은 비교하지 않는다(생성 타입은 백엔드 기본값이
+ * 있는 응답 필드를 optional(`?`)로 표시해 오탐이 많다). 새 손 타입을 추가하면 아래 목록에도 한 줄 추가한다.
  */
 import type { components } from "./api.generated";
 import type {
@@ -118,9 +120,27 @@ import type {
 
 type Schemas = components["schemas"];
 
-type SameKeys<A, B> = [Exclude<keyof A, keyof B>, Exclude<keyof B, keyof A>] extends [never, never]
+type KeyDrift<A, B> = [Exclude<keyof A, keyof B>, Exclude<keyof B, keyof A>] extends [never, never]
   ? true
   : { onlyInHandWritten: Exclude<keyof A, keyof B>; onlyInGenerated: Exclude<keyof B, keyof A> };
+
+type IsLiteralUnion<T> = [T] extends [string] ? (string extends T ? false : [T] extends [never] ? false : true) : false;
+type SameUnion<A, B> = [A] extends [B] ? ([B] extends [A] ? true : false) : false;
+/** 양쪽 다 문자열 리터럴 유니온인데 값 집합이 다른 필드 이름들. */
+type LiteralDriftKeys<A, B> = {
+  [K in keyof A & keyof B]: IsLiteralUnion<NonNullable<A[K]>> extends true
+    ? SameUnion<NonNullable<A[K]>, NonNullable<B[K]>> extends true
+      ? never
+      : K
+    : never;
+}[keyof A & keyof B];
+
+type SameKeys<A, B> =
+  KeyDrift<A, B> extends true
+    ? [LiteralDriftKeys<A, B>] extends [never]
+      ? true
+      : { literalValuesDiffer: LiteralDriftKeys<A, B> }
+    : KeyDrift<A, B>;
 type Expect<T extends true> = T;
 
 export type HandWrittenApiTypeChecks = [
