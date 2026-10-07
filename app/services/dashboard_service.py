@@ -12,7 +12,9 @@ from app.services import (
     coaching_settings_service,
     goal_service,
     net_worth_service,
+    savings_coaching_service,
     transaction_report_service,
+    transaction_trend_service,
 )
 from app.utils.dates import month_bounds, parse_year_month, today_kst, year_month_str
 
@@ -33,8 +35,8 @@ def build(db: Session, *, year_month: str | None = None, today: date | None = No
     owner_overspend_highlights = transaction_report_service.owner_spending_detail(
         db, start, end, owner_totals, start
     )
-    trend = transaction_report_service.monthly_trend(db, months=6, anchor=end)
-    fund_context = coaching_engine.emergency_fund_context(db, start)
+    trend = transaction_trend_service.monthly_trend(db, months=6, anchor=end)
+    fund_context = savings_coaching_service.emergency_fund_context(db, start)
     thresholds = coaching_settings_service.get_thresholds(db)
     benchmark_pcts = coaching_engine.benchmark_pcts_from_thresholds(thresholds)
     category_benchmarks = coaching_engine.category_benchmark_rows(totals, expense_breakdown, benchmark_pcts)
@@ -49,12 +51,12 @@ def build(db: Session, *, year_month: str | None = None, today: date | None = No
         thresholds=thresholds,
         benchmark_rows=category_benchmarks,
     )
-    investable_surplus = coaching_engine.investable_surplus(totals, actual_saved)
-    surplus_allocation = coaching_engine.compute_surplus_allocation(
+    investable_surplus = savings_coaching_service.investable_surplus(totals, actual_saved)
+    surplus_allocation = savings_coaching_service.compute_surplus_allocation(
         db, month_start=start, surplus=investable_surplus, fund_context=fund_context
     )
 
-    streak = coaching_engine.savings_streak_months(coaching_engine.savings_pace_history(db, trend, goals))
+    streak = savings_coaching_service.savings_streak_months(savings_coaching_service.savings_pace_history(db, trend, goals))
 
     return {
         "start": start,

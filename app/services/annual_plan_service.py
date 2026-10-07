@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session, selectinload
 
 from app.models.annual_plan_item import AnnualPlanItem
 from app.models.annual_plan_item_monthly_target import AnnualPlanItemMonthlyTarget
-from app.services import budget_service, plan_targets, transaction_report_service
+from app.services import budget_service, plan_targets, transaction_report_service, transaction_trend_service
 from app.utils.dates import year_bounds, year_month_of
 from app.utils.money import whole_won
 from app.utils.plan_status import pct_of
@@ -202,7 +202,7 @@ def section_summary(
 def summary_for_year(
     db: Session, year: int, today: date, warn_pct: float | None = None, critical_pct: float | None = None
 ) -> dict:
-    breakdown = transaction_report_service.yearly_monthly_breakdown(db, year)
+    breakdown = transaction_trend_service.yearly_monthly_breakdown(db, year)
     sections = {
         section: section_summary(db, year, section, today, breakdown, warn_pct, critical_pct)
         for section in SECTIONS
@@ -334,8 +334,8 @@ def seed_year(db: Session, year: int, source: str, updated_by: uuid.UUID, today:
             )
     else:
         averages = {
-            **transaction_report_service.trailing_average_by_category(db, today, months=3, type_="expense"),
-            **transaction_report_service.trailing_average_by_category(db, today, months=3, type_="income"),
+            **transaction_trend_service.trailing_average_by_category(db, today, months=3, type_="expense"),
+            **transaction_trend_service.trailing_average_by_category(db, today, months=3, type_="income"),
         }
         categories = {c.id: c for c in db.query(Category).filter(Category.id.in_(list(averages))).all()}
         for order, (category_id, avg) in enumerate(sorted(averages.items())):

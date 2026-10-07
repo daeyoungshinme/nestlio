@@ -8,6 +8,7 @@ from app.services import (
     coaching_engine,
     goal_service,
     net_worth_service,
+    savings_coaching_service,
     savings_product_service,
     transaction_report_service,
     transaction_service,
@@ -21,13 +22,15 @@ from app.services.coaching_engine import (
     emergency_fund_insight,
     fixed_cost_ratio_insight,
     goal_pace_insight,
+    savings_execution_insight,
+    savings_rate_insight,
+    variable_spend_trend_insights,
+)
+from app.services.savings_coaching_service import (
     investable_surplus,
     recommend_surplus_allocation,
-    savings_execution_insight,
     savings_pace_basis,
-    savings_rate_insight,
     savings_streak_months,
-    variable_spend_trend_insights,
 )
 
 
@@ -501,15 +504,15 @@ def test_emergency_fund_context_treats_zero_balance_as_empty_fund_not_missing(se
     # 3개월 중 한 달만 고정지출 → 평균 100000/3 = 33333.33… → 원 단위로 반올림
     transaction_service.create_transaction(db, user.id, rent.id, "expense", Decimal("100000"), date(2026, 7, 1))
 
-    balance, avg_fixed = coaching_engine.emergency_fund_context(db, date(2026, 7, 1))
+    balance, avg_fixed = savings_coaching_service.emergency_fund_context(db, date(2026, 7, 1))
 
     assert balance == Decimal("0")
     assert avg_fixed == Decimal("33333")
     insight = emergency_fund_insight(balance, avg_fixed)
     assert insight is not None and insight.severity == "warning"
-    allocation = coaching_engine.compute_surplus_allocation(db, date(2026, 7, 1), Decimal("50000"))
+    allocation = savings_coaching_service.compute_surplus_allocation(db, date(2026, 7, 1), Decimal("50000"))
     assert allocation["emergency_fund_portion"] == Decimal("50000")
 
 
 def test_emergency_fund_context_none_when_no_fund_registered(seeded_db):
-    assert coaching_engine.emergency_fund_context(seeded_db["db"], date(2026, 7, 1)) == (None, None)
+    assert savings_coaching_service.emergency_fund_context(seeded_db["db"], date(2026, 7, 1)) == (None, None)

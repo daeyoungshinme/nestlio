@@ -8,13 +8,13 @@ from app.services import (
     annual_plan_service,
     budget_service,
     coaching_settings_service,
-    transaction_report_service,
     transaction_service,
+    transaction_trend_service,
 )
 
 
 def _breakdown(db, year: int) -> list[dict]:
-    return transaction_report_service.yearly_monthly_breakdown(db, year)
+    return transaction_trend_service.yearly_monthly_breakdown(db, year)
 
 
 def _monthly(*, jan=None, feb=None, mar=None) -> list[dict]:

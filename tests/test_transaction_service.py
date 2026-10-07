@@ -9,7 +9,7 @@ from app.models.category import Category
 from app.models.savings_product import SavingsProduct
 from app.models.transaction import Transaction
 from app.models.user import User
-from app.services import growlio_client, transaction_report_service, transaction_service
+from app.services import growlio_client, transaction_report_service, transaction_service, transaction_trend_service
 
 
 def test_period_totals_splits_fixed_and_variable(seeded_db):
@@ -59,7 +59,7 @@ def test_monthly_trend_orders_oldest_first(seeded_db):
     db, user, food = seeded_db["db"], seeded_db["user"], seeded_db["food"]
     transaction_service.create_transaction(db, user.id, food.id, "expense", Decimal("10000"), date(2026, 7, 15))
 
-    trend = transaction_report_service.monthly_trend(db, months=3, anchor=date(2026, 7, 20))
+    trend = transaction_trend_service.monthly_trend(db, months=3, anchor=date(2026, 7, 20))
 
     assert [row["year_month"] for row in trend] == ["2026-05", "2026-06", "2026-07"]
     assert trend[-1]["expense"] == Decimal("10000")
@@ -71,7 +71,7 @@ def test_category_monthly_trend_orders_oldest_first_and_fills_gaps(seeded_db):
     transaction_service.create_transaction(db, user.id, food.id, "expense", Decimal("50000"), date(2026, 6, 10))
     transaction_service.create_transaction(db, user.id, rent.id, "expense", Decimal("800000"), date(2026, 7, 1))
 
-    trend = transaction_report_service.category_monthly_trend(db, months=3, anchor=date(2026, 7, 20))
+    trend = transaction_trend_service.category_monthly_trend(db, months=3, anchor=date(2026, 7, 20))
 
     assert trend["months"] == ["2026-05", "2026-06", "2026-07"]
     by_name = {s["name"]: s["amounts"] for s in trend["series"]}
@@ -91,7 +91,7 @@ def test_category_monthly_trend_folds_extra_categories_into_other(seeded_db):
     transaction_service.create_transaction(db, user.id, rent.id, "expense", Decimal("200000"), date(2026, 7, 1))
     transaction_service.create_transaction(db, user.id, events.id, "expense", Decimal("100000"), date(2026, 7, 1))
 
-    trend = transaction_report_service.category_monthly_trend(db, months=1, anchor=date(2026, 7, 1), top_n=2)
+    trend = transaction_trend_service.category_monthly_trend(db, months=1, anchor=date(2026, 7, 1), top_n=2)
 
     names = [s["name"] for s in trend["series"]]
     assert names == ["식비", "주거비", "기타"]
@@ -570,7 +570,7 @@ def test_trailing_average_by_section_averages_months_before_anchor(seeded_db):
     # anchor 월(7월) 거래는 평균 계산에서 제외돼야 한다
     transaction_service.create_transaction(db, user.id, salary.id, "income", Decimal("9000000"), date(2026, 7, 1))
 
-    avg = transaction_report_service.trailing_average_by_section(db, anchor=date(2026, 7, 15), months=2)
+    avg = transaction_trend_service.trailing_average_by_section(db, anchor=date(2026, 7, 15), months=2)
 
     assert avg["income"] == Decimal("1500000")  # (3M + 0) / 2
     assert avg["variable"] == Decimal("50000")  # (100000 + 0) / 2
@@ -745,8 +745,8 @@ def test_trailing_averages_are_whole_won(seeded_db):
     db, user, food = seeded_db["db"], seeded_db["user"], seeded_db["food"]
     transaction_service.create_transaction(db, user.id, food.id, "expense", Decimal("100000"), date(2026, 6, 10))
 
-    by_category = transaction_report_service.trailing_average_by_category(db, date(2026, 7, 15), months=3)
-    by_section = transaction_report_service.trailing_average_by_section(db, date(2026, 7, 15), months=3)
+    by_category = transaction_trend_service.trailing_average_by_category(db, date(2026, 7, 15), months=3)
+    by_section = transaction_trend_service.trailing_average_by_section(db, date(2026, 7, 15), months=3)
 
     assert by_category[food.id] == Decimal("33333")
     assert by_section["variable"] == Decimal("33333")
