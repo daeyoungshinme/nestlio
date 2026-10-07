@@ -169,7 +169,7 @@ def plan_totals_for_month(db: Session, year_month: str) -> tuple[Decimal, Decima
 
 
 def plan_totals_for_months(db: Session, year_months: list[str]) -> dict[str, tuple[Decimal, Decimal]]:
-    """plan_totals_for_month의 여러 달 버전 — 연속 달성(coaching_engine.savings_pace_history)처럼 6개월을
+    """plan_totals_for_month의 여러 달 버전 — 연속 달성(savings_coaching_service.savings_pace_history)처럼 6개월을
     한꺼번에 볼 때 달마다 상품 목록·월별 목표·실적을 다시 조회하지 않는다(상품 1회 + 연도별 목표 + 실적 1회)."""
     if not year_months:
         return {}

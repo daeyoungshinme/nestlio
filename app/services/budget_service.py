@@ -7,7 +7,8 @@ from app.models.annual_plan_item import AnnualPlanItem
 from app.models.annual_plan_item_monthly_target import AnnualPlanItemMonthlyTarget
 from app.models.category import Category
 from app.services import plan_targets
-from app.services.transaction_report_service import category_breakdown, trailing_average_by_category
+from app.services.transaction_report_service import category_breakdown
+from app.services.transaction_trend_service import trailing_average_by_category
 from app.utils.dates import month_bounds, parse_year_month
 from app.utils.plan_status import pct_of
 

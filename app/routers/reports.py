@@ -8,7 +8,12 @@ from app.database import get_db
 from app.dependencies import get_current_user
 from app.models.user import User
 from app.schemas.reports import CategoryTrendOut, YearlyReportOut
-from app.services import coaching_engine, coaching_settings_service, transaction_report_service
+from app.services import (
+    coaching_engine,
+    coaching_settings_service,
+    transaction_report_service,
+    transaction_trend_service,
+)
 from app.utils.dates import today_kst, year_bounds
 
 router = APIRouter(prefix="/reports", tags=["reports"])
@@ -35,10 +40,10 @@ def yearly(
     _: User = Depends(get_current_user),
 ):
     year = year or today_kst().year
-    monthly = transaction_report_service.yearly_monthly_breakdown(db, year)
+    monthly = transaction_trend_service.yearly_monthly_breakdown(db, year)
     # totals(소득 등)는 owner 필터와 무관하게 항상 가구 전체 기준으로 유지한다 — benchmark 비교가
     # "가구 소득 대비 이 배우자의 지출 비중"을 뜻하도록 하기 위함("이 배우자 개인 소득 대비"가 아님).
-    totals = transaction_report_service.yearly_totals(db, year)
+    totals = transaction_trend_service.yearly_totals(db, year)
     start, end = year_bounds(year)
     owner_filter = _parse_owner_filter(owner)
     breakdown = transaction_report_service.category_breakdown_by_owner(db, start, end, "expense", owner_filter)
@@ -62,4 +67,4 @@ def category_trend(
     db: Session = Depends(get_db),
     _: User = Depends(get_current_user),
 ):
-    return transaction_report_service.category_monthly_trend(db, months=months)
+    return transaction_trend_service.category_monthly_trend(db, months=months)

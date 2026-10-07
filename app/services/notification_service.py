@@ -5,7 +5,6 @@ from sqlalchemy.orm import Session
 
 from app.services import (
     budget_service,
-    coaching_engine,
     coaching_settings_service,
     email_templates,
     gmail_service,
@@ -15,8 +14,10 @@ from app.services import (
     notification_log_service,
     notification_settings_service,
     retrospective_service,
+    savings_coaching_service,
     savings_product_plan_service,
     transaction_report_service,
+    transaction_trend_service,
 )
 from app.services.gmail_service import GmailSendError
 from app.services.google_auth import GoogleAuthError, is_connected
@@ -74,11 +75,11 @@ def _format_summary(title: str, start: date, end: date, totals: dict, breakdown:
 
 
 def _savings_streak(db: Session, end: date) -> int:
-    """대시보드(GET /dashboard)와 같은 계산(coaching_engine.savings_streak_months)을 재사용해
+    """대시보드(GET /dashboard)와 같은 계산(savings_coaching_service.savings_streak_months)을 재사용해
     주간/월간 요약 알림에도 "연속 몇 개월째 목표 페이스를 지키고 있는지"를 함께 보여준다."""
     goals = goal_service.list_goals(db)
-    trend = transaction_report_service.monthly_trend(db, months=6, anchor=end)
-    return coaching_engine.savings_streak_months(coaching_engine.savings_pace_history(db, trend, goals))
+    trend = transaction_trend_service.monthly_trend(db, months=6, anchor=end)
+    return savings_coaching_service.savings_streak_months(savings_coaching_service.savings_pace_history(db, trend, goals))
 
 
 def _contribution_summary_text(owner_totals: list[dict]) -> str | None:

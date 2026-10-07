@@ -5,7 +5,12 @@ from unittest.mock import patch
 import pytest
 from sqlalchemy.exc import SQLAlchemyError
 
-from app.services import account_service, transaction_import_service, transaction_report_service, transaction_service
+from app.services import (
+    account_service,
+    transaction_import_service,
+    transaction_service,
+    transaction_trend_service,
+)
 from app.services.google_auth import GoogleNotConnectedError
 from app.services.google_sheets_service import GoogleSheetsReadError
 from app.services.growlio_client import GrowlioNotConfiguredError
@@ -185,7 +190,7 @@ def test_yearly_monthly_breakdown_covers_all_twelve_months_in_order(seeded_db):
     transaction_service.create_transaction(db, user.id, rent.id, "expense", Decimal("800000"), date(2026, 3, 1))
     transaction_service.create_transaction(db, user.id, rent.id, "expense", Decimal("800000"), date(2026, 11, 1))
 
-    monthly = transaction_report_service.yearly_monthly_breakdown(db, 2026)
+    monthly = transaction_trend_service.yearly_monthly_breakdown(db, 2026)
 
     assert len(monthly) == 12
     assert [row["year_month"] for row in monthly] == [f"2026-{m:02d}" for m in range(1, 13)]
@@ -273,6 +278,6 @@ def test_yearly_totals_excludes_other_years(seeded_db):
     transaction_service.create_transaction(db, user.id, rent.id, "expense", Decimal("500000"), date(2025, 12, 31))
     transaction_service.create_transaction(db, user.id, rent.id, "expense", Decimal("500000"), date(2027, 1, 1))
 
-    totals = transaction_report_service.yearly_totals(db, 2026)
+    totals = transaction_trend_service.yearly_totals(db, 2026)
 
     assert totals["expense"] == Decimal("800000")

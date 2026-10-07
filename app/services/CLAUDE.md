@@ -34,21 +34,24 @@
 - `notification_service`는 동일 알림 중복 발송을 막기 위해 `NotificationLog` 모델(`notif_type` + `year_month` 등의 키)에 발송 기록을 남기고 확인한다.
 - 새 알림 종류를 추가할 때도 이 dedup 패턴을 따른다.
 
-## coaching_engine.py
+## coaching_engine.py / savings_coaching_service.py
+
+`coaching_engine.py`(규칙 기반 인사이트 — `Insight` 생성 룰들 + `compute_insights`)에서 저축 실행 계산을 `savings_coaching_service.py`로 분리했다: 여유자금 배분(`investable_surplus`/`recommend_surplus_allocation`/`compute_surplus_allocation`), 비상금 조회(`emergency_fund_context`), 저축 페이스·연속 달성(`savings_pace_basis`/`goals_monthly_total`/`savings_pace_history`/`savings_streak_months`). 의존 방향은 `coaching_engine` → `savings_coaching_service` 한쪽뿐이다(반대로 import하면 순환).
 
 - DB 쓰기는 전혀 없다. 대부분의 함수는 순수 계산 함수로, 입력은 이미 조회된 집계값들이고 출력은 `Insight` dataclass다 — 이 함수들은 파라미터화 테스트로 경계값을 촘촘히 검증한다(`tests/test_coaching_engine.py`).
-- 다만 `emergency_fund_context`/`compute_surplus_allocation`/`compute_insights`/`savings_pace_history` 4개는 예외로, `db: Session`을 받아 직접 조회(`savings_product_service.get_emergency_fund_balance`, `transaction_report_service.monthly_trend` 등)까지 겸하는 "DB-aware 래퍼"다 — 호출부(`app/routers/dashboard.py`)가 매번 재조회하지 않도록 조회와 순수 계산을 한데 묶어놓은 것이며, 새 순수 계산 함수를 추가할 때 이 4개까지 순수 함수로 착각하지 않는다.
+- 다만 `compute_insights`와 `savings_coaching_service`의 `emergency_fund_context`/`compute_surplus_allocation`/`savings_pace_history` 4개는 예외로, `db: Session`을 받아 직접 조회(`savings_product_service.get_emergency_fund_balance`, `transaction_trend_service.monthly_trend` 등)까지 겸하는 "DB-aware 래퍼"다 — 호출부(`app/routers/dashboard.py`)가 매번 재조회하지 않도록 조회와 순수 계산을 한데 묶어놓은 것이며, 새 순수 계산 함수를 추가할 때 이 4개까지 순수 함수로 착각하지 않는다.
 - 임계값(경고/위험 기준)은 하드코딩하지 않고 `app/config.py`의 `settings`에서 가져온다.
 - 예산 경고/위험 %는 가구가 설정 화면에서 바꿀 수 있으므로 예산 상태를 계산하는 곳(계획 화면 라우터, 예산 알림 메일)은 `coaching_settings_service.budget_thresholds(db)`로 꺼내 `budget_vs_actual` 등에 넘긴다 — 인자를 생략하면 env 기본값이 쓰여 화면과 알림 판정이 어긋난다.
 - 새 룰 추가 시 순수 계산 함수는 동일하게 파라미터화 테스트로 경계값을 검증한다.
 - **"얼마 저축할지"의 원본은 저축·투자 상품의 월 계획**(`savings_product_plan_service.planned_by_product_for_month` — `SavingsProductAnnualPlan` 그리드, 없으면 `monthly_saving_amount`)이다. 목표 페이스(`goal_pace`)·연속 달성(`savings_streak_months`)은 `savings_pace_basis`로 (실적, 목표)를 고른다: 그 달 저축·투자 계획이 있으면 **계획 대비 실제 납입액**(저축상품 연결 거래), 계획이 없는 가구만 목표들의 `monthly_saving_amount` 합 대비 수입−지출로 폴백한다. 목표의 실제 월 계획액도 같은 원본을 따른다(`goal_progress_service.planned_monthly_for_goal` — 상품 연동 목표는 상품 계획 합, `FinancialGoalOut.planned_monthly_amount`, ETA도 이 값으로 계산).
 
-## transaction_service.py / transaction_report_service.py / transaction_import_service.py
+## transaction_service.py / transaction_report_service.py / transaction_trend_service.py / transaction_import_service.py
 
-`transaction_service.py`는 원래 CRUD·집계·CSV import/export를 한 파일에 모두 담고 있었으나(583줄), 책임별로 3개 파일로 분리했다.
+`transaction_service.py`는 원래 CRUD·집계·CSV import/export를 한 파일에 모두 담고 있었으나(583줄), 책임별로 나눴다(집계는 다시 한 기간 집계 / 여러 달 시계열로 2분할).
 
 - `transaction_service.py`: CRUD(`create_transaction`/`update_transaction`/`delete_transaction`/`list_transactions`/`frequent_unique_transactions`)와 저축상품 연결 검증(`_validate_savings_link`), growlio push(`_push_growlio`)만 남는다.
-- `transaction_report_service.py`: 기간 집계 함수들(`period_totals`, `totals_by_owner`, `category_breakdown`/`category_breakdown_by_owner`, `owner_spending_detail`, `rank_owner_contributions`, `monthly_trend`, `trailing_average_by_category`, `trailing_average_by_section`, `category_monthly_trend`, `yearly_monthly_breakdown`, `yearly_totals`)이 모여 있다. `Transaction.user_id`(누가 "기록했는지" — `category_breakdown(user_id=...)`)와 `*_by_owner`(`Transaction.owner_user_id`, 실제 소비 주체 — 공통 지출은 `NULL`)는 서로 다른 축이다: 배우자가 서로 대신 입력해주는 경우가 있어 "부부별 지출" 표시(대시보드/연간리포트)는 `user_id`가 아니라 `by_owner` 계열을 쓴다. 새 집계 함수를 추가할 때 어느 축이 필요한지 먼저 확인한다.
+- `transaction_report_service.py`: 한 기간을 자르는 집계(`period_totals`, `totals_by_owner`, `category_breakdown`/`category_breakdown_by_owner`, `owner_spending_detail`, `rank_owner_contributions`, `top_overspend_categories`)와 공용 쿼리 조각(`period_expense_filters`, `empty_totals`, `category_row`)이 있다.
+- `transaction_trend_service.py`: 여러 달에 걸친 시계열·평균(`monthly_trend`, `trailing_average_by_category`, `trailing_average_by_section`, `category_monthly_trend`, `yearly_monthly_breakdown`, `yearly_totals`) — 달마다 쿼리하지 않고 범위 한 번 조회 후 달별로 버킷팅한다(`_monthly_totals_map`/`_category_breakdown_by_month`). `Transaction.user_id`(누가 "기록했는지" — `category_breakdown(user_id=...)`)와 `*_by_owner`(`Transaction.owner_user_id`, 실제 소비 주체 — 공통 지출은 `NULL`)는 서로 다른 축이다: 배우자가 서로 대신 입력해주는 경우가 있어 "부부별 지출" 표시(대시보드/연간리포트)는 `user_id`가 아니라 `by_owner` 계열을 쓴다. 새 집계 함수를 추가할 때 어느 축이 필요한지 먼저 확인한다.
 - `transaction_import_service.py`: CSV export/import 관련 상수(`CSV_HEADER`, `CSV_TYPE_LABELS`, `CSV_TYPE_BY_LABEL`)와 `export_csv`, `import_rows`, `import_csv`, `import_from_sheet_url`, `import_from_spreadsheet`가 있다. 헤더나 라벨을 바꿀 때는 세 상수를 함께 갱신한다. 행 파싱/생성 로직은 `import_rows(db, rows: list[list[str]], user_id)`에 모여 있고, `import_csv`(CSV 파일 문자열)와 `import_from_sheet_url`/`import_from_spreadsheet`(구글 시트, `google_sheets_service` 경유)는 모두 이미 셀 단위로 분리된 `rows`만 만들어 이 함수에 위임하는 얇은 래퍼다 — 카테고리/구분 매칭이나 skip 처리 로직을 바꿀 때는 `import_rows` 하나만 고치면 세 경로 모두에 반영된다.
 
 ## event_service.py / event_calendar_service.py / event_reminder_service.py
