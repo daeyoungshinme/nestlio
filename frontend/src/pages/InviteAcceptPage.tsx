@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useId, useState } from "react";
 import type { FormEvent } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { useMutation, useQuery } from "@tanstack/react-query";
@@ -10,6 +10,7 @@ import { INPUT_SM } from "@/constants/inputStyles";
 import { QUERY_KEYS } from "@/constants/queryKeys";
 import { extractErrorMessage, getHttpStatus } from "@/utils/error";
 import { ROUTES } from "@/constants/routes";
+import { errorMessageTextClass } from "@/utils/colors";
 
 function AuthCard({ children }: { children: React.ReactNode }) {
   return (
@@ -39,6 +40,7 @@ function InviteMessage({ message }: { message: string }) {
 }
 
 export default function InviteAcceptPage() {
+  const fieldId = useId();
   const [searchParams] = useSearchParams();
   const token = searchParams.get("token") ?? "";
   const navigate = useNavigate();
@@ -181,8 +183,9 @@ export default function InviteAcceptPage() {
 
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">이메일</label>
+          <label htmlFor={`${fieldId}-0`} className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">이메일</label>
           <input
+            id={`${fieldId}-0`}
             type="email"
             value={inviteQuery.data?.email ?? ""}
             disabled
@@ -243,7 +246,7 @@ export default function InviteAcceptPage() {
             />
           </div>
         )}
-        {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
+        {error && <p className={`text-sm ${errorMessageTextClass()}`}>{error}</p>}
         <button
           type="submit"
           disabled={submitting}

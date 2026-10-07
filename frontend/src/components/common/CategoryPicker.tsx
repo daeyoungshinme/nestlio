@@ -1,3 +1,4 @@
+import { useId } from "react";
 import { INPUT_SM, LABEL_SM } from "@/constants/inputStyles";
 import type { CategoryOut, TransactionType } from "@/types";
 
@@ -24,12 +25,14 @@ export default function CategoryPicker({
   disabled,
   className = "w-32",
 }: Props) {
+  const fieldId = useId();
   const options = kind ? categories.filter((c) => c.kind === kind) : categories;
 
   return (
     <div>
-      <label className={`block mb-1 font-medium ${LABEL_SM}`}>{label}</label>
+      <label htmlFor={`${fieldId}-0`} className={`block mb-1 font-medium ${LABEL_SM}`}>{label}</label>
       <select
+        id={`${fieldId}-0`}
         className={`${INPUT_SM} ${className} ${disabled ? "opacity-60 cursor-not-allowed" : ""}`}
         value={value}
         onChange={(e) => onChange(e.target.value)}

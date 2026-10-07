@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useId, useState } from "react";
 import type { FormEvent } from "react";
 import Badge from "@/components/common/Badge";
 import Button from "@/components/common/Button";
@@ -42,6 +42,7 @@ const emptyForm: FormState = {
 };
 
 export default function CategoriesSection() {
+  const fieldId = useId();
   const [form, setForm] = useState<FormState>(emptyForm);
   const [editing, setEditing] = useState<CategoryOut | null>(null);
   const [deactivateTarget, setDeactivateTarget] = useState<CategoryOut | null>(null);
@@ -107,8 +108,9 @@ export default function CategoriesSection() {
             />
           </div>
           <div className="flex-1 min-w-[100px]">
-            <label className={`block mb-1 font-medium ${LABEL_SM}`}>종류</label>
+            <label htmlFor={`${fieldId}-0`} className={`block mb-1 font-medium ${LABEL_SM}`}>종류</label>
             <select
+              id={`${fieldId}-0`}
               className={`${INPUT_SM} w-full`}
               value={form.kind}
               onChange={(e) => setForm((f) => ({ ...f, kind: e.target.value as "income" | "expense" }))}
@@ -118,8 +120,9 @@ export default function CategoriesSection() {
             </select>
           </div>
           <div className="flex-1 min-w-[110px]">
-            <label className={`block mb-1 font-medium ${LABEL_SM}`}>구분</label>
+            <label htmlFor={`${fieldId}-1`} className={`block mb-1 font-medium ${LABEL_SM}`}>구분</label>
             <select
+              id={`${fieldId}-1`}
               className={`${INPUT_SM} w-full`}
               value={form.type}
               onChange={(e) => setForm((f) => ({ ...f, type: e.target.value as CategoryType }))}
@@ -132,8 +135,9 @@ export default function CategoriesSection() {
             </select>
           </div>
           <div className="flex-1 min-w-[140px]">
-            <label className={`block mb-1 font-medium ${LABEL_SM}`}>표준 카테고리(선택)</label>
+            <label htmlFor={`${fieldId}-2`} className={`block mb-1 font-medium ${LABEL_SM}`}>표준 카테고리(선택)</label>
             <select
+              id={`${fieldId}-2`}
               className={`${INPUT_SM} w-full`}
               value={form.benchmark_group}
               onChange={(e) => setForm((f) => ({ ...f, benchmark_group: e.target.value as BenchmarkGroup | "" }))}
@@ -147,8 +151,9 @@ export default function CategoriesSection() {
             </select>
           </div>
           <div className="shrink-0">
-            <label className={`block mb-1 font-medium ${LABEL_SM}`}>색상</label>
+            <label htmlFor={`${fieldId}-3`} className={`block mb-1 font-medium ${LABEL_SM}`}>색상</label>
             <input
+              id={`${fieldId}-3`}
               type="color"
               value={form.color}
               onChange={(e) => setForm((f) => ({ ...f, color: e.target.value }))}
@@ -213,8 +218,9 @@ export default function CategoriesSection() {
                 required
               />
               <div>
-                <label className={`block mb-1 font-medium ${LABEL_SM}`}>종류</label>
+                <label htmlFor={`${fieldId}-4`} className={`block mb-1 font-medium ${LABEL_SM}`}>종류</label>
                 <select
+                  id={`${fieldId}-4`}
                   className={`${INPUT_SM} w-full`}
                   value={editing.kind}
                   onChange={(e) => setEditing((c) => (c ? { ...c, kind: e.target.value as "income" | "expense" } : c))}
@@ -224,8 +230,9 @@ export default function CategoriesSection() {
                 </select>
               </div>
               <div>
-                <label className={`block mb-1 font-medium ${LABEL_SM}`}>구분</label>
+                <label htmlFor={`${fieldId}-5`} className={`block mb-1 font-medium ${LABEL_SM}`}>구분</label>
                 <select
+                  id={`${fieldId}-5`}
                   className={`${INPUT_SM} w-full`}
                   value={editing.type}
                   onChange={(e) => setEditing((c) => (c ? { ...c, type: e.target.value as CategoryType } : c))}
@@ -238,8 +245,9 @@ export default function CategoriesSection() {
                 </select>
               </div>
               <div>
-                <label className={`block mb-1 font-medium ${LABEL_SM}`}>표준 카테고리(선택)</label>
+                <label htmlFor={`${fieldId}-6`} className={`block mb-1 font-medium ${LABEL_SM}`}>표준 카테고리(선택)</label>
                 <select
+                  id={`${fieldId}-6`}
                   className={`${INPUT_SM} w-full`}
                   value={editing.benchmark_group ?? ""}
                   onChange={(e) =>
@@ -255,8 +263,9 @@ export default function CategoriesSection() {
                 </select>
               </div>
               <div>
-                <label className={`block mb-1 font-medium ${LABEL_SM}`}>색상</label>
+                <label htmlFor={`${fieldId}-7`} className={`block mb-1 font-medium ${LABEL_SM}`}>색상</label>
                 <input
+                  id={`${fieldId}-7`}
                   type="color"
                   value={editing.color}
                   onChange={(e) => setEditing((c) => (c ? { ...c, color: e.target.value } : c))}

@@ -30,12 +30,7 @@ import {
   formatSyncedAt,
   resolveOwnerLabel,
 } from "@/utils/format";
-import {
-  linkedGoalBadgeStyle,
-  returnRateTextColor,
-  savingsProductTypeBadgeStyle,
-  savingsProductTypeLabel,
-} from "@/utils/colors";
+import { cautionTextClass, linkedGoalBadgeStyle, returnRateTextColor, savingsProductTypeBadgeStyle, savingsProductTypeLabel } from "@/utils/colors";
 import type { FinancialGoalOut, RealEstateImportResultOut, SavingsProductOut, UserOut } from "@/types";
 import { baseDraftFromProduct, type ProductBaseDraft } from "@/components/accounts/productDraft";
 import { sumAmounts } from "@/utils/amount";
@@ -176,7 +171,7 @@ export default function RealEstateSection({ users }: Props) {
                   badge: "부동산",
                   subtext: item.address,
                   amountNote: item.mortgage_balance_krw > 0 && (
-                    <span className="block text-[11px] text-amber-600 dark:text-amber-400">
+                    <span className={`block text-[11px] ${cautionTextClass()}`}>
                       대출 {formatKrw(item.mortgage_balance_krw)}
                     </span>
                   ),

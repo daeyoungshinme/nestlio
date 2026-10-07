@@ -1,7 +1,7 @@
 import { memo } from "react";
 import { Link } from "react-router-dom";
 import ProgressBar from "@/components/common/ProgressBar";
-import { insightSeverityStyle } from "@/utils/colors";
+import { insightSeverityStyle, planStatusBarClass, planStatusTextClass } from "@/utils/colors";
 import { formatKrw } from "@/utils/format";
 import { planViewLink } from "@/constants/routes";
 import type { CategoryBenchmarkRowOut, OwnerOverspendHighlightOut } from "@/types";
@@ -53,11 +53,11 @@ function SpendingFocusCard({
             <div key={b.group}>
               <div className="flex items-center justify-between text-xs mb-1">
                 <span className="text-gray-600 dark:text-gray-300">{b.label}</span>
-                <span className="text-amber-600 dark:text-amber-400">
+                <span className={planStatusTextClass("warn")}>
                   소득의 {b.pct.toFixed(0)}% (가이드 {b.benchmark_pct.toFixed(0)}%)
                 </span>
               </div>
-              <ProgressBar pct={b.pct} barClassName="bg-amber-500" markerPct={b.benchmark_pct} />
+              <ProgressBar pct={b.pct} barClassName={planStatusBarClass("warn")} markerPct={b.benchmark_pct} />
             </div>
           ))}
         </div>

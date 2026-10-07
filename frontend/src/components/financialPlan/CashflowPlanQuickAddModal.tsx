@@ -7,6 +7,7 @@ import { useAccounts, useSavingsProducts, useUsers } from "@/hooks/useReferenceD
 import { currentDateIso } from "@/utils/date";
 import { toast } from "@/utils/toast";
 import type { CashflowPlanItemOut, CategoryOut } from "@/types";
+import { cautionTextClass } from "@/utils/colors";
 
 interface Props {
   item: CashflowPlanItemOut;
@@ -34,7 +35,7 @@ export default function CashflowPlanQuickAddModal({ item, categories, onClose, o
     <Modal onClose={onClose} title="가계부에 추가">
       <div className="p-6 overflow-y-auto">
         {item.category_id === null && (
-          <p className="mb-3 text-xs text-amber-600 dark:text-amber-400">
+          <p className={`mb-3 text-xs ${cautionTextClass()}`}>
             이 계획 항목엔 카테고리가 없어요. 아래에서 카테고리를 확인해 주세요.
           </p>
         )}

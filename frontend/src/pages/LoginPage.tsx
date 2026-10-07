@@ -10,6 +10,7 @@ import { currentYearMonth } from "@/utils/date";
 import { fetchDashboard } from "@/api/dashboard";
 import { fetchAccounts } from "@/api/accounts";
 import { QUERY_KEYS } from "@/constants/queryKeys";
+import { errorMessageTextClass } from "@/utils/colors";
 
 export default function LoginPage() {
   const [email, setEmail] = useState("");
@@ -82,7 +83,7 @@ export default function LoginPage() {
               placeholder="••••••••"
             />
           </div>
-          {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
+          {error && <p className={`text-sm ${errorMessageTextClass()}`}>{error}</p>}
           <button
             type="submit"
             disabled={loading}

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useId, useState } from "react";
 import type { FormEvent } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
@@ -34,7 +34,7 @@ import type {
   LoanOut,
   SavingsProductOut,
 } from "@/types";
-import { formErrorTextClass } from "@/utils/colors";
+import { amountToneClass, formErrorTextClass } from "@/utils/colors";
 import { sumAmounts } from "@/utils/amount";
 
 const GOAL_KIND_TABS = ["장기 목표", "챌린지"] as const;
@@ -75,6 +75,7 @@ export default function GoalFormModal({
   onClose: () => void;
   onSubmit: (draft: Draft) => void;
 }) {
+  const fieldId = useId();
   const [draft, setDraft] = useState<Draft>(initial);
   const [currentAge, setCurrentAge] = useState("");
   // 렌더 중 new Date()는 비순수 호출이라(oxlint) 모달이 열린 시점을 한 번만 잡는다.
@@ -200,8 +201,9 @@ export default function GoalFormModal({
             required
           />
           <div>
-            <label className={FORM_LABEL}>설명 (선택)</label>
+            <label htmlFor={`${fieldId}-0`} className={FORM_LABEL}>설명 (선택)</label>
             <textarea
+              id={`${fieldId}-0`}
               value={draft.description}
               maxLength={500}
               onChange={(e) => setDraft((d) => ({ ...d, description: e.target.value }))}
@@ -412,7 +414,7 @@ export default function GoalFormModal({
             getId={(loan) => loan.id}
             getName={(loan) => loan.name}
             getAmountLabel={(loan) => `-${formatKrw(loan.balance)}`}
-            amountClassName="text-red-500 dark:text-red-400"
+            amountClassName={amountToneClass("negative")}
             selectedIds={draft.loan_ids}
             onToggle={(id) => toggleId("loan_ids", id)}
             emptyMessage="등록된 대출이 없어요."
