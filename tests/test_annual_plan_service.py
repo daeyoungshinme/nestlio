@@ -557,3 +557,33 @@ def test_seed_year_refuses_when_year_already_has_items(seeded_db):
     )
     with pytest.raises(annual_plan_service.PlanAlreadyExistsError):
         annual_plan_service.seed_year(db, 2027, "previous_year", user.id, date(2026, 12, 20))
+
+
+def test_set_month_target_updates_existing_month_only():
+    from app.models.annual_plan_item import AnnualPlanItem
+
+    item = AnnualPlanItem(year=2026, section="fixed", name="월세", start_month="2026-01", end_month="2026-12")
+    item.monthly_targets = [
+        AnnualPlanItemMonthlyTarget(year_month="2026-03", target_amount=Decimal("500000")),
+        AnnualPlanItemMonthlyTarget(year_month="2026-04", target_amount=Decimal("500000")),
+    ]
+
+    annual_plan_service.set_month_target(item, "2026-03", Decimal("550000"))
+
+    by_month = {mt.year_month: mt.target_amount for mt in item.monthly_targets}
+    assert by_month == {"2026-03": Decimal("550000"), "2026-04": Decimal("500000")}
+    assert (item.start_month, item.end_month) == ("2026-01", "2026-12")
+
+
+def test_set_month_target_outside_period_appends_and_widens_range():
+    # 이번 달 화면에서 적용 기간 밖의 달을 조정하면 그 달까지 기간을 넓혀야 연간 합계에 잡힌다.
+    from app.models.annual_plan_item import AnnualPlanItem
+
+    item = AnnualPlanItem(year=2026, section="fixed", name="보험", start_month="2026-03", end_month="2026-06")
+    item.monthly_targets = []
+
+    annual_plan_service.set_month_target(item, "2026-09", Decimal("120000"))
+    annual_plan_service.set_month_target(item, "2026-01", Decimal("120000"))
+
+    assert sorted(mt.year_month for mt in item.monthly_targets) == ["2026-01", "2026-09"]
+    assert (item.start_month, item.end_month) == ("2026-01", "2026-09")

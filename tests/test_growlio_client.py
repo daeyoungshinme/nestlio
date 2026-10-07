@@ -88,3 +88,28 @@ def test_request_wraps_non_json_body_as_growlio_request_error(monkeypatch):
 
     with pytest.raises(growlio_client.GrowlioRequestError):
         growlio_client.fetch_account_balances("token")
+
+
+@pytest.mark.parametrize(
+    ("error", "expected_status"),
+    [
+        (growlio_client.GrowlioNotConfiguredError("growlio 연동이 설정되지 않았어요"), 501),
+        (growlio_client.GrowlioRequestError("growlio 응답 없음"), 502),
+        (growlio_client.GrowlioSyncError("이미 연결된 계좌예요"), 409),
+    ],
+)
+def test_register_exception_handlers_maps_growlio_errors(error, expected_status):
+    # 라우터마다 반복하던 매핑을 앱 전역으로 옮긴 것 — 핸들러가 빠지면 이 오류들이 전부 500이 된다.
+    from fastapi import FastAPI
+    from fastapi.testclient import TestClient
+
+    app = FastAPI()
+    growlio_client.register_exception_handlers(app)
+
+    @app.get("/boom")
+    def boom():
+        raise error
+
+    resp = TestClient(app).get("/boom")
+    assert resp.status_code == expected_status
+    assert resp.json() == {"detail": str(error)}
