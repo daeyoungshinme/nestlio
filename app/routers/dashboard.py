@@ -13,6 +13,7 @@ from app.services import (
     dashboard_service,
     goal_progress_service,
     goal_service,
+    growlio_push_service,
     net_worth_service,
     notification_settings_service,
     retrospective_service,
@@ -47,6 +48,9 @@ def dashboard_bootstrap(
     쓰므로 그대로 둔다."""
     today = today_kst()
     # GET /net-worth와 동일한 기회주의적 growlio 갱신 후크(app/services/CLAUDE.md 참고).
+    # 밀린 growlio 입출금 반영(아웃박스)을 먼저 보내고 잔액을 새로고친다 — 순서가 바뀌면 새로고친 잔액에 방금 보낸
+    # 입출금이 빠진다. BackgroundTasks는 등록 순서대로 실행된다.
+    background_tasks.add_task(growlio_push_service.flush_pending, bearer_token, user.id, now=now_kst())
     background_tasks.add_task(net_worth_service.refresh_stale_growlio_links, bearer_token, user.id, now=now_kst())
     return {
         "settings": {

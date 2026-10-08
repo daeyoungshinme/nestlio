@@ -134,8 +134,12 @@ def push_transaction(
     amount: Decimal,
     transaction_date: date,
     notes: str | None = None,
+    external_ref: str | None = None,
 ) -> dict:
     """저축/투자 내역을 growlio 계좌의 입출금 내역(및 수동 계좌라면 예수금)에 반영한다.
+
+    external_ref(growlio_push_service가 큐 행마다 만드는 "nestlio:q{id}")를 주면 growlio가 같은 키 재전송을 새로
+    기록하지 않는다 — 아웃박스 재전송이 안전한 이유. 키를 모르는 구버전 growlio는 필드를 무시한다.
 
     transaction_type은 "DEPOSIT" | "WITHDRAWAL"만 허용된다(growlio 쪽 검증과 동일).
     KIS/키움처럼 자동 연동된 계좌는 growlio가 예수금은 건드리지 않고 내역만 기록한다.
@@ -152,7 +156,23 @@ def push_transaction(
         "transaction_date": transaction_date.isoformat(),
         "notes": notes,
     }
+    if external_ref is not None:
+        payload["external_ref"] = external_ref
     return _request("POST", "transactions", bearer_token, json=payload)
+
+
+def fetch_account_performance(bearer_token: str, account_ids: list[str]) -> dict:
+    """지정한 growlio 계좌들만의 XIRR·현재 평가액·순투자금(`/external/account-performance`) — 목표에 연동된 계좌의
+    실제 수익률을 예상 달성월 계산에 쓰기 위함. 사용자 전체 기준인 fetch_performance와 다르다."""
+    return _request("GET", "account-performance", bearer_token, params={"account_ids": account_ids})
+
+
+def fetch_net_deposits(bearer_token: str, account_ids: list[str], start_month: str) -> list[dict]:
+    """계좌별 월 순입금(`/external/net-deposits`) — growlio가 nestlio push 분(external_ref "nestlio:*")을 빼고
+    증권사에서 growlio로 직접 들어온 입금만 준다. [{account_id, month, net_deposit_krw}]"""
+    return _request(
+        "GET", "net-deposits", bearer_token, params={"account_ids": account_ids, "start_month": start_month}
+    )
 
 
 def to_decimal_krw(raw) -> Decimal:
