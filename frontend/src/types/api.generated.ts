@@ -2404,7 +2404,7 @@ export interface components {
              * @default goal
              * @enum {string}
              */
-            kind: "goal" | "challenge";
+            kind: "goal" | "challenge" | "net_worth";
             /**
              * Priority
              * @default 1
@@ -2454,7 +2454,7 @@ export interface components {
              * @default goal
              * @enum {string}
              */
-            kind: "goal" | "challenge";
+            kind: "goal" | "challenge" | "net_worth";
             /** Priority */
             priority: number;
             /** Name */

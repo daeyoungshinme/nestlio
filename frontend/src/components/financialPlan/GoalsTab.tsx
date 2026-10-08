@@ -23,7 +23,7 @@ import { useAccounts, useGoals, useLoans, useSavingsProducts } from "@/hooks/use
 import { goalDetailLink, planViewLink } from "@/constants/routes";
 import { progressStatusBadgeClass, progressStatusLabel } from "@/utils/colors";
 import { computeCardStatus, daysUntil, isGoalAchieved } from "@/utils/goalStatus";
-import { GOAL_SORT_LABELS, sortGoals, type GoalSortLabel } from "@/utils/goalSort";
+import { GOAL_SORT_LABELS, pinNetWorthFirst, sortGoals, type GoalSortLabel } from "@/utils/goalSort";
 import { extractErrorMessage } from "@/utils/error";
 import { amountInputPreview, formatDate, formatKrw, formatYearMonth, toAmountInputValue } from "@/utils/format";
 import { toast } from "@/utils/toast";
@@ -122,7 +122,7 @@ export default function GoalsTab() {
   // 목록을 채우는 것을 막기 위함(백엔드에 별도 archive 필드는 없음, 순수 프론트 판정).
   const activeGoalsByPriority = priorityOrderedGoals.filter((g) => !isGoalAchieved(g));
   const achievedGoals = priorityOrderedGoals.filter((g) => isGoalAchieved(g));
-  const activeGoals = sortGoals(activeGoalsByPriority, sortOption);
+  const activeGoals = pinNetWorthFirst(sortGoals(activeGoalsByPriority, sortOption));
   const celebrateIfCrossed = (oldPct: number, goal: FinancialGoalOut) => {
     const milestone = crossedMilestone(oldPct, Number(goal.progress_pct), goal.kind);
     if (milestone !== null) {
@@ -162,6 +162,7 @@ export default function GoalsTab() {
    * 조건에서만 명시적으로 갈라진다. */
   const renderGoalCard = (goal: FinancialGoalOut) => {
     const isChallenge = goal.kind === "challenge";
+    const isNetWorth = goal.kind === "net_worth";
     const hasLoanSource = goal.funding_sources.some((fs) => fs.type === "loan");
     const status = computeCardStatus(goal);
 
@@ -182,7 +183,9 @@ export default function GoalsTab() {
     // 애초에 연동·월별계획 개념이 없어(toPayload 참고) 활성 상태인 동안 항상 이 경로를 탄다 —
     // 만료된 챌린지는 더 이상 갱신할 수 없어 위젯을 숨긴다.
     const progressDraftValue = progressDraft[goal.id] ?? toAmountInputValue(goal.current_amount);
+    // 순자산 목표는 자산 탭의 순자산을 그대로 따라가므로 직접 입력할 것이 없다.
     const showProgressUpdateWidget =
+      !isNetWorth &&
       goal.funding_sources.length === 0 &&
       goal.monthly_targets.length === 0 &&
       (isChallenge ? goal.effective_status === "active" : status !== "achieved");
@@ -192,6 +195,9 @@ export default function GoalsTab() {
     ];
     if (isChallenge) {
       badges.push({ label: "챌린지", toneClassName: progressStatusBadgeClass("neutral") });
+    }
+    if (isNetWorth) {
+      badges.push({ label: "순자산 목표", toneClassName: progressStatusBadgeClass("neutral") });
     }
     if (isAutoComputed) {
       badges.push({ label: "이번 달 자동계산", toneClassName: progressStatusBadgeClass("neutral") });
@@ -211,7 +217,7 @@ export default function GoalsTab() {
       <GoalProgressCard
         key={goal.id}
         title={goal.name}
-        metaLine={`${goal.priority}순위${
+        metaLine={`${isNetWorth ? "가구 순자산 기준" : `${goal.priority}순위`}${
           goal.target_date !== null
             ? ` · D-${daysUntil(goal.target_date)}`
             : goal.target_age !== null
@@ -312,7 +318,9 @@ export default function GoalsTab() {
       ? "목표 추가"
       : formTarget !== null && formTarget.kind === "challenge"
         ? "챌린지 수정"
-        : "재무목표 수정";
+        : formTarget !== null && formTarget.kind === "net_worth"
+          ? "순자산 목표 수정"
+          : "재무목표 수정";
 
   return (
     <div className="space-y-6">
@@ -387,6 +395,7 @@ export default function GoalsTab() {
           accounts={accounts ?? []}
           loans={loans ?? []}
           existingGoal={typeof formTarget === "object" ? formTarget : null}
+          canCreateNetWorth={!(goalsQuery.data ?? []).some((g) => g.kind === "net_worth")}
           onClose={() => setFormTarget(null)}
           onSubmit={handleSubmit}
         />
