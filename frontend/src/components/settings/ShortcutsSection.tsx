@@ -14,7 +14,7 @@ export default function ShortcutsSection() {
         <SettingsLinkRow
           to={ROUTES.transactionImport}
           label="거래 데이터"
-          hint="CSV·구글 시트 가져오기 / CSV 내보내기"
+          hint="CSV 가져오기 / 내보내기"
         />
       </div>
     </SettingsSectionCard>

@@ -1,6 +1,5 @@
 import RowActionButtons from "@/components/common/RowActionButtons";
 import StatusBadge from "@/components/common/StatusBadge";
-import { googleImportedEventBadgeStyle } from "@/utils/colors";
 import type { EventFrequency, EventOut } from "@/types";
 
 const FREQUENCY_LABEL: Record<EventFrequency, string> = { once: "한 번", weekly: "매주", monthly: "매월" };
@@ -56,9 +55,6 @@ export default function ScheduleEventRow({ event, onEdit, onDelete, onToggleComp
               label={`담당 ${event.assignee?.display_name ?? "공동"}`}
               toneClassName="bg-primary-50 dark:bg-primary-950 text-primary-600 dark:text-primary-400"
             />
-            {event.source === "google_import" && (
-              <StatusBadge label="Google 캘린더" toneClassName={googleImportedEventBadgeStyle()} />
-            )}
           </div>
           <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
             {event.all_day ? "종일" : time}
@@ -68,7 +64,7 @@ export default function ScheduleEventRow({ event, onEdit, onDelete, onToggleComp
       </div>
       {!readOnly && (
         <RowActionButtons
-          onEdit={event.source !== "google_import" && onEdit ? () => onEdit(event) : undefined}
+          onEdit={onEdit ? () => onEdit(event) : undefined}
           onDelete={onDelete ? () => onDelete(event) : undefined}
         />
       )}

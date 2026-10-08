@@ -81,13 +81,6 @@ class ImportResultOut(BaseModel):
     created_ids: list[int] = []
 
 
-class SheetImportIn(BaseModel):
-    mode: Literal["public", "oauth"]
-    sheet_url: str | None = None  # mode == "public" 필수
-    spreadsheet_id: str | None = None  # mode == "oauth" 필수
-    sheet_name: str | None = None  # mode == "oauth"에서만 선택 사용
-
-
 BULK_DELETE_MAX = 500
 
 

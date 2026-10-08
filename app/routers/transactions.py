@@ -4,8 +4,6 @@ from datetime import date
 from typing import Literal
 
 from fastapi import APIRouter, Depends, File, HTTPException, Response, UploadFile, status
-from google.auth.exceptions import RefreshError
-from googleapiclient.errors import HttpError
 from sqlalchemy.orm import Session
 
 from app.config import settings
@@ -17,7 +15,6 @@ from app.schemas.transaction import (
     BulkDeleteIn,
     BulkDeleteResultOut,
     ImportResultOut,
-    SheetImportIn,
     TransactionCreateIn,
     TransactionListOut,
     TransactionOut,
@@ -29,8 +26,6 @@ from app.services import (
     transaction_report_service,
     transaction_service,
 )
-from app.services.google_auth import GoogleAuthError, GoogleNotConnectedError
-from app.services.google_sheets_service import GoogleSheetsReadError
 from app.utils.dates import month_bounds, today_kst, year_month_str
 
 router = APIRouter(prefix="/transactions", tags=["transactions"])
@@ -181,35 +176,6 @@ def import_csv(
                 status.HTTP_400_BAD_REQUEST, "CSV 파일 인코딩을 읽을 수 없습니다. UTF-8 또는 CP949로 저장해 주세요."
             ) from None
     return transaction_import_service.import_csv(db, text, current_user.id)
-
-
-@router.post("/import-sheet", response_model=ImportResultOut)
-def import_sheet(
-    payload: SheetImportIn,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
-):
-    try:
-        if payload.mode == "public":
-            if not payload.sheet_url:
-                raise HTTPException(status.HTTP_400_BAD_REQUEST, "시트 링크를 입력해주세요.")
-            return transaction_import_service.import_from_sheet_url(db, payload.sheet_url, current_user.id)
-        if not payload.spreadsheet_id:
-            raise HTTPException(status.HTTP_400_BAD_REQUEST, "스프레드시트 ID를 입력해주세요.")
-        return transaction_import_service.import_from_spreadsheet(
-            db, payload.spreadsheet_id, payload.sheet_name, current_user.id
-        )
-    except (GoogleSheetsReadError, GoogleNotConnectedError) as exc:
-        raise HTTPException(status.HTTP_400_BAD_REQUEST, str(exc)) from exc
-    except GoogleAuthError as exc:
-        raise HTTPException(status.HTTP_409_CONFLICT, str(exc)) from exc
-    except (HttpError, RefreshError) as exc:
-        # 403/404는 GoogleSheetsReadError로 이미 바뀌었다 — 여기 오는 건 429·5xx·토큰 갱신 실패.
-        logger.warning("구글 시트 가져오기 실패", exc_info=True)
-        raise HTTPException(
-            status.HTTP_502_BAD_GATEWAY,
-            "구글 시트를 읽지 못했어요. 잠시 후 다시 시도하거나 재연결해 주세요.",
-        ) from exc
 
 
 @router.post("/bulk-delete", response_model=BulkDeleteResultOut)

@@ -265,23 +265,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/transactions/import-sheet": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Import Sheet */
-        post: operations["import_sheet_api_v1_transactions_import_sheet_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/v1/transactions/bulk-delete": {
         parameters: {
             query?: never;
@@ -380,23 +363,6 @@ export interface paths {
         put?: never;
         /** Reactivate */
         post: operations["reactivate_api_v1_recurring__recurring_id__reactivate_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/events/import-google": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Import Google Events */
-        post: operations["import_google_events_api_v1_events_import_google_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -2305,15 +2271,6 @@ export interface components {
             /** Assignee Id */
             assignee_id?: string | null;
         };
-        /** EventImportResultOut */
-        EventImportResultOut: {
-            /** Created */
-            created: number;
-            /** Updated */
-            updated: number;
-            /** Skipped */
-            skipped: number;
-        };
         /** EventListOut */
         EventListOut: {
             /** Items */
@@ -2353,11 +2310,6 @@ export interface components {
             assignee?: components["schemas"]["UserOut"] | null;
             /** Completed At */
             completed_at?: string | null;
-            /**
-             * Source
-             * @enum {string}
-             */
-            source: "native" | "google_import";
             /**
              * Occurrence Start
              * Format: date-time
@@ -3497,20 +3449,6 @@ export interface components {
             /** Couple Photo Url */
             couple_photo_url?: string | null;
         };
-        /** SheetImportIn */
-        SheetImportIn: {
-            /**
-             * Mode
-             * @enum {string}
-             */
-            mode: "public" | "oauth";
-            /** Sheet Url */
-            sheet_url?: string | null;
-            /** Spreadsheet Id */
-            spreadsheet_id?: string | null;
-            /** Sheet Name */
-            sheet_name?: string | null;
-        };
         /** SkippedRowOut */
         SkippedRowOut: {
             /** Line */
@@ -4354,41 +4292,6 @@ export interface operations {
             };
         };
     };
-    import_sheet_api_v1_transactions_import_sheet_post: {
-        parameters: {
-            query?: never;
-            header?: {
-                authorization?: string | null;
-            };
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["SheetImportIn"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ImportResultOut"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
     bulk_delete_transactions_api_v1_transactions_bulk_delete_post: {
         parameters: {
             query?: never;
@@ -4648,40 +4551,6 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["RecurringOut"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    import_google_events_api_v1_events_import_google_post: {
-        parameters: {
-            query?: {
-                date_from?: string | null;
-                date_to?: string | null;
-            };
-            header?: {
-                authorization?: string | null;
-            };
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["EventImportResultOut"];
                 };
             };
             /** @description Validation Error */
