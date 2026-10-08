@@ -3054,6 +3054,11 @@ export interface components {
              * @default true
              */
             savings_pace_reminder: boolean;
+            /**
+             * Partner Saving
+             * @default true
+             */
+            partner_saving: boolean;
         };
         /** NotificationPrefsOut */
         NotificationPrefsOut: {
@@ -3074,6 +3079,11 @@ export interface components {
              * @default true
              */
             savings_pace_reminder: boolean;
+            /**
+             * Partner Saving
+             * @default true
+             */
+            partner_saving: boolean;
         };
         /** NotificationReactionIn */
         NotificationReactionIn: {

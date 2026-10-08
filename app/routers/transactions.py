@@ -24,6 +24,7 @@ from app.schemas.transaction import (
     TransactionUpdateIn,
 )
 from app.services import (
+    notification_inbox_service,
     notification_service,
     transaction_import_service,
     transaction_report_service,
@@ -103,9 +104,19 @@ def create_transaction(
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
     _alert_budget_after_save(db, tx)
+    _notify_partner_saving(db, current_user, tx)
     if tx.growlio_sync_failed:
         response.headers["X-Growlio-Sync-Warning"] = "1"
     return tx
+
+
+def _notify_partner_saving(db: Session, user: User, tx) -> None:
+    """저축 거래면 배우자 알림함에 남긴다 — 알림 실패가 거래 저장 응답을 막지 않게 로그만 남긴다."""
+    try:
+        notification_inbox_service.log_partner_saving(db, user.id, user.display_name, tx)
+    except Exception:
+        db.rollback()
+        logger.exception("배우자 저축 알림 기록 실패 (거래는 정상 저장됨)")
 
 
 @router.get("/category-breakdown", response_model=list[CategoryAmountOut])

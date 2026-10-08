@@ -430,6 +430,7 @@ export interface NotificationPrefsOut {
   challenge_success: boolean;
   event_reminder: boolean;
   savings_pace_reminder: boolean;
+  partner_saving: boolean;
 }
 
 export type NotificationPrefsIn = NotificationPrefsOut;

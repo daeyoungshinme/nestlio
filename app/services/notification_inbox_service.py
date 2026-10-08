@@ -6,7 +6,9 @@ from sqlalchemy.orm import Session
 from app.models.notification_log import NotificationLog
 from app.models.notification_reaction import NotificationReaction
 from app.models.notification_read import NotificationRead
+from app.models.transaction import Transaction
 from app.models.user import User
+from app.services import notification_settings_service
 from app.utils.dates import now_kst
 
 
@@ -181,5 +183,36 @@ def send_goal_cheer(
     db.flush()
     db.add(NotificationReaction(notification_log_id=log.id, user_id=sender_id, emoji=emoji, message=message))
     db.add(NotificationRead(notification_log_id=log.id, user_id=sender_id, read_at=now))
+    db.commit()
+    return log.id
+
+
+PARTNER_SAVING_NOTIF_TYPE = "partner_saving"
+
+
+def log_partner_saving(
+    db: Session, actor_id: uuid.UUID, actor_name: str, tx: Transaction, now: datetime | None = None
+) -> int | None:
+    """한 사람이 저축·투자 상품에 납입(savings_product_id가 있는 거래)을 기록하면 알림함에 "OO님이 △△에 N원
+    저축했어요"를 남겨 배우자가 바로 응원 반응을 달 수 있게 한다 — 서로의 저축이 보여야 동기부여가 된다.
+    기록한 본인에게는 읽음 처리한다(send_goal_cheer와 같은 규칙). 사용자가 직접 입력한 거래에만 부른다(반복거래
+    자동 생성·CSV 가져오기는 한꺼번에 쌓여 알림함을 덮으므로 제외). 꺼져 있거나 저축 거래가 아니면 None."""
+    if tx.savings_product_id is None or tx.savings_product is None:
+        return None
+    if not notification_settings_service.is_enabled(db, PARTNER_SAVING_NOTIF_TYPE):
+        return None
+    now = now or now_kst()
+    log = NotificationLog(
+        notif_type=PARTNER_SAVING_NOTIF_TYPE,
+        related_type="savings_product",
+        related_id=tx.savings_product_id,
+        # dedupe 대상이 아니다 — 컬럼이 String(20)이라 초 단위까지만(send_goal_cheer 참고).
+        year_month=now.isoformat(timespec="seconds"),
+        status="sent",
+        detail=f"{actor_name}님이 \"{tx.savings_product.name}\"에 {tx.amount:,.0f}원 저축했어요"[:500],
+    )
+    db.add(log)
+    db.flush()
+    db.add(NotificationRead(notification_log_id=log.id, user_id=actor_id, read_at=now))
     db.commit()
     return log.id
