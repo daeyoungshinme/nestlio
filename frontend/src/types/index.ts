@@ -689,9 +689,27 @@ export interface GrowlioFeasibilityOut {
   deposit_guide: GrowlioDepositGuideOut[];
 }
 
+export interface GrowlioAccountPerformanceOut {
+  xirr_pct: number | null;
+  current_value_krw: number;
+  net_invested_krw: number;
+  account_count: number;
+}
+
+export interface GrowlioDirectDepositOut {
+  month: string;
+  amount: string;
+}
+
 export interface GrowlioGoalInsightOut {
   performance: GrowlioPerformanceOut;
   feasibility: GrowlioFeasibilityOut | null;
+  /** 목표에 연동된 growlio 계좌만의 실적 — 연동이 없거나 growlio가 구버전이면 null. */
+  linked_performance: GrowlioAccountPerformanceOut | null;
+  /** 연동 계좌의 실제 XIRR로 계산한 예상 도달 달("YYYY-MM"). */
+  eta_with_actual_return_year_month: string | null;
+  /** 증권사에서 growlio로 직접 들어온 월 순입금(nestlio 가계부에 없는 돈) — 최근 6개월. */
+  direct_deposits: GrowlioDirectDepositOut[];
 }
 
 export interface GrowlioGoalSettingsOut {

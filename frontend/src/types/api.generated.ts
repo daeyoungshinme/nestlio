@@ -2631,6 +2631,20 @@ export interface components {
             /** As Of */
             as_of?: string | null;
         };
+        /**
+         * GrowlioAccountPerformanceOut
+         * @description growlio `/external/account-performance` — 목표에 연동된 계좌만의 실적(float, GrowlioGoalSettingsOut 참고).
+         */
+        GrowlioAccountPerformanceOut: {
+            /** Xirr Pct */
+            xirr_pct?: number | null;
+            /** Current Value Krw */
+            current_value_krw: number;
+            /** Net Invested Krw */
+            net_invested_krw: number;
+            /** Account Count */
+            account_count: number;
+        };
         /** GrowlioDepositGuideOut */
         GrowlioDepositGuideOut: {
             /** Annual Return Pct */
@@ -2639,6 +2653,16 @@ export interface components {
             required_monthly_deposit?: number | null;
             /** Required Annual Deposit */
             required_annual_deposit?: number | null;
+        };
+        /**
+         * GrowlioDirectDepositOut
+         * @description growlio에만 있는(증권사에서 직접 들어온, nestlio가 push하지 않은) 월 순입금 — 연동 계좌 합.
+         */
+        GrowlioDirectDepositOut: {
+            /** Month */
+            month: string;
+            /** Amount */
+            amount: string;
         };
         /** GrowlioFeasibilityOut */
         GrowlioFeasibilityOut: {
@@ -2660,6 +2684,14 @@ export interface components {
         GrowlioGoalInsightOut: {
             performance: components["schemas"]["GrowlioPerformanceOut"];
             feasibility?: components["schemas"]["GrowlioFeasibilityOut"] | null;
+            linked_performance?: components["schemas"]["GrowlioAccountPerformanceOut"] | null;
+            /** Eta With Actual Return Year Month */
+            eta_with_actual_return_year_month?: string | null;
+            /**
+             * Direct Deposits
+             * @default []
+             */
+            direct_deposits: components["schemas"]["GrowlioDirectDepositOut"][];
         };
         /**
          * GrowlioGoalSettingsOut

@@ -168,6 +168,27 @@ class GrowlioFeasibilityOut(BaseModel):
     deposit_guide: list[GrowlioDepositGuideOut] = []
 
 
+class GrowlioAccountPerformanceOut(BaseModel):
+    """growlio `/external/account-performance` — 목표에 연동된 계좌만의 실적(float, GrowlioGoalSettingsOut 참고)."""
+
+    xirr_pct: float | None = None
+    current_value_krw: float
+    net_invested_krw: float
+    account_count: int
+
+
+class GrowlioDirectDepositOut(BaseModel):
+    """growlio에만 있는(증권사에서 직접 들어온, nestlio가 push하지 않은) 월 순입금 — 연동 계좌 합."""
+
+    month: str
+    amount: Decimal
+
+
 class GrowlioGoalInsightOut(BaseModel):
     performance: GrowlioPerformanceOut
     feasibility: GrowlioFeasibilityOut | None = None
+    # 아래는 목표에 growlio 계좌가 연동된 경우만 — growlio가 구버전이거나 호출이 실패하면 비어 있다(카드는 나머지로 그린다).
+    linked_performance: GrowlioAccountPerformanceOut | None = None
+    # 연동 계좌의 실제 XIRR로 월 복리를 적용한 예상 도달 달 — 목표에 직접 넣은 기대수익률(eta_with_return_year_month) 대신.
+    eta_with_actual_return_year_month: str | None = None
+    direct_deposits: list[GrowlioDirectDepositOut] = []

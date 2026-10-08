@@ -1,4 +1,3 @@
-import logging
 import uuid
 from datetime import date, timedelta
 from decimal import Decimal
@@ -7,11 +6,8 @@ from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
 from app.models.category import Category
-from app.models.savings_product import SavingsProduct
 from app.models.transaction import Transaction
-from app.services import growlio_client, savings_product_service
-
-logger = logging.getLogger(__name__)
+from app.services import growlio_push_service, savings_product_service
 
 
 def _validate_savings_link(db: Session, category_id: int, type_: str, savings_product_id: int | None) -> None:
@@ -33,30 +29,17 @@ def _push_growlio(
     transaction_date: date,
     bearer_token: str | None,
 ) -> None:
-    """저축/투자 잔액 조정을 growlio 쪽에도 best-effort로 반영한다.
+    """저축/투자 잔액 조정을 growlio 쪽에도 반영한다 — growlio_push_service 아웃박스에 남기고 바로 보내 본다.
 
-    growlio가 잠들어있거나 응답하지 않아도 가계부 저장 자체는 이미 끝난 뒤이므로 절대
-    raise하지 않는다 — 실패 시 로그만 남기고 tx의 비영속 플래그
-    `Transaction.growlio_sync_failed`(모델에 선언된 클래스 속성, DB 컬럼 아님)를 True로 세팅해
-    라우터가 응답 헤더로 경고를 알릴 수 있게 한다(TransactionOut 스키마 변경 없이 소비).
+    growlio가 잠들어있거나 응답하지 않아도 가계부 저장 자체는 이미 끝난 뒤이므로 절대 raise하지 않는다 — 보내지
+    못한 동작은 큐에 남아 다음 화면 로드 때 재전송되고, 이번 응답에는 tx의 비영속 플래그
+    `Transaction.growlio_sync_failed`(모델에 선언된 클래스 속성, DB 컬럼 아님)를 True로 세팅해 라우터가 응답 헤더로
+    알린다(TransactionOut 스키마 변경 없이 소비). 토큰이 없으면(예약 작업 등) 큐에만 남긴다.
     """
-    if not bearer_token:
-        return
-    product = db.get(SavingsProduct, savings_product_id)
-    if product is None or not product.growlio_account_id:
-        return
-    try:
-        growlio_client.push_transaction(
-            bearer_token, product.growlio_account_id, transaction_type, amount, transaction_date
-        )
-    except (growlio_client.GrowlioNotConfiguredError, growlio_client.GrowlioRequestError):
-        logger.warning(
-            "growlio_push_failed savings_product_id=%s type=%s amount=%s (거래는 정상 저장됨)",
-            savings_product_id,
-            transaction_type,
-            amount,
-            exc_info=True,
-        )
+    sent = growlio_push_service.push_now(
+        db, savings_product_id, transaction_type, amount, transaction_date, bearer_token, transaction_id=tx.id
+    )
+    if sent is False and bearer_token:
         tx.growlio_sync_failed = True
 
 

@@ -1,7 +1,7 @@
 import uuid
 from datetime import date
 from decimal import Decimal
-from unittest.mock import patch
+from unittest.mock import ANY, patch
 
 import pytest
 
@@ -594,7 +594,7 @@ def test_create_transaction_pushes_deposit_to_linked_growlio_account(seeded_db):
             bearer_token="token-abc",
         )
 
-    mock_push.assert_called_once_with("token-abc", "growlio-acct-1", "DEPOSIT", Decimal("50000"), date(2026, 7, 1))
+    mock_push.assert_called_once_with("token-abc", "growlio-acct-1", "DEPOSIT", Decimal("50000"), date(2026, 7, 1), external_ref=ANY)
     assert getattr(tx, "growlio_sync_failed", False) is False
 
 
@@ -689,8 +689,8 @@ def test_update_transaction_pushes_withdrawal_then_deposit_symmetrically(seeded_
         )
 
     assert mock_push.call_count == 2
-    mock_push.assert_any_call("token-abc", "growlio-acct-1", "WITHDRAWAL", Decimal("50000"), date(2026, 7, 1))
-    mock_push.assert_any_call("token-abc", "growlio-acct-1", "DEPOSIT", Decimal("80000"), date(2026, 7, 2))
+    mock_push.assert_any_call("token-abc", "growlio-acct-1", "WITHDRAWAL", Decimal("50000"), date(2026, 7, 1), external_ref=ANY)
+    mock_push.assert_any_call("token-abc", "growlio-acct-1", "DEPOSIT", Decimal("80000"), date(2026, 7, 2), external_ref=ANY)
 
 
 def test_update_transaction_memo_only_edit_skips_balance_and_growlio(seeded_db):
@@ -737,7 +737,7 @@ def test_delete_transaction_pushes_withdrawal(seeded_db):
     with patch.object(growlio_client, "push_transaction") as mock_push:
         transaction_service.delete_transaction(db, tx.id, bearer_token="token-abc")
 
-    mock_push.assert_called_once_with("token-abc", "growlio-acct-1", "WITHDRAWAL", Decimal("50000"), date(2026, 7, 1))
+    mock_push.assert_called_once_with("token-abc", "growlio-acct-1", "WITHDRAWAL", Decimal("50000"), date(2026, 7, 1), external_ref=ANY)
 
 
 def test_trailing_averages_are_whole_won(seeded_db):

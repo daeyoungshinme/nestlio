@@ -113,3 +113,30 @@ def test_register_exception_handlers_maps_growlio_errors(error, expected_status)
     resp = TestClient(app).get("/boom")
     assert resp.status_code == expected_status
     assert resp.json() == {"detail": str(error)}
+
+
+def test_push_transaction_sends_external_ref_only_when_given(monkeypatch):
+    from datetime import date
+    from decimal import Decimal
+
+    calls = []
+    monkeypatch.setattr(growlio_client, "_request", lambda *args, **kwargs: calls.append((args, kwargs)) or {})
+
+    growlio_client.push_transaction("t", "g-1", "DEPOSIT", Decimal("1000"), date(2026, 10, 8), external_ref="nestlio:q7")
+    growlio_client.push_transaction("t", "g-1", "DEPOSIT", Decimal("1000"), date(2026, 10, 8))
+
+    assert calls[0][1]["json"]["external_ref"] == "nestlio:q7"
+    assert "external_ref" not in calls[1][1]["json"]
+
+
+def test_linked_account_fetchers_pass_account_ids_as_query_params(monkeypatch):
+    calls = []
+    monkeypatch.setattr(growlio_client, "_request", lambda *args, **kwargs: calls.append((args, kwargs)) or [])
+
+    growlio_client.fetch_account_performance("t", ["g-1", "g-2"])
+    growlio_client.fetch_net_deposits("t", ["g-1"], "2026-05")
+
+    assert calls[0][0][:2] == ("GET", "account-performance")
+    assert calls[0][1]["params"] == {"account_ids": ["g-1", "g-2"]}
+    assert calls[1][0][:2] == ("GET", "net-deposits")
+    assert calls[1][1]["params"] == {"account_ids": ["g-1"], "start_month": "2026-05"}
