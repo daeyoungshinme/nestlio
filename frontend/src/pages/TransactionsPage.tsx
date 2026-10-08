@@ -218,10 +218,10 @@ export default function TransactionsPage() {
               type="button"
               onClick={() => setShowRecurringSheet(true)}
               className="flex items-center gap-1.5 px-3 min-h-[44px] text-sm font-medium text-gray-600 dark:text-gray-300 border border-gray-200 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
-              aria-label="반복 거래 관리"
             >
               <Repeat size={16} aria-hidden="true" />
-              <span className="hidden sm:inline">반복 거래</span>
+              {/* 월급·고정비 자동 기록의 유일한 진입점이라 모바일에서도 글자로 보인다(아이콘만으로는 찾기 어려움). */}
+              반복 거래
             </button>
           </div>
         </div>
