@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation } from "@tanstack/react-query";
-import { CalendarSync, Repeat } from "lucide-react";
+import { Repeat } from "lucide-react";
 import { useSearchParams } from "react-router-dom";
 import { LEDGER_VIEWS, type LedgerView } from "@/constants/routes";
 import Tabs from "@/components/common/Tabs";
@@ -25,7 +25,7 @@ import { useCreateTransaction, useInvalidateTransactionRelated } from "@/hooks/u
 import { useLedgerFilters } from "@/hooks/useLedgerFilters";
 import { useLedgerMonth } from "@/hooks/useLedgerMonth";
 import { useRecurringDeepLink } from "@/hooks/useRecurringDeepLink";
-import { useAccounts, useCategories, useMe, useSavingsProducts, useSettings, useUsers } from "@/hooks/useReferenceData";
+import { useAccounts, useCategories, useMe, useSavingsProducts, useUsers } from "@/hooks/useReferenceData";
 import { currentDateIso, currentYearMonth, shiftYearMonth } from "@/utils/date";
 import { formatKrw } from "@/utils/format";
 import { extractErrorMessage } from "@/utils/error";
@@ -72,15 +72,9 @@ export default function TransactionsPage() {
   const savingsProductsQuery = useSavingsProducts();
   const { data: me } = useMe();
   const { data: users } = useUsers();
-  const { data: settings } = useSettings();
 
   const month = useLedgerMonth(yearMonth, debouncedQuery);
-  const eventActions = useEventActions({
-    users,
-    dateFrom: month.dateFrom,
-    dateTo: month.dateTo,
-    onSaved: () => setDayPanel(null),
-  });
+  const eventActions = useEventActions({ users, onSaved: () => setDayPanel(null) });
 
   // ?date=YYYY-MM-DD로 들어오면(옛 일정 경로 리다이렉트 등) 그 달로 이동해 그 날 모달을 열고 파라미터를
   // 지운다. 이미 마운트된 상태에서 파라미터만 바뀌어도 맞는 달의 거래를 보이도록 달도 함께 맞춘다.
@@ -220,26 +214,14 @@ export default function TransactionsPage() {
         <div className="flex items-center justify-between flex-wrap gap-3">
           <MonthPicker yearMonth={yearMonth} onChange={setYearMonth} />
           <div className="flex gap-2">
-            {view === "일정" && settings?.google_connected && (
-              <button
-                type="button"
-                onClick={eventActions.importGoogle}
-                disabled={eventActions.importingGoogle}
-                className="flex items-center gap-1.5 px-3 min-h-[44px] text-sm font-medium text-gray-600 dark:text-gray-300 border border-gray-200 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors disabled:opacity-50"
-                aria-label="구글 캘린더에서 가져오기"
-              >
-                <CalendarSync size={16} aria-hidden="true" />
-                <span className="hidden sm:inline">구글 캘린더</span>
-              </button>
-            )}
             <button
               type="button"
               onClick={() => setShowRecurringSheet(true)}
               className="flex items-center gap-1.5 px-3 min-h-[44px] text-sm font-medium text-gray-600 dark:text-gray-300 border border-gray-200 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
-              aria-label="반복 거래 관리"
             >
               <Repeat size={16} aria-hidden="true" />
-              <span className="hidden sm:inline">반복 거래</span>
+              {/* 월급·고정비 자동 기록의 유일한 진입점이라 모바일에서도 글자로 보인다(아이콘만으로는 찾기 어려움). */}
+              반복 거래
             </button>
           </div>
         </div>

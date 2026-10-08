@@ -1,9 +1,6 @@
-import logging
 from datetime import date
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from google.auth.exceptions import RefreshError
-from googleapiclient.errors import HttpError
 from sqlalchemy.orm import Session
 
 from app.database import get_db
@@ -12,43 +9,14 @@ from app.models.user import User
 from app.schemas.event import (
     EventCompleteIn,
     EventCreateIn,
-    EventImportResultOut,
     EventListOut,
     EventOut,
     EventUpdateIn,
 )
-from app.services import event_calendar_service, event_service, recurring_service
-from app.services.event_service import ImportedEventReadOnlyError
-from app.services.google_auth import GoogleAuthError, GoogleNotConnectedError
+from app.services import event_service, recurring_service
 from app.utils.dates import month_bounds, today_kst
 
-logger = logging.getLogger(__name__)
-
 router = APIRouter(prefix="/events", tags=["events"])
-
-
-@router.post("/import-google", response_model=EventImportResultOut)
-def import_google_events(
-    date_from: date | None = None,
-    date_to: date | None = None,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
-):
-    default_from, default_to = month_bounds(today_kst())
-    df = date_from or default_from
-    dt = date_to or default_to
-    try:
-        return event_calendar_service.import_from_google(db, df, dt, current_user.id)
-    except GoogleNotConnectedError as exc:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
-    except GoogleAuthError as exc:
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
-    except (HttpError, RefreshError) as exc:
-        logger.warning("구글 캘린더 일정 가져오기 실패", exc_info=True)
-        raise HTTPException(
-            status_code=status.HTTP_502_BAD_GATEWAY,
-            detail="구글 캘린더에서 일정을 가져오지 못했어요. 잠시 후 다시 시도하거나 재연결해 주세요.",
-        ) from exc
 
 
 @router.get("", response_model=EventListOut)
@@ -97,24 +65,21 @@ def update_event(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    try:
-        event = event_service.update_event(
-            db,
-            event_id,
-            actor_id=current_user.id,
-            title=payload.title,
-            description=payload.description,
-            location=payload.location,
-            all_day=payload.all_day,
-            start_at=payload.start_at,
-            end_at=payload.end_at,
-            frequency=payload.frequency,
-            recurrence_end_date=payload.recurrence_end_date,
-            reminder_minutes_before=payload.reminder_minutes_before,
-            assignee_id=payload.assignee_id,
-        )
-    except ImportedEventReadOnlyError as exc:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(exc)) from exc
+    event = event_service.update_event(
+        db,
+        event_id,
+        actor_id=current_user.id,
+        title=payload.title,
+        description=payload.description,
+        location=payload.location,
+        all_day=payload.all_day,
+        start_at=payload.start_at,
+        end_at=payload.end_at,
+        frequency=payload.frequency,
+        recurrence_end_date=payload.recurrence_end_date,
+        reminder_minutes_before=payload.reminder_minutes_before,
+        assignee_id=payload.assignee_id,
+    )
     if event is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="일정을 찾을 수 없습니다.")
     return event_service.to_out_dict(event)

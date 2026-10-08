@@ -4,7 +4,7 @@
 (growlio external_ref 멱등). app/services/growlio_push_service.py 참고.
 
 Revision ID: a8c3e1f4b2d6
-Revises: 5e2a91c4d7b3
+Revises: 7c41d9e2a8f5
 Create Date: 2026-10-08 15:00:00
 
 """
@@ -15,7 +15,7 @@ from sqlalchemy.dialects import postgresql
 from alembic import op
 
 revision: str = "a8c3e1f4b2d6"
-down_revision: Union[str, None] = "5e2a91c4d7b3"
+down_revision: Union[str, None] = "7c41d9e2a8f5"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 

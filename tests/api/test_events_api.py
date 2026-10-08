@@ -1,8 +1,5 @@
-from datetime import date, datetime
+from datetime import date
 from decimal import Decimal
-from unittest.mock import patch
-
-from app.models.event import Event
 
 
 def test_create_list_update_delete_event(client, seeded_db):
@@ -71,93 +68,6 @@ def test_list_events_includes_recurring_due_in_range(client, seeded_db):
     assert body["recurring_due"][0]["next_due_date"] == "2026-07-05"
 
 
-@patch("app.services.google_calendar_service.list_events")
-@patch("app.services.event_calendar_service.is_connected", return_value=True)
-def test_import_google_events_creates_readonly_items(mock_connected, mock_list, client):
-    mock_list.return_value = [
-        {
-            "id": "gcal-1",
-            "summary": "치과 예약",
-            "start": {"dateTime": "2026-07-10T09:00:00+09:00"},
-            "end": {"dateTime": "2026-07-10T10:00:00+09:00"},
-        }
-    ]
-
-    resp = client.post(
-        "/api/v1/events/import-google", params={"date_from": "2026-07-01", "date_to": "2026-07-31"}
-    )
-
-    assert resp.status_code == 200
-    assert resp.json() == {"created": 1, "updated": 0, "skipped": 0}
-
-    list_resp = client.get("/api/v1/events", params={"date_from": "2026-07-01", "date_to": "2026-07-31"})
-    items = list_resp.json()["items"]
-    assert len(items) == 1
-    assert items[0]["source"] == "google_import"
-
-
-@patch("app.services.event_calendar_service.is_connected", return_value=False)
-def test_import_google_events_returns_400_when_not_connected(mock_connected, client):
-    resp = client.post("/api/v1/events/import-google")
-    assert resp.status_code == 400
-
-
-@patch("app.routers.events.event_calendar_service.import_from_google")
-def test_import_google_events_returns_409_when_reauth_needed(mock_import, client):
-    from app.services.google_auth import GoogleAuthError
-
-    mock_import.side_effect = GoogleAuthError("구글 연동이 만료됐어요.")
-
-    resp = client.post("/api/v1/events/import-google")
-
-    assert resp.status_code == 409
-    assert "만료" in resp.json()["detail"]
-
-
-def test_update_imported_event_returns_403(client, seeded_db):
-    db, user = seeded_db["db"], seeded_db["user"]
-    imported = Event(
-        title="치과 예약",
-        start_at=datetime(2026, 7, 10, 9, 0),
-        all_day=False,
-        frequency="once",
-        source="google_import",
-        google_calendar_event_id="gcal-1",
-        created_by=user.id,
-    )
-    db.add(imported)
-    db.commit()
-    db.refresh(imported)
-
-    update_resp = client.put(
-        f"/api/v1/events/{imported.id}",
-        json={"title": "변경 시도", "start_at": "2026-07-10T09:00:00", "frequency": "once"},
-    )
-    assert update_resp.status_code == 403
-
-
-def test_delete_imported_event_returns_204_and_hides_from_list(client, seeded_db):
-    db, user = seeded_db["db"], seeded_db["user"]
-    imported = Event(
-        title="치과 예약",
-        start_at=datetime(2026, 7, 10, 9, 0),
-        all_day=False,
-        frequency="once",
-        source="google_import",
-        google_calendar_event_id="gcal-1",
-        created_by=user.id,
-    )
-    db.add(imported)
-    db.commit()
-    db.refresh(imported)
-
-    delete_resp = client.delete(f"/api/v1/events/{imported.id}")
-    assert delete_resp.status_code == 204
-
-    list_resp = client.get("/api/v1/events", params={"date_from": "2026-07-01", "date_to": "2026-07-31"})
-    assert imported.id not in [item["id"] for item in list_resp.json()["items"]]
-
-
 def test_create_event_with_assignee_and_complete_toggle(client, seeded_db):
     user = seeded_db["user"]
     create_resp = client.post(
@@ -187,27 +97,6 @@ def test_create_event_with_assignee_and_complete_toggle(client, seeded_db):
 def test_complete_missing_event_returns_404(client):
     resp = client.patch("/api/v1/events/999999/complete", json={"completed": True})
     assert resp.status_code == 404
-
-
-def test_complete_imported_event_is_allowed(client, seeded_db):
-    db, user = seeded_db["db"], seeded_db["user"]
-    imported = Event(
-        title="치과 예약",
-        start_at=datetime(2026, 7, 10, 9, 0),
-        all_day=False,
-        frequency="once",
-        source="google_import",
-        google_calendar_event_id="gcal-1",
-        created_by=user.id,
-    )
-    db.add(imported)
-    db.commit()
-    db.refresh(imported)
-
-    resp = client.patch(f"/api/v1/events/{imported.id}/complete", json={"completed": True})
-
-    assert resp.status_code == 200
-    assert resp.json()["completed_at"] is not None
 
 
 def test_weekly_event_expands_into_multiple_occurrences(client):

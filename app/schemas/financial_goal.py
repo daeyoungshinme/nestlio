@@ -8,7 +8,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from app.schemas.common import KrwAmount, KrwBalance, Pct, YearMonth, bounded_str
 
 FundingSourceType = Literal["savings_product", "account", "loan"]
-GoalKind = Literal["goal", "challenge"]
+GoalKind = Literal["goal", "challenge", "net_worth"]
 
 
 class FundingSourceIn(BaseModel):

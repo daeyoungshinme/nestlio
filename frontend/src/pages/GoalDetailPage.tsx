@@ -96,7 +96,7 @@ function GoalDetail({ goal }: { goal: FinancialGoalOut }) {
         <div className="flex items-start justify-between gap-2">
           <div className="min-w-0">
             <p className="text-xs text-gray-500 dark:text-gray-400">
-              {isChallenge ? "챌린지" : `${goal.priority}순위 목표`}
+              {isChallenge ? "챌린지" : goal.kind === "net_worth" ? "순자산 목표 · 가구 순자산 기준" : `${goal.priority}순위 목표`}
               {goal.target_date && ` · D-${daysUntil(goal.target_date)}`}
             </p>
             <h2 className="text-lg font-bold text-gray-900 dark:text-gray-50 truncate">{goal.name}</h2>

@@ -12,7 +12,7 @@
 
 | id (JOB_REGISTRY 키) | 스케줄 (KST) | 호출 |
 |---|---|---|
-| `daily-due-date-check` | 매일 07:00 | `recurring_service.generate_due_transactions` + 캘린더 동기화 |
+| `daily-due-date-check` | 매일 07:00 | `recurring_service.generate_due_transactions` |
 | `weekly-summary-email` | 매주 월 08:00 | `notification_service.send_weekly_summary(db, today=today_kst())` |
 | `monthly-summary-email` | 매월 1일 08:00 | `notification_service.send_monthly_summary(db, today=today_kst())` |
 | `daily-threshold-safety-net` | 매일 20:00 | `notification_service.check_all_categories_threshold` + `goal_service.sync_challenge_statuses` + `check_all_goal_milestones` + `check_savings_pace_reminder`(월말 3일 전 저축 계획 미달 알림, 월 1회) (실시간 체크 누락 대비 백스톱, 저장 이벤트 없이 연동 잔액만 자연 증가한 챌린지 상태 전환 포함) |
@@ -27,7 +27,7 @@
 
 ## Google 연동 가드
 
-- `daily_due_date_check`의 캘린더 동기화와 `event_reminder_check`는 `jobs.py` 안에서 직접 `google_auth.is_connected()`를 확인한 뒤에만 Google API를 호출한다.
+- `event_reminder_check`는 `jobs.py` 안에서 직접 `google_auth.is_connected()`를 확인한 뒤에만 Google API를 호출한다.
 - `weekly_summary_email`/`monthly_summary_email`/`daily_threshold_safety_net`은 `jobs.py`에는 가드가 없다 — 대신 한 단계 아래 `notification_service`의 각 send 함수가 메일을 `_send_email_best_effort`로만 보낸다. 미연결이면 건너뛰고, 토큰 만료/revoke(`GoogleAuthError`)나 Gmail API 오류(`GmailSendError`)는 경고 로그만 남긴다 — 어떤 경우에도 인앱 알림(`NotificationLog`)은 남고 잡은 성공한다. 토큰 만료는 `google_reauth` 인앱 알림(월 1회)으로 부부에게 알려 `scripts/google_auth_setup.py` 재실행을 유도한다. (2026-09-27~10-05 주간·월간 요약과 월말 저축 리마인더가 만료 토큰 때문에 500으로 실패하며 인앱 알림까지 유실된 적이 있다.)
 - 결과적으로 연동 안 된 상태에서도 앱이 정상 동작한다는 목표는 동일하지만, 가드 위치는 잡마다 다르다 — 새 잡을 추가할 때 어느 계층에서 가드할지 확인한다.
 

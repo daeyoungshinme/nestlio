@@ -33,7 +33,7 @@ export default function TodayScheduleCard({ day, users }: Props) {
   });
 
   // 추가 폼·완료 토글은 가계부의 일정 보기와 같은 훅을 쓴다(토스트·무효화 규칙 공유).
-  const { openCreate, toggleComplete, modals } = useEventActions({ users, dateFrom: day, dateTo: rangeEnd });
+  const { openCreate, toggleComplete, modals } = useEventActions({ users });
 
   const events = (data?.items ?? []).filter((event) => occurrenceDate(event.occurrence_start) === day);
   const upcomingRecurring = (data?.recurring_due ?? [])

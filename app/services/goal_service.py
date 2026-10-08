@@ -23,6 +23,10 @@ class DuplicateFundingSourceProductError(Exception):
     pass
 
 
+class NetWorthGoalExistsError(Exception):
+    """순자산 목표는 가구 전체 자산이 대상이라 둘 이상이면 진행률이 같은 값으로 겹친다 — 가구당 하나."""
+
+
 def fetch_growlio_goal_settings(bearer_token: str) -> dict:
     """재무목표 신규 작성 폼을 미리 채우기 위해 growlio 투자목표 설정값을 전달한다."""
     return growlio_client.fetch_investment_goal(bearer_token)
@@ -108,6 +112,10 @@ def create_goal(
     now: datetime | None = None,
     expected_annual_return_pct: Decimal | None = None,
 ) -> FinancialGoal:
+    if kind == "net_worth":
+        if db.query(FinancialGoal.id).filter(FinancialGoal.kind == "net_worth").first() is not None:
+            raise NetWorthGoalExistsError("순자산 목표는 하나만 만들 수 있어요. 기존 목표를 수정해 주세요.")
+        funding_sources, monthly_targets, current_amount = None, None, Decimal("0")
     goal = FinancialGoal(
         expected_annual_return_pct=expected_annual_return_pct,
         priority=priority,
@@ -155,6 +163,8 @@ def update_goal(
     goal = db.get(FinancialGoal, goal_id)
     if goal is None:
         return None
+    if goal.kind == "net_worth":
+        funding_sources, monthly_targets, current_amount = None, None, Decimal("0")
     goal.priority = priority
     goal.name = name
     goal.target_age = target_age

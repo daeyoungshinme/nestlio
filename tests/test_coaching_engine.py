@@ -533,7 +533,10 @@ def test_savings_pace_history_uses_plan_when_present_and_falls_back_per_month(mo
         {"year_month": "2026-06", "income": Decimal("3000000"), "expense": Decimal("2600000")},
         {"year_month": "2026-07", "income": Decimal("3000000"), "expense": Decimal("2000000")},
     ]
-    goals = [SimpleNamespace(monthly_saving_amount=Decimal("200000")), SimpleNamespace(monthly_saving_amount=Decimal("100000"))]
+    goals = [
+        SimpleNamespace(kind="goal", funding_sources=[], monthly_saving_amount=Decimal("200000")),
+        SimpleNamespace(kind="goal", funding_sources=[], monthly_saving_amount=Decimal("100000")),
+    ]
 
     history = savings_coaching_service.savings_pace_history(None, trend, goals)
 
