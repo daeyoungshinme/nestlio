@@ -149,7 +149,8 @@ export default function TransactionForm({
 
   return (
     <form onSubmit={handleSubmit} className={containerClass}>
-      <div className={`flex gap-1 bg-gray-100 dark:bg-gray-800 rounded-lg p-1 ${buttonOffset}`}>
+      {/* 유형 토글은 폼의 첫 결정이라 모바일에서 폭 전체·44px 높이로 누르기 쉽게 한다. */}
+      <div className={`flex gap-1 bg-gray-100 dark:bg-gray-800 rounded-lg p-1 ${isStack ? "w-full" : ""} ${buttonOffset}`}>
         {(["expense", "income"] as TransactionType[]).map((t) => (
           <button
             key={t}
@@ -163,7 +164,7 @@ export default function TransactionForm({
                 savings_product_id: "",
               }));
             }}
-            className={`px-3 py-2 text-sm font-medium rounded-md transition-colors ${
+            className={`flex-1 px-3 ${TOUCH_TARGET_MIN_HEIGHT} text-sm font-medium rounded-md transition-colors ${
               uiType === t
                 ? "bg-white dark:bg-gray-700 shadow text-gray-900 dark:text-gray-50"
                 : "text-gray-500 dark:text-gray-400"
@@ -184,7 +185,7 @@ export default function TransactionForm({
                 savings_product_id: "",
               }));
             }}
-            className={`px-3 py-2 text-sm font-medium rounded-md transition-colors ${
+            className={`flex-1 px-3 ${TOUCH_TARGET_MIN_HEIGHT} text-sm font-medium rounded-md transition-colors ${
               uiType === "savings"
                 ? "bg-white dark:bg-gray-700 shadow text-gray-900 dark:text-gray-50"
                 : "text-gray-500 dark:text-gray-400"
