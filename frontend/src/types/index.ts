@@ -156,7 +156,6 @@ export interface DashboardOut {
   owner_totals: OwnerTotalsOut[];
   expense_breakdown: CategoryAmountOut[];
   owner_overspend_highlights: OwnerOverspendHighlightOut[];
-  category_benchmarks: CategoryBenchmarkRowOut[];
   trend: TrendRowOut[];
   insights: InsightOut[];
   current_ym: string;

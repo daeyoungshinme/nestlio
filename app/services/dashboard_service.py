@@ -39,6 +39,7 @@ def build(db: Session, *, year_month: str | None = None, today: date | None = No
     fund_context = savings_coaching_service.emergency_fund_context(db, start)
     thresholds = coaching_settings_service.get_thresholds(db)
     benchmark_pcts = coaching_engine.benchmark_pcts_from_thresholds(thresholds)
+    # 가이드라인 비교는 홈에서 코칭 인사이트(category_benchmark)로만 보여주고, 막대는 계획 › 실적 분석이 담당한다.
     category_benchmarks = coaching_engine.category_benchmark_rows(totals, expense_breakdown, benchmark_pcts)
     insights = coaching_engine.compute_insights(
         db,
@@ -65,7 +66,6 @@ def build(db: Session, *, year_month: str | None = None, today: date | None = No
         "owner_totals": owner_totals,
         "expense_breakdown": expense_breakdown,
         "owner_overspend_highlights": owner_overspend_highlights,
-        "category_benchmarks": category_benchmarks,
         "trend": trend,
         "insights": insights,
         "current_ym": current_ym,

@@ -1,10 +1,11 @@
 import { memo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { ChevronDown } from "lucide-react";
+import { ChevronDown, Crown } from "lucide-react";
 import SkeletonCard from "@/components/common/SkeletonCard";
 import { fetchMonthlyRetrospective } from "@/api/dashboard";
 import { QUERY_KEYS } from "@/constants/queryKeys";
 import { STALE_TIME } from "@/constants/queryConfig";
+import { coupleContribution } from "@/utils/contribution";
 import { formatKrw, formatYearMonth } from "@/utils/format";
 
 function MonthlyRetrospectiveCard() {
@@ -23,7 +24,7 @@ function MonthlyRetrospectiveCard() {
     return <SkeletonCard rows={2} />;
   }
 
-  const totalSavings = data.owner_totals.reduce((sum, o) => sum + Math.max(0, Number(o.savings)), 0);
+  const { total: totalSavings, leaderName } = coupleContribution(data.owner_totals);
 
   return (
     <div className="card">
@@ -39,6 +40,12 @@ function MonthlyRetrospectiveCard() {
           </h3>
           <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
             함께 {formatKrw(totalSavings)} 모았어요
+            {leaderName && (
+              <span className="ml-1 inline-flex items-center gap-0.5 text-primary-600 dark:text-primary-400">
+                <Crown size={11} aria-hidden="true" />
+                저축 리더 {leaderName}
+              </span>
+            )}
           </p>
         </div>
         <ChevronDown
@@ -49,6 +56,19 @@ function MonthlyRetrospectiveCard() {
 
       {open && (
         <div className="mt-4 space-y-4 border-t border-gray-100 dark:border-gray-800 pt-4">
+          {data.owner_totals.length > 0 && (
+            <div>
+              <p className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">각자 모은 돈</p>
+              <div className="space-y-1">
+                {data.owner_totals.map((o) => (
+                  <div key={o.owner_user_id ?? "shared"} className="flex items-center justify-between text-sm">
+                    <span className="text-gray-700 dark:text-gray-300">{o.display_name}</span>
+                    <span className="text-gray-500 dark:text-gray-400">{formatKrw(o.savings)}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
           {data.top_categories.length > 0 && (
             <div>
               <p className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1.5">많이 쓴 카테고리</p>
