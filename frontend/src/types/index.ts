@@ -156,7 +156,6 @@ export interface DashboardOut {
   owner_totals: OwnerTotalsOut[];
   expense_breakdown: CategoryAmountOut[];
   owner_overspend_highlights: OwnerOverspendHighlightOut[];
-  category_benchmarks: CategoryBenchmarkRowOut[];
   trend: TrendRowOut[];
   insights: InsightOut[];
   current_ym: string;
@@ -416,6 +415,7 @@ export interface NotificationPrefsOut {
   challenge_success: boolean;
   event_reminder: boolean;
   savings_pace_reminder: boolean;
+  partner_saving: boolean;
 }
 
 export type NotificationPrefsIn = NotificationPrefsOut;

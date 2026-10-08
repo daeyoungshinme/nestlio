@@ -22,6 +22,11 @@ const NOTIF_PREF_FIELDS: { key: keyof NotificationPrefsOut; label: string; hint:
     label: "월말 저축 리마인더",
     hint: "월말 3일 전, 이번 달 저축·투자 계획을 다 못 채웠으면 남은 금액을 알려줘요",
   },
+  {
+    key: "partner_saving",
+    label: "배우자 저축 소식",
+    hint: "한 사람이 저축·투자 내역을 기록하면 알림함에 알려줘요 — 바로 응원 반응을 남길 수 있어요",
+  },
 ];
 
 interface Props {

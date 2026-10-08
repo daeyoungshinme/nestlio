@@ -5,7 +5,7 @@ from decimal import Decimal
 from pydantic import BaseModel
 
 from app.schemas.coaching import InsightOut, SurplusAllocationOut
-from app.schemas.common import CategoryAmountOut, CategoryBenchmarkRowOut, OwnerTotalsOut, TotalsOut, TrendRowOut
+from app.schemas.common import CategoryAmountOut, OwnerTotalsOut, TotalsOut, TrendRowOut
 from app.schemas.financial_goal import FinancialGoalOut
 from app.schemas.net_worth import NetWorthOut
 from app.schemas.savings_product import SavingsProductOut
@@ -29,7 +29,6 @@ class DashboardOut(BaseModel):
     owner_totals: list[OwnerTotalsOut]
     expense_breakdown: list[CategoryAmountOut]
     owner_overspend_highlights: list[OwnerOverspendHighlightOut]
-    category_benchmarks: list[CategoryBenchmarkRowOut]
     trend: list[TrendRowOut]
     insights: list[InsightOut]
     current_ym: str

@@ -2,11 +2,9 @@ import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import CoachingInsights from "@/components/home/CoachingInsights";
 import HomeGoalHero from "@/components/home/HomeGoalHero";
-import MonthPlanProgressCard from "@/components/home/MonthPlanProgressCard";
+import MonthFlowCard from "@/components/home/MonthFlowCard";
 import MonthlyRetrospectiveCard from "@/components/dashboard/MonthlyRetrospectiveCard";
 import TodayScheduleCard from "@/components/dashboard/TodayScheduleCard";
-import CoupleContributionCard from "@/components/dashboard/CoupleContributionCard";
-import SpendingFocusCard from "@/components/dashboard/SpendingFocusCard";
 import InvestSurplusCard from "@/components/dashboard/InvestSurplusCard";
 import SkeletonCard from "@/components/common/SkeletonCard";
 import ErrorState from "@/components/common/ErrorState";
@@ -28,31 +26,20 @@ import { estimateGoalAcceleration } from "@/utils/goalAcceleration";
 import { extractErrorMessage } from "@/utils/error";
 import { toast } from "@/utils/toast";
 import { findGrowlioInvestmentLink } from "@/constants/growlio";
-import type { NotificationListOut, NotificationReactionOut, SavingsProductOut } from "@/types";
+import type { SavingsProductOut } from "@/types";
+import { latestPartnerCheer } from "@/utils/cheers";
 import { pinNetWorthFirst } from "@/utils/goalSort";
+import { coupleContribution } from "@/utils/contribution";
 
 /** 월초 며칠 동안은 지난달 회고를 맨 위에 올린다 — 그 외엔 새 달의 진행이 더 중요하다. */
 const RETROSPECTIVE_DAYS = 7;
-const CHEER_NOTIF_TYPES = new Set(["goal_milestone", "challenge_success"]);
 
-/** 배우자가 목표 마일스톤 알림에 남긴 가장 최근 응원. 알림 인박스(헤더)와 같은 쿼리 키라 캐시를 공유한다. */
-function latestPartnerCheer(
-  notifications: NotificationListOut | undefined,
-  myUserId: string | undefined,
-): NotificationReactionOut | null {
-  if (!notifications || !myUserId) return null;
-  const cheers = notifications.items
-    .filter((n) => CHEER_NOTIF_TYPES.has(n.notif_type))
-    .flatMap((n) => n.reactions)
-    .filter((r) => r.user_id !== myUserId)
-    .sort((a, b) => b.created_at.localeCompare(a.created_at));
-  return cheers[0] ?? null;
-}
-
-/** 홈 — "오늘 우리 목표는 어디쯤?"을 한 화면에 답한다. 위에서부터
- *   ① 목표 히어로(대표 목표·연속 달성·배우자 응원·순자산 칩) + 여유자금 저축 제안
- *   ② 이번 달 계획 대비 진행(5개 축 미니 막대 → 계획 탭)
- *   ③ 코칭 상위 2개  ④ 지출 줄이기  ⑤ 오늘 일정·다가오는 고정 수입/지출  ⑥ 부부 기여(월초엔 지난달 회고)
+/** 홈 — "오늘 우리 목표는 어디쯤?"을 한 화면에 답한다. 위에서부터:
+ *   ⓪ (월초 7일) 지난달 회고(부부 기여·저축 리더 포함)
+ *   ① 목표 히어로(대표 목표 = 순자산 목표 우선, 연속 달성·배우자 응원·순자산 칩·이번 달 함께 모은 돈·응원 보내기)
+ *   ② 이번 달 흐름(5개 축 미니 막대 + 남은 여유자금 → 저축·투자 기록)
+ *   ③ 코칭 상위 2개(부부별 증가 지출 포함)  ④ 오늘 일정·다가오는 고정 수입/지출
+ * 구 "지출 줄이기"·"함께 모은 돈" 카드는 각각 코칭·히어로/회고로 흡수했다.
  * 구 대시보드의 오늘/이번주/이번달 기간 탭은 없앴다(홈은 늘 이번 달 — 날짜별 내역은 가계부가 담당). 순자산 상세
  * 카드·결제수단 카드·수입/지출 요약카드는 각각 자산 탭·가계부·계획 탭과 겹쳐 뺐다. */
 export default function DashboardPage() {
@@ -165,34 +152,27 @@ export default function DashboardPage() {
           year_month: row.year_month,
           savings: Number(row.income) - Number(row.expense),
         }))}
+        contribution={showRetrospective ? null : coupleContribution(data.owner_totals)}
       />
 
-      <InvestSurplusCard
-        surplusAllocation={data.surplus_allocation}
-        investmentProducts={savingsProducts ?? []}
-        onRecordInvestment={recordInvestment}
-        topGoalGrowlioAccountId={accelerationLink}
-        topGoalAcceleration={acceleration}
+      <MonthFlowCard
+        plan={planData}
+        savingsPlan={savingsPlanData}
+        footer={
+          <InvestSurplusCard
+            embedded
+            surplusAllocation={data.surplus_allocation}
+            investmentProducts={savingsProducts ?? []}
+            onRecordInvestment={recordInvestment}
+            topGoalGrowlioAccountId={accelerationLink}
+            topGoalAcceleration={acceleration}
+          />
+        }
       />
 
-      <MonthPlanProgressCard plan={planData} savingsPlan={savingsPlanData} />
-
-      <CoachingInsights insights={data.insights} />
-
-      <SpendingFocusCard
-        ownerOverspendHighlights={data.owner_overspend_highlights}
-        categoryBenchmarks={data.category_benchmarks}
-      />
+      <CoachingInsights insights={data.insights} ownerOverspend={data.owner_overspend_highlights} />
 
       <TodayScheduleCard day={today} users={users} />
-
-      {!showRetrospective && (
-        <CoupleContributionCard
-          title="이번 달 함께 모은 돈"
-          ownerTotals={data.owner_totals}
-          totalOwnerSavings={Number(data.totals.savings)}
-        />
-      )}
 
       <QuickAddFab onClick={() => setShowQuickAdd(true)} />
 

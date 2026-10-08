@@ -2219,8 +2219,6 @@ export interface components {
             expense_breakdown: components["schemas"]["CategoryAmountOut"][];
             /** Owner Overspend Highlights */
             owner_overspend_highlights: components["schemas"]["OwnerOverspendHighlightOut"][];
-            /** Category Benchmarks */
-            category_benchmarks: components["schemas"]["CategoryBenchmarkRowOut"][];
             /** Trend */
             trend: components["schemas"]["TrendRowOut"][];
             /** Insights */
@@ -3008,6 +3006,11 @@ export interface components {
              * @default true
              */
             savings_pace_reminder: boolean;
+            /**
+             * Partner Saving
+             * @default true
+             */
+            partner_saving: boolean;
         };
         /** NotificationPrefsOut */
         NotificationPrefsOut: {
@@ -3028,6 +3031,11 @@ export interface components {
              * @default true
              */
             savings_pace_reminder: boolean;
+            /**
+             * Partner Saving
+             * @default true
+             */
+            partner_saving: boolean;
         };
         /** NotificationReactionIn */
         NotificationReactionIn: {

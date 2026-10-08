@@ -18,6 +18,8 @@ interface Props {
    * 덧붙인다. 목표가 growlio에 연동돼 있지 않거나 앞당길 수 없으면 null. */
   topGoalGrowlioAccountId?: string | null;
   topGoalAcceleration?: GoalAcceleration | null;
+  /** 다른 카드(홈 MonthFlowCard) 안에 붙일 때 — 카드 테두리 대신 위쪽 구분선만 쓴다. */
+  embedded?: boolean;
 }
 
 /** 이번달 여유자금(coaching_engine.recommend_surplus_allocation)을 비상금 보충분과 투자
@@ -29,6 +31,7 @@ export default function InvestSurplusCard({
   onRecordInvestment,
   topGoalGrowlioAccountId,
   topGoalAcceleration,
+  embedded = false,
 }: Props) {
   if (!GROWLIO_APP_URL) return null;
   const emergencyFundPortion = Number(surplusAllocation.emergency_fund_portion);
@@ -38,7 +41,7 @@ export default function InvestSurplusCard({
   if (emergencyFundPortion <= 0 && !showInvestSection) return null;
 
   return (
-    <div className="card space-y-3">
+    <div className={embedded ? "pt-3 border-t border-gray-100 dark:border-gray-800 space-y-3" : "card space-y-3"}>
       <div className="flex items-center gap-2 text-sm">
         <TrendingUp size={16} className="text-primary-600 dark:text-primary-400 shrink-0" />
         <span className="font-medium text-gray-700 dark:text-gray-300">

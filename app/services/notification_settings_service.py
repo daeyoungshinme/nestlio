@@ -27,6 +27,7 @@ NOTIF_TYPES = (
     "challenge_success",
     "event_reminder",
     "savings_pace_reminder",
+    "partner_saving",
 )
 
 NOTIFY_RECIPIENT_EMAILS_KEY = "notify_recipient_emails"
