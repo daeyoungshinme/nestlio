@@ -9,10 +9,6 @@ from app.utils.dates import advance_due_date, now_kst
 _MAX_OCCURRENCE_STEPS = 2000
 
 
-class ImportedEventReadOnlyError(Exception):
-    """Raised when an update/delete is attempted on a source='google_import' Event."""
-
-
 def occurrences_in_range(event: Event, range_start: date, range_end: date) -> list[datetime]:
     """Expand a (possibly recurring) event into its occurrence datetimes within [range_start, range_end]."""
     if event.frequency == "once":
@@ -49,7 +45,6 @@ def to_out_dict(event: Event, occurrence_start: datetime | None = None) -> dict:
         "creator": event.creator,
         "assignee": event.assignee,
         "completed_at": event.completed_at,
-        "source": event.source,
         "occurrence_start": occurrence_start if occurrence_start is not None else event.start_at,
     }
 
@@ -58,7 +53,6 @@ def list_events(db: Session, range_start: date, range_end: date) -> list[dict]:
     candidates = (
         db.query(Event)
         .filter(Event.start_at <= datetime.combine(range_end, datetime.max.time()))
-        .filter(Event.dismissed_at.is_(None))
         .filter(
             (Event.frequency == "once")
             | (Event.recurrence_end_date.is_(None))
@@ -88,7 +82,7 @@ def create_event(
     reminder_minutes_before: int | None = None,
     assignee_id: uuid.UUID | None = None,
 ) -> Event:
-    from app.services import event_calendar_service, event_reminder_service
+    from app.services import event_reminder_service
 
     event = Event(
         title=title,
@@ -106,57 +100,41 @@ def create_event(
     db.add(event)
     db.commit()
     db.refresh(event)
-    event_calendar_service.sync_to_google(db, event)
     event_reminder_service.notify_other_spouse(db, event, actor_id=created_by, action_label="새 일정이 등록되었습니다")
     return event
 
 
 def update_event(db: Session, event_id: int, actor_id: uuid.UUID, **fields) -> Event | None:
-    from app.services import event_calendar_service, event_reminder_service
+    from app.services import event_reminder_service
 
     event = db.get(Event, event_id)
     if event is None:
         return None
-    if event.source == "google_import":
-        raise ImportedEventReadOnlyError("Google 캘린더에서 가져온 일정은 nestlio에서 수정할 수 없습니다.")
     for key, value in fields.items():
         setattr(event, key, value)
     db.commit()
     db.refresh(event)
-    event_calendar_service.sync_to_google(db, event)
     event_reminder_service.notify_other_spouse(db, event, actor_id=actor_id, action_label="일정이 변경되었습니다")
     return event
 
 
-def delete_event(db: Session, event_id: int, actor_id: uuid.UUID, now: datetime | None = None) -> bool:
-    from app.services import event_calendar_service, event_reminder_service
+def delete_event(db: Session, event_id: int, actor_id: uuid.UUID) -> bool:
+    from app.services import event_reminder_service
 
-    now = now or now_kst()
     event = db.get(Event, event_id)
     if event is None:
         return False
-    if event.source == "google_import":
-        # 로컬 사본만 숨긴다 (User.removed_at과 동일한 소프트 삭제 패턴). 구글 캘린더의 원본 일정은
-        # 사용자가 만든 것이 아니므로 google_calendar_service.delete_event를 호출해 실제로 지우지 않는다.
-        event.dismissed_at = now
-        db.commit()
-        event_reminder_service.notify_other_spouse(db, event, actor_id=actor_id, action_label="Google 캘린더 일정이 목록에서 숨겨졌습니다")
-        return True
-    # 로컬 삭제를 먼저 확정한다 — 커밋이 실패했는데 구글 원본·배우자 알림만 나가면 앱엔 일정이 남은 채로
-    # 구글 쪽만 사라진다. 삭제된 객체는 커밋 후 detached여도 이미 로드된 컬럼은 그대로 읽힌다.
+    # 삭제된 객체는 커밋 후 detached여도 이미 로드된 컬럼은 그대로 읽혀 배우자 알림에 쓸 수 있다.
     db.delete(event)
     db.commit()
-    event_calendar_service.remove_from_google(event)
     event_reminder_service.notify_other_spouse(db, event, actor_id=actor_id, action_label="일정이 삭제되었습니다")
     return True
 
 
 def set_completed(db: Session, event_id: int, completed: bool, now: datetime | None = None) -> Event | None:
-    """완료 체크 토글 - google_import 일정도 허용한다(원본 내용 수정이 아니라 nestlio 로컬
-    메타데이터일 뿐이므로 update_event의 ImportedEventReadOnlyError 가드를 적용하지 않는다).
-    구글 캘린더에는 완료 개념이 없어 event_calendar_service.sync_to_google을 호출하지 않고, 체크박스
-    토글마다 배우자에게 메일이 가면 과도하므로 event_reminder_service.notify_other_spouse도 호출하지
-    않는다(담당자 배정 자체는 create_event/update_event가 이미 알린다)."""
+    """완료 체크 토글. 체크박스 토글마다 배우자에게 메일이 가면 과도하므로
+    event_reminder_service.notify_other_spouse를 호출하지 않는다(담당자 배정 자체는
+    create_event/update_event가 이미 알린다)."""
     now = now or now_kst()
     event = db.get(Event, event_id)
     if event is None:

@@ -52,13 +52,17 @@ def test_suggested_monthly_amount():
 
 def test_planned_monthly_uses_linked_product_plans_else_manual_amount():
     linked = SimpleNamespace(
+        kind="goal",
         monthly_saving_amount=Decimal("999"),
         funding_sources=[SimpleNamespace(savings_product_id=1), SimpleNamespace(savings_product_id=None)],
     )
-    manual = SimpleNamespace(monthly_saving_amount=Decimal("50000"), funding_sources=[])
+    manual = SimpleNamespace(kind="goal", monthly_saving_amount=Decimal("50000"), funding_sources=[])
+    net_worth = SimpleNamespace(kind="net_worth", monthly_saving_amount=Decimal("0"), funding_sources=[])
 
     assert gps.planned_monthly_for_goal(linked, {1: Decimal("300000"), 2: Decimal("1")}) == Decimal("300000")
     assert gps.planned_monthly_for_goal(manual, {1: Decimal("300000")}) == Decimal("50000")
+    # 순자산 목표는 가구 전체가 자금원 — 모든 상품 계획의 합
+    assert gps.planned_monthly_for_goal(net_worth, {1: Decimal("300000"), 2: Decimal("1")}) == Decimal("300001")
 
 
 def test_effective_status_marks_overdue_active_challenge_expired():

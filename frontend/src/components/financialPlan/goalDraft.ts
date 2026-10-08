@@ -47,6 +47,11 @@ export function emptyChallengeDraft(): Draft {
   return { ...EMPTY_GOAL_DRAFT, kind: "challenge", start_date: today, target_date: today };
 }
 
+/** 순자산 목표 — 이름만 기본값을 채운다(자금원·월별 계획·현재 금액은 가구 순자산과 저축·투자 계획이 대신한다). */
+export function emptyNetWorthDraft(): Draft {
+  return { ...EMPTY_GOAL_DRAFT, kind: "net_worth", name: "우리 순자산 목표" };
+}
+
 /** "YYYY-MM-DD" -> "YYYY-MM" (GoalMonthlyTargetEditor에 넘길 시작월/종료월 계산용). */
 export function toYearMonth(isoDate: string): string {
   return isoDate.slice(0, 7);
@@ -77,7 +82,8 @@ export function draftFromGoal(goal: FinancialGoalOut): Draft {
 
 export function toPayload(draft: Draft) {
   const isChallenge = draft.kind === "challenge";
-  const funding_sources: FundingSourceIn[] = isChallenge
+  const isNetWorth = draft.kind === "net_worth";
+  const funding_sources: FundingSourceIn[] = isChallenge || isNetWorth
     ? []
     : [
         ...draft.savings_product_ids.map((id) => ({ type: "savings_product" as const, id: Number(id) })),
@@ -89,17 +95,17 @@ export function toPayload(draft: Draft) {
     priority: Number(draft.priority) || 1,
     name: draft.name,
     description: isChallenge && draft.description.trim() !== "" ? draft.description : null,
-    target_age: isChallenge || draft.target_age === "" ? null : Number(draft.target_age),
+    target_age: isChallenge || isNetWorth || draft.target_age === "" ? null : Number(draft.target_age),
     target_date: draft.target_date === "" ? null : draft.target_date,
     required_amount: draft.required_amount,
-    monthly_saving_amount: isChallenge ? "0" : draft.monthly_saving_amount,
+    monthly_saving_amount: isChallenge || isNetWorth ? "0" : draft.monthly_saving_amount,
     expected_annual_return_pct:
       isChallenge || draft.expected_annual_return_pct.trim() === "" ? null : draft.expected_annual_return_pct,
-    current_amount: draft.current_amount,
+    current_amount: isNetWorth ? "0" : draft.current_amount,
     funding_sources,
     start_date: isChallenge ? draft.start_date : null,
     // 장기목표(goal)는 필요금액을 월별 계획 합계로 덮어쓰지 않는다 — 월별 계획은 페이스 참고용
     // 그리드일 뿐이라 그대로 보낸다(FinancialGoalOut.required_amount 참고).
-    monthly_targets: !isChallenge ? draft.monthly_targets : null,
+    monthly_targets: !isChallenge && !isNetWorth ? draft.monthly_targets : null,
   };
 }

@@ -15,12 +15,14 @@ class FinancialGoal(Base):
     """`kind`가 `"goal"`(기본, 장기 재무목표)이면 사실상 모든 필드가 재무목표 용도로 쓰이고,
     `"challenge"`(단기 부부 챌린지, 옛 Challenge 모델 흡수)이면 required_amount/manual_current_amount/
     target_date가 각각 목표금액/진행금액/종료일로 쓰이며 description·start_date·status·
-    completed_at·created_by_id가 추가로 채워진다."""
+    completed_at·created_by_id가 추가로 채워진다. `"net_worth"`(부부 자산증식 목표)는 가구 순자산 전체
+    (net_worth_service.compute_current)가 진행금액이고 월 계획은 저축·투자 상품 월 계획 합이라 연동 자금원·
+    월별 목표·수동 진행금액을 쓰지 않는다 — 가구당 하나만 둔다(goal_service.NetWorthGoalExistsError)."""
 
     __tablename__ = "financial_goals"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    kind: Mapped[str] = mapped_column(String(10), default="goal")  # 'goal' | 'challenge'
+    kind: Mapped[str] = mapped_column(String(10), default="goal")  # 'goal' | 'challenge' | 'net_worth'
     priority: Mapped[int] = mapped_column(Integer, default=1)
     name: Mapped[str] = mapped_column(String(100))
     description: Mapped[str | None] = mapped_column(String(500), nullable=True)

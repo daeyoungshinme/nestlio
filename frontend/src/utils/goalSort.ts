@@ -13,6 +13,11 @@ function deadlineRank(goal: FinancialGoalOut): number {
 /** 활성 재무목표 목록 정렬 — 우선순위순(기본, 사용자가 직접 매긴 priority)/마감임박순(target_date
  * 있으면 D-day, 없이 target_age만 있으면 후순위, 둘 다 없으면 맨 뒤)/진행률순(낮은 목표,
  * 즉 도움이 더 필요한 목표가 먼저 오도록 오름차순). */
+/** 순자산 목표(부부 자산증식 목표)는 가구 전체의 대표 목표라 어떤 정렬에서도 맨 앞에 둔다(홈 Hero도 이걸 쓴다). */
+export function pinNetWorthFirst(goals: FinancialGoalOut[]): FinancialGoalOut[] {
+  return [...goals.filter((g) => g.kind === "net_worth"), ...goals.filter((g) => g.kind !== "net_worth")];
+}
+
 export function sortGoals(goals: FinancialGoalOut[], option: GoalSortLabel): FinancialGoalOut[] {
   const arr = goals.slice();
   if (option === "마감임박순") return arr.sort((a, b) => deadlineRank(a) - deadlineRank(b));

@@ -10,7 +10,12 @@ from sqlalchemy.orm import Session
 
 from app.config import settings
 from app.models.financial_goal import FinancialGoal
-from app.services import savings_product_plan_service, savings_product_service, transaction_trend_service
+from app.services import (
+    goal_progress_service,
+    savings_product_plan_service,
+    savings_product_service,
+    transaction_trend_service,
+)
 from app.utils.money import whole_won
 
 
@@ -82,7 +87,11 @@ def savings_pace_basis(
 
 
 def goals_monthly_total(goals: list[FinancialGoal]) -> Decimal:
-    return sum((g.monthly_saving_amount for g in goals), Decimal("0"))
+    """상품 계획이 없는 달의 폴백 목표치 — savings_pace_basis가 상품 계획이 0일 때만 쓰므로, 목표 월 계획액
+    규칙(goal_progress_service.planned_monthly_for_goal)에 빈 상품 계획을 넘긴 값의 합이다: 상품 연동 목표는
+    0(상품 계획이 원본이라 목표에 남은 옛 monthly_saving_amount를 다시 세지 않는다), 미연동 목표만 직접 입력값.
+    챌린지는 저축 페이스 대상이 아니다."""
+    return sum((goal_progress_service.planned_monthly_for_goal(g, {}) for g in goals if g.kind == "goal"), Decimal("0"))
 
 
 def savings_pace_history(db: Session, trend: list[dict], goals: list[FinancialGoal]) -> list[tuple[Decimal, Decimal]]:

@@ -27,7 +27,6 @@ class RecurringExpense(Base):
     end_date: Mapped[date | None] = mapped_column(Date, nullable=True)
     reminder_days_before: Mapped[int] = mapped_column(Integer, default=3)
     next_due_date: Mapped[date] = mapped_column(Date)
-    calendar_event_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     created_by: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
 

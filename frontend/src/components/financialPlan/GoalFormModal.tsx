@@ -10,6 +10,7 @@ import Tabs from "@/components/common/Tabs";
 import FundingSourceChecklist from "@/components/financialPlan/FundingSourceChecklist";
 import GoalMonthlyTargetEditor from "@/components/financialPlan/GoalMonthlyTargetEditor";
 import { fetchGrowlioGoalSettings } from "@/api/goals";
+import { fetchNetWorth } from "@/api/netWorth";
 import { fetchSavingsProductsPlan } from "@/api/savingsProducts";
 import { FORM_LABEL, FORM_SECTION_LABEL, TEXTAREA_SM } from "@/constants/inputStyles";
 import { isGrowlioLinkedInvestment } from "@/constants/growlio";
@@ -23,6 +24,7 @@ import { amountInputPreview, formatKrw, toAmountInputValue } from "@/utils/forma
 import { toast } from "@/utils/toast";
 import {
   emptyChallengeDraft,
+  emptyNetWorthDraft,
   EMPTY_GOAL_DRAFT,
   toYearMonth,
   type Draft,
@@ -30,6 +32,7 @@ import {
 import type {
   AccountWithBalanceOut,
   FinancialGoalOut,
+  GoalKind,
   GoalMonthlyTargetIn,
   LoanOut,
   SavingsProductOut,
@@ -37,16 +40,24 @@ import type {
 import { amountToneClass, formErrorTextClass } from "@/utils/colors";
 import { sumAmounts } from "@/utils/amount";
 
-const GOAL_KIND_TABS = ["장기 목표", "챌린지"] as const;
+const GOAL_KIND_TABS = ["순자산", "장기 목표", "챌린지"] as const;
 type GoalKindTab = (typeof GOAL_KIND_TABS)[number];
-const GOAL_KIND_TAB_TO_KIND: Record<GoalKindTab, "goal" | "challenge"> = {
+const GOAL_KIND_TAB_TO_KIND: Record<GoalKindTab, GoalKind> = {
+  순자산: "net_worth",
   "장기 목표": "goal",
   챌린지: "challenge",
 };
-const KIND_TO_GOAL_KIND_TAB: Record<"goal" | "challenge", GoalKindTab> = {
+const KIND_TO_GOAL_KIND_TAB: Record<GoalKind, GoalKindTab> = {
+  net_worth: "순자산",
   goal: "장기 목표",
   challenge: "챌린지",
 };
+
+function emptyDraftFor(kind: GoalKind): Draft {
+  if (kind === "challenge") return emptyChallengeDraft();
+  if (kind === "net_worth") return emptyNetWorthDraft();
+  return EMPTY_GOAL_DRAFT;
+}
 
 /** 장기 목표 폼의 단계 — 한 화면에 모든 입력(기본정보·자금원 3종 체크리스트·월별 계획·제안 계산)을 쌓던 긴 모달을
  * 모바일에서 한 번에 한 가지만 결정하도록 나눴다. */
@@ -61,6 +72,7 @@ export default function GoalFormModal({
   accounts,
   loans,
   existingGoal,
+  canCreateNetWorth = true,
   onClose,
   onSubmit,
 }: {
@@ -72,6 +84,8 @@ export default function GoalFormModal({
   accounts: AccountWithBalanceOut[];
   loans: LoanOut[];
   existingGoal: FinancialGoalOut | null;
+  /** 순자산 목표는 가구당 하나 — 이미 있으면 새 목표 유형에서 뺀다(백엔드도 409). */
+  canCreateNetWorth?: boolean;
   onClose: () => void;
   onSubmit: (draft: Draft) => void;
 }) {
@@ -81,20 +95,21 @@ export default function GoalFormModal({
   // 렌더 중 new Date()는 비순수 호출이라(oxlint) 모달이 열린 시점을 한 번만 잡는다.
   const [openedAt] = useState(() => new Date());
   const isChallenge = draft.kind === "challenge";
+  const isNetWorth = draft.kind === "net_worth";
+  const kindTabs = canCreateNetWorth ? GOAL_KIND_TABS : GOAL_KIND_TABS.filter((tab) => tab !== "순자산");
   // 유형 선택은 생성 시에만 가능하다(백엔드 FinancialGoalUpdateIn에 kind 필드 자체가 없어 생성 후
   // 유형 변경이 불가능) — 수정 모드에서는 토글을 숨기고 기존 kind별 폼만 보여준다. 이름은 유형을
   // 바꿔도 다시 입력하지 않도록 보존하고, 나머지 필드는 빈 초안으로 리셋한다(필드 구성이 크게 다름).
   const kindToggle =
     existingGoal === null ? (
       <Tabs
-        tabs={GOAL_KIND_TABS}
+        tabs={kindTabs}
         activeTab={KIND_TO_GOAL_KIND_TAB[draft.kind]}
         onChange={(tab) => {
           const nextKind = GOAL_KIND_TAB_TO_KIND[tab];
-          setDraft((d) => ({
-            ...(nextKind === "challenge" ? emptyChallengeDraft() : EMPTY_GOAL_DRAFT),
-            name: d.name,
-          }));
+          const next = emptyDraftFor(nextKind);
+          // 순자산 목표는 기본 이름이 있어 그대로 두고, 그 밖에는 입력하던 이름을 보존한다.
+          setDraft((d) => ({ ...next, name: d.kind === "net_worth" ? next.name : d.name || next.name }));
         }}
         variant="pill"
       />
@@ -117,6 +132,12 @@ export default function GoalFormModal({
     queryFn: () => fetchSavingsProductsPlan(thisMonth),
     staleTime: STALE_TIME.SHORT,
     enabled: !isChallenge && hasLinkedProducts,
+  });
+  const { data: netWorthData } = useQuery({
+    queryKey: QUERY_KEYS.netWorth(),
+    queryFn: () => fetchNetWorth(),
+    staleTime: STALE_TIME.MEDIUM,
+    enabled: isNetWorth,
   });
   const linkedPlannedMonthly = productPlan
     ? sumAmounts(
@@ -148,7 +169,8 @@ export default function GoalFormModal({
           annualDepositGoal !== null
             ? String(Math.round(annualDepositGoal / 12))
             : d.monthly_saving_amount,
-        savings_product_ids: growlioProductIds.length > 0 ? growlioProductIds : d.savings_product_ids,
+        savings_product_ids:
+          d.kind !== "net_worth" && growlioProductIds.length > 0 ? growlioProductIds : d.savings_product_ids,
         // growlio 목표 수익률로 복리 ETA를 계산한다(목표 폼 3단계 "기대 연 수익률").
         expected_annual_return_pct:
           data.goal_annual_return_pct !== null ? String(data.goal_annual_return_pct) : d.expected_annual_return_pct,
@@ -179,13 +201,87 @@ export default function GoalFormModal({
       setStep(0);
       return;
     }
-    // 챌린지는 한 화면 폼이라 바로 저장. 장기 목표는 마지막 단계에서만 저장하고, 그 전 Enter/다음은 다음 단계로.
-    if (!isChallenge && !isLastStep) {
+    // 챌린지·순자산 목표는 한 화면 폼이라 바로 저장. 장기 목표는 마지막 단계에서만 저장하고, 그 전 Enter/다음은 다음 단계로.
+    if (!isChallenge && !isNetWorth && !isLastStep) {
       setStep((current) => current + 1);
       return;
     }
     onSubmit(draft);
   };
+
+  if (isNetWorth) {
+    return (
+      <Modal onClose={onClose} title={title}>
+        <form onSubmit={handleSubmit} className="p-6 overflow-y-auto flex flex-col gap-3">
+          {kindToggle}
+          <div className="rounded-lg border border-gray-200 dark:border-gray-700 px-3 py-2.5 text-sm text-gray-600 dark:text-gray-300 space-y-1">
+            <p>
+              지금 우리 순자산{" "}
+              <span className="font-semibold text-gray-900 dark:text-gray-50">
+                {netWorthData ? formatKrw(netWorthData.current.net_worth) : "불러오는 중…"}
+              </span>
+            </p>
+            <p className="text-xs text-gray-500 dark:text-gray-400">
+              진행률은 자산 탭의 순자산(계좌·저축·투자·부동산 − 대출, growlio 연동 포함)을 그대로 따라가고, 월 저축액은{" "}
+              <Link to={planViewLink("이번 달")} className="font-semibold underline hover:no-underline">
+                계획 탭
+              </Link>{" "}
+              저축·투자 계획 합계예요.
+            </p>
+          </div>
+          <Button
+            type="button"
+            variant="secondary"
+            size="sm"
+            icon={<Download size={14} />}
+            loading={growlioGoalMutation.isPending}
+            onClick={() => growlioGoalMutation.mutate()}
+          >
+            growlio 목표 금액·수익률 불러오기
+          </Button>
+          <FormInput
+            label="목표 이름"
+            value={draft.name}
+            maxLength={100}
+            onChange={(e) => setDraft((d) => ({ ...d, name: e.target.value }))}
+            className="w-full"
+            required
+          />
+          <FormInput
+            label="목표 순자산"
+            type="number"
+            inputMode="decimal"
+            value={draft.required_amount}
+            onChange={(e) => setDraft((d) => ({ ...d, required_amount: e.target.value }))}
+            className="w-full"
+            preview={amountInputPreview(draft.required_amount)}
+          />
+          <FormInput
+            label="목표일 (두 분이 함께 정한 날짜)"
+            type="date"
+            value={draft.target_date}
+            onChange={(e) => setDraft((d) => ({ ...d, target_date: e.target.value }))}
+            className="w-full"
+          />
+          <FormInput
+            label="기대 연 수익률 % (선택)"
+            type="number"
+            inputMode="decimal"
+            step="0.1"
+            value={draft.expected_annual_return_pct}
+            onChange={(e) => setDraft((d) => ({ ...d, expected_annual_return_pct: e.target.value }))}
+            className="w-full"
+          />
+          <p className="text-xs text-gray-400 dark:text-gray-500">
+            입력하면 투자 수익을 월 복리로 반영한 예상 달성월도 함께 보여줘요.
+          </p>
+          <Button type="submit" loading={submitting} className="mt-2">
+            {submitLabel}
+          </Button>
+        </form>
+      </Modal>
+    );
+  }
 
   if (isChallenge) {
     return (

@@ -333,3 +333,14 @@ def test_goal_list_looks_up_product_plans_once_not_per_goal(client, seeded_db, m
 
     assert len(goals) == 3
     assert len(calls) == 1
+
+
+def test_second_net_worth_goal_returns_409(client, seeded_db):
+    body = {"kind": "net_worth", "priority": 1, "name": "순자산", "required_amount": "500000000", "monthly_saving_amount": "0"}
+    first = client.post("/api/v1/financial-goals", json=body)
+    assert first.status_code == 201
+    assert first.json()["kind"] == "net_worth"
+
+    resp = client.post("/api/v1/financial-goals", json=body)
+
+    assert resp.status_code == 409
