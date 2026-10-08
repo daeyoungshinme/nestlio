@@ -252,13 +252,6 @@ export interface ImportResultOut {
   created_ids: number[];
 }
 
-export interface SheetImportIn {
-  mode: "public" | "oauth";
-  sheet_url?: string;
-  spreadsheet_id?: string;
-  sheet_name?: string;
-}
-
 export interface BulkDeleteResultOut {
   deleted: number;
   failed: number[];
@@ -354,7 +347,6 @@ export interface CategoryTrendOut {
 }
 
 export type EventFrequency = "once" | "weekly" | "monthly";
-export type EventSource = "native" | "google_import";
 
 export interface EventOut {
   id: number;
@@ -371,19 +363,12 @@ export interface EventOut {
   /** 담당자 - null이면 공동(두 사람 모두 담당) */
   assignee: UserOut | null;
   completed_at: string | null;
-  source: EventSource;
   occurrence_start: string;
 }
 
 export interface EventListOut {
   items: EventOut[];
   recurring_due: RecurringOut[];
-}
-
-export interface EventImportResultOut {
-  created: number;
-  updated: number;
-  skipped: number;
 }
 
 export interface EventCreateIn {

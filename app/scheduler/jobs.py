@@ -10,7 +10,7 @@ from app.services import (
     notification_service,
     recurring_service,
 )
-from app.services.google_auth import GoogleNotConnectedError, is_connected
+from app.services.google_auth import is_connected
 from app.utils.dates import now_kst, today_kst
 
 logger = logging.getLogger("scheduler")
@@ -39,29 +39,10 @@ def _job(fail_message: str) -> Callable[[Callable[..., None]], Callable[[], None
     return decorator
 
 
-@_job("고정지출 거래 생성/캘린더 동기화 실패")
+@_job("고정지출 거래 생성 실패")
 def daily_due_date_check(db) -> None:
-    """Post transactions for any recurring expense whose due date has arrived,
-    and sync upcoming reminder events to Google Calendar (if connected)."""
+    """Post transactions for any recurring expense whose due date has arrived."""
     recurring_service.generate_due_transactions(db, today=today_kst())
-    _sync_upcoming_calendar_events(db)
-
-
-def _sync_upcoming_calendar_events(db) -> None:
-    if not is_connected():
-        logger.info("Google 계정 미연결 - 캘린더 동기화 건너뜀")
-        return
-    from app.services import google_calendar_service  # imported lazily: only needed when connected
-
-    for recurring in recurring_service.upcoming(db, within_days=14):
-        try:
-            google_calendar_service.upsert_event_for_recurring(db, recurring)
-        except GoogleNotConnectedError:
-            return
-        except Exception:
-            # 커밋 도중 실패했으면 세션을 되돌려야 다음 항목이 PendingRollbackError 없이 진행된다.
-            db.rollback()
-            logger.exception("캘린더 이벤트 동기화 실패: %s", recurring.name)
 
 
 @_job("주간 요약 알림 처리 실패")

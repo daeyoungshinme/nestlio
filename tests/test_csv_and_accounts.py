@@ -11,8 +11,6 @@ from app.services import (
     transaction_service,
     transaction_trend_service,
 )
-from app.services.google_auth import GoogleNotConnectedError
-from app.services.google_sheets_service import GoogleSheetsReadError
 from app.services.growlio_client import GrowlioNotConfiguredError
 
 
@@ -105,56 +103,6 @@ def test_import_row_db_error_is_isolated_and_does_not_abort_whole_import(seeded_
     assert "simulated data error" in result["skipped"][0]["reason"]
     reimported = transaction_service.list_transactions(db, date(2026, 7, 1), date(2026, 7, 31))
     assert [tx.description for tx in reimported] == ["ok"]
-
-
-def test_import_from_sheet_url_reads_public_csv_and_delegates_to_import_rows(seeded_db):
-    db, user = seeded_db["db"], seeded_db["user"]
-    csv_text = "날짜,구분,카테고리,금액,메모\n2026-07-05,지출,식비,10000,점심\n"
-
-    with patch(
-        "app.services.google_sheets_service.read_public_csv",
-        return_value=csv_text,
-    ) as mocked:
-        result = transaction_import_service.import_from_sheet_url(db, "https://docs.google.com/spreadsheets/d/abc123/edit", user.id)
-
-    mocked.assert_called_once_with("https://docs.google.com/spreadsheets/d/abc123/edit")
-    assert result["created"] == 1
-    assert result["skipped"] == []
-
-
-def test_import_from_sheet_url_propagates_read_error(seeded_db):
-    db, user = seeded_db["db"], seeded_db["user"]
-    with patch(
-        "app.services.google_sheets_service.read_public_csv",
-        side_effect=GoogleSheetsReadError("시트가 비공개 상태입니다."),
-    ):
-        with pytest.raises(GoogleSheetsReadError):
-            transaction_import_service.import_from_sheet_url(db, "https://docs.google.com/spreadsheets/d/abc123/edit", user.id)
-
-
-def test_import_from_spreadsheet_requires_google_connection(seeded_db):
-    db, user = seeded_db["db"], seeded_db["user"]
-    with patch("app.services.google_auth.is_connected", return_value=False):
-        with pytest.raises(GoogleNotConnectedError):
-            transaction_import_service.import_from_spreadsheet(db, "abc123", None, user.id)
-
-
-def test_import_from_spreadsheet_reads_values_and_delegates_to_import_rows(seeded_db):
-    db, user = seeded_db["db"], seeded_db["user"]
-    rows = [
-        ["날짜", "구분", "카테고리", "금액", "메모"],
-        ["2026-07-05", "지출", "식비", "10000", "점심"],
-    ]
-
-    with (
-        patch("app.services.google_auth.is_connected", return_value=True),
-        patch("app.services.google_sheets_service.read_values", return_value=rows) as mocked,
-    ):
-        result = transaction_import_service.import_from_spreadsheet(db, "abc123", "1월", user.id)
-
-    mocked.assert_called_once_with("abc123", "1월")
-    assert result["created"] == 1
-    assert result["skipped"] == []
 
 
 def test_account_balance_reflects_initial_balance_plus_transactions(seeded_db):

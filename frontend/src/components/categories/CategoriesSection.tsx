@@ -97,8 +97,9 @@ export default function CategoriesSection() {
     <div className="space-y-6">
       <div className="card">
         <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">새 카테고리 추가</h3>
-        <form onSubmit={handleSubmit} className="flex flex-wrap items-start gap-3">
-          <div className="flex-1 min-w-[120px]">
+        {/* 모바일은 2열 격자(이름·표준 카테고리는 한 줄 전체), sm 이상은 한 줄 인라인 폼. */}
+        <form onSubmit={handleSubmit} className="grid grid-cols-2 gap-3 sm:flex sm:flex-wrap sm:items-start">
+          <div className="col-span-2 sm:flex-1 sm:min-w-[120px]">
             <FormInput
               label="이름"
               value={form.name}
@@ -107,7 +108,7 @@ export default function CategoriesSection() {
               required
             />
           </div>
-          <div className="flex-1 min-w-[100px]">
+          <div className="sm:flex-1 sm:min-w-[100px]">
             <label htmlFor={`${fieldId}-0`} className={`block mb-1 font-medium ${LABEL_SM}`}>종류</label>
             <select
               id={`${fieldId}-0`}
@@ -119,7 +120,7 @@ export default function CategoriesSection() {
               <option value="income">수입</option>
             </select>
           </div>
-          <div className="flex-1 min-w-[110px]">
+          <div className="sm:flex-1 sm:min-w-[110px]">
             <label htmlFor={`${fieldId}-1`} className={`block mb-1 font-medium ${LABEL_SM}`}>구분</label>
             <select
               id={`${fieldId}-1`}
@@ -134,7 +135,7 @@ export default function CategoriesSection() {
               ))}
             </select>
           </div>
-          <div className="flex-1 min-w-[140px]">
+          <div className="col-span-2 sm:flex-1 sm:min-w-[140px]">
             <label htmlFor={`${fieldId}-2`} className={`block mb-1 font-medium ${LABEL_SM}`}>표준 카테고리(선택)</label>
             <select
               id={`${fieldId}-2`}
@@ -160,7 +161,7 @@ export default function CategoriesSection() {
               className={COLOR_INPUT_SM}
             />
           </div>
-          <Button type="submit" loading={createMutation.isPending} className={INLINE_BUTTON_OFFSET}>
+          <Button type="submit" loading={createMutation.isPending} className={`self-end sm:self-auto ${INLINE_BUTTON_OFFSET}`}>
             추가
           </Button>
         </form>
