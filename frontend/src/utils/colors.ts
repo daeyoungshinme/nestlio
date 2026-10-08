@@ -250,10 +250,6 @@ export function growlioLinkedBadgeStyle(): string {
   return "bg-blue-50 dark:bg-blue-950 text-blue-700 dark:text-blue-300";
 }
 
-export function googleImportedEventBadgeStyle(): string {
-  return "bg-amber-50 dark:bg-amber-950 text-amber-600 dark:text-amber-400";
-}
-
 export function linkedGoalBadgeStyle(): string {
   return "bg-primary-50 dark:bg-primary-950 text-primary-700 dark:text-primary-300";
 }

@@ -3,7 +3,6 @@ import type {
   BulkDeleteResultOut,
   CategoryAmountOut,
   ImportResultOut,
-  SheetImportIn,
   TransactionCreateIn,
   TransactionFilters,
   TransactionListOut,
@@ -43,9 +42,6 @@ export const importTransactionsCsv = (file: File) => {
     headers: { "Content-Type": "multipart/form-data" },
   });
 };
-
-export const importTransactionsFromSheet = (payload: SheetImportIn) =>
-  apiPost<ImportResultOut>("/transactions/import-sheet", payload);
 
 export const fetchTransactionsCsv = (filters: TransactionFilters) =>
   api
