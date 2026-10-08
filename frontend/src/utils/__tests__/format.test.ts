@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   amountInputPreview,
   formatKrw,
+  formatKrwAxis,
   formatKrwCompact,
   formatKrwPreview,
   formatPercent,
@@ -143,5 +144,14 @@ describe("amountInputPreview", () => {
     for (const value of ["", "0", "-100", "abc"]) {
       expect(amountInputPreview(value)).toBeUndefined();
     }
+  });
+});
+
+describe("formatKrwAxis", () => {
+  it("drops the 원 unit and keeps axis labels short", () => {
+    expect(formatKrwAxis(150_000_000)).toBe("1.5억");
+    expect(formatKrwAxis(200_000_000)).toBe("2억");
+    expect(formatKrwAxis(5_000_000)).toBe("500만");
+    expect(formatKrwAxis(3_000)).toBe("3,000");
   });
 });

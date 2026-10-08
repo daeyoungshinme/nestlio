@@ -1,8 +1,13 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowRight, Pencil } from "lucide-react";
+import { ArrowRight, Pencil, Plus } from "lucide-react";
 import { Link } from "react-router-dom";
+import Button from "@/components/common/Button";
 import EmptyState from "@/components/common/EmptyState";
+import SavingsProductFormModal, {
+  EMPTY_PRODUCT_DRAFT,
+  toSavingsProductPayload,
+} from "@/components/accounts/SavingsProductFormModal";
 import ErrorState from "@/components/common/ErrorState";
 import Modal from "@/components/common/Modal";
 import SkeletonCard from "@/components/common/SkeletonCard";
@@ -12,6 +17,7 @@ import SavingsProductAnnualPlanForm from "@/components/financialPlan/SavingsProd
 import SectionAchievementBar from "@/components/financialPlan/SectionAchievementBar";
 import SuggestionHint from "@/components/financialPlan/SuggestionHint";
 import {
+  createSavingsProduct,
   fetchSavingsProductAnnualPlanDetail,
   fetchSavingsProductsAnnualPlan,
   fetchSavingsProductsPlan,
@@ -19,7 +25,7 @@ import {
 } from "@/api/savingsProducts";
 import { useSavingsProducts, useUsers } from "@/hooks/useReferenceData";
 import { accountsSectionLink } from "@/constants/routes";
-import { QUERY_KEYS } from "@/constants/queryKeys";
+import { ASSET_RELATED_KEYS, QUERY_KEYS } from "@/constants/queryKeys";
 import { TOUCH_TARGET_MIN_MOBILE_ONLY } from "@/constants/uiSizes";
 import { formatKrw, formatPercent } from "@/utils/format";
 import { yearOf } from "@/utils/date";
@@ -296,7 +302,19 @@ export default function SavingsInvestmentPlanPanel({
   showViewToggle?: boolean;
 }) {
   const [viewMode, setViewMode] = useState<ViewMode>(initialViewMode);
+  const [showCreate, setShowCreate] = useState(false);
   const year = yearOf(yearMonth);
+  const queryClient = useQueryClient();
+  // 계획을 세우다 상품이 없으면 자산 탭으로 왕복하지 않고 여기서 바로 만든다(자산 탭과 같은 폼).
+  const createMutation = useMutation({
+    mutationFn: createSavingsProduct,
+    onSuccess: () => {
+      for (const queryKey of ASSET_RELATED_KEYS) void queryClient.invalidateQueries({ queryKey });
+      setShowCreate(false);
+      toast("저축/투자 상품을 추가했습니다.", "success");
+    },
+    onError: (err) => toast(extractErrorMessage(err), "error"),
+  });
 
   const {
     data: monthData,
@@ -347,7 +365,7 @@ export default function SavingsInvestmentPlanPanel({
 
       <p className="text-xs text-gray-400 dark:text-gray-500">
         {isMonthMode
-          ? "자산현황에 등록된 저축/투자 상품의 월 저축액(계획)과 이번 달 가계부에 기록된 실제 납입액을 비교해요. 월 계획액 수정은 여기서 바로 할 수 있고, 상품 추가·잔액 동기화는 자산현황에서 해요."
+          ? "자산현황에 등록된 저축/투자 상품의 월 저축액(계획)과 이번 달 가계부에 기록된 실제 납입액을 비교해요. 상품 추가와 월 계획액 수정은 여기서 바로 하고, 잔액 동기화는 자산현황에서 해요."
           : "연초부터 지금까지 계획대로 누적 납입했는지 비교해요. 특정 달을 거르고 다음 달에 몰아 넣어도 누적 기준으로는 계획대로 낸 것으로 반영돼요."}
       </p>
 
@@ -355,12 +373,9 @@ export default function SavingsInvestmentPlanPanel({
         <div className="card">
           <EmptyState title="등록된 저축/투자 상품이 없어요" compact />
           <div className="flex justify-center pb-2">
-            <Link
-              to={ACCOUNTS_SAVINGS_TAB_LINK}
-              className="inline-flex items-center gap-1 text-sm text-primary-600 dark:text-primary-400 hover:underline"
-            >
-              자산현황에서 추가하기 <ArrowRight size={14} />
-            </Link>
+            <Button size="sm" icon={<Plus size={14} />} onClick={() => setShowCreate(true)}>
+              상품 추가
+            </Button>
           </div>
         </div>
       ) : (
@@ -385,7 +400,10 @@ export default function SavingsInvestmentPlanPanel({
             yearMonth={yearMonth}
             year={year}
           />
-          <div className="flex justify-end">
+          <div className="flex items-center justify-between gap-2">
+            <Button variant="secondary" size="sm" icon={<Plus size={14} />} onClick={() => setShowCreate(true)}>
+              상품 추가
+            </Button>
             <Link
               to={ACCOUNTS_SAVINGS_TAB_LINK}
               className="inline-flex items-center gap-1 text-sm text-gray-500 dark:text-gray-400 hover:text-primary-600 dark:hover:text-primary-400"
@@ -394,6 +412,19 @@ export default function SavingsInvestmentPlanPanel({
             </Link>
           </div>
         </>
+      )}
+
+      {showCreate && (
+        <SavingsProductFormModal
+          initial={EMPTY_PRODUCT_DRAFT}
+          product={null}
+          title="저축/투자 상품 추가"
+          submitLabel="추가"
+          submitting={createMutation.isPending}
+          users={users}
+          onClose={() => setShowCreate(false)}
+          onSubmit={(draft) => createMutation.mutate(toSavingsProductPayload(draft))}
+        />
       )}
     </div>
   );

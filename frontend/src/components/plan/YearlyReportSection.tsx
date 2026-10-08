@@ -27,7 +27,7 @@ import { useUsers } from "@/hooks/useReferenceData";
 import { QUERY_KEYS } from "@/constants/queryKeys";
 import { ROUTES } from "@/constants/routes";
 import { STALE_TIME } from "@/constants/queryConfig";
-import { formatKrw, formatKrwCompact, formatPercent, formatYearMonth, formatMonthOnly } from "@/utils/format";
+import { formatKrw, formatKrwAxis, formatPercent, formatYearMonth, formatMonthOnly } from "@/utils/format";
 import { incomeExpenseChartColor, planStatusBarClass, planStatusTextClass } from "@/utils/colors";
 import { useThemeStore } from "@/stores/themeStore";
 import type { CategoryBenchmarkRowOut } from "@/types";
@@ -122,8 +122,8 @@ export default function YearlyReportSection({ year }: { year: number }) {
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={monthlyData}>
                     <CartesianGrid strokeDasharray="3 3" className="stroke-gray-200 dark:stroke-gray-700" />
-                    <XAxis dataKey="name" tick={{ fontSize: 12 }} tickFormatter={MONTH_TICK_FORMATTER} interval={0} />
-                    <YAxis tick={{ fontSize: 12 }} tickFormatter={(v) => formatKrwCompact(Number(v))} width={70} />
+                    <XAxis dataKey="name" tick={{ fontSize: 11 }} tickFormatter={MONTH_TICK_FORMATTER} interval="preserveStartEnd" minTickGap={8} />
+                    <YAxis tick={{ fontSize: 11 }} tickFormatter={(v) => formatKrwAxis(Number(v))} width={44} />
                     <Tooltip formatter={(v) => formatKrw(Number(v))} />
                     <Legend />
                     <Bar dataKey="수입" fill={incomeExpenseChartColor("income", isDark)} radius={[4, 4, 0, 0]} />
@@ -146,7 +146,7 @@ export default function YearlyReportSection({ year }: { year: number }) {
                   <div className="h-[220px] sm:h-[260px]">
                     <ResponsiveContainer width="100%" height="100%">
                       <PieChart>
-                        <Pie data={pieData} dataKey="value" nameKey="name" innerRadius={60} outerRadius={100}>
+                        <Pie data={pieData} dataKey="value" nameKey="name" innerRadius="55%" outerRadius="85%">
                           {pieData.map((entry, i) => (
                             <Cell key={i} fill={entry.color} />
                           ))}
@@ -208,8 +208,8 @@ export default function YearlyReportSection({ year }: { year: number }) {
                   <ResponsiveContainer width="100%" height="100%">
                     <LineChart data={trendData}>
                       <CartesianGrid strokeDasharray="3 3" className="stroke-gray-200 dark:stroke-gray-700" />
-                      <XAxis dataKey="name" tick={{ fontSize: 12 }} tickFormatter={TREND_TICK_FORMATTER} interval={0} />
-                      <YAxis tick={{ fontSize: 12 }} tickFormatter={(v) => formatKrwCompact(Number(v))} width={70} />
+                      <XAxis dataKey="name" tick={{ fontSize: 11 }} tickFormatter={TREND_TICK_FORMATTER} interval="preserveStartEnd" minTickGap={8} />
+                      <YAxis tick={{ fontSize: 11 }} tickFormatter={(v) => formatKrwAxis(Number(v))} width={44} />
                       <Tooltip formatter={(v) => formatKrw(Number(v))} />
                       <Legend
                         onClick={(e) => toggleSeries(String(e.value))}
