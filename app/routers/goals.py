@@ -63,7 +63,7 @@ def create_goal(
             now=now,
             expected_annual_return_pct=payload.expected_annual_return_pct,
         )
-    except goal_service.DuplicateFundingSourceProductError as exc:
+    except (goal_service.DuplicateFundingSourceProductError, goal_service.NetWorthGoalExistsError) as exc:
         raise HTTPException(status.HTTP_409_CONFLICT, str(exc)) from exc
     try:
         notification_service.check_and_celebrate_goal_milestone(db, goal.id, today)

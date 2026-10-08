@@ -574,7 +574,8 @@ export interface FundingSourceIn {
   id: number;
 }
 
-export type GoalKind = "goal" | "challenge";
+/** net_worth = 부부 자산증식 목표(가구 순자산 전체가 진행금액, 가구당 하나). */
+export type GoalKind = "goal" | "challenge" | "net_worth";
 
 export interface GoalMonthlyTargetOut {
   year_month: string;

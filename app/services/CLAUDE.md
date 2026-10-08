@@ -89,6 +89,10 @@
 - 두 모듈 사이에 의존 관계는 없다(서로 import하지 않음) — 알림을 "발송"하는 것과 발송된 알림을 "조회/읽음 처리"하는 것은 완전히 분리된 관심사다.
 - 테스트도 모듈별로 나뉘어 있다 — `tests/test_notification_service.py`(발송·dedup), `tests/test_notification_inbox_service.py`(알림 목록/읽음/반응).
 
+## 순자산 목표 (FinancialGoal.kind="net_worth")
+
+부부 자산증식 목표. 가구당 하나(`goal_service.NetWorthGoalExistsError` → 409). 진행금액은 `net_worth_service.compute_current`의 순자산, 월 계획액은 모든 저축·투자 상품의 그 달 계획 합(`goal_progress_service.planned_monthly_for_goal`)이라 자금원 연동·월별 목표·수동 진행금액은 생성/수정 시 버린다. 새 kind 분기는 `goal_progress_service`의 `compute_current_amount`/`to_out`/`planned_monthly_for_goal` 세 곳을 함께 본다.
+
 ## growlio 연동 공통 헬퍼 (growlio_client.py)
 
 `GrowlioNotConfiguredError`/`GrowlioRequestError`/`GrowlioSyncError`는 모두 `growlio_client.py`에 단일 정의되어 있다 — account_service/savings_product_growlio_service/real_estate_service는 여기서 import해서 쓰고 새로 정의하지 않는다. 라우터에서 이 예외들을 개별적으로 catch할 필요도 없다 — `app/main.py`가 `growlio_client.register_exception_handlers(app)`로 앱 전역에서 501/502/409로 매핑한다.

@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 
 from app.models.financial_goal import FinancialGoal
 from app.models.transaction import Transaction
-from app.services import account_service, savings_product_plan_service
+from app.services import account_service, net_worth_service, savings_product_plan_service
 from app.utils.dates import month_bounds, months_between, parse_year_month, shift_month, year_month_str
 from app.utils.money import whole_won
 
@@ -63,12 +63,19 @@ def current_amount_from_breakdown(goal: FinancialGoal, breakdown: list[dict]) ->
     return _sum_breakdown_amounts(goal, breakdown)
 
 
+def net_worth_now(db: Session) -> Decimal:
+    return net_worth_service.compute_current(db)["net_worth"]
+
+
 def compute_current_amount(db: Session, goal: FinancialGoal) -> Decimal:
     """연동된 저축상품·계좌 잔액 합에서 연동된 대출 잔액을 뺀 값. 연동이 하나도 없으면 수동 입력값.
     kind="goal"이 미연동이면서 monthly_targets이 있으면(월별 계획을 쓰는 신규 장기목표) 월별
     achieved_amount 합을 쓴다 — 연동된 목표는 잔액이 이미 진실의 원천이라(월별 합산과 어긋날
     수 있음, 이자 등 거래 외 변동 포함) 그대로 두고, monthly_targets이 아예 없는 기존 목표(이
-    기능 도입 전에 만든 목표)는 하위호환을 위해 manual_current_amount를 그대로 쓴다."""
+    기능 도입 전에 만든 목표)는 하위호환을 위해 manual_current_amount를 그대로 쓴다.
+    kind="net_worth"는 가구 순자산 전체."""
+    if goal.kind == "net_worth":
+        return net_worth_now(db)
     return current_amount_from_breakdown(goal, funding_source_breakdown(db, goal))
 
 
@@ -208,7 +215,10 @@ def compute_ahead_behind_months(eta_year_month: str | None, target_date: date | 
 def planned_monthly_for_goal(goal: FinancialGoal, planned_by_product: dict[int, Decimal]) -> Decimal:
     """목표의 실제 월 계획액. 저축·투자 상품이 연동된 목표는 그 상품들의 이번 달 계획액 합(계획 원본은
     SavingsProduct 월 계획 — savings_product_plan_service.planned_by_product_for_month)이고, 상품 연동이 없는
-    목표만 목표에 직접 입력한 monthly_saving_amount를 쓴다."""
+    목표만 목표에 직접 입력한 monthly_saving_amount를 쓴다. kind="net_worth"는 가구 전체가 자금원이라 모든
+    저축·투자 상품의 그 달 계획 합(계획 탭 저축·투자 섹션 합계와 같은 값)이다."""
+    if goal.kind == "net_worth":
+        return sum(planned_by_product.values(), Decimal("0"))
     product_ids = [fs.savings_product_id for fs in goal.funding_sources if fs.savings_product_id is not None]
     if not product_ids:
         return goal.monthly_saving_amount
@@ -228,7 +238,9 @@ def to_out(
     if planned_by_product is None:
         planned_by_product = savings_product_plan_service.planned_by_product_for_month(db, year_month_str(today))
     planned_monthly = planned_monthly_for_goal(goal, planned_by_product)
-    current_amount = current_amount_from_breakdown(goal, breakdown)
+    current_amount = (
+        net_worth_now(db) if goal.kind == "net_worth" else current_amount_from_breakdown(goal, breakdown)
+    )
     months_remaining = compute_months_remaining(today, goal.target_date)
     is_linked_goal = goal.kind == "goal" and bool(goal.funding_sources)
     linked_monthly_achieved = (

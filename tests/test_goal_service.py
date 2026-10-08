@@ -760,3 +760,89 @@ def test_to_out_includes_eta_with_return_when_expected_return_set(seeded_db):
     assert out["expected_annual_return_pct"] == Decimal("12")
     assert out["eta_year_month"] == "2028-03"
     assert out["eta_with_return_year_month"] == "2027-05"
+
+
+# --- kind="net_worth" (부부 자산증식 목표) ---------------------------------------------------------
+
+
+def test_net_worth_goal_tracks_household_net_worth_and_ignores_links(seeded_db):
+    db = seeded_db["db"]
+    product = savings_product_service.create_product(db, "적금", Decimal("3000000"), Decimal("100000"))
+    loan_service.create_loan(db, "전세대출", Decimal("1000000"), Decimal("0"), None, None, None, None)
+    goal = goal_service.create_goal(
+        db,
+        1,
+        "순자산 5억",
+        None,
+        Decimal("500000000"),
+        Decimal("0"),
+        current_amount=Decimal("999"),
+        funding_sources=[{"type": "savings_product", "id": product.id}],
+        kind="net_worth",
+        monthly_targets=[{"year_month": "2026-10", "target_amount": Decimal("1")}],
+    )
+
+    expected = goal_progress_service.net_worth_now(db)
+    assert goal.funding_sources == [] and goal.monthly_targets == []
+    assert goal_progress_service.compute_current_amount(db, goal) == expected
+    out = goal_progress_service.to_out(db, goal, date(2026, 10, 8))
+    assert out["current_amount"] == expected
+    assert out["funding_sources"] == []
+
+
+def test_net_worth_goal_monthly_plan_is_sum_of_all_product_plans(seeded_db):
+    db = seeded_db["db"]
+    savings_product_service.create_product(db, "적금", Decimal("0"), Decimal("300000"))
+    savings_product_service.create_product(db, "ETF", Decimal("0"), Decimal("500000"), product_type="investment")
+    goal = goal_service.create_goal(db, 1, "순자산", None, Decimal("100000000"), Decimal("0"), kind="net_worth")
+
+    out = goal_progress_service.to_out(db, goal, date(2026, 10, 8))
+
+    assert out["planned_monthly_amount"] == Decimal("800000")
+
+
+def test_only_one_net_worth_goal_allowed(seeded_db):
+    db = seeded_db["db"]
+    goal_service.create_goal(db, 1, "순자산", None, Decimal("100000000"), Decimal("0"), kind="net_worth")
+    with pytest.raises(goal_service.NetWorthGoalExistsError):
+        goal_service.create_goal(db, 1, "또 순자산", None, Decimal("200000000"), Decimal("0"), kind="net_worth")
+
+
+def test_updating_net_worth_goal_keeps_it_unlinked(seeded_db):
+    db = seeded_db["db"]
+    product = savings_product_service.create_product(db, "적금", Decimal("0"), Decimal("0"))
+    goal = goal_service.create_goal(db, 1, "순자산", None, Decimal("100000000"), Decimal("0"), kind="net_worth")
+
+    updated = goal_service.update_goal(
+        db,
+        goal.id,
+        1,
+        "순자산 2억",
+        None,
+        Decimal("200000000"),
+        Decimal("0"),
+        funding_sources=[{"type": "savings_product", "id": product.id}],
+    )
+
+    assert updated.name == "순자산 2억"
+    assert updated.funding_sources == []
+
+
+def test_goals_monthly_total_counts_only_unlinked_long_term_goals(seeded_db):
+    from app.services.savings_coaching_service import goals_monthly_total
+
+    db = seeded_db["db"]
+    product = savings_product_service.create_product(db, "적금", Decimal("0"), Decimal("0"))
+    unlinked = goal_service.create_goal(db, 1, "여행", None, Decimal("5000000"), Decimal("200000"))
+    linked = goal_service.create_goal(
+        db,
+        1,
+        "내집",
+        None,
+        Decimal("100000000"),
+        Decimal("700000"),  # 상품 연동 목표에 남은 옛 값 — 상품 계획이 원본이라 세지 않는다
+        funding_sources=[{"type": "savings_product", "id": product.id}],
+    )
+    challenge = goal_service.create_goal(db, 1, "커피 줄이기", None, Decimal("100000"), Decimal("50000"), kind="challenge")
+
+    assert goals_monthly_total([unlinked, linked, challenge]) == Decimal("200000")
