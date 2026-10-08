@@ -386,3 +386,33 @@ def test_list_transactions_search_without_dates_includes_future_rows_in_totals(c
 
     assert len(body["items"]) == 1
     assert Decimal(body["totals"]["expense"]) == Decimal("7000")
+
+
+def test_creating_savings_transaction_leaves_partner_saving_notification(client, seeded_db):
+    from app.models.category import Category
+    from app.models.savings_product import SavingsProduct
+
+    db = seeded_db["db"]
+    savings_category = Category(name="저축/투자", type="fixed", color="#10b981", is_savings=True, sort_order=0)
+    product = SavingsProduct(name="적금", current_balance=Decimal("0"), monthly_saving_amount=Decimal("0"))
+    db.add_all([savings_category, product])
+    db.commit()
+
+    resp = client.post(
+        "/api/v1/transactions",
+        json={
+            "amount": "50000",
+            "type": "expense",
+            "category_id": savings_category.id,
+            "transaction_date": "2026-07-05",
+            "savings_product_id": product.id,
+        },
+    )
+
+    assert resp.status_code == 201
+    items = client.get("/api/v1/notifications").json()["items"]
+    partner = [n for n in items if n["notif_type"] == "partner_saving"]
+    assert len(partner) == 1
+    assert partner[0]["detail"] == 'Spouse 1님이 "적금"에 50,000원 저축했어요'
+    # 기록한 본인에게는 읽음 처리돼 안 읽은 알림으로 잡히지 않는다
+    assert partner[0]["is_read"] is True

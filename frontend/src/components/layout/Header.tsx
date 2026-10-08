@@ -19,6 +19,8 @@ import { formatDate } from "@/utils/format";
 import { extractErrorMessage } from "@/utils/error";
 import { toast } from "@/utils/toast";
 import type { NotificationOut } from "@/types";
+// 축하·저축 알림에만 응원 반응을 남길 수 있다 — 예산 경고 등은 축하할 대상이 아니라 반응 UI를 노출하지 않는다.
+import { REACTABLE_NOTIF_TYPES } from "@/utils/cheers";
 
 const NOTIF_TYPE_LABEL: Record<string, string> = {
   email_weekly: "주간 요약",
@@ -29,12 +31,10 @@ const NOTIF_TYPE_LABEL: Record<string, string> = {
   event_reminder: "일정 알림",
   goal_cheer: "목표 응원",
   savings_pace_reminder: "월말 저축 리마인더",
+  partner_saving: "배우자 저축",
   google_reauth: "구글 연동 만료",
 };
 
-// 목표 마일스톤 축하 알림에만 응원 반응을 남길 수 있다 — 다른 알림 종류(예산 경고 등)는
-// 축하할 대상이 아니라서 반응 UI 자체를 노출하지 않는다.
-const REACTABLE_NOTIF_TYPES = new Set(["goal_milestone", "challenge_success"]);
 const REACTION_EMOJIS = ["🎉", "👏", "❤️", "💪", "🥳"];
 
 function notificationTitle(n: NotificationOut): string {

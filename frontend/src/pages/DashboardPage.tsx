@@ -26,27 +26,13 @@ import { estimateGoalAcceleration } from "@/utils/goalAcceleration";
 import { extractErrorMessage } from "@/utils/error";
 import { toast } from "@/utils/toast";
 import { findGrowlioInvestmentLink } from "@/constants/growlio";
-import type { NotificationListOut, NotificationReactionOut, SavingsProductOut } from "@/types";
+import type { SavingsProductOut } from "@/types";
+import { latestPartnerCheer } from "@/utils/cheers";
 import { pinNetWorthFirst } from "@/utils/goalSort";
 import { coupleContribution } from "@/utils/contribution";
 
 /** 월초 며칠 동안은 지난달 회고를 맨 위에 올린다 — 그 외엔 새 달의 진행이 더 중요하다. */
 const RETROSPECTIVE_DAYS = 7;
-const CHEER_NOTIF_TYPES = new Set(["goal_milestone", "challenge_success"]);
-
-/** 배우자가 목표 마일스톤 알림에 남긴 가장 최근 응원. 알림 인박스(헤더)와 같은 쿼리 키라 캐시를 공유한다. */
-function latestPartnerCheer(
-  notifications: NotificationListOut | undefined,
-  myUserId: string | undefined,
-): NotificationReactionOut | null {
-  if (!notifications || !myUserId) return null;
-  const cheers = notifications.items
-    .filter((n) => CHEER_NOTIF_TYPES.has(n.notif_type))
-    .flatMap((n) => n.reactions)
-    .filter((r) => r.user_id !== myUserId)
-    .sort((a, b) => b.created_at.localeCompare(a.created_at));
-  return cheers[0] ?? null;
-}
 
 /** 홈 — "오늘 우리 목표는 어디쯤?"을 한 화면에 답한다. 위에서부터:
  *   ⓪ (월초 7일) 지난달 회고(부부 기여·저축 리더 포함)

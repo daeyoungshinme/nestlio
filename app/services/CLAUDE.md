@@ -33,6 +33,7 @@
 
 - `notification_service`는 동일 알림 중복 발송을 막기 위해 `NotificationLog` 모델(`notif_type` + `year_month` 등의 키)에 발송 기록을 남기고 확인한다.
 - 새 알림 종류를 추가할 때도 이 dedup 패턴을 따른다.
+- dedup이 없는 "사건" 알림(`goal_cheer`, `partner_saving`)은 `year_month`에 초 단위 ISO 시각을 넣고(String(20)), 행동한 본인에게는 `NotificationRead`로 바로 읽음 처리한다. `partner_saving`은 사용자가 직접 입력한 저축 거래(`POST /transactions`)에서만 남긴다 — 반복거래 자동 생성·CSV 가져오기는 알림함을 덮으므로 제외.
 
 ## coaching_engine.py / savings_coaching_service.py
 
