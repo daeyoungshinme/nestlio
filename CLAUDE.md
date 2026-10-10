@@ -1,63 +1,77 @@
 # nestlio
 
-부부 전용 가계부 웹앱. UI 문구는 한국어. FastAPI JSON API 백엔드 + React/TypeScript SPA 프론트엔드(`frontend/`)로 분리된 구조이며, growlio(자산관리 앱)와 디자인 시스템·인증 방식을 공유한다.
+부부 전용 가계부 웹앱. UI 문구는 한국어. FastAPI JSON API(`/api/v1`) + React/TypeScript SPA(`frontend/`). growlio(자산관리 앱, `d:\project\growlio`)와 디자인 시스템·인증·Supabase 프로젝트·Postgres를 공유한다.
+
+하위 문서 — 해당 디렉토리를 건드릴 때 먼저 읽는다:
+- [app/services/CLAUDE.md](app/services/CLAUDE.md) — 서비스 계층 컨벤션, 모듈 분할, growlio 연동, 계획 데이터 모델
+- [app/scheduler/CLAUDE.md](app/scheduler/CLAUDE.md) — 예약 작업(GitHub Actions 트리거)
+- [tests/CLAUDE.md](tests/CLAUDE.md) — 픽스처, 시간 결정론, mocking 범위
+- [frontend/CLAUDE.md](frontend/CLAUDE.md) — 프론트 구조, 라우트, 절대 규칙
 
 ## 기술 스택
 
-- **백엔드**: FastAPI (JSON API, `/api/v1` 프리픽스) — 서버사이드 템플릿 렌더링 없음
-- **프론트엔드**: React + TypeScript + Vite + Tailwind CSS (`frontend/`) — growlio의 디자인 시스템/컴포넌트 컨벤션을 따른다. 반응형 웹만 지원 (Capacitor/PWA 서비스워커 오프라인 캐싱 없음 — 재방문 즉시 표시용 React Query localStorage 캐시만 있다, [frontend/CLAUDE.md](frontend/CLAUDE.md))
-- **DB/ORM**: SQLAlchemy 2.0 (`Mapped`/`mapped_column` 스타일, 동기 세션), Alembic 마이그레이션 (`migrations/`)
-- **설정**: pydantic-settings (`app/config.py`)
-- **인증**: growlio와 동일 — 프론트엔드가 `@supabase/supabase-js`로 직접 로그인해 Supabase JWT를 발급받고, 백엔드는 `app/dependencies.py`에서 JWKS(`PyJWKClient`)로 서명만 검증한다. 백엔드에는 로그인 엔드포인트가 없다 (세션 쿠키 없음, `Authorization: Bearer <token>` 헤더만 사용)
-- **스케줄링**: 예약 작업은 in-process 스케줄러가 아니라 GitHub Actions 예약 워크플로(`.github/workflows/scheduled-jobs.yml`)가 `POST /internal/jobs/{job_name}`을 호출해 실행한다 (Render 무료 웹서비스가 15분 미사용 시 슬립하기 때문). 상세는 [app/scheduler/CLAUDE.md](app/scheduler/CLAUDE.md)
-- **외부 연동**: Gmail API(알림 메일 발송만 — 구글 캘린더·시트 연동은 2026-10 제거), growlio 자산 API(`app/services/growlio_client.py` — 사용자의 Supabase JWT를 그대로 전달해 호출, 별도 서비스 API 키 없음). 계좌·저축/투자·부동산(+담보대출) 잔액 동기화(`account_service`/`savings_product_growlio_service`/`real_estate_service`)와 재무목표 프리필·투자 수익 인사이트(`goal_service.fetch_growlio_goal_settings`/`fetch_growlio_insight`)는 읽기전용이지만, 저축/투자 내역 입력 시 growlio 계좌 입출금에도 반영하는 쓰기 호출(`push_transaction`, `transaction_service`)이 있다 — "읽기전용"으로 단정하지 않는다. 잔액 동기화는 자산현황 화면의 "전체 동기화" 버튼 + `auto_sync_enabled` 연동이 오래됐을 때 `GET /net-worth`·`GET /dashboard/bootstrap` 응답 후 백그라운드로 도는 기회주의적 갱신(`net_worth_service.refresh_stale_growlio_links`, 스케줄러엔 사용자 JWT가 없어서)으로 이뤄진다. growlio 연동 상세는 [app/services/CLAUDE.md](app/services/CLAUDE.md)의 "growlio 연동 공통 헬퍼" 절.
+- **백엔드**: FastAPI, 서버사이드 렌더링 없음. SQLAlchemy 2.0(`Mapped`/`mapped_column`, 동기 세션), Alembic(`migrations/`), pydantic-settings(`app/config.py`)
+- **프론트엔드**: React + TypeScript + Vite + Tailwind. 반응형 웹만 지원(Capacitor·서비스워커 없음)
+- **인증**: 프론트가 `@supabase/supabase-js`로 직접 로그인해 JWT를 받고, 백엔드는 `app/dependencies.py`에서 JWKS(`PyJWKClient`)로 서명만 검증한다. 백엔드엔 로그인 엔드포인트·세션 쿠키가 없다(`Authorization: Bearer`만)
+- **예약 작업**: in-process 스케줄러가 아니라 GitHub Actions(`.github/workflows/scheduled-jobs.yml`)가 `POST /internal/jobs/{job_name}`을 호출한다(Render 무료 티어가 15분 미사용 시 슬립)
+- **외부 연동**: Gmail(알림 메일 발송만 — 구글 캘린더·시트 연동은 2026-10 제거), growlio 자산 API(`app/services/growlio_client.py` — 사용자 JWT를 그대로 전달, 별도 API 키 없음). growlio 연동은 **읽기전용이 아니다** — 저축/투자 거래 입력 시 growlio 계좌에 입출금을 쓰는 `push_transaction`이 있다(실패분은 `growlio_push_service` 아웃박스가 재전송)
+- **배포**: Render 무료 웹서비스 1개(`render.yaml`). FastAPI가 `frontend/dist`를 정적 서빙하는 단일 프로세스. 디스크가 휘발성이라 부부 사진은 Supabase Storage, Google OAuth 토큰은 Postgres(`household.google_oauth_tokens`)에 저장한다
 
-## 아키텍처
+## 아키텍처 규칙
 
-계층 규칙: `app/routers` → `app/services` → `app/models`
+- 계층: `app/routers` → `app/services` → `app/models`. 라우터는 서비스 함수만 호출하고 모델을 직접 쿼리/수정하지 않는다.
+- 라우터: `Depends(get_current_user)`로 인증, `response_model=`로 응답 스키마 명시, DB 세션은 `Depends(get_db)`. 없는 리소스 404, 잘못된 상태 전이 409.
+- 설정: `app/config.py`의 모듈 전역 `settings` 하나를 import해서 쓴다. 코칭엔진 임계값(저축률·고정비 비율·예산 경고/위험 %·벤치마크 등)도 여기가 기본값이고, 부부가 설정 화면에서 바꾼 값이 우선한다.
+- models: `app.database.Base` 상속, 모든 테이블은 `household` 스키마. 자주 조인되는 관계는 `lazy="joined"`.
+- 날짜: 월/연 경계는 `app/utils/dates.py` 헬퍼(`month_bounds`, `year_bounds`, `shift_month`, `advance_due_date` 등)로만 계산한다. 현재 시각은 `now_kst()`/`today_kst()` — `datetime.now()`/`date.today()` 직접 호출 금지(앱은 naive datetime을 KST 벽시계로 취급하는데 컨테이너는 UTC).
+- 금액: 항상 `Decimal`(float 금지). 나눗셈으로 만든 금액(평균 등)은 `app/utils/money.py`의 `whole_won()`으로 원 단위 반올림한다 — 소수가 남으면 `Numeric(12,2)` 저장값과 제안값이 영원히 달라진다.
 
-- 라우터는 서비스 함수만 호출한다. 모델을 직접 쿼리/수정하지 않는다.
-- 모든 라우터는 `Depends(get_current_user)`(`app/dependencies.py`)로 인증하고 Pydantic `response_model`(`app/schemas/`)로 JSON을 직렬화한다. HTML/템플릿 렌더링은 없다.
-- 서비스 계층의 상세 컨벤션(함수 시그니처, Google 연동 가드, 결정론적 시간 처리 등)은 [app/services/CLAUDE.md](app/services/CLAUDE.md) 참고.
-- DB 세션은 `app/database.py`의 `get_db()` 의존성으로 요청 스코프에서 얻는다 (`Depends(get_db)`).
-- 설정값은 `app/config.py`의 모듈 전역 `settings` 인스턴스 하나를 어디서든 import해서 쓴다. 코칭엔진 임계값(저축률, 고정비 비율, 예산 경고/위험 %, 재량지출/부채 비율, 표준 카테고리별 지출 벤치마크 등)도 여기 있다.
-- 부부 전용 앱이라 로컬 `users`는 최대 2명(`app/services/user_service.py`의 `MAX_HOUSEHOLD_USERS`)으로 제한된다. 공개 회원가입 폼은 없지만, 인증된(Supabase JWT가 유효한) 요청이면 인원 상한에 도달하기 전까지는 첫 요청에서 바로 Supabase 사용자가 로컬 `User` 행으로 자동 미러링된다(`app/dependencies.py`의 `get_current_user`) — growlio처럼 같은 Supabase 프로젝트를 공유하는 계정도 이 두 자리 안에서는 초대 없이 로그인만으로 등록된다. 상한에 도달한 뒤에는 더 이상 새 계정이 생기지 않고 403이 반환된다. `app/services/invite_service.py`의 배우자 초대는 여전히 쓸 수 있지만 필수 경로는 아니다 — 표시 이름을 미리 지정해 초대장을 보내는 보조 수단으로, 초대 수락 시(`accept_invite`) 요청자의 검증된 JWT(`sub`/`email`)와 초대 이메일이 일치해야 표시 이름과 함께 `User` 행이 생성된다(클라이언트가 body로 보낸 `user_id`는 신뢰하지 않는다).
-- 배우자 제거(`user_service.remove_user`)는 하드 삭제가 아니라 `removed_at`/`removed_by_id`를 채우는 소프트 삭제다 — `transactions` 등 12개 테이블(+ `users.removed_by_id` 자기참조)이 `users.id`를 FK로 참조해 하드 삭제는 FK 위반을 일으킨다. 제거된 행은 `list_users()`에서 제외돼 가구 정원이 다시 열리지만 과거 거래내역 등은 원래 이름 그대로 남는다. 본인 계정은 이 방법으로 제거할 수 없다(`CannotRemoveSelfError`). 제거된 계정으로 들어온 요청은 `get_current_user`가 401이 아니라 403(`user_service.REMOVED_USER_DETAIL`)으로 거부한다 — Supabase 세션 자체는 여전히 유효해 401이면 프론트가 `refreshSession()`을 성공시킨 뒤 재요청이 조용히 실패해 로그아웃으로 이어지지 않기 때문. `frontend/src/api/client.ts`가 이 detail 문자열을 정확히 매칭해 자동 로그아웃하므로, 문구를 바꾸면 프론트도 함께 바꿔야 한다.
+### schemas (`app/schemas/`)
 
-## 디렉토리별 컨벤션 (routers / schemas / models / utils)
+- 출력 모델은 `ConfigDict(from_attributes=True)`.
+- 입력(`*In`) 필드 타입은 저장 컬럼에 맞춘다: `KrwAmount`=`Numeric(12,2)`, `KrwBalance`=`Numeric(14,2)`(둘 다 음수 불가), `SignedKrwBalance`=마이너스가 정상인 계좌 잔액, `Pct`=`Numeric(5,2)`, `String(N)` 컬럼은 `bounded_str(N)`. 이유: Postgres는 범위 초과 시 500(DataError)을 내지만 테스트용 SQLite는 무시하므로 스키마에서 422로 막아야 한다. `KrwAmount` 등은 빈 문자열(비운 `<input type="number">`)을 0으로 받는다. 누락은 `tests/test_schemas_krw_amount.py::test_every_input_decimal_and_str_field_is_bounded`가 잡는다.
+- 자유텍스트 컬럼을 출력에서 `Literal`로 좁힐 때는 `app/schemas/transaction.py`의 `PaymentMethodOut` 패턴(미지 값 → `"other"` 폴백 `BeforeValidator`)을 출력 타입에만 쓴다. 입력은 순수 `Literal`로 엄격하게. 안 그러면 기존 레거시 행 때문에 응답 직렬화가 500으로 터진다.
+- 스키마를 바꾸면 `cd frontend && npm run generate:api-types`로 `frontend/src/types/api.generated.ts`를 갱신해 함께 커밋한다(CI `api-types-drift`). 상세는 [frontend/CLAUDE.md](frontend/CLAUDE.md).
 
-- **routers**: 모든 라우터가 `Depends(get_current_user)`로 인증 확인, `response_model=`으로 응답 스키마를 명시한다. 없는 리소스는 `HTTPException(404)`, 잘못된 상태 전이는 `HTTPException(409)` 등으로 표현한다.
-- **schemas** (`app/schemas/`): 리소스별 Pydantic 요청/응답 모델. ORM 객체를 그대로 반환해도 되도록 출력 모델은 `ConfigDict(from_attributes=True)`를 쓴다. 사용자가 지울 수 있는 금액 입력 필드(`*In` 스키마의 `target_amount` 등)는 `Decimal` 대신 `app/schemas/common.py`의 `KrwAmount`를 쓴다 — `<input type="number">`를 비우면 `e.target.value`가 빈 문자열로 전송되는데 `Decimal`은 이를 파싱하지 못해 422가 나므로, 빈 문자열을 0으로 취급하는 `BeforeValidator`가 붙어 있다. 금액 타입은 저장 컬럼 정밀도에 맞춰 고른다 — `KrwAmount`=`Numeric(12,2)`, `KrwBalance`=`Numeric(14,2)`(둘 다 음수 불가), `SignedKrwBalance`=마이너스가 정상인 계좌 잔액, `Pct`=`Numeric(5,2)`. `String(N)` 컬럼에 저장되는 문자열 입력은 `bounded_str(N)`으로 길이를 막는다. Postgres는 범위를 넘으면 DataError(500)를 내는데 테스트용 SQLite는 무시하므로 스키마에서 422로 막아야 하고, `tests/test_schemas_krw_amount.py::test_every_input_decimal_and_str_field_is_bounded`가 새 `*In` 필드의 누락을 가드한다. 같은 이유로 DB 컬럼이 여전히 자유텍스트인 필드를 출력에서 `Literal`로 좁힐 때는 `app/schemas/transaction.py`의 `PaymentMethodOut` 패턴을 쓴다 — `Transaction.payment_method`는 `String(50)` 컬럼이라 `Literal` 도입 전에 다른 값으로 저장된 기존 행이 있으면 응답 직렬화가 422가 아니라 500으로 터진다. 미지 값을 `"other"`로 폴백하는 `BeforeValidator`를 출력 전용 타입에만 씌우고, 입력 스키마는 여전히 순수 `Literal`로 엄격하게 막는다.
-- **models**: SQLAlchemy 2.0 스타일로 `app.database.Base` 상속. 자주 조인되는 관계는 `lazy="joined"`로 선언 (예: `Transaction.user`/`category`/`account`).
-- **utils**: 날짜 연산은 반드시 `app/utils/dates.py`의 헬퍼(`month_bounds`, `year_bounds`, `shift_month`, `advance_due_date` 등)를 재사용한다. 직접 `timedelta` 연산으로 월/연 경계를 계산하지 않는다.
-- **금액**: 항상 `Decimal` 사용 (float 금지). 평균처럼 나눗셈으로 만든 금액은 `app/utils/money.py`의 `whole_won()`으로 원 단위 반올림해서 내보낸다(소수가 남으면 `Numeric(12,2)`에 저장된 값과 제안값이 영원히 달라진다).
+### 가구(사용자) 모델
 
-## 실행 / 커맨드
+- 로컬 `users`는 최대 2명(`user_service.MAX_HOUSEHOLD_USERS`). 공개 가입 폼은 없지만, 유효한 Supabase JWT로 들어온 요청이면 정원이 찰 때까지 `get_current_user`가 로컬 `User` 행을 자동 미러링한다(같은 Supabase 프로젝트의 growlio 계정도 로그인만으로 등록됨). 정원이 차면 403.
+- 배우자 초대(`invite_service`)는 표시 이름을 미리 정하는 보조 경로다. `accept_invite`는 body의 `user_id`가 아니라 검증된 JWT의 `sub`/`email`을 초대 이메일과 대조한다.
+- 배우자 제거(`user_service.remove_user`)는 소프트 삭제(`removed_at`/`removed_by_id`) — 12개 테이블(+ `users.removed_by_id` 자기참조)이 `users.id`를 FK로 참조한다. 본인은 제거 불가(`CannotRemoveSelfError`). 제거된 계정의 요청은 401이 아니라 **403 + `user_service.REMOVED_USER_DETAIL`** 로 거부한다(401이면 프론트가 `refreshSession()` 재시도에 성공해 로그아웃되지 않음). `frontend/src/api/client.ts`가 이 문자열을 정확히 매칭하므로 **문구를 바꾸면 프론트도 같이 바꾼다**.
 
-- 로컬 프론트엔드만 실행: `cd frontend && npm run dev` (Vite, 5273 포트, `/api` 요청을 8899로 프록시)
-- 개발(소스 수정 즉시 반영, HMR): `dev.sh` 인자 없이 실행 (Windows: `dev.bat`) — 백엔드(uvicorn `--reload`)와 프론트(Vite dev 서버)를 동시에 띄운다. `http://localhost:5273`으로 접속하면 프론트/백엔드 코드 수정이 재빌드·재기동 없이 바로 반영된다. `dev.sh`도 Windows(Git Bash) 전용이다(`powershell.exe`/`taskkill`/`.venv/Scripts` 사용). 8899/5273이 이미 사용 중이면(대개 이미 떠 있는 개발 서버) 기존 프로세스를 죽이지 않고 다음 빈 포트로 넘어가며, Vite 프록시는 `VITE_BACKEND_PORT`로 바뀐 백엔드 포트를 따라간다 — 실제 포트는 스크립트 출력으로 확인한다.
-- 마이그레이션/시드: `dev.sh migrate` (Windows: `dev.bat migrate`, `run`과 함께 줄 수 있음) — 로컬 `DATABASE_URL`은 대개 운영과 공유하는 Supabase Postgres라, 인자 없이 실행하면 `alembic upgrade head`/`scripts/seed_data.py`를 **건너뛴다**(머지 안 된 로컬 마이그레이션이 운영 DB에 적용되는 사고 방지). 운영 DB는 배포(`render.yaml`의 `alembic upgrade head`)가 head로 맞추므로 평소엔 필요 없다.
-- 배포 스냅샷 실행: `dev.sh run` (Windows: `dev.bat run`) — `frontend/dist`를 정적 빌드한 뒤 uvicorn 단일 프로세스(8899 포트)로 서빙한다. 프론트 수정 시 재빌드가 필요하다 (구 `run.sh`/`run.bat`은 이 모드로 통합됨).
-- 의존성 설치: 런타임은 `pip install -r requirements.txt`, 테스트/개발은 여기에 `-r requirements-dev.txt`를 더한다 (`pytest` 등 테스트 전용 의존성은 프로덕션 이미지에 넣지 않는다)
-- pre-commit 훅: `pre-commit install` 로 활성화(`.pre-commit-config.yaml` — ruff-check `--fix`, oxlint, 기본 위생 훅). CI 를 대체하지 않고 CI 왕복을 줄이는 용도. 포매터 전면 재정렬은 하지 않는다.
-- 테스트: `pytest` (설정은 `pyproject.toml`의 `[tool.pytest.ini_options]` — `--strict-markers`, `--durations=10`, `filterwarnings=["error", ...]`로 deprecation 경고를 에러로 승격. 상세 컨벤션은 [tests/CLAUDE.md](tests/CLAUDE.md))
-- 백엔드 린트: `ruff check .` (설정은 `pyproject.toml` `[tool.ruff]` — 포매팅 전면 재정렬은 안 하고 미사용 import/변수·bugbear·import 정렬만 강제). CI(`ci.yml`)가 `ruff check` + `pip check` + `pip-audit` + `pytest` + `migration-drift`(모델↔마이그레이션) + `api-types-drift`(백엔드 스키마↔`frontend/src/types/api.generated.ts`) + 프론트 잡(`npm audit --omit=dev --audit-level=high` 게이트 — dev 포함 전체 audit은 정보용,  raw `emerald-`/`indigo-` 색상 grep 가드, `npm run lint`/`test`/`build`/`check:bundle-size`)을 돌린다.
-- 마이그레이션: Alembic (`alembic.ini`, `migrations/`) — 모델 변경 시 리비전 생성 필요. 배포는 `alembic upgrade head`(`render.yaml`)라 체인이 깨지면 배포 전체가 실패하므로, `tests/test_migrations.py`가 Postgres 없이도 CI에서 head 1개·down_revision 연결·base 1개를 가드하고, CI `migration-drift` 잡이 `scripts/check_migration_drift.py`(임베디드 Postgres)로 "모델 == 마이그레이션 head"까지 가드한다(리비전 누락 방지). 2026-09-01에 51개 선형 체인을 단일 베이스라인(`bdba3c3b3277_squashed_baseline`) 하나로 스쿼시했다(운영 DB도 같은 날 stamp 완료). 구 리비전 파일과 일회성 검증 스크립트(`verify_migration_squash.py`)는 2026-09-25에 삭제했고 git 히스토리에만 남아 있다.
-- 배포: FastAPI가 `frontend/dist`(빌드된 SPA)를 정적 파일로 서빙하는 단일 프로세스 구조 (growlio의 nginx/Render+Vercel 분리 구조와 다른, nestlio 규모에 맞춘 의도적 단순화). Render 무료 웹서비스 1개로 배포한다 (`render.yaml` 참고) — DB는 별도로 마련할 필요 없이 growlio와 공유하는 Supabase Postgres를 그대로 쓴다. Render 무료 티어는 디스크가 완전히 휘발성이라 부부 사진은 Supabase Storage에, 구글 OAuth 토큰은 Postgres에 저장한다(아래 참고). 15분 미사용 시 슬립하므로 예약 작업은 인프로세스 스케줄러 대신 GitHub Actions가 트리거한다([app/scheduler/CLAUDE.md](app/scheduler/CLAUDE.md)).
+## 커맨드
+
+| 목적 | 커맨드 |
+|---|---|
+| 의존성 | `pip install -r requirements.txt -r requirements-dev.txt` (테스트 전용 의존성은 dev 파일에만) |
+| 개발 서버 | `dev.sh` / `dev.bat` (인자 없이) — uvicorn `--reload`(8899) + Vite(5273), `http://localhost:5273` 접속. HMR |
+| 배포 스냅샷 | `dev.sh run` — `frontend/dist` 빌드 후 uvicorn 단일 프로세스(8899) |
+| 프론트만 | `cd frontend && npm run dev` (`/api` → 8899 프록시) |
+| 테스트 | `pytest` |
+| 린트 | `ruff check .` (미사용 import·bugbear·import 정렬만, 포매터 전면 재정렬 안 함) |
+| pre-commit | `pre-commit install` (ruff `--fix`, oxlint, 위생 훅) |
+
+- `dev.sh`도 Windows(Git Bash) 전용이다. 8899/5273이 사용 중이면(대개 이미 떠 있는 사용자의 개발 서버) **기존 프로세스를 죽이지 않고** 다음 빈 포트로 넘어간다 — 실제 포트는 스크립트 출력으로 확인한다.
+- 마이그레이션/시드는 `dev.sh migrate`로만 돈다. 로컬 `DATABASE_URL`은 대개 **운영과 공유하는 Supabase Postgres**라, 기본 실행은 `alembic upgrade head`/`scripts/seed_data.py`를 건너뛴다(머지 안 된 마이그레이션이 운영에 적용되는 사고 방지). 운영 DB는 배포(`render.yaml`)가 head로 맞춘다.
+- pytest 설정(`pyproject.toml`)은 `--strict-markers`, `filterwarnings=["error", ...]`(deprecation 경고 = 에러).
+
+## CI (`.github/workflows/ci.yml`)
+
+백엔드: `ruff check` · `pip check` · `pip-audit` · `pytest`. `migration-drift`: `scripts/check_migration_drift.py`(임베디드 Postgres)로 모델 == 마이그레이션 head. `api-types-drift`: 스키마 ↔ `api.generated.ts`. 프론트: `npm audit --omit=dev --audit-level=high`(게이트), raw `emerald-`/`indigo-` 색상 grep 가드, `npm run lint`/`test`/`build`/`check:bundle-size`.
+
+## 마이그레이션
+
+- 모델을 바꾸면 Alembic 리비전을 만든다. 배포가 `alembic upgrade head`라 체인이 깨지면 배포 전체가 실패한다 — `tests/test_migrations.py`가 head 1개·base 1개·`down_revision` 연결을, CI `migration-drift`가 리비전 누락을 가드한다.
+- 체인은 2026-09-01에 단일 베이스라인 `bdba3c3b3277_squashed_baseline`으로 스쿼시됐다(이전 리비전은 git 히스토리에만 있음).
 
 ## 환경 변수
 
-`.env.example` 참고. 주요 그룹:
-- 런타임: `TZ=Asia/Seoul`(앱은 naive datetime을 KST 벽시계로 취급 — 컨테이너 기본 UTC면 스케줄러 날짜 경계가 어긋난다. 코드는 `app/utils/dates.py`의 `now_kst()`/`today_kst()`로도 방어), `APP_ENV`(`production`이면 필수 시크릿 누락 시 부팅을 막는다 — `app/config.py::validate_startup`. Render는 `RENDER` 환경변수로도 감지)
-- DB: `DATABASE_URL` — 로컬 개발도 Supabase Postgres가 필요하다. `app/config.py`의 SQLite 기본값(`sqlite:///./data/app.db`)은 모든 테이블이 `household` 스키마(`app/database.py`)에 있어 실제로는 동작하지 않는다(테스트는 `tests/conftest.py`가 in-memory SQLite 엔진에 `schema_translate_map={"household": None}`을 걸어 우회한다).
-- Supabase(growlio와 공유, JWT 검증용): `SUPABASE_PROJECT_URL`
-- CORS: `CORS_ORIGINS` (프론트엔드 오리진 목록)
-- 프론트엔드 오리진(배우자 초대 이메일의 가입 링크 조립용): `APP_BASE_URL`
-- 알림: `NOTIFY_EMAIL_TO`
-- 코칭엔진 임계값(0-100 %): 정본은 `app/config.py` 기본값이고 부부가 설정 화면에서 조정한 값이 우선한다. 기본값 자체를 환경별로 바꿔야 할 때만 `SAVINGS_RATE_*`, `FIXED_COST_RATIO_*`, `BUDGET_*_PCT`, `DISCRETIONARY_RATIO_WARN`, `DEBT_RATIO_WARN`, `BENCHMARK_*_WARN_PCT`, `EMERGENCY_FUND_*_MONTHS`, `GOAL_PACE_*_PCT`, `SAVINGS_EXECUTION_*_PCT`, `VARIABLE_TREND_FLAG_PCT` 등을 `.env`에 넣는다(`render.yaml`엔 두지 않는다).
-- growlio 연동(계좌·부동산 잔액 조회/동기화, 저축·투자 거래 입출금 반영, 재무목표 프리필): `GROWLIO_API_BASE_URL` — 비어 있으면 연동 기능 전체가 꺼진다
-- 부부 사진 저장용 Supabase Storage: `SUPABASE_SERVICE_ROLE_KEY`, `SUPABASE_STORAGE_BUCKET`, `MAX_UPLOAD_SIZE_MB` — 백엔드가 `/media/couple-photo`에서 프록시로 서빙한다(`app/services/couple_photo_service.py`, `app/main.py`). 둘 중 하나라도 비어 있으면 "사진 없음"으로 동작한다.
-- 예약 작업 인증: `INTERNAL_JOB_SECRET` — GitHub Actions가 `/internal/jobs/{job_name}` 호출 시 `X-Internal-Job-Secret` 헤더로 보낸다.
-- Google OAuth: `GOOGLE_OAUTH_CLIENT_ID`, `GOOGLE_OAUTH_CLIENT_SECRET` — 토큰 자체는 파일이 아니라 Postgres `household.google_oauth_tokens`에 저장되며(재배포/재시작에도 유지), `scripts/google_auth_setup.py`로 최초 1회 로컬에서 연결한다(이 스크립트가 쓰는 `google-auth-oauthlib`는 `requirements-dev.txt`에 있다).
-
-프론트엔드 전용 컨벤션(디렉토리 구조, growlio 디자인 시스템 이식 규칙 등)은 [frontend/CLAUDE.md](frontend/CLAUDE.md) 참고.
+전체 목록은 `.env.example`. 알아둘 것만:
+- `DATABASE_URL` — 로컬도 Supabase Postgres가 필요하다. `config.py`의 SQLite 기본값은 `household` 스키마 때문에 동작하지 않는다(테스트는 `tests/conftest.py`가 `schema_translate_map={"household": None}`으로 우회).
+- `TZ=Asia/Seoul` — 날짜 경계의 이중 방어(코드는 `now_kst()`로 1차 방어).
+- `APP_ENV=production`(또는 Render의 `RENDER`)이면 필수 시크릿 누락 시 부팅 실패(`config.validate_startup`).
+- `GROWLIO_API_BASE_URL` — 비면 growlio 연동 전체가 꺼진다.
+- `SUPABASE_SERVICE_ROLE_KEY` + `SUPABASE_STORAGE_BUCKET` — 둘 중 하나라도 비면 부부 사진 "없음"으로 동작(`couple_photo_service`, `/media/couple-photo` 프록시).
+- `INTERNAL_JOB_SECRET` — `/internal/jobs/*`의 `X-Internal-Job-Secret` 헤더 값.
+- `GOOGLE_OAUTH_CLIENT_ID`/`_SECRET` — 최초 연결은 로컬에서 `scripts/google_auth_setup.py` 1회 실행(토큰 만료·revoke 시에도 재실행).
+- 코칭 임계값(`SAVINGS_RATE_*`, `BUDGET_*_PCT` 등)은 기본값을 환경별로 바꿀 때만 `.env`에 넣는다(`render.yaml`엔 두지 않는다).
