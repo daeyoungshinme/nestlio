@@ -14,7 +14,7 @@
 
 ## 라우터/HTTP 테스트 (`tests/api/`)
 
-- `test_<router>_api.py`: 라우터 파일 1:1. `client` 픽스처는 `app.dependency_overrides`로 `get_db` → `seeded_db` 세션, `get_current_user` → `seeded_db` 유저로 바꿔 "이미 인증된 요청"을 가정한다. 스키마 직렬화·상태 코드·404/409를 여기서 검증한다.
+- `test_<router>_api.py`: 라우터 파일 1:1(예외: `categories`·`users`는 `test_categories_and_users_api.py` 하나, 거래 입력 상한·일괄 삭제 원자성은 `test_transactions_input_limits_api.py`). `client` 픽스처는 `app.dependency_overrides`로 `get_db` → `seeded_db` 세션, `get_current_user` → `seeded_db` 유저로 바꿔 "이미 인증된 요청"을 가정한다. 스키마 직렬화·상태 코드·404/409를 여기서 검증한다.
 - JWKS 인증 체인 자체(헤더 파싱 → 토큰 검증 → 유저 조회/미러링, 401/403 경로)는 `tests/test_dependencies.py`에서만 본다 — `app.dependencies.verify_supabase_token`을 monkeypatch한다.
 - `tests/api/test_internal_jobs_api.py`는 `JOB_REGISTRY`를 스텁으로 바꿔 인증/라우팅만, 실제 잡 본문은 `test_scheduler_jobs.py`가 본다.
 
@@ -24,7 +24,7 @@
 
 ## Mocking
 
-- `unittest.mock.patch`만 쓴다(`pytest-mock`, `responses` 등 새 라이브러리를 들이지 않는다). 대상: Gmail 발송(`app.services.notification_service.gmail_service.send_email`), Google Calendar/OAuth, growlio HTTP, Supabase Storage.
+- `unittest.mock.patch`만 쓴다(`pytest-mock`, `responses` 등 새 라이브러리를 들이지 않는다). 대상: Gmail 발송(`app.services.notification_service.gmail_service.send_email`), Google OAuth, growlio HTTP, Supabase Storage.
 
 ## 파일 조직
 
@@ -32,7 +32,7 @@
 - 예외 — 모듈을 분할하면서 테스트 파일은 나누지 않은 곳:
   - `test_transaction_service.py`: `transaction_service` + `transaction_report_service` + `transaction_trend_service`
   - `test_csv_and_accounts.py`: `account_service` + `transaction_import_service` + 연간 집계(`transaction_trend_service`)
-  - `test_event_service.py`: `event_service` + `event_calendar_service` + `event_reminder_service`
+  - `test_event_service.py`: `event_service` + `event_reminder_service`
   - `test_savings_product_service.py`: `savings_product_*` 세 모듈
   - `test_coaching_engine.py`: `coaching_engine` + `savings_coaching_service`
-- `loan_service`/`google_sheets_service`는 전용 파일 없이 다른 테스트에서 간접 커버된다.
+- `loan_service`는 전용 파일 없이 다른 테스트에서 간접 커버된다. 단 "간접 커버"는 경로가 실행된다는 뜻이지 분기가 단언된다는 뜻이 아니다 — 분기가 있는 함수는 간접 커버에만 맡기지 않고 직접 테스트를 붙인다(2026-10-07 `annual_plan_service.set_month_target`, `email_templates.build_*_summary_html`, `growlio_client.register_exception_handlers`, `savings_coaching_service.savings_pace_history`에 추가).

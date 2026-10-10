@@ -2,13 +2,10 @@ from datetime import date
 from decimal import Decimal
 from unittest.mock import MagicMock, patch
 
-import pytest
-from google.auth.exceptions import RefreshError
 from googleapiclient.errors import HttpError
 
 from app.models.transaction import Transaction
 from app.services import transaction_service
-from app.services.google_auth import GoogleAuthError
 
 
 def _http_error(status: int) -> HttpError:
@@ -239,75 +236,6 @@ def test_import_csv_over_size_limit_returns_413(client, monkeypatch):
     assert resp.status_code == 413
 
 
-def test_import_sheet_public_mode(client):
-    csv_text = "날짜,구분,카테고리,금액,메모\n2026-07-05,지출,식비,10000,점심\n"
-    with patch("app.services.google_sheets_service.read_public_csv", return_value=csv_text):
-        resp = client.post(
-            "/api/v1/transactions/import-sheet",
-            json={"mode": "public", "sheet_url": "https://docs.google.com/spreadsheets/d/abc123/edit"},
-        )
-    assert resp.status_code == 200
-    assert resp.json()["created"] == 1
-
-
-def test_import_sheet_public_mode_requires_sheet_url(client):
-    resp = client.post("/api/v1/transactions/import-sheet", json={"mode": "public"})
-    assert resp.status_code == 400
-
-
-def test_import_sheet_oauth_mode_requires_google_connection(client):
-    with patch("app.services.google_auth.is_connected", return_value=False):
-        resp = client.post(
-            "/api/v1/transactions/import-sheet",
-            json={"mode": "oauth", "spreadsheet_id": "abc123"},
-        )
-    assert resp.status_code == 400
-
-
-def test_import_sheet_oauth_mode_requires_spreadsheet_id(client):
-    resp = client.post("/api/v1/transactions/import-sheet", json={"mode": "oauth"})
-    assert resp.status_code == 400
-
-
-def test_import_sheet_oauth_mode_success(client):
-    rows = [
-        ["날짜", "구분", "카테고리", "금액", "메모"],
-        ["2026-07-05", "지출", "식비", "10000", "점심"],
-    ]
-    with (
-        patch("app.services.google_auth.is_connected", return_value=True),
-        patch("app.services.google_sheets_service.read_values", return_value=rows),
-    ):
-        resp = client.post(
-            "/api/v1/transactions/import-sheet",
-            json={"mode": "oauth", "spreadsheet_id": "abc123"},
-        )
-    assert resp.status_code == 200
-    assert resp.json()["created"] == 1
-
-
-@pytest.mark.parametrize(
-    ("error", "expected_status"),
-    [
-        (GoogleAuthError("구글 계정 연결이 만료됐어요."), 409),
-        (_http_error(500), 502),
-        (_http_error(429), 502),
-        (RefreshError("invalid_grant"), 502),
-    ],
-)
-def test_import_sheet_oauth_mode_maps_google_failures(client, error, expected_status):
-    # 403/404만 GoogleSheetsReadError(400)로 바뀌고, 토큰 만료·429·5xx는 500이 아니라 409/502로 내려야 한다.
-    with (
-        patch("app.services.google_auth.is_connected", return_value=True),
-        patch("app.services.google_sheets_service.read_values", side_effect=error),
-    ):
-        resp = client.post(
-            "/api/v1/transactions/import-sheet",
-            json={"mode": "oauth", "spreadsheet_id": "abc123"},
-        )
-    assert resp.status_code == expected_status
-
-
 def test_category_breakdown(client, seeded_db):
     db, user, food, rent = seeded_db["db"], seeded_db["user"], seeded_db["food"], seeded_db["rent"]
     transaction_service.create_transaction(db, user.id, food.id, "expense", Decimal("10000"), date(2026, 7, 5))
@@ -386,3 +314,33 @@ def test_list_transactions_search_without_dates_includes_future_rows_in_totals(c
 
     assert len(body["items"]) == 1
     assert Decimal(body["totals"]["expense"]) == Decimal("7000")
+
+
+def test_creating_savings_transaction_leaves_partner_saving_notification(client, seeded_db):
+    from app.models.category import Category
+    from app.models.savings_product import SavingsProduct
+
+    db = seeded_db["db"]
+    savings_category = Category(name="저축/투자", type="fixed", color="#10b981", is_savings=True, sort_order=0)
+    product = SavingsProduct(name="적금", current_balance=Decimal("0"), monthly_saving_amount=Decimal("0"))
+    db.add_all([savings_category, product])
+    db.commit()
+
+    resp = client.post(
+        "/api/v1/transactions",
+        json={
+            "amount": "50000",
+            "type": "expense",
+            "category_id": savings_category.id,
+            "transaction_date": "2026-07-05",
+            "savings_product_id": product.id,
+        },
+    )
+
+    assert resp.status_code == 201
+    items = client.get("/api/v1/notifications").json()["items"]
+    partner = [n for n in items if n["notif_type"] == "partner_saving"]
+    assert len(partner) == 1
+    assert partner[0]["detail"] == 'Spouse 1님이 "적금"에 50,000원 저축했어요'
+    # 기록한 본인에게는 읽음 처리돼 안 읽은 알림으로 잡히지 않는다
+    assert partner[0]["is_read"] is True

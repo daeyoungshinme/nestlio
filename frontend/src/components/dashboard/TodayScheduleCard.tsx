@@ -20,6 +20,8 @@ interface Props {
 
 const UPCOMING_DAYS = 7;
 const UPCOMING_RECURRING_LIMIT = 3;
+/** 홈은 요약만 — 오늘 일정이 많으면 3개까지만 보이고 나머지는 가계부 일정 보기로 보낸다. */
+const TODAY_EVENTS_LIMIT = 3;
 
 /** 홈의 "오늘 일정 · 다가오는 고정지출" 위젯 - 오늘 하루의 Event 목록(완료 체크·빠른 추가)과 앞으로 7일 안에
  * 나갈/들어올 반복 거래를 한 카드에 보여준다. 한 번의 events(오늘, 오늘+6) 범위 조회 응답에서 오늘 일정은
@@ -33,9 +35,11 @@ export default function TodayScheduleCard({ day, users }: Props) {
   });
 
   // 추가 폼·완료 토글은 가계부의 일정 보기와 같은 훅을 쓴다(토스트·무효화 규칙 공유).
-  const { openCreate, toggleComplete, modals } = useEventActions({ users, dateFrom: day, dateTo: rangeEnd });
+  const { openCreate, toggleComplete, modals } = useEventActions({ users });
 
-  const events = (data?.items ?? []).filter((event) => occurrenceDate(event.occurrence_start) === day);
+  const todayEvents = (data?.items ?? []).filter((event) => occurrenceDate(event.occurrence_start) === day);
+  const events = todayEvents.slice(0, TODAY_EVENTS_LIMIT);
+  const hiddenEventCount = todayEvents.length - events.length;
   const upcomingRecurring = (data?.recurring_due ?? [])
     .filter((r) => r.next_due_date >= day && r.next_due_date <= rangeEnd)
     .sort((a, b) => a.next_due_date.localeCompare(b.next_due_date))
@@ -90,6 +94,11 @@ export default function TodayScheduleCard({ day, users }: Props) {
               </div>
             );
           })}
+          {hiddenEventCount > 0 && (
+            <Link to={ROUTES.schedule} className="block text-xs text-gray-500 dark:text-gray-400 hover:underline">
+              오늘 일정 {hiddenEventCount}개 더 보기 →
+            </Link>
+          )}
         </div>
       )}
 

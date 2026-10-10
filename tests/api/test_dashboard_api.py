@@ -36,11 +36,11 @@ def test_dashboard_month_returns_totals_and_insights(client, seeded_db):
         },
     ]
     assert set(body["surplus_allocation"].keys()) == {"emergency_fund_portion", "investable_portion"}
-    assert body["category_benchmarks"] == []
+    assert "category_benchmarks" not in body
     assert "owner_category_breakdown" not in body
 
 
-def test_dashboard_category_benchmarks_flags_categories_over_guideline(client, seeded_db):
+def test_dashboard_flags_categories_over_guideline_as_coaching_insight(client, seeded_db):
     db, user, food = seeded_db["db"], seeded_db["user"], seeded_db["food"]
     food.benchmark_group = "food"
     db.commit()
@@ -51,10 +51,8 @@ def test_dashboard_category_benchmarks_flags_categories_over_guideline(client, s
     resp = client.get("/api/v1/dashboard")
 
     assert resp.status_code == 200
-    benchmarks = resp.json()["category_benchmarks"]
-    assert benchmarks == [
-        {"group": "food", "label": "식비", "amount": "200000.00", "pct": 20.0, "benchmark_pct": 15.0, "status": "warn"}
-    ]
+    rule_codes = [i["rule_code"] for i in resp.json()["insights"]]
+    assert "category_benchmark" in rule_codes
 
 
 def test_dashboard_defaults_to_current_month(client):

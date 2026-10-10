@@ -1,3 +1,4 @@
+import logging
 import uuid
 from datetime import date, datetime
 from decimal import Decimal
@@ -9,7 +10,9 @@ from app.models.financial_goal import FinancialGoal
 from app.models.goal_funding_source import GoalFundingSource
 from app.models.goal_monthly_target import GoalMonthlyTarget
 from app.services import goal_progress_service, growlio_client, plan_targets
-from app.utils.dates import now_kst
+from app.utils.dates import now_kst, shift_month, year_month_str
+
+logger = logging.getLogger(__name__)
 
 
 class MonthlyTargetNotFoundError(Exception):
@@ -18,6 +21,10 @@ class MonthlyTargetNotFoundError(Exception):
 
 class DuplicateFundingSourceProductError(Exception):
     pass
+
+
+class NetWorthGoalExistsError(Exception):
+    """순자산 목표는 가구 전체 자산이 대상이라 둘 이상이면 진행률이 같은 값으로 겹친다 — 가구당 하나."""
 
 
 def fetch_growlio_goal_settings(bearer_token: str) -> dict:
@@ -105,6 +112,10 @@ def create_goal(
     now: datetime | None = None,
     expected_annual_return_pct: Decimal | None = None,
 ) -> FinancialGoal:
+    if kind == "net_worth":
+        if db.query(FinancialGoal.id).filter(FinancialGoal.kind == "net_worth").first() is not None:
+            raise NetWorthGoalExistsError("순자산 목표는 하나만 만들 수 있어요. 기존 목표를 수정해 주세요.")
+        funding_sources, monthly_targets, current_amount = None, None, Decimal("0")
     goal = FinancialGoal(
         expected_annual_return_pct=expected_annual_return_pct,
         priority=priority,
@@ -152,6 +163,8 @@ def update_goal(
     goal = db.get(FinancialGoal, goal_id)
     if goal is None:
         return None
+    if goal.kind == "net_worth":
+        funding_sources, monthly_targets, current_amount = None, None, Decimal("0")
     goal.priority = priority
     goal.name = name
     goal.target_age = target_age
@@ -218,6 +231,52 @@ def sync_challenge_statuses(db: Session, now: datetime) -> list[FinancialGoal]:
     return transitioned
 
 
+DIRECT_DEPOSIT_MONTHS = 6
+
+
+def _linked_growlio_account_ids(goal: FinancialGoal) -> list[str]:
+    return [
+        fs.savings_product.growlio_account_id
+        for fs in goal.funding_sources
+        if fs.savings_product is not None and fs.savings_product.growlio_account_id
+    ]
+
+
+def _linked_growlio_extras(goal: FinancialGoal, out: dict, bearer_token: str, today: date) -> dict:
+    """연동된 growlio 계좌만의 실제 수익률·그 수익률 기준 예상 달성월·growlio 직접 입금(최근 6개월). 각 호출은
+    best-effort다 — growlio가 이 엔드포인트를 모르는 구버전이거나 실패하면 해당 필드만 비운다(카드의 나머지는 유지)."""
+    account_ids = _linked_growlio_account_ids(goal)
+    extras: dict = {"linked_performance": None, "eta_with_actual_return_year_month": None, "direct_deposits": []}
+    if not account_ids:
+        return extras
+    try:
+        perf = growlio_client.fetch_account_performance(bearer_token, account_ids)
+        extras["linked_performance"] = perf
+        if perf.get("xirr_pct") is not None:
+            extras["eta_with_actual_return_year_month"] = goal_progress_service.compute_eta_with_return(
+                today,
+                out["current_amount"],
+                goal.required_amount,
+                out["planned_monthly_amount"],
+                Decimal(str(perf["xirr_pct"])),
+            )
+    except growlio_client.GrowlioRequestError:
+        logger.info("growlio_account_performance_unavailable goal_id=%s", goal.id, exc_info=True)
+    try:
+        start_month = year_month_str(shift_month(today, -(DIRECT_DEPOSIT_MONTHS - 1)))
+        by_month: dict[str, Decimal] = {}
+        for row in growlio_client.fetch_net_deposits(bearer_token, account_ids, start_month):
+            by_month[row["month"]] = by_month.get(row["month"], Decimal("0")) + growlio_client.to_decimal_krw(
+                row["net_deposit_krw"]
+            )
+        extras["direct_deposits"] = [
+            {"month": month, "amount": amount} for month, amount in sorted(by_month.items()) if amount
+        ]
+    except growlio_client.GrowlioRequestError:
+        logger.info("growlio_net_deposits_unavailable goal_id=%s", goal.id, exc_info=True)
+    return extras
+
+
 def fetch_growlio_insight(db: Session, goal: FinancialGoal, bearer_token: str, today: date) -> dict:
     """목표 상세의 "투자 수익을 반영하면?" 카드 — growlio 실적 수익률(performance)과 이 목표의 달성 가능성
     (feasibility: 현재 금액·목표 금액·남은 개월·월 계획으로 필요 연수익률과 프리셋별 필요 적립액)을 묶는다.
@@ -233,4 +292,4 @@ def fetch_growlio_insight(db: Session, goal: FinancialGoal, bearer_token: str, t
             out["months_remaining"],
             out["planned_monthly_amount"],
         )
-    return {"performance": performance, "feasibility": feasibility}
+    return {"performance": performance, "feasibility": feasibility, **_linked_growlio_extras(goal, out, bearer_token, today)}

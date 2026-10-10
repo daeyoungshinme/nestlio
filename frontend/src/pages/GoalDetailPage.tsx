@@ -96,7 +96,7 @@ function GoalDetail({ goal }: { goal: FinancialGoalOut }) {
         <div className="flex items-start justify-between gap-2">
           <div className="min-w-0">
             <p className="text-xs text-gray-500 dark:text-gray-400">
-              {isChallenge ? "챌린지" : `${goal.priority}순위 목표`}
+              {isChallenge ? "챌린지" : goal.kind === "net_worth" ? "순자산 목표 · 가구 순자산 기준" : `${goal.priority}순위 목표`}
               {goal.target_date && ` · D-${daysUntil(goal.target_date)}`}
             </p>
             <h2 className="text-lg font-bold text-gray-900 dark:text-gray-50 truncate">{goal.name}</h2>
@@ -287,9 +287,12 @@ function GrowlioInsightCard({ goalId }: { goalId: number }) {
     staleTime: STALE_TIME.MEDIUM,
   });
   if (isError || !data) return null;
-  const { performance, feasibility } = data;
-  const actualReturn = performance.xirr_pct ?? performance.annual_return_pct;
-  if (!feasibility && actualReturn === null) return null;
+  const { performance, feasibility, linked_performance: linked, eta_with_actual_return_year_month: etaActual } = data;
+  // 목표에 연동된 계좌의 수익률이 있으면 그것을, 없으면 growlio 전체 계좌 수익률을 "우리 실제 수익률"로 보여준다.
+  const linkedReturn = linked?.xirr_pct ?? null;
+  const actualReturn = linkedReturn ?? performance.xirr_pct ?? performance.annual_return_pct;
+  const directDepositTotal = data.direct_deposits.reduce((sum, d) => sum + Number(d.amount), 0);
+  if (!feasibility && actualReturn === null && directDepositTotal === 0) return null;
 
   return (
     <div className="card space-y-3">
@@ -302,12 +305,26 @@ function GrowlioInsightCard({ goalId }: { goalId: number }) {
           </dd>
         </div>
         <div>
-          <dt className="text-xs text-gray-500 dark:text-gray-400">우리 실제 투자 수익률</dt>
+          <dt className="text-xs text-gray-500 dark:text-gray-400">
+            {linkedReturn !== null ? "연동 계좌 실제 수익률" : "우리 실제 투자 수익률"}
+          </dt>
           <dd className="font-semibold text-gray-900 dark:text-gray-50">
             {actualReturn !== null ? formatPercent(actualReturn, 1) : "–"}
           </dd>
         </div>
       </dl>
+      {etaActual && (
+        <p className="text-sm text-gray-700 dark:text-gray-300">
+          지금 수익률이 이어지면 <span className="font-semibold">{formatYearMonth(etaActual)}</span>에 도달해요
+        </p>
+      )}
+      {directDepositTotal > 0 && (
+        <p className="text-xs text-gray-500 dark:text-gray-400">
+          가계부 밖에서 growlio 계좌로 직접 들어온 돈(최근 {data.direct_deposits.length}개월){" "}
+          <span className="font-semibold text-gray-700 dark:text-gray-300">{formatKrw(directDepositTotal)}</span>도
+          목표에 쌓이고 있어요
+        </p>
+      )}
       {feasibility?.note && <p className="text-xs text-gray-500 dark:text-gray-400">{feasibility.note}</p>}
       {feasibility && feasibility.deposit_guide.length > 0 && (
         <div className="space-y-1">

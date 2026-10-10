@@ -1,4 +1,4 @@
-import { Pencil, Repeat, Send, Trash2 } from "lucide-react";
+import { Repeat, Send, Trash2 } from "lucide-react";
 import AccountActionsMenu, { type AccountActionsMenuItem } from "@/components/common/AccountActionsMenu";
 import RowActionButtons from "@/components/common/RowActionButtons";
 import { formatKrw, resolveOwnerLabel } from "@/utils/format";
@@ -40,45 +40,50 @@ export default function CashflowPlanItemRow({
   }
   menuItems.push({ icon: <Send size={16} />, label: "가계부에 지금 추가", onClick: onQuickAdd });
 
+  // 모바일은 행(이름 영역)을 누르면 바로 수정 — 가장 흔한 동작을 "⋯" 뒤에 숨기지 않는다. 나머지는 메뉴로.
   const mobileMenuItems: AccountActionsMenuItem[] = [
     ...menuItems,
-    { icon: <Pencil size={16} />, label: "수정", onClick: onEdit },
     { icon: <Trash2 size={16} />, label: "이번 달에서 삭제", onClick: onDelete, variant: "danger" as const },
   ];
 
   return (
     <div className="flex items-center justify-between gap-3 py-2 border-b border-gray-100 dark:border-gray-800 last:border-0">
-      <div className="min-w-0 flex-1">
-        <p className="text-sm font-medium text-gray-900 dark:text-gray-50 truncate">
+      <button
+        type="button"
+        onClick={onEdit}
+        aria-label={`${item.name} 수정`}
+        className="min-w-0 flex-1 text-left min-h-[44px] rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800/40 -mx-1 px-1"
+      >
+        <span className="block text-sm font-medium text-gray-900 dark:text-gray-50 truncate">
           {item.name}
           {item.installment_total !== null && (
             <span className="ml-1.5 text-xs font-normal text-gray-400 dark:text-gray-500">
               ({item.installment_no}/{item.installment_total})
             </span>
           )}
-        </p>
+        </span>
         {item.category_name ? (
           showCategory && (
-            <p className="mt-0.5 flex items-center gap-1.5 text-xs text-gray-500 dark:text-gray-400">
+            <span className="mt-0.5 flex items-center gap-1.5 text-xs text-gray-500 dark:text-gray-400">
               <span
                 className="inline-block w-2 h-2 rounded-full shrink-0"
                 style={{ backgroundColor: item.category_color ?? undefined }}
               />
               {item.category_name}
-            </p>
+            </span>
           )
         ) : (
           sectionKey !== "income" && (
-            <p className={`mt-0.5 text-xs ${cautionTextClass()}`}>
+            <span className={`block mt-0.5 text-xs ${cautionTextClass()}`}>
               카테고리 미연결 — 실제 지출과 비교되지 않아요
-            </p>
+            </span>
           )
         )}
-        <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{ownerLabel}</p>
+        <span className="block text-xs text-gray-500 dark:text-gray-400 mt-0.5">{ownerLabel}</span>
         {sectionKey === "irregular" && installmentProgressLabel(item) && (
-          <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{installmentProgressLabel(item)}</p>
+          <span className="block text-xs text-gray-500 dark:text-gray-400 mt-0.5">{installmentProgressLabel(item)}</span>
         )}
-      </div>
+      </button>
       <div className="flex items-center gap-1 shrink-0">
         <span className="text-sm font-semibold text-gray-700 dark:text-gray-300">{formatKrw(item.amount)}</span>
         {item.spans_multiple_months && (

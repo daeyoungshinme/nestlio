@@ -52,6 +52,7 @@ class NotificationPrefsOut(BaseModel):
     challenge_success: bool
     event_reminder: bool
     savings_pace_reminder: bool = True
+    partner_saving: bool = True
 
 
 class NotificationPrefsIn(NotificationPrefsOut):

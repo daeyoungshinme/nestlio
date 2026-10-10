@@ -17,6 +17,14 @@ export function formatKrwCompact(n: number): string {
   return `${KRW_FORMATTER.format(Math.floor(n))}원`;
 }
 
+/** 차트 축 눈금용 짧은 표기(단위 "원" 생략) — 모바일 폭에서 Y축이 그래프를 잡아먹지 않게 한다.
+ * 예: 150_000_000 -> "1.5억", 5_000_000 -> "500만", 3_000 -> "3,000" */
+export function formatKrwAxis(n: number): string {
+  if (Math.abs(n) >= 1e8) return `${Number((n / 1e8).toFixed(1))}억`;
+  if (Math.abs(n) >= 1e4) return `${KRW_FORMATTER.format(Math.round(n / 1e4))}만`;
+  return KRW_FORMATTER.format(Math.floor(n));
+}
+
 /**
  * 입력 중인 금액 프리뷰: 콤마 exact 값 + (억/만원 축약) 병기.
  * 예: 5_000_000 -> "5,000,000원 (500만원)", 3_000 -> "3,000원"

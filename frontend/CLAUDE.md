@@ -68,13 +68,13 @@ npm run generate:icons      # public/favicon.svg → PNG/ICO
 
 | 경로 | 페이지 | 메모 |
 |---|---|---|
-| `/` | `DashboardPage` | 항상 이번 달 기준. 섹션은 `components/home/`·`components/dashboard/`. 월초(1~7일)엔 지난달 회고 카드 |
+| `/` | `DashboardPage` | 항상 이번 달 기준, 5블록: (월초 1~7일) `MonthlyRetrospectiveCard` → `HomeGoalHero`(대표 목표 — 순자산 목표가 있으면 그것, 함께 모은 돈·저축 리더·응원 보내기) → `MonthFlowCard`(계획 대비 미니 막대 + `InvestSurplusCard embedded`) → `CoachingInsights` → `TodayScheduleCard`. 배우자 응원은 `utils/cheers.ts::latestPartnerCheer` |
 | `/transactions` | 가계부 | 월간 캘린더 + `[내역 \| 일정]` 세그먼트(`?view=`). 날짜 클릭 → `LedgerDayModal`(거래·일정 함께). 일정 CRUD는 `hooks/useEventActions.tsx`. 반복 거래 관리는 `RecurringManageSheet`. `?date=YYYY-MM-DD`로 모달 열기 |
-| `/transactions/import` | 거래 데이터 | CSV 내보내기·CSV/시트 가져오기. 진입은 설정 바로가기뿐 |
+| `/transactions/import` | 거래 데이터 | CSV 내보내기·가져오기. 진입은 설정 바로가기뿐 |
 | `/categories` | 카테고리 관리 | 메뉴에 없음 — 설정 바로가기·계획의 "카테고리별 예산"에서만 진입 |
 | `/accounts` | 자산 | 계좌/저축·투자/부동산/대출 4개 `CollapsibleGroup`(접힌 섹션은 마운트·쿼리 안 함). `?section=`. 상단 `AccountsSnapshotCard`의 "전체 동기화"가 **growlio 잔액 동기화의 유일한 수동 진입점** |
 | `/plan` | `PlanPage` | `[이번 달 \| 연간]`(`?view=`). 아래 "계획 화면" 참고 |
-| `/goals`, `/goals/:id` | `GoalsTab`, `GoalDetailPage` | 재무목표·챌린지. 상세에 응원·시나리오·growlio 인사이트 |
+| `/goals`, `/goals/:id` | `GoalsTab`, `GoalDetailPage` | 재무목표·챌린지·순자산 목표. 상세에 응원·시나리오·growlio 인사이트. 순자산 목표는 가구당 하나, 목록·홈 Hero에서 항상 맨 앞(`pinNetWorthFirst`) |
 | `/settings` | 설정 | 헤더 톱니 아이콘으로 진입. 다크모드·로그아웃은 여기에만 |
 
 레거시 리다이렉트(지우지 않는다 — 외부 링크·메일 딥링크): `/calendar`·`/budgets`·`/recurring` → `/transactions`, `/schedule` → `/transactions?view=일정`(`LegacyScheduleRedirect`), `/financial-plan`(구 `?tab=`/`?view=` 포함) → `/goals` 또는 `/plan?view=`(`LegacyFinancialPlanRedirect`), `/reports/yearly` → `/plan?view=연간&section=분석`, `/transactions/:id/edit` → `/transactions`.
@@ -84,11 +84,11 @@ npm run generate:icons      # public/favicon.svg → PNG/ICO
 ### 계획 화면 (`/plan`)과 목표
 
 - 두 뷰 모두 `PlanBalanceSummary` → `PlanSectionAccordion`(수입/고정/변동/비정기/저축·투자 섹션, 펼치면 편집 패널) 골격. `CashflowPlanTab`이 `view: "monthly" | "annual"`로 그리고, 연간은 `AnnualPlanPanel`(항목이 없으면 `PlanYearStartWizard`, 맨 아래 `YearlyReportSection` "실적 분석").
-- **이번 달 뷰는 연간계획의 한 달 단면이다** — `CashflowPlanItemOut.id`가 연간 항목 id이고, 금액 수정은 연간계획의 그 달 값을, 삭제는 그 달 금액만 바꾼다(`deleteCashflowPlanItem({id, yearMonth})`). 저장 후 `cashflowPlanAll`·`annualPlanAll`을 **함께** 무효화한다. 백엔드 모델은 [app/services/CLAUDE.md](../app/services/CLAUDE.md)의 "계획 원본은 연간계획 하나".
+- **이번 달 뷰는 연간계획의 한 달 단면이다** — `CashflowPlanItemOut.id`가 연간 항목 id이고, 금액 수정은 연간계획의 그 달 값을, 삭제는 그 달 금액만 바꾼다(`deleteCashflowPlanItem({id, yearMonth})`). 저장 후 `cashflowPlanAll`·`annualPlanAll`을 **함께** 무효화한다. 항목 행(`CashflowPlanItemRow`/`AnnualPlanItemRow`)은 이름 영역을 누르면 바로 수정 폼, 연간 월별 입력(`AnnualPlanMonthlyGrid`)은 2열(sm 3열) 격자 + "매달 같은 금액"/"총액 균등분배" 프리셋. 백엔드 모델은 [app/services/CLAUDE.md](../app/services/CLAUDE.md)의 "계획 원본은 연간계획 하나".
 - 카테고리별 예산은 이번 달 뷰의 고정/변동/비정기 패널 안에 있고, 예산 대비 실적은 `GET /cashflow-plan`·`GET /annual-plan` 응답의 `category_budgets`로 온다(`/budgets` 라우터는 없다).
-- 저축·투자 섹션은 `SavingsInvestmentPlanPanel`(상품별 월 계획 대비 실적). 상품 계획액은 `SavingsProductAnnualPlan` 그리드가 있으면 그것, 없으면 `monthly_saving_amount`. 목표에 연동된 상품의 계획도 여기서 편집한다 — 연동 목표의 월 저축액은 상품 계획 합이라 목표 폼은 읽기 전용으로 보여준다. 계획 화면에는 growlio 동기화 버튼을 두지 않는다(자산 탭으로 일원화).
+- 저축·투자 섹션은 `SavingsInvestmentPlanPanel`(상품별 월 계획 대비 실적). 상품 계획액은 `SavingsProductAnnualPlan` 그리드가 있으면 그것, 없으면 `monthly_saving_amount`. 목표에 연동된 상품의 계획도 여기서 편집한다 — 연동 목표의 월 저축액은 상품 계획 합이라 목표 폼은 읽기 전용으로 보여준다. 상품 추가·수정 폼은 자산 탭과 공유하는 `accounts/SavingsProductFormModal.tsx`(`monthly_saving_amount`는 신규 등록에만). 계획 화면에는 growlio 동기화 버튼을 두지 않는다(자산 탭으로 일원화).
 - 목표 vs 계획 분리 기준: 계획은 가구 전체의 **달력월** 기준, 목표는 각자의 목표일 기준이다. 또 흡수/분리를 고민할 때는 "같은 달력월 기준으로 계획 대비 실적을 비교하는가"로 판단한다.
-- 목표 폼(`GoalFormModal`): 장기 목표는 3단계, 챌린지는 한 화면. 장기목표/챌린지 토글은 **신규 생성 시에만** 뜬다(백엔드 `FinancialGoalUpdateIn`에 `kind`가 없다). 연동 목표의 월 달성액은 자동 계산(`is_auto_computed`), 미연동은 직접 입력. 균등분배는 프론트의 `utils/monthRange.ts::distributeAmountEvenly`.
+- 목표 폼(`GoalFormModal`): 장기 목표는 3단계, 챌린지·순자산 목표는 한 화면(순자산 목표는 진행금액=가구 순자산, 월 계획=저축·투자 상품 계획 합이라 연동·월별 계획·직접 입력이 없다). 장기목표/챌린지 토글은 **신규 생성 시에만** 뜬다(백엔드 `FinancialGoalUpdateIn`에 `kind`가 없다). 연동 목표의 월 달성액은 자동 계산(`is_auto_computed`), 미연동은 직접 입력. 균등분배는 프론트의 `utils/monthRange.ts::distributeAmountEvenly`.
 
 ## 테스트
 

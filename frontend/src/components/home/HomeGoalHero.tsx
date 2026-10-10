@@ -1,9 +1,9 @@
 import { Link } from "react-router-dom";
-import { ChevronRight, Flame, Heart, Landmark, Target } from "lucide-react";
+import { ChevronRight, Crown, Flame, Heart, Landmark, Target } from "lucide-react";
 import EmptyState from "@/components/common/EmptyState";
 import GoalProgressCard, { type GoalProgressCardBadge } from "@/components/financialPlan/GoalProgressCard";
 import SavingsTrendSparkline from "@/components/dashboard/SavingsTrendSparkline";
-import { ROUTES } from "@/constants/routes";
+import { ROUTES, goalDetailLink } from "@/constants/routes";
 import { useThemeStore } from "@/stores/themeStore";
 import {
   goalDeadlineBadgeStyle,
@@ -13,6 +13,7 @@ import {
 } from "@/utils/colors";
 import { computeCardStatus, daysUntil } from "@/utils/goalStatus";
 import { formatKrw, formatKrwCompact } from "@/utils/format";
+import type { CoupleContribution } from "@/utils/contribution";
 import type { FinancialGoalOut, NotificationReactionOut } from "@/types";
 
 interface Props {
@@ -25,6 +26,8 @@ interface Props {
   /** 배우자가 최근 목표 마일스톤 알림에 남긴 응원 — "서로 동기부여"를 홈 첫 화면에서 보이게 한다. */
   partnerCheer: NotificationReactionOut | null;
   savingsTrend: { year_month: string; savings: number }[];
+  /** 이번 달 부부가 함께 모은 돈과 저축 리더(구 "함께 모은 돈" 카드를 한 줄로 흡수). 월초엔 회고 카드가 대신해 null. */
+  contribution: CoupleContribution | null;
 }
 
 /** 홈 최상단 "우리 목표는 어디쯤?" 카드. 구 대시보드의 부부 사진 배너 + 목표 카드 + 순자산 카드를 한 장으로
@@ -38,6 +41,7 @@ export default function HomeGoalHero({
   couplePhotoUrl,
   partnerCheer,
   savingsTrend,
+  contribution,
 }: Props) {
   const isDark = useThemeStore((s) => s.isDark);
 
@@ -137,6 +141,30 @@ export default function HomeGoalHero({
           }
         />
       </Link>
+      <div className="mt-3 pt-3 border-t border-gray-100 dark:border-gray-800 flex items-center justify-between gap-2">
+        <p className="min-w-0 text-xs text-gray-500 dark:text-gray-400">
+          {contribution && contribution.total > 0 ? (
+            <>
+              이번 달 함께 {formatKrwCompact(contribution.total)} 모았어요
+              {contribution.leaderName && (
+                <span className="ml-1 inline-flex items-center gap-0.5 text-primary-600 dark:text-primary-400">
+                  <Crown size={11} aria-hidden="true" />
+                  {contribution.leaderName}
+                </span>
+              )}
+            </>
+          ) : (
+            "서로의 노력에 한마디 남겨 주세요"
+          )}
+        </p>
+        <Link
+          to={goalDetailLink(goal.id)}
+          className="shrink-0 inline-flex items-center gap-1 rounded-full bg-primary-50 dark:bg-primary-950 px-3 min-h-[44px] text-xs font-semibold text-primary-600 dark:text-primary-400 hover:bg-primary-100 dark:hover:bg-primary-900"
+        >
+          <Heart size={12} aria-hidden="true" />
+          응원 보내기
+        </Link>
+      </div>
     </div>
   );
 }

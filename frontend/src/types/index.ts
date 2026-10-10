@@ -156,7 +156,6 @@ export interface DashboardOut {
   owner_totals: OwnerTotalsOut[];
   expense_breakdown: CategoryAmountOut[];
   owner_overspend_highlights: OwnerOverspendHighlightOut[];
-  category_benchmarks: CategoryBenchmarkRowOut[];
   trend: TrendRowOut[];
   insights: InsightOut[];
   current_ym: string;
@@ -251,13 +250,6 @@ export interface ImportResultOut {
   created: number;
   skipped: SkippedRowOut[];
   created_ids: number[];
-}
-
-export interface SheetImportIn {
-  mode: "public" | "oauth";
-  sheet_url?: string;
-  spreadsheet_id?: string;
-  sheet_name?: string;
 }
 
 export interface BulkDeleteResultOut {
@@ -355,7 +347,6 @@ export interface CategoryTrendOut {
 }
 
 export type EventFrequency = "once" | "weekly" | "monthly";
-export type EventSource = "native" | "google_import";
 
 export interface EventOut {
   id: number;
@@ -372,19 +363,12 @@ export interface EventOut {
   /** 담당자 - null이면 공동(두 사람 모두 담당) */
   assignee: UserOut | null;
   completed_at: string | null;
-  source: EventSource;
   occurrence_start: string;
 }
 
 export interface EventListOut {
   items: EventOut[];
   recurring_due: RecurringOut[];
-}
-
-export interface EventImportResultOut {
-  created: number;
-  updated: number;
-  skipped: number;
 }
 
 export interface EventCreateIn {
@@ -431,6 +415,7 @@ export interface NotificationPrefsOut {
   challenge_success: boolean;
   event_reminder: boolean;
   savings_pace_reminder: boolean;
+  partner_saving: boolean;
 }
 
 export type NotificationPrefsIn = NotificationPrefsOut;
@@ -589,7 +574,8 @@ export interface FundingSourceIn {
   id: number;
 }
 
-export type GoalKind = "goal" | "challenge";
+/** net_worth = 부부 자산증식 목표(가구 순자산 전체가 진행금액, 가구당 하나). */
+export type GoalKind = "goal" | "challenge" | "net_worth";
 
 export interface GoalMonthlyTargetOut {
   year_month: string;
@@ -689,9 +675,27 @@ export interface GrowlioFeasibilityOut {
   deposit_guide: GrowlioDepositGuideOut[];
 }
 
+export interface GrowlioAccountPerformanceOut {
+  xirr_pct: number | null;
+  current_value_krw: number;
+  net_invested_krw: number;
+  account_count: number;
+}
+
+export interface GrowlioDirectDepositOut {
+  month: string;
+  amount: string;
+}
+
 export interface GrowlioGoalInsightOut {
   performance: GrowlioPerformanceOut;
   feasibility: GrowlioFeasibilityOut | null;
+  /** 목표에 연동된 growlio 계좌만의 실적 — 연동이 없거나 growlio가 구버전이면 null. */
+  linked_performance: GrowlioAccountPerformanceOut | null;
+  /** 연동 계좌의 실제 XIRR로 계산한 예상 도달 달("YYYY-MM"). */
+  eta_with_actual_return_year_month: string | null;
+  /** 증권사에서 growlio로 직접 들어온 월 순입금(nestlio 가계부에 없는 돈) — 최근 6개월. */
+  direct_deposits: GrowlioDirectDepositOut[];
 }
 
 export interface GrowlioGoalSettingsOut {

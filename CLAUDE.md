@@ -14,7 +14,7 @@
 - **프론트엔드**: React + TypeScript + Vite + Tailwind. 반응형 웹만 지원(Capacitor·서비스워커 없음)
 - **인증**: 프론트가 `@supabase/supabase-js`로 직접 로그인해 JWT를 받고, 백엔드는 `app/dependencies.py`에서 JWKS(`PyJWKClient`)로 서명만 검증한다. 백엔드엔 로그인 엔드포인트·세션 쿠키가 없다(`Authorization: Bearer`만)
 - **예약 작업**: in-process 스케줄러가 아니라 GitHub Actions(`.github/workflows/scheduled-jobs.yml`)가 `POST /internal/jobs/{job_name}`을 호출한다(Render 무료 티어가 15분 미사용 시 슬립)
-- **외부 연동**: Google Calendar/Gmail/Sheets, growlio 자산 API(`app/services/growlio_client.py` — 사용자 JWT를 그대로 전달, 별도 API 키 없음). growlio 연동은 **읽기전용이 아니다** — 저축/투자 거래 입력 시 growlio 계좌에 입출금을 쓰는 `push_transaction`이 있다
+- **외부 연동**: Gmail(알림 메일 발송만 — 구글 캘린더·시트 연동은 2026-10 제거), growlio 자산 API(`app/services/growlio_client.py` — 사용자 JWT를 그대로 전달, 별도 API 키 없음). growlio 연동은 **읽기전용이 아니다** — 저축/투자 거래 입력 시 growlio 계좌에 입출금을 쓰는 `push_transaction`이 있다(실패분은 `growlio_push_service` 아웃박스가 재전송)
 - **배포**: Render 무료 웹서비스 1개(`render.yaml`). FastAPI가 `frontend/dist`를 정적 서빙하는 단일 프로세스. 디스크가 휘발성이라 부부 사진은 Supabase Storage, Google OAuth 토큰은 Postgres(`household.google_oauth_tokens`)에 저장한다
 
 ## 아키텍처 규칙
@@ -37,7 +37,7 @@
 
 - 로컬 `users`는 최대 2명(`user_service.MAX_HOUSEHOLD_USERS`). 공개 가입 폼은 없지만, 유효한 Supabase JWT로 들어온 요청이면 정원이 찰 때까지 `get_current_user`가 로컬 `User` 행을 자동 미러링한다(같은 Supabase 프로젝트의 growlio 계정도 로그인만으로 등록됨). 정원이 차면 403.
 - 배우자 초대(`invite_service`)는 표시 이름을 미리 정하는 보조 경로다. `accept_invite`는 body의 `user_id`가 아니라 검증된 JWT의 `sub`/`email`을 초대 이메일과 대조한다.
-- 배우자 제거(`user_service.remove_user`)는 소프트 삭제(`removed_at`/`removed_by_id`) — 13개 테이블이 `users.id`를 FK로 참조한다. 본인은 제거 불가(`CannotRemoveSelfError`). 제거된 계정의 요청은 401이 아니라 **403 + `user_service.REMOVED_USER_DETAIL`** 로 거부한다(401이면 프론트가 `refreshSession()` 재시도에 성공해 로그아웃되지 않음). `frontend/src/api/client.ts`가 이 문자열을 정확히 매칭하므로 **문구를 바꾸면 프론트도 같이 바꾼다**.
+- 배우자 제거(`user_service.remove_user`)는 소프트 삭제(`removed_at`/`removed_by_id`) — 12개 테이블(+ `users.removed_by_id` 자기참조)이 `users.id`를 FK로 참조한다. 본인은 제거 불가(`CannotRemoveSelfError`). 제거된 계정의 요청은 401이 아니라 **403 + `user_service.REMOVED_USER_DETAIL`** 로 거부한다(401이면 프론트가 `refreshSession()` 재시도에 성공해 로그아웃되지 않음). `frontend/src/api/client.ts`가 이 문자열을 정확히 매칭하므로 **문구를 바꾸면 프론트도 같이 바꾼다**.
 
 ## 커맨드
 

@@ -333,3 +333,117 @@ def test_goal_list_looks_up_product_plans_once_not_per_goal(client, seeded_db, m
 
     assert len(goals) == 3
     assert len(calls) == 1
+
+
+def _goal_linked_to_growlio(client, seeded_db, growlio_ids=("g-1", "g-2")):
+    from decimal import Decimal
+
+    from app.models.savings_product import SavingsProduct
+
+    db = seeded_db["db"]
+    products = [
+        SavingsProduct(
+            name=f"ETF {gid}",
+            current_balance=Decimal("5000000"),
+            monthly_saving_amount=Decimal("500000"),
+            product_type="investment",
+            growlio_account_id=gid,
+        )
+        for gid in growlio_ids
+    ]
+    db.add_all(products)
+    db.commit()
+    return client.post(
+        "/api/v1/financial-goals",
+        json={
+            "priority": 1,
+            "name": "노후자금",
+            "required_amount": "100000000",
+            "monthly_saving_amount": "0",
+            "funding_sources": [{"type": "savings_product", "id": p.id} for p in products],
+        },
+    ).json()["id"]
+
+
+def test_growlio_insight_adds_linked_account_return_eta_and_direct_deposits(client, seeded_db):
+    from unittest.mock import patch
+
+    from app.utils.dates import shift_month, today_kst, year_month_str
+
+    goal_id = _goal_linked_to_growlio(client, seeded_db)
+    perf = {"xirr_pct": 8.0, "current_value_krw": 10000000.0, "net_invested_krw": 9000000.0, "account_count": 2}
+    deposits = [
+        {"account_id": "g-1", "month": "2026-09", "net_deposit_krw": 300000.0},
+        {"account_id": "g-2", "month": "2026-09", "net_deposit_krw": 200000.0},
+        {"account_id": "g-1", "month": "2026-10", "net_deposit_krw": 0.0},
+    ]
+    with (
+        patch("app.services.goal_service.growlio_client.fetch_performance", return_value={"xirr_pct": 5.0}),
+        patch("app.services.goal_service.growlio_client.fetch_account_performance", return_value=perf) as mock_perf,
+        patch("app.services.goal_service.growlio_client.fetch_net_deposits", return_value=deposits) as mock_dep,
+    ):
+        resp = client.get(f"/api/v1/financial-goals/{goal_id}/growlio-insight")
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["linked_performance"]["xirr_pct"] == 8.0
+    assert body["eta_with_actual_return_year_month"] is not None
+    # 같은 달은 계좌 합, 0원인 달은 뺀다
+    assert body["direct_deposits"] == [{"month": "2026-09", "amount": "500000.0"}]
+    mock_perf.assert_called_once()
+    assert sorted(mock_perf.call_args.args[1]) == ["g-1", "g-2"]
+    assert mock_dep.call_args.args[2] == year_month_str(shift_month(today_kst(), -5))
+
+
+def test_growlio_insight_survives_unavailable_linked_endpoints(client, seeded_db):
+    from unittest.mock import patch
+
+    from app.services.growlio_client import GrowlioRequestError
+
+    goal_id = _goal_linked_to_growlio(client, seeded_db, growlio_ids=("g-1",))
+    with (
+        patch("app.services.goal_service.growlio_client.fetch_performance", return_value={"xirr_pct": 5.0}),
+        patch(
+            "app.services.goal_service.growlio_client.fetch_account_performance",
+            side_effect=GrowlioRequestError("404"),
+        ),
+        patch("app.services.goal_service.growlio_client.fetch_net_deposits", side_effect=GrowlioRequestError("404")),
+    ):
+        resp = client.get(f"/api/v1/financial-goals/{goal_id}/growlio-insight")
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["performance"]["xirr_pct"] == 5.0
+    assert body["linked_performance"] is None
+    assert body["eta_with_actual_return_year_month"] is None
+    assert body["direct_deposits"] == []
+
+
+def test_growlio_insight_skips_linked_calls_without_growlio_links(client, seeded_db):
+    from unittest.mock import patch
+
+    goal_id = client.post(
+        "/api/v1/financial-goals",
+        json={"priority": 1, "name": "여행", "required_amount": "1000000", "monthly_saving_amount": "100000"},
+    ).json()["id"]
+    with (
+        patch("app.services.goal_service.growlio_client.fetch_performance", return_value={"xirr_pct": 5.0}),
+        patch("app.services.goal_service.growlio_client.fetch_account_performance") as mock_perf,
+        patch("app.services.goal_service.growlio_client.fetch_net_deposits") as mock_dep,
+    ):
+        resp = client.get(f"/api/v1/financial-goals/{goal_id}/growlio-insight")
+
+    assert resp.status_code == 200
+    mock_perf.assert_not_called()
+    mock_dep.assert_not_called()
+
+
+def test_second_net_worth_goal_returns_409(client, seeded_db):
+    body = {"kind": "net_worth", "priority": 1, "name": "순자산", "required_amount": "500000000", "monthly_saving_amount": "0"}
+    first = client.post("/api/v1/financial-goals", json=body)
+    assert first.status_code == 201
+    assert first.json()["kind"] == "net_worth"
+
+    resp = client.post("/api/v1/financial-goals", json=body)
+
+    assert resp.status_code == 409

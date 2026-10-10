@@ -20,13 +20,14 @@
 
 ## Google 연동 가드
 
-- `google_calendar_service`/`gmail_service`/`google_sheets_service.read_values`(OAuth)를 부르기 전에 `google_auth.is_connected()`를 확인한다. 미연결이면 `GoogleNotConnectedError`. `google_sheets_service.read_public_csv`는 OAuth를 안 써서 가드가 필요 없다.
+- Google 연동은 Gmail 알림 메일 발송뿐이다(구글 캘린더 동기화·시트 가져오기는 토큰 유지비 대비 쓰임이 적어 2026-10 제거). `gmail_service`를 부르기 전에 `google_auth.is_connected()`를 확인한다. 미연결이면 `GoogleNotConnectedError`.
 - 알림 메일은 `gmail_service.send_email`을 직접 부르지 않고 `notification_service._send_email_best_effort`를 거친다 — 가드 + `GoogleAuthError`/`GmailSendError`를 경고 로그로 흡수해 메일 실패가 인앱 알림이나 예약 잡을 막지 않게 한다. 사용자가 직접 누른 발송(테스트 메일, 초대장)은 반대로 예외를 라우터까지 올린다.
 - 순환 의존·부팅 비용을 피하려고 함수 내부 지연 import를 쓰는 곳이 있다.
 
 ## 알림 dedup
 
 - 같은 알림의 중복 발송은 `NotificationLog`(`notif_type` + 기간 키) 기록으로 막는다. 헬퍼(`already_sent`/`log_sent`)는 `notification_log_service.py`에 있다(`milestone_service`처럼 `notification_service`를 import하면 순환이 되는 모듈도 쓰기 위해 분리). 새 알림 종류도 이 패턴을 따른다.
+- dedup이 없는 "사건" 알림(`goal_cheer`, `partner_saving`)은 `year_month`에 초 단위 ISO 시각을 넣고(String(20)), 행동한 본인에게는 `NotificationRead`로 바로 읽음 처리한다. `partner_saving`은 사용자가 직접 입력한 저축 거래(`POST /transactions`)에서만 남긴다 — 반복거래 자동 생성·CSV 가져오기는 알림함을 덮으므로 제외.
 
 ## 모듈 분할 지도
 
@@ -34,14 +35,14 @@
 
 | 묶음 | 모듈과 책임 | 주의 |
 |---|---|---|
-| 거래 | `transaction_service`(CRUD, 저축상품 연결 검증, growlio push) · `transaction_report_service`(한 기간 집계, 공용 쿼리 조각) · `transaction_trend_service`(여러 달 시계열·평균, 범위 1회 조회 후 달별 버킷팅) · `transaction_import_service`(CSV/시트 import·export) | 아래 "누가 기록했나 vs 누가 썼나" 참고 |
-| 일정 | `event_service`(CRUD, 반복 전개 `occurrences_in_range`) · `event_calendar_service`(구글 캘린더) · `event_reminder_service`(리마인더, 배우자 알림) | 뒤 둘이 `event_service`를 import하므로 `event_service`는 이 둘을 함수 본문에서만 지연 import |
+| 거래 | `transaction_service`(CRUD, 저축상품 연결 검증, growlio push) · `transaction_report_service`(한 기간 집계, 공용 쿼리 조각) · `transaction_trend_service`(여러 달 시계열·평균, 범위 1회 조회 후 달별 버킷팅) · `transaction_import_service`(CSV import·export) | 아래 "누가 기록했나 vs 누가 썼나" 참고 |
+| 일정 | `event_service`(CRUD, 반복 전개 `occurrences_in_range`) · `event_reminder_service`(리마인더, 배우자 알림) | 뒤쪽이 `event_service`를 import하므로 `event_service`는 이를 함수 본문에서만 지연 import |
 | 저축상품 | `savings_product_service`(CRUD, `list_products`, `get_emergency_fund_balance`) · `savings_product_plan_service`(연간계획·실적, `PLAN_PRODUCT_TYPES`) · `savings_product_growlio_service`(growlio 동기화) | 상품 목록은 항상 `list_products(db)` 재사용 |
 | 목표 | `goal_service`(CRUD, 챌린지 상태 동기화, 자금원 연동, growlio 조회) · `goal_progress_service`(진행률·ETA·`to_out`, 커밋 없음) | `goal_service` → `goal_progress_service` 단방향 |
 | 알림 | `notification_service`(발송·판정) · `notification_inbox_service`(목록·읽음·반응·목표 응원) · `notification_log_service`(dedup) | 앞 둘은 서로 import하지 않음 |
 | 코칭 | `coaching_engine`(규칙 기반 `Insight`, `compute_insights`) · `savings_coaching_service`(여유자금 배분, 비상금, 저축 페이스·연속 달성) | `coaching_engine` → `savings_coaching_service` 단방향 |
 
-- `transaction_import_service`: 파싱/생성 로직은 `import_rows(db, rows, user_id)` 하나에 있고 CSV·구글 시트 경로는 `rows`만 만들어 위임하는 래퍼다 — 매칭/skip 로직은 `import_rows`만 고친다. CSV 헤더·라벨을 바꿀 때는 `CSV_HEADER`/`CSV_TYPE_LABELS`/`CSV_TYPE_BY_LABEL`을 함께 갱신한다.
+- `transaction_import_service`: 파싱/생성 로직은 `import_rows(db, rows, user_id)` 하나에 있고 `import_csv`는 CSV 문자열을 `rows`로 나눠 위임하는 얇은 래퍼다 — 매칭/skip 로직은 `import_rows`만 고친다. CSV 헤더·라벨을 바꿀 때는 `CSV_HEADER`/`CSV_TYPE_LABELS`/`CSV_TYPE_BY_LABEL`을 함께 갱신한다.
 - **누가 기록했나 vs 누가 썼나**: `Transaction.user_id`는 입력한 사람, `Transaction.owner_user_id`는 실제 소비 주체(공통 지출은 `NULL`)다. 배우자가 대신 입력하는 경우가 있어 "부부별 지출" 표시는 `*_by_owner` 계열 집계를 쓴다. 새 집계 함수는 어느 축이 필요한지 먼저 정한다.
 
 ## coaching_engine / savings_coaching_service
@@ -67,10 +68,15 @@
 - `elapsed_months(year, today)`: 그 해 몇 월까지 실적을 집계할 수 있는지.
 - `budget_status(section, pct)`(income일 때만 invert) / `savings_status(pct)`(항상 invert): `utils/plan_status.status_from_pct` 래퍼.
 
+## 순자산 목표 (FinancialGoal.kind="net_worth")
+
+부부 자산증식 목표. 가구당 하나(`goal_service.NetWorthGoalExistsError` → 409). 진행금액은 `net_worth_service.compute_current`의 순자산, 월 계획액은 모든 저축·투자 상품의 그 달 계획 합(`goal_progress_service.planned_monthly_for_goal`)이라 자금원 연동·월별 목표·수동 진행금액은 생성/수정 시 버린다. 새 kind 분기는 `goal_progress_service`의 `compute_current_amount`/`to_out`/`planned_monthly_for_goal` 세 곳을 함께 본다.
+
 ## growlio 연동 (growlio_client.py)
 
 - 예외(`GrowlioNotConfiguredError`/`GrowlioRequestError`/`GrowlioSyncError`)는 `growlio_client.py`에만 정의한다. `app/main.py`의 `register_exception_handlers`가 전역에서 501/502/409로 매핑하므로 라우터에서 catch하지 않는다.
 - 가져오기·동기화 로직은 공용 헬퍼를 재사용한다: `already_linked_growlio_ids(db, model)`(중복 가져오기 방지), `to_decimal_krw(raw)`, `find_by_growlio_id(items, id)`. 도메인마다 다른 가져오기 루프 본문은 통합하지 않는다.
-- 받아 쓰는 값: 계좌 평가액·원금(`fetch_account_balances` — 투자 상품은 `invested_amount_krw`를 `principal_amount`로, 원금 없는 응답이면 기존 유지), 부동산 시세·대출(`fetch_real_estate_items`), 투자목표 설정(`fetch_investment_goal`, 목표 폼 프리필), 수익률 KPI(`fetch_performance`)·목표 달성 가능성(`fetch_goal_feasibility`) — 뒤 둘은 `goal_service.fetch_growlio_insight`가 묶는다. 복리 ETA(`goal_progress_service.compute_eta_with_return`)는 growlio 없이 nestlio가 계산한다.
+- 받아 쓰는 값: 계좌 평가액·원금(`fetch_account_balances` — 투자 상품은 `invested_amount_krw`를 `principal_amount`로, 원금 없는 응답이면 기존 유지), 부동산 시세·대출(`fetch_real_estate_items`), 투자목표 설정(`fetch_investment_goal`, 목표 폼 프리필), 수익률 KPI(`fetch_performance`)·목표 달성 가능성(`fetch_goal_feasibility`) — 뒤 둘은 `goal_service.fetch_growlio_insight`가 묶는다. 목표에 growlio 계좌가 연동돼 있으면 `fetch_account_performance`(그 계좌들만의 XIRR → `eta_with_actual_return_year_month`)와 `fetch_net_deposits`(증권사에서 growlio로 직접 들어온 월 순입금, nestlio push 분 제외, 최근 6개월)도 더한다 — 둘 다 best-effort라 구버전 growlio(404)면 그 필드만 비운다. 복리 ETA(`goal_progress_service.compute_eta_with_return`)는 growlio 없이 nestlio가 계산한다.
 - **전체 동기화(`sync_all_*`)**: `account_service.sync_all_accounts`/`savings_product_growlio_service.sync_all_from_growlio`/`real_estate_service.sync_all_from_growlio` 공통 규칙 — growlio 목록은 **1회만** 조회해 매칭하고, 매칭 실패(배우자 소유 등)는 전체를 중단하지 않고 `{id, name, reason}`을 `failed`에 담는다. 반환은 `tuple[int, list[dict]]`. 새 리소스 타입도 이 시그니처를 따른다.
+- **입출금 반영 아웃박스(`growlio_push_service`, `GrowlioPushQueue`)**: 저축·투자 거래 저장/수정/삭제의 growlio 반영은 큐 행을 먼저 남기고 바로 보내 본다(`push_now`). 실패·토큰 없음이면 남겨 두고, `GET /dashboard/bootstrap`·`GET /net-worth` 응답 후 `flush_pending`이 호출자·공동 소유 행을 재전송한다(잔액 새로고침보다 **먼저** 등록 — BackgroundTasks는 등록 순). growlio에 `external_ref="nestlio:q{id}"`로 보내 growlio가 중복 기록을 막으므로 재전송이 안전하다. 행은 거래·상품과 FK로 묶지 않는다(삭제돼도 반영할 동작은 남아야 함). `MAX_ATTEMPTS` 넘게 실패한 행은 더 보내지 않고 `last_error`에 원인을 남긴다.
 - **기회주의적 갱신(`net_worth_service.refresh_stale_growlio_links`)**: 스케줄러엔 사용자 JWT가 없어 예약 동기화가 불가능하므로, `auto_sync_enabled`이고 `STALE_GROWLIO_LINK_AFTER`(12h)보다 오래된 SavingsProduct/Loan 연동(호출자·공동 소유만)이 있으면 `GET /net-worth`·`GET /dashboard/bootstrap` 응답 후 `BackgroundTasks`로 `sync_all_from_growlio(auto_sync_only=True, owner_user_id=호출자)`를 돌린다. 자체 `SessionLocal()`을 열고 절대 raise하지 않는다. **은행 계좌(`sync_all_accounts`)는 돌리지 않는다** — `initial_balance`를 역산 재기준하므로 수동 동기화 전용이다(`models/account.py` 주석).

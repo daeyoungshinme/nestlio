@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { sortGoals } from "@/utils/goalSort";
+import { pinNetWorthFirst, sortGoals } from "@/utils/goalSort";
 import type { FinancialGoalOut } from "@/types";
 
 function makeGoal(overrides: Partial<FinancialGoalOut>): FinancialGoalOut {
@@ -79,5 +79,14 @@ describe("sortGoals", () => {
     const original = goals.slice();
     sortGoals(goals, "우선순위순");
     expect(goals).toEqual(original);
+  });
+});
+
+describe("pinNetWorthFirst", () => {
+  it("moves the household net-worth goal to the front and keeps the rest in order", () => {
+    const a = makeGoal({ id: 1, priority: 1 });
+    const nw = makeGoal({ id: 2, kind: "net_worth", priority: 5 });
+    const b = makeGoal({ id: 3, priority: 2 });
+    expect(pinNetWorthFirst([a, nw, b]).map((g) => g.id)).toEqual([2, 1, 3]);
   });
 });

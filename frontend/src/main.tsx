@@ -50,7 +50,7 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
       client={queryClient}
       persistOptions={{
         persister,
-        buster: "v2",
+        buster: "v3",
         maxAge: PERSIST_MAX_AGE,
         dehydrateOptions: {
           // 기본 판정(성공한 쿼리만)을 대체하지 않고 좁힌다 — 로딩 중·에러 상태가 저장되면 재방문 시 그대로 복원된다.
