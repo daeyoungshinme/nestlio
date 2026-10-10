@@ -1,10 +1,10 @@
 # app/scheduler 컨벤션
 
-잡 본문은 in-process 스케줄러가 아니라 **외부 트리거**(GitHub Actions 예약 워크플로)가 `app/routers/internal_jobs.py`의 `POST /internal/jobs/{job_name}`을 호출해 실행한다. Render 무료 웹서비스는 15분 미사용 시 슬립하므로 인프로세스 스케줄러(APScheduler)를 유지할 수 없어 이 구조로 전환했다.
+잡은 in-process 스케줄러가 아니라 GitHub Actions 예약 워크플로가 `POST /internal/jobs/{job_name}`(`app/routers/internal_jobs.py`)을 호출해 실행한다. Render 무료 티어가 15분 미사용 시 슬립해 APScheduler를 유지할 수 없기 때문이다. **사용자 Supabase JWT가 없으므로 growlio 호출은 잡에서 할 수 없다**(대안은 [app/services/CLAUDE.md](../services/CLAUDE.md)의 기회주의적 갱신).
 
 ## 구조
 
-- `jobs.py`: 잡 본문 (실제 로직은 `app/services`에 위임) — 트리거 방식이 바뀌어도 이 파일은 그대로 재사용된다. 시각은 `app/utils/dates.py`의 `now_kst()`/`today_kst()`로 읽어 서비스에 명시 주입한다(`datetime.now()`/`date.today()` 직접 호출 금지 — 컨테이너 TZ가 UTC라 KST 가정과 9시간 어긋난다. `render.yaml`의 `TZ=Asia/Seoul`이 이중 방어).
+- `jobs.py`: 잡 본문 (실제 로직은 `app/services`에 위임) — 트리거 방식이 바뀌어도 이 파일은 그대로 재사용된다. 시각은 `app/utils/dates.py`의 `now_kst()`/`today_kst()`로 읽어 서비스에 명시 주입한다(`datetime.now()`/`date.today()` 직접 호출 금지).
 - `app/routers/internal_jobs.py`: `job_name → callable` 매핑(`JOB_REGISTRY`), `X-Internal-Job-Secret` 헤더 검증(`settings.internal_job_secret`), `POST /internal/jobs/{job_name}` 엔드포인트.
 - `.github/workflows/scheduled-jobs.yml`: GitHub Actions `schedule:` cron (UTC 기준, KST = UTC+9로 환산)이 `curl`로 위 엔드포인트를 호출한다. 요일/말일 조건이 필요한 잡(주간·월간)은 워크플로 스텝 안에서 셸로 분기한다.
 
@@ -28,7 +28,7 @@
 ## Google 연동 가드
 
 - `daily_due_date_check`의 캘린더 동기화와 `event_reminder_check`는 `jobs.py` 안에서 직접 `google_auth.is_connected()`를 확인한 뒤에만 Google API를 호출한다.
-- `weekly_summary_email`/`monthly_summary_email`/`daily_threshold_safety_net`은 `jobs.py`에는 가드가 없다 — 대신 한 단계 아래 `notification_service`의 각 send 함수가 메일을 `_send_email_best_effort`로만 보낸다. 미연결이면 건너뛰고, 토큰 만료/revoke(`GoogleAuthError`)나 Gmail API 오류(`GmailSendError`)는 경고 로그만 남긴다 — 어떤 경우에도 인앱 알림(`NotificationLog`)은 남고 잡은 성공한다. 토큰 만료는 `google_reauth` 인앱 알림(월 1회)으로 부부에게 알려 `scripts/google_auth_setup.py` 재실행을 유도한다. (2026-09-27~10-05 주간·월간 요약과 월말 저축 리마인더가 만료 토큰 때문에 500으로 실패하며 인앱 알림까지 유실된 적이 있다.)
+- `weekly_summary_email`/`monthly_summary_email`/`daily_threshold_safety_net`은 `jobs.py`에는 가드가 없다 — 대신 한 단계 아래 `notification_service`의 각 send 함수가 메일을 `_send_email_best_effort`로만 보낸다. 미연결이면 건너뛰고, 토큰 만료/revoke(`GoogleAuthError`)나 Gmail API 오류(`GmailSendError`)는 경고 로그만 남긴다 — 어떤 경우에도 인앱 알림(`NotificationLog`)은 남고 잡은 성공한다. 토큰 만료는 `google_reauth` 인앱 알림(월 1회)으로 부부에게 알려 `scripts/google_auth_setup.py` 재실행을 유도한다.
 - 결과적으로 연동 안 된 상태에서도 앱이 정상 동작한다는 목표는 동일하지만, 가드 위치는 잡마다 다르다 — 새 잡을 추가할 때 어느 계층에서 가드할지 확인한다.
 
 ## 보안

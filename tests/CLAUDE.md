@@ -2,38 +2,37 @@
 
 ## pytest 설정
 
-- pytest 설정은 `pyproject.toml`의 `[tool.pytest.ini_options]`에 있다 — `--strict-markers`(오타 마커 = 에러)와 `filterwarnings = ["error", ...]`(deprecation 경고도 에러로 승격, 서드파티 알려진 경고만 화이트리스트). 커버리지 게이트·`pytest-randomly`는 아직 도입하지 않았다.
-- `conftest.py`에서 `sys.path`를 직접 조작해 `app` 패키지를 임포트한다.
+- `pyproject.toml` `[tool.pytest.ini_options]`: `--strict-markers`(오타 마커 = 에러), `filterwarnings = ["error", ...]`(deprecation 경고도 에러, 서드파티 알려진 경고만 화이트리스트). 커버리지 게이트·`pytest-randomly`는 없다.
+- `conftest.py`가 `sys.path`를 조작해 `app`을 임포트한다.
 
 ## DB 픽스처
 
-- `db_session`: 테스트마다 새로운 in-memory SQLite 엔진(`sqlite:///:memory:`)을 만들어 격리를 보장한다. 트랜잭션 롤백 방식이 아니라 아예 별도 엔진이다.
-- `seeded_db`: `db_session` 위에 spouse1 유저 1명 + 카테고리 4개(지출 food/variable, rent/fixed, events/irregular + 수입 salary/fixed)를 시드한 뒤 `{db, user, food, rent, events, salary}` dict를 반환한다. **대부분의 테스트는 이 픽스처를 사용한다.**
+- `db_session`: 테스트마다 새 in-memory SQLite 엔진(롤백 방식이 아니라 별도 엔진). `schema_translate_map={"household": None}`으로 스키마를 떼고, `poolclass=StaticPool`을 쓴다 — TestClient는 sync 라우터를 워커 스레드에서 돌리는데 기본 풀은 스레드마다 별도 연결(= 빈 DB)을 준다.
+- `seeded_db`: spouse1 유저 1명 + 카테고리 4개(food/variable, rent/fixed, events/irregular, 수입 salary/fixed)를 시드하고 `{db, user, food, rent, events, salary}`를 반환. **대부분의 테스트가 이걸 쓴다.**
+- SQLite는 `VARCHAR(n)` 길이를 강제하지 않으므로 `conftest.py`의 `before_insert`/`before_update` 리스너가 `String(n)` 초과를 `AssertionError`로 잡는다.
+- **자체 `SessionLocal()`을 여는 코드**(스케줄러 잡, `google_auth`, `refresh_stale_growlio_links` 같은 백그라운드 작업)는 `conftest.py`의 autouse 픽스처가 테스트 DB로 돌린다. 그런 모듈을 새로 만들면 그 픽스처에 추가한다 — 빠지면 로컬 `.env`의 **운영 DB에 붙는다**(TestClient는 `BackgroundTasks`까지 실행한다). 함수 안에서 `from app.database import SessionLocal`로 늦게 import하는 곳은 `app.database.SessionLocal` 패치로 잡힌다.
 
 ## 라우터/HTTP 테스트 (`tests/api/`)
 
-FastAPI가 JSON API로 전환되면서 (Jinja2/HTMX 서버 렌더링 제거) 라우터 자체의 스키마 직렬화·상태 코드·404/409 처리를 검증할 곳이 필요해졌다 — 서비스 계층 단위 테스트만으로는 커버되지 않는 영역이다. 기존 "라우터 테스트 없음" 컨벤션에서 벗어난 의도적 결정이다.
-
-- `tests/api/test_<router>_api.py`: 라우터 파일 1:1 대응. `client` 픽스처(`tests/conftest.py`)를 사용한다.
-- `client` 픽스처는 `get_db`를 `seeded_db`의 세션으로, `get_current_user`를 `seeded_db`의 유저로 `app.dependency_overrides`를 통해 대체한다 — 실제 Supabase JWT를 만들 필요 없이 "이미 인증된 요청"을 가정하고 라우터 로직만 검증한다.
-- `tests/test_dependencies.py`: `app/dependencies.py`의 JWKS 인증 체인(헤더 파싱 → 토큰 검증 → 유저 조회/미러링, 401 경로들) 자체를 검증하는 유일한 곳. `app.dependencies.verify_supabase_token`을 monkeypatch해서 실제 Supabase JWKS 엔드포인트를 호출하지 않는다.
-- SQLite는 `VARCHAR(n)` 길이를 강제하지 않아 운영 Postgres에서만 터지는 길이 초과가 테스트를 통과해 버린다 — `conftest.py`가 `before_insert`/`before_update` 리스너로 `String(n)` 컬럼 값 길이를 대신 검사한다(초과 시 `AssertionError`).
-- SQLite `:memory:` + `TestClient`를 함께 쓸 때는 `poolclass=StaticPool`이 필수다 (`db_session` 픽스처 참고) — TestClient가 sync 라우터를 워커 스레드에서 실행하는데, SQLite `:memory:`의 기본 풀은 스레드마다 별도 연결(= 별도 빈 DB)을 주기 때문에 `check_same_thread=False`만으로는 부족하다.
+- `test_<router>_api.py`: 라우터 파일 1:1. `client` 픽스처는 `app.dependency_overrides`로 `get_db` → `seeded_db` 세션, `get_current_user` → `seeded_db` 유저로 바꿔 "이미 인증된 요청"을 가정한다. 스키마 직렬화·상태 코드·404/409를 여기서 검증한다.
+- JWKS 인증 체인 자체(헤더 파싱 → 토큰 검증 → 유저 조회/미러링, 401/403 경로)는 `tests/test_dependencies.py`에서만 본다 — `app.dependencies.verify_supabase_token`을 monkeypatch한다.
+- `tests/api/test_internal_jobs_api.py`는 `JOB_REGISTRY`를 스텁으로 바꿔 인증/라우팅만, 실제 잡 본문은 `test_scheduler_jobs.py`가 본다.
 
 ## 시간 결정론
 
-- `datetime.now()`/`date.today()`를 테스트에서 직접 쓰지 않는다. 서비스 함수의 `today=` 파라미터(참고: [app/services/CLAUDE.md](../app/services/CLAUDE.md))에 고정 날짜를 명시적으로 넘겨서 검증한다.
-- freezegun 등 시간 mock 라이브러리는 쓰지 않는다.
+- 테스트에서 `datetime.now()`/`date.today()`를 쓰지 않는다. 서비스의 `today=`/`now=` 파라미터에 고정 날짜를 넘긴다([app/services/CLAUDE.md](../app/services/CLAUDE.md)). freezegun 등은 쓰지 않는다.
 
-## Mocking 범위
+## Mocking
 
-- `unittest.mock.patch`로 Gmail 발송(`app.services.notification_service.gmail_service.send_email`), Google Calendar/OAuth, growlio HTTP, Supabase Storage 호출을 mock한다 — 새 mocking 라이브러리(`pytest-mock`, `responses` 등)를 임의로 들여오지 않고 `unittest.mock`만 쓴다.
-- Google Calendar/OAuth는 `tests/test_google_calendar_service.py` / `tests/test_google_auth.py`가 커버한다.
+- `unittest.mock.patch`만 쓴다(`pytest-mock`, `responses` 등 새 라이브러리를 들이지 않는다). 대상: Gmail 발송(`app.services.notification_service.gmail_service.send_email`), Google Calendar/OAuth, growlio HTTP, Supabase Storage.
 
 ## 파일 조직
 
-- 원칙은 서비스 파일 1:1 대응(`test_budget_service.py`, `test_transaction_service.py` 등)이지만 예외가 있다 — `transaction_service.py`가 CRUD/집계/CSV 세 서비스(`transaction_service`/`transaction_report_service`/`transaction_import_service`)로 분리된 뒤에도 테스트 파일은 나누지 않았다: `test_transaction_service.py`가 CRUD와 집계(`transaction_report_service`/`transaction_trend_service`) 테스트를 함께 다루고, `test_csv_and_accounts.py`는 `account_service`와 CSV/시트 가져오기(`transaction_import_service`), 연간 집계(`transaction_trend_service`) 테스트를 함께 다룬다. 같은 이유로 `savings_coaching_service`(coaching_engine에서 분리) 테스트도 `test_coaching_engine.py`에 있다.
-- 같은 이유로 `event_service.py`가 CRUD/구글 캘린더/리마인더 세 서비스(`event_service`/`event_calendar_service`/`event_reminder_service`)로 분리된 뒤에도 `test_event_service.py` 하나가 세 모듈을 모두 다루고, `savings_product_service.py`가 CRUD/연간계획/growlio 세 서비스(`savings_product_service`/`savings_product_plan_service`/`savings_product_growlio_service`)로 분리된 뒤에도 `test_savings_product_service.py` 하나가 세 모듈을 모두 다룬다.
-- 전용 테스트 파일이 없는 서비스: 현재 없음(2026-10 `retrospective_service`/`plan_targets`/`goal_progress_service`/`notification_inbox_service`까지 채움). 새 서비스 모듈을 만들면 전용 테스트 파일을 같이 만들고, 당장 못 만들면 여기에 이름과 간접 검증 경로를 적어 공백을 추적한다. (`loan_service`/`google_sheets_service`처럼 전용 파일은 없지만 다른 서비스 테스트 안에서 간접적으로 커버되는 경우는 이 목록에 넣지 않는다 — 진짜 공백만 추적한다.)
-- `test_plan_status.py`(`pct_of`/`status_from_pct` 경계값·폴백), `test_growlio_client.py`(`to_decimal_krw`/`find_by_growlio_id`/`already_linked_growlio_ids`/`sync_linked_rows` 순수 헬퍼), `test_notification_log_service.py`(예약 알림 중복 발송을 막는 dedup 키) — 여러 곳의 근거라 간접 커버에서 전용 파일로 승격.
-- `test_scheduler_jobs.py`: `app/scheduler/jobs.py`의 실제 잡 본문(`_job` 래퍼의 예외 재발생, 안전망 잡의 단계별 롤백·에러 누적). `tests/api/test_internal_jobs_api.py`는 `JOB_REGISTRY`를 스텁으로 바꿔 인증/라우팅만 본다. 잡이 여는 `SessionLocal()`은 `conftest.py`의 autouse 픽스처가 테스트 DB로 돌린다(`google_auth`와 같은 이유) — 자체 세션을 여는 모듈을 새로 만들면 그 픽스처에 함께 추가한다. `net_worth_service.refresh_stale_growlio_links`처럼 함수 안에서 `from app.database import SessionLocal`로 늦게 import하는 곳은 `app.database.SessionLocal` 패치로 잡힌다(TestClient는 `BackgroundTasks`까지 실행하므로 빠지면 로컬 `.env`의 운영 DB에 붙는다).
+- 원칙은 서비스 모듈 1:1(`test_<module>.py`). 새 서비스 모듈을 만들면 전용 테스트 파일도 만든다.
+- 예외 — 모듈을 분할하면서 테스트 파일은 나누지 않은 곳:
+  - `test_transaction_service.py`: `transaction_service` + `transaction_report_service` + `transaction_trend_service`
+  - `test_csv_and_accounts.py`: `account_service` + `transaction_import_service` + 연간 집계(`transaction_trend_service`)
+  - `test_event_service.py`: `event_service` + `event_calendar_service` + `event_reminder_service`
+  - `test_savings_product_service.py`: `savings_product_*` 세 모듈
+  - `test_coaching_engine.py`: `coaching_engine` + `savings_coaching_service`
+- `loan_service`/`google_sheets_service`는 전용 파일 없이 다른 테스트에서 간접 커버된다.
