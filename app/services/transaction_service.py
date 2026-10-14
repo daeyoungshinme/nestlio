@@ -6,6 +6,7 @@ from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
 from app.models.category import Category
+from app.models.growlio_push_queue import GrowlioPushQueue
 from app.models.transaction import Transaction
 from app.services import growlio_push_service, savings_product_service
 
@@ -20,27 +21,21 @@ def _validate_savings_link(db: Session, category_id: int, type_: str, savings_pr
         raise ValueError("저축상품은 저축 전용 카테고리에서만 연결할 수 있습니다.")
 
 
-def _push_growlio(
-    db: Session,
-    tx: Transaction,
-    savings_product_id: int,
-    transaction_type: str,
-    amount: Decimal,
-    transaction_date: date,
-    bearer_token: str | None,
+def _send_staged_pushes(
+    db: Session, tx: Transaction, rows: list[GrowlioPushQueue | None], bearer_token: str | None
 ) -> None:
-    """저축/투자 잔액 조정을 growlio 쪽에도 반영한다 — growlio_push_service 아웃박스에 남기고 바로 보내 본다.
+    """커밋 뒤에 호출 — 거래와 같은 커밋으로 남긴 growlio 큐 행(`growlio_push_service.stage`)을 바로 보내 본다.
 
     growlio가 잠들어있거나 응답하지 않아도 가계부 저장 자체는 이미 끝난 뒤이므로 절대 raise하지 않는다 — 보내지
     못한 동작은 큐에 남아 다음 화면 로드 때 재전송되고, 이번 응답에는 tx의 비영속 플래그
     `Transaction.growlio_sync_failed`(모델에 선언된 클래스 속성, DB 컬럼 아님)를 True로 세팅해 라우터가 응답 헤더로
     알린다(TransactionOut 스키마 변경 없이 소비). 토큰이 없으면(예약 작업 등) 큐에만 남긴다.
     """
-    sent = growlio_push_service.push_now(
-        db, savings_product_id, transaction_type, amount, transaction_date, bearer_token, transaction_id=tx.id
-    )
-    if sent is False and bearer_token:
-        tx.growlio_sync_failed = True
+    for row in rows:
+        if row is None:
+            continue
+        if not growlio_push_service.send_staged(db, row, bearer_token) and bearer_token:
+            tx.growlio_sync_failed = True
 
 
 def create_transaction(
@@ -73,14 +68,18 @@ def create_transaction(
         owner_user_id=owner_user_id,
     )
     db.add(tx)
-    # 거래 저장과 저축상품 잔액 조정은 한 커밋으로 묶는다 — 따로 커밋하면 두 번째가 실패했을 때
-    # 거래만 남고 current_balance가 어긋난다. growlio push는 되돌릴 수 없는 외부 호출이라 커밋 뒤에.
+    # 거래 저장·저축상품 잔액 조정·growlio 큐 행은 한 커밋으로 묶는다 — 따로 커밋하면 뒤쪽이 실패했을 때
+    # 거래만 남고 current_balance가 어긋나거나 growlio 반영이 빠진다. 실제 전송은 되돌릴 수 없는 외부 호출이라 커밋 뒤에.
+    pushes = []
     if savings_product_id is not None:
+        db.flush()  # 큐 행에 transaction_id를 남기려면 id가 필요하다
         savings_product_service.adjust_balance(db, savings_product_id, amount)
+        pushes.append(
+            growlio_push_service.stage(db, savings_product_id, "DEPOSIT", amount, transaction_date, transaction_id=tx.id)
+        )
     db.commit()
     db.refresh(tx)
-    if savings_product_id is not None:
-        _push_growlio(db, tx, savings_product_id, "DEPOSIT", amount, transaction_date, bearer_token)
+    _send_staged_pushes(db, tx, pushes, bearer_token)
     return tx
 
 
@@ -107,68 +106,72 @@ def update_transaction(db: Session, tx_id: int, bearer_token: str | None = None,
         old_amount,
         old_transaction_date,
     )
-    # 잔액 조정도 거래 수정과 같은 커밋에 넣는다(create_transaction 주석 참고).
+    # 잔액 조정·growlio 큐 행도 거래 수정과 같은 커밋에 넣는다(create_transaction 주석 참고).
+    pushes = []
     if savings_changed:
         if old_savings_product_id is not None:
             savings_product_service.adjust_balance(db, old_savings_product_id, -old_amount)
+            pushes.append(
+                growlio_push_service.stage(
+                    db, old_savings_product_id, "WITHDRAWAL", old_amount, old_transaction_date, transaction_id=tx.id
+                )
+            )
         if new_savings_product_id is not None:
             savings_product_service.adjust_balance(db, new_savings_product_id, tx.amount)
+            pushes.append(
+                growlio_push_service.stage(
+                    db, new_savings_product_id, "DEPOSIT", tx.amount, tx.transaction_date, transaction_id=tx.id
+                )
+            )
     db.commit()
     db.refresh(tx)
-    if not savings_changed:
-        return tx
-
-    if old_savings_product_id is not None:
-        _push_growlio(db, tx, old_savings_product_id, "WITHDRAWAL", old_amount, old_transaction_date, bearer_token)
-    if new_savings_product_id is not None:
-        _push_growlio(db, tx, new_savings_product_id, "DEPOSIT", tx.amount, tx.transaction_date, bearer_token)
+    _send_staged_pushes(db, tx, pushes, bearer_token)
     return tx
 
 
-def _stage_delete(db: Session, tx: Transaction) -> tuple[Transaction, int | None, Decimal, date]:
-    """커밋하지 않고 삭제·저축잔액 롤백만 세션에 올린다. 커밋 뒤 growlio 출금에 쓸 값을 돌려준다
-    (삭제된 객체에서 다시 읽지 않도록 미리 꺼내 둔다)."""
-    pending = (tx, tx.savings_product_id, tx.amount, tx.transaction_date)
+def _stage_delete(db: Session, tx: Transaction) -> GrowlioPushQueue | None:
+    """커밋하지 않고 삭제·저축잔액 롤백·growlio 출금 큐 행만 세션에 올린다. 큐 행은 삭제와 같은 커밋으로 남고
+    전송은 커밋 뒤에 한다 — 먼저 보내고 삭제가 실패하면 growlio만 빠진다. 큐 행은 거래와 FK로 묶이지 않아
+    거래가 지워져도 남는다."""
+    row = None
     if tx.savings_product_id is not None:
         savings_product_service.adjust_balance(db, tx.savings_product_id, -tx.amount)
+        row = growlio_push_service.stage(
+            db, tx.savings_product_id, "WITHDRAWAL", tx.amount, tx.transaction_date, transaction_id=tx.id
+        )
     db.delete(tx)
-    return pending
-
-
-def _push_withdrawals(db: Session, pending: list[tuple[Transaction, int | None, Decimal, date]], bearer_token: str | None) -> None:
-    # 삭제가 커밋된 뒤에만 growlio 출금을 보낸다 — 먼저 보내고 삭제가 실패하면 growlio만 빠진다.
-    for tx, savings_product_id, amount, transaction_date in pending:
-        if savings_product_id is not None:
-            _push_growlio(db, tx, savings_product_id, "WITHDRAWAL", amount, transaction_date, bearer_token)
+    return row
 
 
 def delete_transaction(db: Session, tx_id: int, bearer_token: str | None = None) -> bool:
     tx = db.get(Transaction, tx_id)
     if tx is None:
         return False
-    pending = [_stage_delete(db, tx)]
+    pushes = [_stage_delete(db, tx)]
     db.commit()
-    _push_withdrawals(db, pending, bearer_token)
+    _send_staged_pushes(db, tx, pushes, bearer_token)
     return True
 
 
 def bulk_delete_transactions(
     db: Session, tx_ids: list[int], bearer_token: str | None = None
 ) -> tuple[int, list[int]]:
-    """가져오기 되돌리기 등에서 여러 건을 한 번에 지울 때 쓴다. 단건 삭제와 같은 저축잔액 롤백을
+    """가져오기 되돌리기 등에서 여러 건을 한 번에 지울 때 쓴다. 단건 삭제와 같은 저축잔액 롤백·growlio 큐 행을
     전부 세션에 올린 뒤 **한 번에 커밋**한다 — 중간에 DB 오류가 나면 아무것도 지워지지 않는다(행마다
     커밋하던 시절엔 앞쪽 일부만 지워진 채 남았다). 존재하지 않는 id만 실패 목록으로 돌려주고 나머지는
     지운다(그 경우의 부분 성공은 의도된 동작). growlio 출금은 커밋 후 best-effort로 보낸다."""
     unique_ids = list(dict.fromkeys(tx_ids))
     found = {tx.id: tx for tx in db.query(Transaction).filter(Transaction.id.in_(unique_ids))} if unique_ids else {}
+    deleted = [found[tx_id] for tx_id in unique_ids if tx_id in found]
     try:
-        pending = [_stage_delete(db, found[tx_id]) for tx_id in unique_ids if tx_id in found]
+        pushes = [(tx, _stage_delete(db, tx)) for tx in deleted]
         db.commit()
     except Exception:
         db.rollback()
         raise
-    _push_withdrawals(db, pending, bearer_token)
-    return len(pending), [tx_id for tx_id in unique_ids if tx_id not in found]
+    for tx, row in pushes:
+        _send_staged_pushes(db, tx, [row], bearer_token)
+    return len(deleted), [tx_id for tx_id in unique_ids if tx_id not in found]
 
 
 def list_transactions(

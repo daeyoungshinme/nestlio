@@ -1,8 +1,8 @@
 """저축·투자 거래를 growlio 계좌 입출금으로 반영하는 아웃박스(GrowlioPushQueue).
 
 전에는 거래 저장 직후 growlio에 한 번 보내 보고 실패하면 경고 헤더만 남겨, growlio가 잠들어 있던 순간의 저축은
-growlio에 영영 빠졌다. 이제 반영할 동작을 큐에 먼저 남기고 바로 보내 보며(`push_now`), 실패한 행은 다음 화면 로드 때
-호출자 JWT로 다시 보낸다(`flush_pending`). 키 `nestlio:q{id}`로 보내므로 growlio가 같은 행을 한 번만 기록한다 —
+growlio에 영영 빠졌다. 이제 반영할 동작을 거래와 같은 커밋으로 큐에 남기고(`stage`) 커밋 뒤 바로 보내 보며
+(`send_staged`), 실패한 행은 다음 화면 로드 때 호출자 JWT로 다시 보낸다(`flush_pending`). 키 `nestlio:q{id}`로 보내므로 growlio가 같은 행을 한 번만 기록한다 —
 "보냈는데 응답만 잃은" 경우에도 재전송이 안전하다.
 """
 
@@ -32,14 +32,21 @@ def external_ref(row: GrowlioPushQueue) -> str:
     return f"{EXTERNAL_REF_PREFIX}q{row.id}"
 
 
-def enqueue(
+def stage(
     db: Session,
-    product: SavingsProduct,
+    savings_product_id: int,
     transaction_type: str,
     amount: Decimal,
     transaction_date: date,
-    transaction_id: int | None,
-) -> GrowlioPushQueue:
+    transaction_id: int | None = None,
+) -> GrowlioPushQueue | None:
+    """반영할 동작을 큐 행으로 세션에 올리기만 한다(커밋 안 함) — growlio 연동 상품이 아니면 None.
+
+    호출자는 이 행을 거래 저장과 **같은 커밋**으로 묶는다. 따로 커밋하면 그 사이에 실패했을 때 거래만 남고
+    큐 행이 없어 growlio 반영이 영영 빠진다(아웃박스를 둔 이유가 사라짐). 보내기는 커밋 뒤 `send_staged`로."""
+    product = db.get(SavingsProduct, savings_product_id)
+    if product is None or not product.growlio_account_id:
+        return None
     row = GrowlioPushQueue(
         growlio_account_id=product.growlio_account_id,
         owner_user_id=product.owner_user_id,
@@ -49,8 +56,6 @@ def enqueue(
         transaction_date=transaction_date,
     )
     db.add(row)
-    db.commit()
-    db.refresh(row)
     return row
 
 
@@ -77,30 +82,18 @@ def send(db: Session, row: GrowlioPushQueue, bearer_token: str, now: datetime | 
     return True
 
 
-def push_now(
-    db: Session,
-    savings_product_id: int,
-    transaction_type: str,
-    amount: Decimal,
-    transaction_date: date,
-    bearer_token: str | None,
-    transaction_id: int | None = None,
-) -> bool | None:
-    """거래 저장 직후 호출 — growlio 연동 상품이 아니면 None(할 일 없음). 큐에 남기고 토큰이 있으면 바로 보낸다.
-    반환: 보냈으면 True, 남겨 두었으면 False(호출자가 경고 헤더를 띄운다). 토큰이 없으면(예약 작업 등) 큐에만 남긴다."""
-    product = db.get(SavingsProduct, savings_product_id)
-    if product is None or not product.growlio_account_id:
-        return None
-    row = enqueue(db, product, transaction_type, amount, transaction_date, transaction_id)
+def send_staged(db: Session, row: GrowlioPushQueue, bearer_token: str | None) -> bool:
+    """커밋된 큐 행을 바로 보내 본다. 보냈으면 True, 남겨 두었으면 False(호출자가 경고 헤더를 띄운다).
+    토큰이 없으면(예약 작업 등) 보내지 않고 남겨 둔다 — 다음 화면 로드 때 `flush_pending`이 보낸다."""
     if not bearer_token:
         return False
     ok = send(db, row, bearer_token)
     if not ok:
         logger.warning(
-            "growlio_push_queued savings_product_id=%s type=%s amount=%s (거래는 정상 저장됨, 다음 화면 로드 때 재전송)",
-            savings_product_id,
-            transaction_type,
-            amount,
+            "growlio_push_queued queue_id=%s type=%s amount=%s (거래는 정상 저장됨, 다음 화면 로드 때 재전송)",
+            row.id,
+            row.transaction_type,
+            row.amount,
         )
     return ok
 

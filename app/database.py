@@ -21,5 +21,10 @@ def get_db():
     db = SessionLocal()
     try:
         yield db
+    except Exception:
+        # 요청 처리 중 예외면 커밋 안 된 변경을 명시적으로 버린다(close()도 버리지만, 실패한 flush 뒤의
+        # 세션 상태에 기대지 않는다).
+        db.rollback()
+        raise
     finally:
         db.close()

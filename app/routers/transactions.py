@@ -109,8 +109,7 @@ def _notify_partner_saving(db: Session, user: User, tx) -> None:
     """저축 거래면 배우자 알림함에 남긴다 — 알림 실패가 거래 저장 응답을 막지 않게 로그만 남긴다."""
     try:
         notification_inbox_service.log_partner_saving(db, user.id, user.display_name, tx)
-    except Exception:
-        db.rollback()
+    except Exception:  # log_partner_saving이 롤백까지 하고 올린다
         logger.exception("배우자 저축 알림 기록 실패 (거래는 정상 저장됨)")
 
 
