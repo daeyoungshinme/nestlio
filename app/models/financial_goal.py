@@ -29,7 +29,7 @@ class FinancialGoal(Base):
     target_age: Mapped[int | None] = mapped_column(Integer, nullable=True)
     # 나이 기반(target_age) 입력의 보완 — 부부 공동 목표에서 "나이"는 누구 기준인지 모호하고
     # 매번 현재 나이를 재입력해야 계산되던 방식을, 오늘 날짜 기준 결정론적 계산으로 대체한다
-    # (app/services/goal_service.py::to_out 참고). target_age와 공존하며 둘 다 선택 입력이다.
+    # (app/services/goal_progress_service.py::to_out 참고). target_age와 공존하며 둘 다 선택 입력이다.
     target_date: Mapped[date | None] = mapped_column(Date, nullable=True)
     required_amount: Mapped[Decimal] = mapped_column(Numeric(14, 2), default=0)
     monthly_saving_amount: Mapped[Decimal] = mapped_column(Numeric(12, 2), default=0)

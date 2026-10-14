@@ -26,7 +26,7 @@
 
 ## 알림 dedup
 
-- 같은 알림의 중복 발송은 `NotificationLog`(`notif_type` + 기간 키) 기록으로 막는다. 헬퍼(`already_sent`/`log_sent`)는 `notification_log_service.py`에 있다(`milestone_service`처럼 `notification_service`를 import하면 순환이 되는 모듈도 쓰기 위해 분리). 새 알림 종류도 이 패턴을 따른다.
+- 같은 알림의 중복 발송은 `NotificationLog`(`notif_type` + 기간 키) 기록으로 막는다. 헬퍼(`already_sent`/`log_sent`, 목표 마일스톤용 `highest_crossed_milestone`/`milestone_already_logged`/`log_milestone`)는 다른 서비스를 import하지 않는 말단 모듈 `notification_log_service.py`에 있다(`notification_service`를 import하면 순환이 되는 모듈도 쓸 수 있게). 새 알림 종류도 이 패턴을 따른다.
 - dedup이 없는 "사건" 알림(`goal_cheer`, `partner_saving`)은 `year_month`에 초 단위 ISO 시각을 넣고(String(20)), 행동한 본인에게는 `NotificationRead`로 바로 읽음 처리한다. `partner_saving`은 사용자가 직접 입력한 저축 거래(`POST /transactions`)에서만 남긴다 — 반복거래 자동 생성·CSV 가져오기는 알림함을 덮으므로 제외.
 
 ## 모듈 분할 지도

@@ -11,7 +11,7 @@ class GoalMonthlyTarget(Base):
     달에 대해 목표금액(target_amount)과 실제 저축한 금액(achieved_amount, 매달 사용자가 직접
     입력 또는 연동된 거래내역에서 자동 계산)을 따로 관리한다. 미연동이면서 monthly_targets이 있는
     FinancialGoal의 required_amount/current_amount는 이 행들의 합으로 파생된다
-    (app/services/goal_service.py 참고)."""
+    (app/services/goal_progress_service.py 참고)."""
 
     __tablename__ = "goal_monthly_targets"
     __table_args__ = (UniqueConstraint("goal_id", "year_month", name="uq_goal_monthly_target_month"),)

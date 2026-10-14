@@ -13,7 +13,6 @@ class CategoryOut(BaseModel):
     kind: Literal["income", "expense"]
     type: Literal["fixed", "variable", "irregular"]
     color: str
-    icon: str | None = None
     is_active: bool
     is_discretionary: bool = False
     is_debt: bool = False

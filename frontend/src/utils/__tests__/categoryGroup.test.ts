@@ -16,7 +16,6 @@ function makeCategory(id: number, sort_order: number, name = `cat${id}`): Catego
     kind: "expense",
     type: "variable",
     color: "#000000",
-    icon: null,
     is_active: true,
     is_discretionary: false,
     is_debt: false,

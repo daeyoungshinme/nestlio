@@ -42,7 +42,6 @@ export interface CategoryOut {
   kind: "income" | "expense";
   type: CategoryType;
   color: string;
-  icon: string | null;
   is_active: boolean;
   is_discretionary: boolean;
   is_debt: boolean;

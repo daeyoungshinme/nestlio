@@ -131,6 +131,3 @@ def flush_pending(bearer_token: str, user_id: uuid.UUID, *, now: datetime | None
         db.close()
     return sent
 
-
-def pending_count(db: Session, user_id: uuid.UUID) -> int:
-    return pending_query(db, user_id).count()

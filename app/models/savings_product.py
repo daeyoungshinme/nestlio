@@ -37,8 +37,8 @@ class SavingsProduct(Base):
     last_synced_at: Mapped[datetime | None] = mapped_column(DateTime)
 
     # 상품 1개는 최대 1개 목표의 funding source만 될 수 있다(goal_funding_sources.savings_product_id
-    # unique 제약, app/models/goal_funding_source.py 참고) — 연동 시 월 계획액을 그 목표의
-    # monthly_saving_amount와 동기화하기 위한 역참조(app/services/goal_service.py 참고).
+    # unique 제약, app/models/goal_funding_source.py 참고) — 상품 목록에 연동된 목표(linked_goal_id/name)를
+    # 보여 주기 위한 역참조. 목표 저장은 상품의 월 계획액을 건드리지 않는다(app/services/CLAUDE.md 코칭 절 참고).
     goal_funding_source: Mapped["GoalFundingSource | None"] = relationship(
         uselist=False, viewonly=True, lazy="joined"
     )

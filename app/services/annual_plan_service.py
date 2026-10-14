@@ -7,7 +7,14 @@ from sqlalchemy.orm import Session, selectinload
 
 from app.models.annual_plan_item import AnnualPlanItem
 from app.models.annual_plan_item_monthly_target import AnnualPlanItemMonthlyTarget
-from app.services import budget_service, plan_targets, transaction_report_service, transaction_trend_service
+from app.models.category import Category
+from app.services import (
+    budget_service,
+    plan_targets,
+    recurring_service,
+    transaction_report_service,
+    transaction_trend_service,
+)
 from app.utils.dates import year_bounds, year_month_of
 from app.utils.money import whole_won
 from app.utils.plan_status import pct_of
@@ -295,9 +302,6 @@ def seed_year(db: Session, year: int, source: str, updated_by: uuid.UUID, today:
       - recurring: 활성 반복거래(수입·지출)로 항목 생성 — 저축 카테고리는 저축·투자 계획이 따로 있어 제외
       - recent_average: today 기준 직전 3개월 카테고리별 평균 실적으로 매달 같은 금액의 항목 생성
     """
-    from app.models.category import Category
-    from app.services import recurring_service
-
     if source not in SEED_SOURCES:
         raise ValueError(f"알 수 없는 source: {source}")
     if list_items(db, year):

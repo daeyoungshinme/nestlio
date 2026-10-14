@@ -24,7 +24,6 @@ def send_due_reminders(db: Session, now: datetime, window_minutes: int = 30) -> 
         return 0
 
     sent = 0
-    # 로컬에서 숨긴(dismissed) 일정은 목록에 안 보이는데 메일만 오면 안 되므로 제외한다.
     candidates = (
         db.query(Event)
         .filter(Event.reminder_minutes_before.isnot(None))

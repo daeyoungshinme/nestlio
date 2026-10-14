@@ -168,7 +168,7 @@ export interface paths {
         /**
          * Monthly Retrospective
          * @description 지난달(가장 최근 완결된 달) 요약 — 부부가 함께 돌아보는 월간 회고 카드용.
-         *     월간 요약 이메일(notification_service.send_monthly_summary)과 retrospective_service를 공유한다.
+         *     월간 요약 이메일(notification_service.send_monthly_summary)과 dashboard_service.build_retrospective를 공유한다.
          */
         get: operations["monthly_retrospective_api_v1_dashboard_monthly_retrospective_get"];
         put?: never;
@@ -2053,8 +2053,6 @@ export interface components {
             type: "fixed" | "variable" | "irregular";
             /** Color */
             color: string;
-            /** Icon */
-            icon?: string | null;
             /** Is Active */
             is_active: boolean;
             /**

@@ -4,7 +4,7 @@ import CategoryPicker from "@/components/common/CategoryPicker";
 import type { CategoryOut } from "@/types";
 
 const categories = [
-  { id: 1, name: "식비", kind: "expense", type: "variable", color: "#000", icon: null, is_active: true, sort_order: 0 },
+  { id: 1, name: "식비", kind: "expense", type: "variable", color: "#000", is_active: true, sort_order: 0 },
 ] as CategoryOut[];
 
 // 레이블이 select와 연결돼 있어야 스크린리더가 이름을 읽는다 — 같은 화면에 여러 개 떠도 id가 겹치지 않아야 한다.

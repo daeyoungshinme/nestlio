@@ -6,14 +6,13 @@ from sqlalchemy.orm import Session
 from app.services import (
     budget_service,
     coaching_settings_service,
+    dashboard_service,
     email_templates,
     gmail_service,
     goal_progress_service,
     goal_service,
-    milestone_service,
     notification_log_service,
     notification_settings_service,
-    retrospective_service,
     savings_coaching_service,
     savings_product_plan_service,
     transaction_report_service,
@@ -135,7 +134,7 @@ def send_weekly_summary(db: Session, today: date | None = None, force: bool = Fa
 
 def send_monthly_summary(db: Session, today: date | None = None, force: bool = False) -> bool:
     today = today or today_kst()
-    r = retrospective_service.build(db, today)
+    r = dashboard_service.build_retrospective(db, today)
     start, end, period_key = r["start"], r["end"], r["year_month"]
     if not force and not notification_settings_service.is_enabled(db, "email_monthly"):
         return False
@@ -203,7 +202,7 @@ def _celebrate_goal_milestone(db: Session, goal, today: date | None = None) -> b
     """Send a celebration email the first time this goal's progress crosses a milestone,
     deduped per goal per milestone so re-saving the same goal doesn't re-send. If progress
     jumped past multiple milestones at once, only the highest is sent. Milestone-crossing +
-    dedup bookkeeping lives in milestone_service. 일반 목표(kind="goal")는 25/50/75/100% 각각
+    dedup bookkeeping lives in notification_log_service. 일반 목표(kind="goal")는 25/50/75/100% 각각
     축하하고, 챌린지(kind="challenge")는 옛 Challenge 모델과 동일하게 100% 한 번만 축하한다."""
     today = today or today_kst()
     if goal is None or not goal.required_amount:
@@ -211,14 +210,16 @@ def _celebrate_goal_milestone(db: Session, goal, today: date | None = None) -> b
     is_challenge = goal.kind == "challenge"
     current_amount = goal_progress_service.compute_current_amount(db, goal)
     progress_pct = goal_progress_service.compute_progress_pct(current_amount, goal.required_amount)
-    milestone = milestone_service.highest_crossed(progress_pct, milestones=(100,) if is_challenge else milestone_service.MILESTONES)
+    milestone = notification_log_service.highest_crossed_milestone(
+        progress_pct, milestones=(100,) if is_challenge else notification_log_service.MILESTONES
+    )
     if milestone is None:
         return False
     notif_type = "challenge_success" if is_challenge else "goal_milestone"
     related_type = "challenge" if is_challenge else "goal"
     if not notification_settings_service.is_enabled(db, notif_type):
         return False
-    if milestone_service.already_logged(db, notif_type, goal.id, milestone):
+    if notification_log_service.milestone_already_logged(db, notif_type, goal.id, milestone):
         return False
     if is_challenge:
         body = (
@@ -241,7 +242,7 @@ def _celebrate_goal_milestone(db: Session, goal, today: date | None = None) -> b
                 body += f"\n목표일까지 D-{remaining_days}, 이제 {remaining_amount:,.0f}원만 더 모으면 돼요."
         subject = f"[Nestlio] 우리 부부 목표 달성 축하 - {goal.name} {milestone}%"
     _send_email_best_effort(db, subject, body)
-    milestone_service.log(db, notif_type, related_type, goal.id, milestone, body)
+    notification_log_service.log_milestone(db, notif_type, related_type, goal.id, milestone, body)
     return True
 
 

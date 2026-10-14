@@ -1,5 +1,5 @@
-"""goal_service, savings_product_service, loan_service는 각자 단순 CRUD만 하는 작은
-서비스라 test_csv_and_accounts.py처럼 한 파일에 묶어 다룬다."""
+"""목표·저축상품·대출의 기본 CRUD 왕복을 한 파일에서 훑는 스모크 테스트. 서비스별 세부 동작은
+test_goal_service.py, test_savings_product_service.py 등 1:1 파일에 있다."""
 from decimal import Decimal
 
 from app.services import goal_progress_service, goal_service, loan_service, savings_product_service

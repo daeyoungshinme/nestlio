@@ -13,7 +13,7 @@ class User(Base):
     id는 Supabase auth.users.id(UUID)와 동일한 값을 사용한다.
 
     배우자 제거는 하드 삭제가 아니라 removed_at을 채우는 소프트 삭제다 - transactions 등
-    8개 테이블이 user_id를 FK로 참조하고 있어 하드 삭제는 FK 위반을 일으킨다. 제거된 행은
+    여러 테이블(루트 CLAUDE.md "가구(사용자) 모델" 참고)이 users.id를 FK로 참조하고 있어 하드 삭제는 FK 위반을 일으킨다. 제거된 행은
     list_users()에서 제외되어 가구 정원(MAX_HOUSEHOLD_USERS)에 다시 자리가 생기지만, 과거
     거래내역 등은 원래 이름 그대로 남는다."""
 

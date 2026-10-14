@@ -1,5 +1,9 @@
 """notification_log_service — 예약 요약 메일/예산 경고/목표 달성 알림의 중복 발송을 막는 dedup 키 규칙."""
 
+from decimal import Decimal
+
+import pytest
+
 from app.services import notification_log_service
 
 
@@ -33,3 +37,30 @@ def test_log_sent_defaults_related_type_and_truncates_detail(seeded_db):
     assert rows["threshold_alert"].related_type == "category"
     assert len(rows["threshold_alert"].detail) == 500
     assert rows["email_monthly"].related_type is None
+
+
+@pytest.mark.parametrize(
+    "progress_pct,expected",
+    [
+        (Decimal("10"), None),
+        (Decimal("25"), 25),
+        (Decimal("49.9"), 25),
+        (Decimal("50"), 50),
+        (Decimal("83"), 75),
+        (Decimal("100"), 100),
+        (Decimal("120"), 100),
+    ],
+)
+def test_highest_crossed_milestone(progress_pct, expected):
+    assert notification_log_service.highest_crossed_milestone(progress_pct) == expected
+
+
+def test_milestone_already_logged_roundtrip(db_session):
+    assert notification_log_service.milestone_already_logged(db_session, "goal_milestone", related_id=1, milestone=50) is False
+
+    notification_log_service.log_milestone(db_session, "goal_milestone", "goal", related_id=1, milestone=50, detail="목표 50% 달성")
+
+    assert notification_log_service.milestone_already_logged(db_session, "goal_milestone", related_id=1, milestone=50) is True
+    # 다른 마일스톤/다른 대상은 별개로 취급된다
+    assert notification_log_service.milestone_already_logged(db_session, "goal_milestone", related_id=1, milestone=75) is False
+    assert notification_log_service.milestone_already_logged(db_session, "goal_milestone", related_id=2, milestone=50) is False
