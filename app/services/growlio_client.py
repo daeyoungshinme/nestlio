@@ -14,11 +14,10 @@ from datetime import date, datetime
 from decimal import Decimal
 
 import httpx
-from fastapi import FastAPI, Request, status
-from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 
 from app.config import settings
+from app.errors import ConflictError, DomainError, UpstreamError
 
 _TIMEOUT = 5.0
 
@@ -39,15 +38,17 @@ REAL_ESTATE_ASSET_TYPE = "REAL_ESTATE"
 SYNC_MATCH_FAILED_REASON = "growlio에서 연동된 계좌를 찾을 수 없습니다 (배우자 계정이거나 삭제되었을 수 있습니다)."
 
 
-class GrowlioNotConfiguredError(Exception):
+class GrowlioNotConfiguredError(DomainError):
     """settings.growlio_api_base_url이 비어 있어 연동 기능 자체가 꺼져 있을 때."""
 
+    status_code = 501
 
-class GrowlioRequestError(Exception):
+
+class GrowlioRequestError(UpstreamError):
     """growlio API 호출이 실패했을 때 (네트워크 오류, 인증 실패, 5xx 등)."""
 
 
-class GrowlioSyncError(Exception):
+class GrowlioSyncError(ConflictError):
     """동기화 요청이 사용자에게 보여줄 수 있는 사유로 실패했을 때 (연동 없음/계좌 못 찾음).
 
     account_service/savings_product_service/real_estate_service가 공통으로 쓰는 예외라
@@ -232,25 +233,3 @@ def already_linked_growlio_ids(db: Session, model, *, active_only: bool = True) 
     if active_only:
         query = query.filter(model.is_active.is_(True))
     return {growlio_id for (growlio_id,) in query}
-
-
-def register_exception_handlers(app: FastAPI) -> None:
-    """accounts/savings_products/real_estate/goals 라우터가 각자 반복하던
-    growlio 예외 -> HTTP status 매핑을 앱 전역에서 한 번만 처리한다.
-
-    FastAPI의 기본 HTTPException 핸들러와 동일한 응답 형식({"detail": ...})을
-    직접 반환한다 - exception_handler 안에서 HTTPException을 raise하면 그
-    핸들러 밖으로 예외가 그대로 전파되어 500으로 떨어지므로 쓰지 않는다.
-    """
-
-    @app.exception_handler(GrowlioNotConfiguredError)
-    def _not_configured(request: Request, exc: GrowlioNotConfiguredError):
-        return JSONResponse(status_code=status.HTTP_501_NOT_IMPLEMENTED, content={"detail": str(exc)})
-
-    @app.exception_handler(GrowlioRequestError)
-    def _request_error(request: Request, exc: GrowlioRequestError):
-        return JSONResponse(status_code=status.HTTP_502_BAD_GATEWAY, content={"detail": str(exc)})
-
-    @app.exception_handler(GrowlioSyncError)
-    def _sync_error(request: Request, exc: GrowlioSyncError):
-        return JSONResponse(status_code=status.HTTP_409_CONFLICT, content={"detail": str(exc)})

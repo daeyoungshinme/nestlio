@@ -4,6 +4,7 @@ import time
 import httpx
 
 from app.config import settings
+from app.errors import InvalidInputError, UpstreamError
 
 logger = logging.getLogger(__name__)
 
@@ -11,11 +12,11 @@ ALLOWED_CONTENT_TYPES = {"image/jpeg", "image/png", "image/webp"}
 OBJECT_KEY = "couple-photo"
 
 
-class InvalidPhotoError(ValueError):
+class InvalidPhotoError(InvalidInputError):
     pass
 
 
-class PhotoStorageError(RuntimeError):
+class PhotoStorageError(UpstreamError):
     pass
 
 

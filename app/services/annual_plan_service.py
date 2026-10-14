@@ -5,6 +5,7 @@ from decimal import Decimal
 from sqlalchemy import func
 from sqlalchemy.orm import Session, selectinload
 
+from app.errors import ConflictError, InvalidInputError
 from app.models.annual_plan_item import AnnualPlanItem
 from app.models.annual_plan_item_monthly_target import AnnualPlanItemMonthlyTarget
 from app.services import budget_service, plan_targets, transaction_report_service, transaction_trend_service
@@ -249,7 +250,7 @@ def category_budget_vs_actual(
 SEED_SOURCES = ("previous_year", "recurring", "recent_average")
 
 
-class PlanAlreadyExistsError(Exception):
+class PlanAlreadyExistsError(ConflictError):
     pass
 
 
@@ -299,7 +300,7 @@ def seed_year(db: Session, year: int, source: str, updated_by: uuid.UUID, today:
     from app.services import recurring_service
 
     if source not in SEED_SOURCES:
-        raise ValueError(f"알 수 없는 source: {source}")
+        raise InvalidInputError(f"알 수 없는 source: {source}")
     if list_items(db, year):
         raise PlanAlreadyExistsError(f"{year}년 연간계획에 이미 항목이 있습니다.")
 

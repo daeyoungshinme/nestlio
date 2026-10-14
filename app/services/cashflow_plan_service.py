@@ -8,6 +8,7 @@ from decimal import ROUND_DOWN, Decimal
 
 from sqlalchemy.orm import Session
 
+from app.errors import ConflictError, InvalidInputError, NotFoundError
 from app.models.annual_plan_item import AnnualPlanItem
 from app.models.annual_plan_item_monthly_target import AnnualPlanItemMonthlyTarget
 from app.models.recurring_expense import RecurringExpense
@@ -16,7 +17,11 @@ from app.utils.dates import month_bounds, parse_year_month, shift_month, year_mo
 from app.utils.plan_status import pct_of
 
 
-class RecurringExpenseNotFoundError(Exception):
+class RecurringExpenseNotFoundError(NotFoundError):
+    pass
+
+
+class AlreadyLinkedError(ConflictError):
     pass
 
 
@@ -133,7 +138,7 @@ def split_item_into_months(
     start = parse_year_month(start_year_month)
     month_strs = [year_month_str(shift_month(start, i)) for i in range(months)]
     if month_strs[-1][:4] != month_strs[0][:4]:
-        raise ValueError("할부 분할은 한 해 안에서만 가능합니다.")
+        raise InvalidInputError("할부 분할은 한 해 안에서만 가능합니다.")
     item = AnnualPlanItem(
         year=start.year,
         section=section,
@@ -174,7 +179,7 @@ def link_recurring(db: Session, item_id: int, recurring_expense_id: int) -> Annu
     if item is None:
         return None
     if item.recurring_expense_id is not None:
-        raise ValueError("이미 반복내역에 연결된 항목입니다.")
+        raise AlreadyLinkedError("이미 반복내역에 연결된 항목입니다.")
     recurring = db.get(RecurringExpense, recurring_expense_id)
     if recurring is None:
         raise RecurringExpenseNotFoundError("반복내역을 찾을 수 없습니다.")

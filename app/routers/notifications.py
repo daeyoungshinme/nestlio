@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, status
 from sqlalchemy.orm import Session
 
 from app.database import get_db
@@ -27,10 +27,7 @@ def mark_read(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    try:
-        notification_inbox_service.mark_read(db, current_user.id, notification_log_id)
-    except notification_inbox_service.NotificationNotFoundError as exc:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, str(exc)) from None
+    notification_inbox_service.mark_read(db, current_user.id, notification_log_id)
 
 
 @router.post("/read-all", response_model=MarkAllReadOut)
@@ -46,9 +43,4 @@ def react(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    try:
-        notification_inbox_service.add_reaction(db, current_user.id, notification_log_id, payload.emoji, payload.message)
-    except notification_inbox_service.NotificationNotFoundError as exc:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, str(exc)) from None
-    except notification_inbox_service.InvalidReactionError as exc:
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, str(exc)) from None
+    notification_inbox_service.add_reaction(db, current_user.id, notification_log_id, payload.emoji, payload.message)

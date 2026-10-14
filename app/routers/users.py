@@ -58,7 +58,4 @@ def remove_user(
     user = user_service.get_active_user(db, user_id)
     if user is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "사용자를 찾을 수 없습니다.")
-    try:
-        user_service.remove_user(db, target=user, requested_by=current_user)
-    except user_service.CannotRemoveSelfError as exc:
-        raise HTTPException(status.HTTP_400_BAD_REQUEST, str(exc)) from None
+    user_service.remove_user(db, target=user, requested_by=current_user)

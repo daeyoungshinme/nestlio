@@ -16,6 +16,7 @@
 
 - 주 리소스(path param id)를 못 찾으면 `None` 반환 → 라우터가 404로 변환하는 게 기본.
 - 요청 바디로 참조된 보조 리소스가 없거나 상태 충돌(이미 연결됨 등)처럼 라우터가 404/409를 구분해야 하면 전용 예외 클래스를 raise한다(`notification_service`/`invite_service`가 주 리소스에도 예외를 쓰는 건 기존 관례로 유지).
+- 전용 예외는 `app/errors.py`의 베이스(`InvalidInputError` 400 / `ForbiddenError` 403 / `NotFoundError` 404 / `ConflictError` 409 / `UnprocessableError` 422 / `UpstreamError` 502)를 상속한다. `app/exception_handlers.py`가 전역에서 `{"detail": str(exc)}`로 바꾸므로 **라우터는 catch해서 HTTPException으로 다시 던지지 않는다**. 맨 `ValueError`를 도메인 오류로 쓰지 않는다(라우터마다 400/409로 제각각 매핑되던 원인). 상태코드는 `tests/test_exception_handlers.py`가 고정한다.
 - 한 함수에 두 방식이 섞여 있다고 자동으로 버그는 아니다 — 라우터까지 대조해 각 분기가 실제로 다른 상태를 구분하는지 본다.
 
 ## Google 연동 가드
@@ -74,7 +75,7 @@
 
 ## growlio 연동 (growlio_client.py)
 
-- 예외(`GrowlioNotConfiguredError`/`GrowlioRequestError`/`GrowlioSyncError`)는 `growlio_client.py`에만 정의한다. `app/main.py`의 `register_exception_handlers`가 전역에서 501/502/409로 매핑하므로 라우터에서 catch하지 않는다.
+- 예외(`GrowlioNotConfiguredError`/`GrowlioRequestError`/`GrowlioSyncError`)는 `growlio_client.py`에만 정의한다. `app/errors.py` 베이스를 상속해 전역 핸들러가 501/502/409로 매핑하므로 라우터에서 catch하지 않는다.
 - 가져오기·동기화 로직은 공용 헬퍼를 재사용한다: `already_linked_growlio_ids(db, model)`(중복 가져오기 방지), `to_decimal_krw(raw)`, `find_by_growlio_id(items, id)`. 도메인마다 다른 가져오기 루프 본문은 통합하지 않는다.
 - 받아 쓰는 값: 계좌 평가액·원금(`fetch_account_balances` — 투자 상품은 `invested_amount_krw`를 `principal_amount`로, 원금 없는 응답이면 기존 유지), 부동산 시세·대출(`fetch_real_estate_items`), 투자목표 설정(`fetch_investment_goal`, 목표 폼 프리필), 수익률 KPI(`fetch_performance`)·목표 달성 가능성(`fetch_goal_feasibility`) — 뒤 둘은 `goal_service.fetch_growlio_insight`가 묶는다. 목표에 growlio 계좌가 연동돼 있으면 `fetch_account_performance`(그 계좌들만의 XIRR → `eta_with_actual_return_year_month`)와 `fetch_net_deposits`(증권사에서 growlio로 직접 들어온 월 순입금, nestlio push 분 제외, 최근 6개월)도 더한다 — 둘 다 best-effort라 구버전 growlio(404)면 그 필드만 비운다. 복리 ETA(`goal_progress_service.compute_eta_with_return`)는 growlio 없이 nestlio가 계산한다.
 - **전체 동기화(`sync_all_*`)**: `account_service.sync_all_accounts`/`savings_product_growlio_service.sync_all_from_growlio`/`real_estate_service.sync_all_from_growlio` 공통 규칙 — growlio 목록은 **1회만** 조회해 매칭하고, 매칭 실패(배우자 소유 등)는 전체를 중단하지 않고 `{id, name, reason}`을 `failed`에 담는다. 반환은 `tuple[int, list[dict]]`. 새 리소스 타입도 이 시그니처를 따른다.

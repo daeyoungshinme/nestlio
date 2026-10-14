@@ -68,8 +68,5 @@ def seed_plan(
 ):
     """빈 해의 연간계획을 작년 계획/반복거래/최근 3개월 평균 중 하나로 한 번에 채운다(이미 있으면 409)."""
     today = today_kst()
-    try:
-        annual_plan_service.seed_year(db, payload.year, payload.source, current_user.id, today)
-    except annual_plan_service.PlanAlreadyExistsError as exc:
-        raise HTTPException(status.HTTP_409_CONFLICT, str(exc)) from exc
+    annual_plan_service.seed_year(db, payload.year, payload.source, current_user.id, today)
     return _plan_list(db, payload.year, today)

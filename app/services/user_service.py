@@ -4,6 +4,7 @@ from datetime import datetime
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from app.errors import DomainError, InvalidInputError
 from app.models.user import User
 from app.utils.dates import now_kst
 
@@ -17,11 +18,11 @@ MAX_HOUSEHOLD_USERS = 2
 REMOVED_USER_DETAIL = "가구에서 제외된 계정입니다. 다시 로그인해 주세요."
 
 
-class UserError(Exception):
+class UserError(DomainError):
     pass
 
 
-class CannotRemoveSelfError(UserError):
+class CannotRemoveSelfError(UserError, InvalidInputError):
     pass
 
 

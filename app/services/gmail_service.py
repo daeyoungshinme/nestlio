@@ -6,10 +6,11 @@ from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
 
 from app.config import settings
+from app.errors import UpstreamError
 from app.services.google_auth import get_credentials
 
 
-class GmailSendError(Exception):
+class GmailSendError(UpstreamError):
     """Gmail API 호출이 실패했을 때 사용자에게 보여줄 한국어 메시지로 감싼 예외."""
 
 

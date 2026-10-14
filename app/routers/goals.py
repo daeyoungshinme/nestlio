@@ -44,27 +44,24 @@ def create_goal(
 ):
     now = now_kst()
     today = now.date()
-    try:
-        goal = goal_service.create_goal(
-            db,
-            payload.priority,
-            payload.name,
-            payload.target_age,
-            payload.required_amount,
-            payload.monthly_saving_amount,
-            payload.current_amount,
-            [fs.model_dump() for fs in payload.funding_sources],
-            payload.target_date,
-            kind=payload.kind,
-            description=payload.description,
-            start_date=payload.start_date,
-            created_by_id=current_user.id if payload.kind == "challenge" else None,
-            monthly_targets=[mt.model_dump() for mt in payload.monthly_targets] if payload.monthly_targets else None,
-            now=now,
-            expected_annual_return_pct=payload.expected_annual_return_pct,
-        )
-    except (goal_service.DuplicateFundingSourceProductError, goal_service.NetWorthGoalExistsError) as exc:
-        raise HTTPException(status.HTTP_409_CONFLICT, str(exc)) from exc
+    goal = goal_service.create_goal(
+        db,
+        payload.priority,
+        payload.name,
+        payload.target_age,
+        payload.required_amount,
+        payload.monthly_saving_amount,
+        payload.current_amount,
+        [fs.model_dump() for fs in payload.funding_sources],
+        payload.target_date,
+        kind=payload.kind,
+        description=payload.description,
+        start_date=payload.start_date,
+        created_by_id=current_user.id if payload.kind == "challenge" else None,
+        monthly_targets=[mt.model_dump() for mt in payload.monthly_targets] if payload.monthly_targets else None,
+        now=now,
+        expected_annual_return_pct=payload.expected_annual_return_pct,
+    )
     try:
         notification_service.check_and_celebrate_goal_milestone(db, goal.id, today)
     except Exception:
@@ -81,26 +78,23 @@ def update_goal(
 ):
     now = now_kst()
     today = now.date()
-    try:
-        goal = goal_service.update_goal(
-            db,
-            goal_id,
-            payload.priority,
-            payload.name,
-            payload.target_age,
-            payload.required_amount,
-            payload.monthly_saving_amount,
-            payload.current_amount,
-            [fs.model_dump() for fs in payload.funding_sources],
-            payload.target_date,
-            description=payload.description,
-            start_date=payload.start_date,
-            monthly_targets=[mt.model_dump() for mt in payload.monthly_targets] if payload.monthly_targets else None,
-            now=now,
-            expected_annual_return_pct=payload.expected_annual_return_pct,
-        )
-    except goal_service.DuplicateFundingSourceProductError as exc:
-        raise HTTPException(status.HTTP_409_CONFLICT, str(exc)) from exc
+    goal = goal_service.update_goal(
+        db,
+        goal_id,
+        payload.priority,
+        payload.name,
+        payload.target_age,
+        payload.required_amount,
+        payload.monthly_saving_amount,
+        payload.current_amount,
+        [fs.model_dump() for fs in payload.funding_sources],
+        payload.target_date,
+        description=payload.description,
+        start_date=payload.start_date,
+        monthly_targets=[mt.model_dump() for mt in payload.monthly_targets] if payload.monthly_targets else None,
+        now=now,
+        expected_annual_return_pct=payload.expected_annual_return_pct,
+    )
     if goal is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "재무목표를 찾을 수 없습니다.")
     try:
@@ -118,10 +112,7 @@ def update_monthly_target(
     db: Session = Depends(get_db),
     _: User = Depends(get_current_user),
 ):
-    try:
-        goal = goal_service.update_monthly_target_achieved(db, goal_id, year_month, payload.achieved_amount)
-    except goal_service.MonthlyTargetNotFoundError as exc:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, str(exc)) from exc
+    goal = goal_service.update_monthly_target_achieved(db, goal_id, year_month, payload.achieved_amount)
     if goal is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "재무목표를 찾을 수 없습니다.")
     today = today_kst()
@@ -149,12 +140,9 @@ def cheer_goal(
     goal = goal_service.get_goal(db, goal_id)
     if goal is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="목표를 찾을 수 없습니다.")
-    try:
-        notification_id = notification_inbox_service.send_goal_cheer(
-            db, current_user.id, current_user.display_name, goal.id, goal.name, payload.emoji, payload.message
-        )
-    except notification_inbox_service.InvalidReactionError as exc:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=str(exc)) from exc
+    notification_id = notification_inbox_service.send_goal_cheer(
+        db, current_user.id, current_user.display_name, goal.id, goal.name, payload.emoji, payload.message
+    )
     return {"notification_id": notification_id}
 
 

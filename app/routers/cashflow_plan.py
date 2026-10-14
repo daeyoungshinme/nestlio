@@ -98,12 +98,7 @@ def link_recurring(
     db: Session = Depends(get_db),
     _: User = Depends(get_current_user),
 ):
-    try:
-        item = cashflow_plan_service.link_recurring(db, item_id, payload.recurring_expense_id)
-    except cashflow_plan_service.RecurringExpenseNotFoundError as exc:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
-    except ValueError as exc:
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
+    item = cashflow_plan_service.link_recurring(db, item_id, payload.recurring_expense_id)
     if item is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="계획 항목을 찾을 수 없습니다.")
     return _plan_list(db, payload.year_month)

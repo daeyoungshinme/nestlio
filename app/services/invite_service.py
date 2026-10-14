@@ -6,6 +6,7 @@ from datetime import datetime, timedelta
 from sqlalchemy.orm import Session
 
 from app.config import settings
+from app.errors import ConflictError, DomainError, ForbiddenError, NotFoundError
 from app.models.invite import Invite
 from app.models.user import User
 from app.services import gmail_service, user_service
@@ -17,27 +18,27 @@ logger = logging.getLogger(__name__)
 INVITE_EXPIRY_DAYS = 7
 
 
-class InviteError(Exception):
+class InviteError(DomainError):
     pass
 
 
-class HouseholdFullError(InviteError):
+class HouseholdFullError(InviteError, ConflictError):
     pass
 
 
-class InviteNotFoundError(InviteError):
+class InviteNotFoundError(InviteError, NotFoundError):
     pass
 
 
-class InviteExpiredError(InviteError):
+class InviteExpiredError(InviteError, ConflictError):
     pass
 
 
-class InviteAlreadyAcceptedError(InviteError):
+class InviteAlreadyAcceptedError(InviteError, ConflictError):
     pass
 
 
-class InviteEmailMismatchError(InviteError):
+class InviteEmailMismatchError(InviteError, ForbiddenError):
     pass
 
 

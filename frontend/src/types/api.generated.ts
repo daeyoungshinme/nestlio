@@ -452,7 +452,7 @@ export interface paths {
          * @description 계좌 가져오기 대상 선택을 위해 growlio 은행 계좌 목록을 프록시로 조회한다.
          *
          *     GrowlioNotConfiguredError(501)/GrowlioRequestError(502)는 앱 전역 handler가 처리한다
-         *     (app/services/growlio_client.py의 register_exception_handlers).
+         *     (app/exception_handlers.py 전역 핸들러).
          */
         get: operations["list_growlio_accounts_api_v1_accounts_growlio_accounts_get"];
         put?: never;

@@ -3,6 +3,7 @@ from datetime import datetime
 
 from sqlalchemy.orm import Session
 
+from app.errors import DomainError, NotFoundError, UnprocessableError
 from app.models.notification_log import NotificationLog
 from app.models.notification_reaction import NotificationReaction
 from app.models.notification_read import NotificationRead
@@ -12,15 +13,15 @@ from app.services import notification_settings_service
 from app.utils.dates import now_kst
 
 
-class NotificationError(Exception):
+class NotificationError(DomainError):
     pass
 
 
-class NotificationNotFoundError(NotificationError):
+class NotificationNotFoundError(NotificationError, NotFoundError):
     pass
 
 
-class InvalidReactionError(NotificationError):
+class InvalidReactionError(NotificationError, UnprocessableError):
     pass
 
 

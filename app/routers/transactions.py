@@ -81,23 +81,20 @@ def create_transaction(
     current_user: User = Depends(get_current_user),
     bearer_token: str = Depends(get_bearer_token),
 ):
-    try:
-        tx = transaction_service.create_transaction(
-            db,
-            user_id=current_user.id,
-            category_id=payload.category_id,
-            type_=payload.type,
-            amount=payload.amount,
-            transaction_date=payload.transaction_date,
-            description=payload.description,
-            payment_method=payload.payment_method,
-            account_id=payload.account_id,
-            savings_product_id=payload.savings_product_id,
-            owner_user_id=payload.owner_user_id,
-            bearer_token=bearer_token,
-        )
-    except ValueError as exc:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+    tx = transaction_service.create_transaction(
+        db,
+        user_id=current_user.id,
+        category_id=payload.category_id,
+        type_=payload.type,
+        amount=payload.amount,
+        transaction_date=payload.transaction_date,
+        description=payload.description,
+        payment_method=payload.payment_method,
+        account_id=payload.account_id,
+        savings_product_id=payload.savings_product_id,
+        owner_user_id=payload.owner_user_id,
+        bearer_token=bearer_token,
+    )
     _alert_budget_after_save(db, tx)
     _notify_partner_saving(db, current_user, tx)
     if tx.growlio_sync_failed:
@@ -208,23 +205,20 @@ def update_transaction(
     _: User = Depends(get_current_user),
     bearer_token: str = Depends(get_bearer_token),
 ):
-    try:
-        tx = transaction_service.update_transaction(
-            db,
-            tx_id,
-            bearer_token=bearer_token,
-            amount=payload.amount,
-            type=payload.type,
-            category_id=payload.category_id,
-            transaction_date=payload.transaction_date,
-            description=payload.description,
-            payment_method=payload.payment_method,
-            account_id=payload.account_id,
-            savings_product_id=payload.savings_product_id,
-            owner_user_id=payload.owner_user_id,
-        )
-    except ValueError as exc:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+    tx = transaction_service.update_transaction(
+        db,
+        tx_id,
+        bearer_token=bearer_token,
+        amount=payload.amount,
+        type=payload.type,
+        category_id=payload.category_id,
+        transaction_date=payload.transaction_date,
+        description=payload.description,
+        payment_method=payload.payment_method,
+        account_id=payload.account_id,
+        savings_product_id=payload.savings_product_id,
+        owner_user_id=payload.owner_user_id,
+    )
     if tx is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="거래 내역을 찾을 수 없습니다.")
     # 금액을 올리거나 다른 카테고리로 옮기는 수정도 임계치를 넘길 수 있다 — 생성과 같은 즉시 알림.

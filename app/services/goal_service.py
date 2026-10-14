@@ -6,6 +6,7 @@ from decimal import Decimal
 from sqlalchemy.orm import Session
 
 from app.constants.sort_order import DEFAULT_SORT_ORDER
+from app.errors import ConflictError, NotFoundError
 from app.models.financial_goal import FinancialGoal
 from app.models.goal_funding_source import GoalFundingSource
 from app.models.goal_monthly_target import GoalMonthlyTarget
@@ -15,15 +16,15 @@ from app.utils.dates import now_kst, shift_month, year_month_str
 logger = logging.getLogger(__name__)
 
 
-class MonthlyTargetNotFoundError(Exception):
+class MonthlyTargetNotFoundError(NotFoundError):
     pass
 
 
-class DuplicateFundingSourceProductError(Exception):
+class DuplicateFundingSourceProductError(ConflictError):
     pass
 
 
-class NetWorthGoalExistsError(Exception):
+class NetWorthGoalExistsError(ConflictError):
     """순자산 목표는 가구 전체 자산이 대상이라 둘 이상이면 진행률이 같은 값으로 겹친다 — 가구당 하나."""
 
 
