@@ -3,6 +3,7 @@ from decimal import Decimal
 
 import pytest
 
+from app.errors import InvalidInputError
 from app.models.category import Category
 from app.services import annual_plan_service, cashflow_plan_service, recurring_service, transaction_service
 from app.utils.dates import year_month_str
@@ -261,7 +262,7 @@ def test_installment_numbers_stay_fixed_when_months_are_removed_or_added_before(
 
 def test_split_item_into_months_rejects_crossing_year(seeded_db):
     db, user = seeded_db["db"], seeded_db["user"]
-    with pytest.raises(ValueError):
+    with pytest.raises(InvalidInputError):
         cashflow_plan_service.split_item_into_months(
             db, "irregular", None, "보험", Decimal("1200000"), "2026-07", 12, 0, user.id
         )
@@ -387,7 +388,7 @@ def test_link_recurring_rejects_already_linked_item(seeded_db):
         frequency="monthly", start_date=date(2026, 7, 5), created_by=user.id,
     )
 
-    with pytest.raises(ValueError):
+    with pytest.raises(cashflow_plan_service.AlreadyLinkedError):
         cashflow_plan_service.link_recurring(db, item.id, other_recurring.id)
 
 

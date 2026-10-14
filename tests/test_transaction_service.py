@@ -144,7 +144,7 @@ def test_create_transaction_savings_link_rejects_non_savings_category(seeded_db)
     db, user, food = seeded_db["db"], seeded_db["user"], seeded_db["food"]
     _, product = _add_savings_category_and_product(db)
 
-    with pytest.raises(ValueError):
+    with pytest.raises(transaction_service.InvalidSavingsLinkError):
         transaction_service.create_transaction(
             db, user.id, food.id, "expense", Decimal("10000"), date(2026, 7, 1), savings_product_id=product.id
         )
@@ -154,7 +154,7 @@ def test_create_transaction_savings_link_rejects_income_type(seeded_db):
     db, user = seeded_db["db"], seeded_db["user"]
     savings_category, product = _add_savings_category_and_product(db)
 
-    with pytest.raises(ValueError):
+    with pytest.raises(transaction_service.InvalidSavingsLinkError):
         transaction_service.create_transaction(
             db,
             user.id,

@@ -5,20 +5,25 @@ from decimal import Decimal
 from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
+from app.errors import InvalidInputError
 from app.models.category import Category
 from app.models.growlio_push_queue import GrowlioPushQueue
 from app.models.transaction import Transaction
 from app.services import growlio_push_service, savings_product_service
 
 
+class InvalidSavingsLinkError(InvalidInputError):
+    pass
+
+
 def _validate_savings_link(db: Session, category_id: int, type_: str, savings_product_id: int | None) -> None:
     if savings_product_id is None:
         return
     if type_ != "expense":
-        raise ValueError("저축상품은 지출 내역에만 연결할 수 있습니다.")
+        raise InvalidSavingsLinkError("저축상품은 지출 내역에만 연결할 수 있습니다.")
     category = db.get(Category, category_id)
     if category is None or not category.is_savings:
-        raise ValueError("저축상품은 저축 전용 카테고리에서만 연결할 수 있습니다.")
+        raise InvalidSavingsLinkError("저축상품은 저축 전용 카테고리에서만 연결할 수 있습니다.")
 
 
 def _send_staged_pushes(

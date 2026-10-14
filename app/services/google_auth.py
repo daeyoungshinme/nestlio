@@ -4,6 +4,7 @@ from google.oauth2.credentials import Credentials
 
 from app.config import settings
 from app.database import SessionLocal
+from app.errors import ConflictError
 from app.models.google_oauth_token import GoogleOAuthToken
 
 # 알림 메일 발송(gmail_service)만 쓴다. 예전에 캘린더·시트 스코프까지 동의받은 기존 토큰은
@@ -13,11 +14,11 @@ SCOPES = [
 ]
 
 
-class GoogleNotConnectedError(Exception):
+class GoogleNotConnectedError(ConflictError):
     """Raised when no GoogleOAuthToken row exists - run scripts/google_auth_setup.py first."""
 
 
-class GoogleAuthError(Exception):
+class GoogleAuthError(ConflictError):
     """토큰 행은 있으나 액세스 토큰이 만료됐고 refresh도 불가능한 상태(리프레시 토큰 없음/revoke).
     scripts/google_auth_setup.py를 다시 실행해 재연결해야 한다 — "행 없음"(GoogleNotConnectedError)과 구분한다."""
 

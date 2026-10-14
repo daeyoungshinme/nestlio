@@ -18,8 +18,7 @@ from app.services import (
     notification_service,
     notification_settings_service,
 )
-from app.services.gmail_service import GmailSendError
-from app.services.google_auth import GoogleAuthError, is_connected
+from app.services.google_auth import is_connected
 
 router = APIRouter(prefix="/settings", tags=["settings"])
 
@@ -79,21 +78,13 @@ def upload_couple_photo(
     # 이벤트 루프에서 돌면 단일 프로세스(Render) 전체 요청이 그동안 멈춘다. def는 스레드풀에서 돈다.
     # 상한+1바이트까지만 읽는다 — 크기 초과 판정은 save_photo가 그대로 한다(전체를 메모리에 올리지 않음).
     raw = file.file.read(int(settings.max_upload_size_mb * 1024 * 1024) + 1)
-    try:
-        couple_photo_service.save_photo(raw, file.content_type)
-    except couple_photo_service.InvalidPhotoError as exc:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from None
-    except couple_photo_service.PhotoStorageError as exc:
-        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc)) from None
+    couple_photo_service.save_photo(raw, file.content_type)
     return _settings_out(db)
 
 
 @router.delete("/couple-photo", response_model=SettingsOut)
 def delete_couple_photo(db: Session = Depends(get_db), _: User = Depends(get_current_user)):
-    try:
-        couple_photo_service.delete_photo()
-    except couple_photo_service.PhotoStorageError as exc:
-        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc)) from None
+    couple_photo_service.delete_photo()
     return _settings_out(db)
 
 
@@ -106,13 +97,7 @@ def _run_test_email(db: Session, *, setting_key: str, label: str, send) -> dict:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT, detail=f"{label} 요약 알림이 꺼져 있습니다. 설정에서 켜주세요."
         )
-    try:
-        sent = send(db, force=True)
-    except GmailSendError as exc:
-        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc)) from None
-    except GoogleAuthError as exc:
-        # 토큰 만료·revoke — 재연결 안내 문구를 그대로 보여준다(500이면 원인을 알 수 없다).
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from None
+    sent = send(db, force=True)
     return {"sent": sent, "message": f"{label} 요약 이메일을 발송했습니다." if sent else "발송하지 못했습니다."}
 
 

@@ -7,6 +7,7 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
 from app.config import settings as app_settings
+from app.exception_handlers import register_exception_handlers
 from app.routers import (
     accounts,
     annual_plan,
@@ -28,7 +29,7 @@ from app.routers import (
     transactions,
     users,
 )
-from app.services import couple_photo_service, growlio_client
+from app.services import couple_photo_service
 
 FRONTEND_DIST = Path(__file__).resolve().parent.parent / "frontend" / "dist"
 
@@ -83,7 +84,7 @@ app.include_router(notifications.router, prefix=API_PREFIX)
 app.include_router(annual_plan.router, prefix=API_PREFIX)
 app.include_router(internal_jobs.router)
 
-growlio_client.register_exception_handlers(app)
+register_exception_handlers(app)
 
 
 @app.get("/media/couple-photo", include_in_schema=False)

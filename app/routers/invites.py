@@ -19,10 +19,7 @@ def create_invite(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    try:
-        invite = invite_service.create_invite(db, current_user.id, payload.email)
-    except invite_service.HouseholdFullError as exc:
-        raise HTTPException(status.HTTP_409_CONFLICT, str(exc)) from None
+    invite = invite_service.create_invite(db, current_user.id, payload.email)
     return invite_service.to_out(invite)
 
 
@@ -33,23 +30,13 @@ def list_invites(db: Session = Depends(get_db), _: User = Depends(get_current_us
 
 @router.delete("/{invite_id}", status_code=status.HTTP_204_NO_CONTENT)
 def cancel_invite(invite_id: uuid.UUID, db: Session = Depends(get_db), _: User = Depends(get_current_user)):
-    try:
-        invite_service.cancel_invite(db, invite_id)
-    except invite_service.InviteNotFoundError as exc:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, str(exc)) from None
-    except invite_service.InviteAlreadyAcceptedError as exc:
-        raise HTTPException(status.HTTP_409_CONFLICT, str(exc)) from None
+    invite_service.cancel_invite(db, invite_id)
 
 
 @router.get("/token/{token}", response_model=InviteOut)
 def validate_invite(token: str, db: Session = Depends(get_db)):
     """인증 없이 접근하는 공개 엔드포인트 — 초대 가입 페이지에서 이메일 프리필/유효성 확인용."""
-    try:
-        invite = invite_service.get_invite_by_token(db, token)
-    except invite_service.InviteNotFoundError as exc:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, str(exc)) from None
-    except (invite_service.InviteExpiredError, invite_service.InviteAlreadyAcceptedError) as exc:
-        raise HTTPException(status.HTTP_409_CONFLICT, str(exc)) from None
+    invite = invite_service.get_invite_by_token(db, token)
     return invite_service.to_out(invite)
 
 
@@ -66,16 +53,7 @@ def accept_invite(
     sub = token_payload.get("sub")
     if not sub:
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Invalid token payload")
-    try:
-        user = invite_service.accept_invite(
-            db, token, uuid.UUID(sub), token_payload.get("email", ""), payload.display_name
-        )
-    except invite_service.InviteNotFoundError as exc:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, str(exc)) from None
-    except (invite_service.InviteExpiredError, invite_service.InviteAlreadyAcceptedError) as exc:
-        raise HTTPException(status.HTTP_409_CONFLICT, str(exc)) from None
-    except invite_service.InviteEmailMismatchError as exc:
-        raise HTTPException(status.HTTP_403_FORBIDDEN, str(exc)) from None
-    except invite_service.HouseholdFullError as exc:
-        raise HTTPException(status.HTTP_409_CONFLICT, str(exc)) from None
+    user = invite_service.accept_invite(
+        db, token, uuid.UUID(sub), token_payload.get("email", ""), payload.display_name
+    )
     return user
