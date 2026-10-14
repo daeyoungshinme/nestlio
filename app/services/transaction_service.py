@@ -9,7 +9,14 @@ from app.errors import InvalidInputError
 from app.models.category import Category
 from app.models.growlio_push_queue import GrowlioPushQueue
 from app.models.transaction import Transaction
-from app.services import growlio_push_service, savings_product_service
+from app.services import growlio_push_service, savings_product_service, transaction_report_service
+from app.utils.dates import month_bounds
+
+# 검색(q)만 주고 기간을 안 주면 "전체 기간" 합계를 낸다 — 하한을 이 앱에 거래가 있을 리 없는
+# 먼 과거로 잡아 사실상 무한 하한처럼 쓴다.
+_ALL_TIME_START = date(2000, 1, 1)
+# 검색 모드(기간 미지정)의 목록엔 미래 날짜 거래도 포함되므로 합계도 상한을 두지 않는다.
+_ALL_TIME_END = date(9999, 12, 31)
 
 
 class InvalidSavingsLinkError(InvalidInputError):
@@ -177,6 +184,35 @@ def bulk_delete_transactions(
     for tx, row in pushes:
         _send_staged_pushes(db, tx, [row], bearer_token)
     return len(deleted), [tx_id for tx_id in unique_ids if tx_id not in found]
+
+
+def period_or_this_month(date_from: date | None, date_to: date | None, today: date) -> tuple[date, date]:
+    """조회 기간 기본값 — 지정하지 않은 쪽은 이번 달 경계로 채운다."""
+    default_from, default_to = month_bounds(today)
+    return date_from or default_from, date_to or default_to
+
+
+def list_with_totals(
+    db: Session,
+    today: date,
+    date_from: date | None = None,
+    date_to: date | None = None,
+    category_id: int | None = None,
+    type_: str | None = None,
+    user_id: uuid.UUID | None = None,
+    q: str | None = None,
+) -> dict:
+    """가계부 목록(TransactionListOut). 기간 미지정이면 이번 달, 단 검색어(q)가 있으면 기간 제한 없이 전체에서
+    찾는다 — 그때 합계도 같은 범위(전체 기간)로 낸다."""
+    if q:
+        df, dt = date_from, date_to
+    else:
+        df, dt = period_or_this_month(date_from, date_to, today)
+    items = list_transactions(db, df, dt, category_id, type_, user_id, q=q)
+    totals = transaction_report_service.period_totals(
+        db, df or _ALL_TIME_START, dt or _ALL_TIME_END, category_id=category_id, type_=type_, user_id=user_id, q=q
+    )
+    return {"items": items, "totals": totals}
 
 
 def list_transactions(

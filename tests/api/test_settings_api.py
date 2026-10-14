@@ -1,7 +1,7 @@
 from unittest.mock import patch
 
 
-@patch("app.routers.settings.is_connected", return_value=False)
+@patch("app.services.settings_service.is_connected", return_value=False)
 def test_get_settings_reflects_config(mock_is_connected, client):
     resp = client.get("/api/v1/settings")
     assert resp.status_code == 200
@@ -10,14 +10,14 @@ def test_get_settings_reflects_config(mock_is_connected, client):
     assert "budget_warn_pct" in body["coaching_thresholds"]
 
 
-@patch("app.routers.settings.is_connected", return_value=False)
+@patch("app.services.settings_service.is_connected", return_value=False)
 def test_get_settings_defaults_notify_emails_to_signup_email(mock_is_connected, client, seeded_db):
     resp = client.get("/api/v1/settings")
     assert resp.status_code == 200
     assert resp.json()["notify_emails"] == [seeded_db["user"].email]
 
 
-@patch("app.routers.settings.is_connected", return_value=False)
+@patch("app.services.settings_service.is_connected", return_value=False)
 def test_set_notify_emails_overrides_and_persists(mock_is_connected, client):
     resp = client.put("/api/v1/settings/notify-emails", json={"emails": ["a@example.com", "b@example.com"]})
     assert resp.status_code == 200
@@ -27,26 +27,26 @@ def test_set_notify_emails_overrides_and_persists(mock_is_connected, client):
     assert client.get("/api/v1/settings").json()["notify_emails"] == ["a@example.com", "b@example.com"]
 
 
-@patch("app.routers.settings.is_connected", return_value=False)
+@patch("app.services.settings_service.is_connected", return_value=False)
 def test_set_notify_emails_rejects_empty_list(mock_is_connected, client):
     resp = client.put("/api/v1/settings/notify-emails", json={"emails": []})
     assert resp.status_code == 422
 
 
-@patch("app.routers.settings.is_connected", return_value=False)
+@patch("app.services.settings_service.is_connected", return_value=False)
 def test_set_notify_emails_rejects_invalid_format(mock_is_connected, client):
     resp = client.put("/api/v1/settings/notify-emails", json={"emails": ["not-an-email"]})
     assert resp.status_code == 422
 
 
-@patch("app.routers.settings.is_connected", return_value=False)
+@patch("app.services.settings_service.is_connected", return_value=False)
 def test_set_notify_emails_normalizes_case_and_dedupes(mock_is_connected, client):
     resp = client.put("/api/v1/settings/notify-emails", json={"emails": ["A@example.com", " a@example.com "]})
     assert resp.status_code == 200
     assert resp.json()["notify_emails"] == ["a@example.com"]
 
 
-@patch("app.routers.settings.is_connected", return_value=False)
+@patch("app.services.settings_service.is_connected", return_value=False)
 def test_set_coaching_thresholds_overrides_and_persists(mock_is_connected, client):
     payload = {
         "savings_rate_warn": 25,
@@ -74,7 +74,7 @@ def test_set_coaching_thresholds_overrides_and_persists(mock_is_connected, clien
     assert client.get("/api/v1/settings").json()["coaching_thresholds"] == payload
 
 
-@patch("app.routers.settings.is_connected", return_value=False)
+@patch("app.services.notification_service.is_connected", return_value=False)
 def test_test_weekly_email_without_google_returns_409(mock_is_connected, client):
     # google_oauth_tokens에 행이 없는 (Google 미연결) 상태 - GoogleNotConnectedError -> 409
     resp = client.post("/api/v1/settings/test-weekly-email")
@@ -83,22 +83,21 @@ def test_test_weekly_email_without_google_returns_409(mock_is_connected, client)
 
 @patch("app.services.notification_service.is_connected", return_value=True)
 @patch("app.services.notification_service.gmail_service.send_email")
-@patch("app.routers.settings.is_connected", return_value=True)
-def test_test_weekly_email_sends_when_connected(mock_is_connected, mock_send_email, mock_service_connected, client):
+def test_test_weekly_email_sends_when_connected(mock_send_email, mock_service_connected, client):
     resp = client.post("/api/v1/settings/test-weekly-email")
     assert resp.status_code == 200
     assert resp.json()["sent"] is True
     mock_send_email.assert_called_once()
 
 
-@patch("app.routers.settings.is_connected", return_value=False)
+@patch("app.services.settings_service.is_connected", return_value=False)
 def test_get_settings_notification_prefs_default_all_on(mock_is_connected, client):
     resp = client.get("/api/v1/settings")
     assert resp.status_code == 200
     assert all(resp.json()["notification_prefs"].values())
 
 
-@patch("app.routers.settings.is_connected", return_value=False)
+@patch("app.services.settings_service.is_connected", return_value=False)
 def test_set_notification_prefs_overrides_and_persists(mock_is_connected, client):
     payload = {
         "email_weekly": False,
@@ -118,7 +117,7 @@ def test_set_notification_prefs_overrides_and_persists(mock_is_connected, client
     assert client.get("/api/v1/settings").json()["notification_prefs"] == payload
 
 
-@patch("app.routers.settings.is_connected", return_value=True)
+@patch("app.services.notification_service.is_connected", return_value=True)
 def test_test_weekly_email_returns_409_when_pref_disabled(mock_is_connected, client):
     client.put(
         "/api/v1/settings/notification-prefs",
@@ -135,7 +134,7 @@ def test_test_weekly_email_returns_409_when_pref_disabled(mock_is_connected, cli
     assert resp.status_code == 409
 
 
-@patch("app.routers.settings.is_connected", return_value=False)
+@patch("app.services.settings_service.is_connected", return_value=False)
 def test_get_settings_survives_photo_storage_outage(mock_is_connected, client):
     """사진 스토리지 장애(네트워크·5xx)가 설정 화면 전체를 500으로 만들지 않고 "사진 없음"으로 내려간다."""
     from app.services import couple_photo_service

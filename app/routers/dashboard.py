@@ -7,19 +7,7 @@ from app.dependencies import get_bearer_token, get_current_user
 from app.models.user import User
 from app.schemas.common import YearMonth
 from app.schemas.dashboard import DashboardBootstrapOut, DashboardOut, MonthlyRetrospectiveOut
-from app.services import (
-    coaching_settings_service,
-    couple_photo_service,
-    dashboard_service,
-    goal_progress_service,
-    goal_service,
-    growlio_push_service,
-    net_worth_service,
-    notification_settings_service,
-    savings_product_service,
-    user_service,
-)
-from app.services.google_auth import is_connected
+from app.services import dashboard_service, net_worth_service
 from app.utils.dates import now_kst, today_kst
 
 router = APIRouter(prefix="/dashboard", tags=["dashboard"])
@@ -41,32 +29,9 @@ def dashboard_bootstrap(
     bearer_token: str = Depends(get_bearer_token),
     user: User = Depends(get_current_user),
 ):
-    """대시보드 첫 화면에 필요한 settings/net-worth/financial-goals/savings-products/users를
-    한 번에 조회한다 — 모바일 등 고지연 환경에서 대시보드 마운트 시 발생하는 병렬 요청 수를
-    줄이기 위함. 각 리소스의 개별 엔드포인트(GET /settings 등)는 대시보드 밖 화면들이 계속
-    쓰므로 그대로 둔다."""
-    today = today_kst()
-    # GET /net-worth와 동일한 기회주의적 growlio 갱신 후크(app/services/CLAUDE.md 참고).
-    # 밀린 growlio 입출금 반영(아웃박스)을 먼저 보내고 잔액을 새로고친다 — 순서가 바뀌면 새로고친 잔액에 방금 보낸
-    # 입출금이 빠진다. BackgroundTasks는 등록 순서대로 실행된다.
-    background_tasks.add_task(growlio_push_service.flush_pending, bearer_token, user.id, now=now_kst())
-    background_tasks.add_task(net_worth_service.refresh_stale_growlio_links, bearer_token, user.id, now=now_kst())
-    return {
-        "settings": {
-            "google_connected": is_connected(),
-            "notify_emails": notification_settings_service.get_recipients(db),
-            "coaching_thresholds": coaching_settings_service.get_thresholds(db),
-            "notification_prefs": notification_settings_service.get_prefs(db),
-            "couple_photo_url": couple_photo_service.photo_url_for_display(),
-        },
-        "net_worth": {
-            "current": net_worth_service.compute_current(db),
-            "history": net_worth_service.list_history(db, 12),
-        },
-        "goals": goal_progress_service.list_out(db, goal_service.list_goals(db), today),
-        "savings_products": savings_product_service.list_products(db),
-        "users": user_service.list_users(db),
-    }
+    """대시보드 첫 화면 묶음 조회(dashboard_service.bootstrap) — GET /net-worth와 같은 기회주의적 growlio 후크도 건다."""
+    net_worth_service.schedule_background_refresh(background_tasks, bearer_token, user.id, now=now_kst())
+    return dashboard_service.bootstrap(db, today_kst())
 
 
 @router.get("/monthly-retrospective", response_model=MonthlyRetrospectiveOut)

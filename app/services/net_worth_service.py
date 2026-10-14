@@ -3,6 +3,7 @@ import uuid
 from concurrent.futures import ThreadPoolExecutor
 from datetime import date, datetime, timedelta
 from decimal import Decimal
+from typing import TYPE_CHECKING
 
 from sqlalchemy import or_
 from sqlalchemy.orm import Session
@@ -14,12 +15,16 @@ from app.models.savings_product import SavingsProduct
 from app.services import (
     account_service,
     growlio_client,
+    growlio_push_service,
     loan_service,
     real_estate_service,
     savings_product_growlio_service,
     savings_product_service,
 )
 from app.utils.dates import now_kst, parse_year_month, shift_month, year_month_str
+
+if TYPE_CHECKING:
+    from fastapi import BackgroundTasks
 
 logger = logging.getLogger(__name__)
 
@@ -210,3 +215,21 @@ def list_history(db: Session, months: int = 12) -> list[NetWorthSnapshot]:
         .all()
     )
     return list(reversed(rows))
+
+
+def schedule_background_refresh(
+    background_tasks: "BackgroundTasks", bearer_token: str, user_id: uuid.UUID, now: datetime | None = None
+) -> None:
+    """`GET /net-worth`·`GET /dashboard/bootstrap` 응답 후 돌릴 기회주의적 growlio 작업을 등록한다.
+
+    밀린 growlio 입출금 반영(아웃박스, growlio_push_service.flush_pending)을 먼저 보내고 잔액을 새로고친다
+    (refresh_stale_growlio_links) — 순서가 바뀌면 새로고친 잔액에 방금 보낸 입출금이 빠진다. BackgroundTasks는
+    등록 순서대로 실행된다. 스케줄러엔 사용자 JWT가 없어서 화면 로드를 후크로 쓴다(app/services/CLAUDE.md)."""
+    now = now or now_kst()
+    background_tasks.add_task(growlio_push_service.flush_pending, bearer_token, user_id, now=now)
+    background_tasks.add_task(refresh_stale_growlio_links, bearer_token, user_id, now=now)
+
+
+def overview(db: Session, months: int) -> dict:
+    """NetWorthOut — 현재 순자산 분해 + 최근 `months`개월 스냅샷."""
+    return {"current": compute_current(db), "history": list_history(db, months)}

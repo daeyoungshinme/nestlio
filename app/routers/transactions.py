@@ -6,7 +6,6 @@ from typing import Literal
 from fastapi import APIRouter, Depends, File, HTTPException, Response, UploadFile, status
 from sqlalchemy.orm import Session
 
-from app.config import settings
 from app.database import get_db
 from app.dependencies import get_bearer_token, get_current_user
 from app.models.user import User
@@ -27,29 +26,10 @@ from app.services import (
     transaction_report_service,
     transaction_service,
 )
-from app.utils.dates import month_bounds, today_kst, year_month_str
+from app.utils.dates import today_kst
 
 router = APIRouter(prefix="/transactions", tags=["transactions"])
 logger = logging.getLogger("transactions")
-
-
-def _alert_budget_after_save(db: Session, tx) -> None:
-    """지출 거래 저장 직후 그 카테고리 예산 임계치 알림 — 실패해도 거래는 이미 저장됐으니 로그만 남긴다.
-    과거 날짜 지출이면 그 달 예산을 본다(이번 달 기준이면 엉뚱한 달을 검사한다)."""
-    if tx.type != "expense":
-        return
-    try:
-        notification_service.check_and_alert_budget_threshold(
-            db, tx.category_id, year_month_str(tx.transaction_date)
-        )
-    except Exception:
-        logger.exception("예산 초과 알림 발송 실패 (거래는 정상 저장됨)")
-
-# 검색(q)만 주고 기간을 안 주면 "전체 기간" 합계를 낸다 — 하한을 이 앱에 거래가 있을 리 없는
-# 먼 과거로 잡아 사실상 무한 하한처럼 쓴다.
-_ALL_TIME_START = date(2000, 1, 1)
-# 검색 모드(기간 미지정)의 목록엔 미래 날짜 거래도 포함되므로 합계도 상한을 두지 않는다.
-_ALL_TIME_END = date(9999, 12, 31)
 
 
 @router.get("", response_model=TransactionListOut)
@@ -63,14 +43,9 @@ def list_transactions(
     db: Session = Depends(get_db),
     _: User = Depends(get_current_user),
 ):
-    default_from, default_to = month_bounds(today_kst())
-    df = date_from or (None if q else default_from)
-    dt = date_to or (None if q else default_to)
-    items = transaction_service.list_transactions(db, df, dt, category_id, type, user_id, q=q)
-    totals = transaction_report_service.period_totals(
-        db, df or _ALL_TIME_START, dt or _ALL_TIME_END, category_id=category_id, type_=type, user_id=user_id, q=q
+    return transaction_service.list_with_totals(
+        db, today_kst(), date_from, date_to, category_id=category_id, type_=type, user_id=user_id, q=q
     )
-    return {"items": items, "totals": totals}
 
 
 @router.post("", response_model=TransactionOut, status_code=status.HTTP_201_CREATED)
@@ -95,19 +70,11 @@ def create_transaction(
         owner_user_id=payload.owner_user_id,
         bearer_token=bearer_token,
     )
-    _alert_budget_after_save(db, tx)
-    _notify_partner_saving(db, current_user, tx)
+    notification_service.alert_budget_after_transaction_save(db, tx)
+    notification_inbox_service.log_partner_saving_best_effort(db, current_user, tx)
     if tx.growlio_sync_failed:
         response.headers["X-Growlio-Sync-Warning"] = "1"
     return tx
-
-
-def _notify_partner_saving(db: Session, user: User, tx) -> None:
-    """저축 거래면 배우자 알림함에 남긴다 — 알림 실패가 거래 저장 응답을 막지 않게 로그만 남긴다."""
-    try:
-        notification_inbox_service.log_partner_saving(db, user.id, user.display_name, tx)
-    except Exception:  # log_partner_saving이 롤백까지 하고 올린다
-        logger.exception("배우자 저축 알림 기록 실패 (거래는 정상 저장됨)")
 
 
 @router.get("/category-breakdown", response_model=list[CategoryAmountOut])
@@ -119,9 +86,7 @@ def category_breakdown(
     db: Session = Depends(get_db),
     _: User = Depends(get_current_user),
 ):
-    default_from, default_to = month_bounds(today_kst())
-    df = date_from or default_from
-    dt = date_to or default_to
+    df, dt = transaction_service.period_or_this_month(date_from, date_to, today_kst())
     return transaction_report_service.category_breakdown(db, df, dt, type, user_id)
 
 
@@ -147,9 +112,7 @@ def export_csv(
     db: Session = Depends(get_db),
     _: User = Depends(get_current_user),
 ):
-    default_from, default_to = month_bounds(today_kst())
-    df = date_from or default_from
-    dt = date_to or default_to
+    df, dt = transaction_service.period_or_this_month(date_from, date_to, today_kst())
     items = transaction_service.list_transactions(db, df, dt, category_id, type, user_id, q=q)
     csv_text = transaction_import_service.export_csv(items)
     return Response(
@@ -166,22 +129,9 @@ def import_csv(
     current_user: User = Depends(get_current_user),
 ):
     # async def가 아니라 def — 가져오기 전체가 동기 DB 작업이라 이벤트 루프를 막지 않게 스레드풀에서 돈다.
-    # 상한+1바이트까지만 읽는다 — 통째로 read()하면 거대한 업로드 하나가 Render 무료 인스턴스 메모리를 다 쓴다.
-    max_bytes = settings.max_upload_size_mb * 1024 * 1024
-    raw = file.file.read(max_bytes + 1)
-    if len(raw) > max_bytes:
-        raise HTTPException(
-            status.HTTP_413_CONTENT_TOO_LARGE, f"CSV 파일은 {settings.max_upload_size_mb}MB를 넘을 수 없습니다."
-        )
-    try:
-        text = raw.decode("utf-8-sig")
-    except UnicodeDecodeError:
-        try:
-            text = raw.decode("cp949")
-        except UnicodeDecodeError:
-            raise HTTPException(
-                status.HTTP_400_BAD_REQUEST, "CSV 파일 인코딩을 읽을 수 없습니다. UTF-8 또는 CP949로 저장해 주세요."
-            ) from None
+    # 상한+1바이트까지만 읽는다(크기 초과 판정과 인코딩 판별은 decode_upload).
+    raw = file.file.read(transaction_import_service.max_upload_bytes() + 1)
+    text = transaction_import_service.decode_upload(raw)
     return transaction_import_service.import_csv(db, text, current_user.id)
 
 
@@ -222,7 +172,7 @@ def update_transaction(
     if tx is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="거래 내역을 찾을 수 없습니다.")
     # 금액을 올리거나 다른 카테고리로 옮기는 수정도 임계치를 넘길 수 있다 — 생성과 같은 즉시 알림.
-    _alert_budget_after_save(db, tx)
+    notification_service.alert_budget_after_transaction_save(db, tx)
     if tx.growlio_sync_failed:
         response.headers["X-Growlio-Sync-Warning"] = "1"
     return tx

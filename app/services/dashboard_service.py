@@ -1,4 +1,4 @@
-"""대시보드 메인 응답(app/routers/dashboard.py::dashboard)의 오케스트레이션.
+"""화면 단위 응답의 오케스트레이션 — 대시보드 메인(build)·첫 화면 묶음(bootstrap)·월간 회고(build_retrospective)·연간 리포트(yearly_report).
 
 라우터에 흩어져 있던 기준 월 해석, ~15개 서비스 호출 조합, target_monthly/streak 계산을
 서비스 계층으로 모아 재사용·테스트가 가능하게 했다. 순수 조합 로직이며 DB 쓰기는 없다.
@@ -10,13 +10,17 @@ from sqlalchemy.orm import Session
 from app.services import (
     coaching_engine,
     coaching_settings_service,
+    goal_progress_service,
     goal_service,
     net_worth_service,
     savings_coaching_service,
+    savings_product_service,
+    settings_service,
     transaction_report_service,
     transaction_trend_service,
+    user_service,
 )
-from app.utils.dates import month_bounds, parse_year_month, shift_month, today_kst, year_month_str
+from app.utils.dates import month_bounds, parse_year_month, shift_month, today_kst, year_bounds, year_month_str
 
 
 def build(db: Session, *, year_month: str | None = None, today: date | None = None) -> dict:
@@ -94,4 +98,38 @@ def build_retrospective(db: Session, today: date) -> dict:
         "breakdown": breakdown,
         "top_categories": breakdown[:3],
         "insights": insights,
+    }
+
+
+def bootstrap(db: Session, today: date) -> dict:
+    """대시보드 첫 화면에 필요한 settings/net-worth/financial-goals/savings-products/users를 한 번에 — 모바일 등
+    고지연 환경에서 마운트 시 병렬 요청 수를 줄이기 위함. 각 리소스의 개별 엔드포인트(GET /settings 등)는
+    대시보드 밖 화면들이 계속 쓰므로 그대로 둔다(응답 모양도 그 엔드포인트들과 같다)."""
+    return {
+        "settings": settings_service.build_settings_out(db),
+        "net_worth": net_worth_service.overview(db, 12),
+        "goals": goal_progress_service.list_out(db, goal_service.list_goals(db), today),
+        "savings_products": savings_product_service.list_products(db),
+        "users": user_service.list_users(db),
+    }
+
+
+def yearly_report(db: Session, year: int, owner_filter) -> dict:
+    """연간 리포트(YearlyReportOut). owner_filter는 category_breakdown_by_owner()가 받는 값
+    (None=가구 전체, "shared"=공통 지출, UUID=배우자)."""
+    monthly = transaction_trend_service.yearly_monthly_breakdown(db, year)
+    # totals(소득 등)는 owner 필터와 무관하게 항상 가구 전체 기준으로 유지한다 — benchmark 비교가
+    # "가구 소득 대비 이 배우자의 지출 비중"을 뜻하도록 하기 위함("이 배우자 개인 소득 대비"가 아님).
+    totals = transaction_trend_service.yearly_totals(db, year)
+    start, end = year_bounds(year)
+    breakdown = transaction_report_service.category_breakdown_by_owner(db, start, end, "expense", owner_filter)
+    benchmark_pcts = coaching_engine.benchmark_pcts_from_thresholds(coaching_settings_service.get_thresholds(db))
+    return {
+        "year": year,
+        "prev_year": year - 1,
+        "next_year": year + 1,
+        "monthly": monthly,
+        "totals": totals,
+        "breakdown": breakdown,
+        "benchmark": coaching_engine.category_benchmark_rows(totals, breakdown, benchmark_pcts),
     }

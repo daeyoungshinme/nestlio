@@ -28,6 +28,10 @@ class ConflictError(DomainError):
     status_code = 409
 
 
+class PayloadTooLargeError(DomainError):
+    status_code = 413
+
+
 class UnprocessableError(DomainError):
     status_code = 422
 

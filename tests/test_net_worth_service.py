@@ -377,3 +377,18 @@ def test_refresh_stale_growlio_links_rolls_back_after_unexpected_section_error(s
 
     rollback.assert_called_once()
     later.assert_called_once()
+
+
+def test_schedule_background_refresh_flushes_outbox_before_refreshing_balances():
+    """순서가 바뀌면 새로고친 잔액에 방금 보낸 입출금이 빠진다 — BackgroundTasks는 등록 순으로 실행된다."""
+    from app.services import growlio_push_service
+
+    tasks = MagicMock()
+    now = datetime(2026, 10, 14, 9, 0)
+    net_worth_service.schedule_background_refresh(tasks, "tok", "user-1", now=now)
+
+    assert [c.args[0] for c in tasks.add_task.call_args_list] == [
+        growlio_push_service.flush_pending,
+        net_worth_service.refresh_stale_growlio_links,
+    ]
+    assert all(c.args[1:] == ("tok", "user-1") and c.kwargs == {"now": now} for c in tasks.add_task.call_args_list)
