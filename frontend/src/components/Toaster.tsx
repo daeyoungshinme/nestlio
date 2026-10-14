@@ -1,8 +1,12 @@
 import { useEffect, useState } from "react";
+import type { CSSProperties } from "react";
 import type { ToastEvent } from "@/utils/toast";
 import { APP_EVENTS } from "@/constants/events";
 import { Z_TOASTER } from "@/constants/zIndex";
-import { BOTTOM_NAV_HEIGHT_PX } from "@/constants/uiSizes";
+import {
+  BOTTOM_NAV_HEIGHT_PX,
+  TOUCH_TARGET_MIN_HEIGHT,
+} from "@/constants/uiSizes";
 
 const COLORS: Record<string, string> = {
   error: "bg-red-600",
@@ -11,6 +15,12 @@ const COLORS: Record<string, string> = {
 };
 
 const MAX_TOASTS = 3;
+
+// Tailwind는 소스에 문자 그대로 있는 클래스만 생성하므로 `bottom-[calc(${...}px...)]`처럼
+// 보간한 임의값 클래스는 CSS가 만들어지지 않는다. QuickAddFab과 같이 CSS 변수로 넘긴다.
+const TOAST_BOTTOM_STYLE = {
+  "--toast-bottom-mobile": `calc(${BOTTOM_NAV_HEIGHT_PX}px + 0.75rem + env(safe-area-inset-bottom))`,
+} as CSSProperties;
 
 export default function Toaster() {
   const [toasts, setToasts] = useState<ToastEvent[]>([]);
@@ -34,7 +44,8 @@ export default function Toaster() {
 
   return (
     <div
-      className={`fixed bottom-[calc(${BOTTOM_NAV_HEIGHT_PX}px+0.75rem+env(safe-area-inset-bottom))] right-3 lg:bottom-5 lg:right-5 ${Z_TOASTER} flex flex-col gap-2 pointer-events-none`}
+      style={TOAST_BOTTOM_STYLE}
+      className={`fixed bottom-[var(--toast-bottom-mobile)] right-3 lg:bottom-5 lg:right-5 ${Z_TOASTER} flex flex-col gap-2 pointer-events-none`}
     >
       {toasts.map((t) => (
         <div
@@ -49,9 +60,11 @@ export default function Toaster() {
               type="button"
               onClick={() => {
                 t.action?.onClick();
-                setToasts((prev) => prev.filter((toastItem) => toastItem.id !== t.id));
+                setToasts((prev) =>
+                  prev.filter((toastItem) => toastItem.id !== t.id),
+                );
               }}
-              className="font-medium underline underline-offset-2 shrink-0"
+              className={`${TOUCH_TARGET_MIN_HEIGHT} -my-2 px-2 -mr-2 font-medium underline underline-offset-2 shrink-0`}
             >
               {t.action.label}
             </button>

@@ -7,6 +7,23 @@ const FOCUSABLE =
 let bodyLockCount = 0;
 let savedBodyOverflow = "";
 
+// 열린 순서대로 쌓이는 모달 스택. Esc·Tab 트랩은 맨 위 모달만 처리한다 — 안 그러면 Modal 위에
+// ConfirmModal이 떠 있을 때 Esc 한 번에 둘 다 닫힌다.
+type StackEntry = { dialog: HTMLElement | null };
+const modalStack: StackEntry[] = [];
+
+// 같은 커밋에서 중첩 렌더되면 자식 effect가 부모보다 먼저 돌아 push 순서가 뒤집힌다.
+// 그래서 "나중에 열림"뿐 아니라 DOM 포함 관계도 본다: 내 dialog 안에 다른 모달이 있으면 그게 위다.
+function isTopmost(entry: StackEntry) {
+  const myIndex = modalStack.indexOf(entry);
+  return modalStack.every((other, i) => {
+    if (other === entry) return true;
+    if (entry.dialog && other.dialog && entry.dialog.contains(other.dialog)) return false;
+    if (i > myIndex) return !!(entry.dialog && other.dialog && other.dialog.contains(entry.dialog));
+    return true;
+  });
+}
+
 /** 이 값 이상 아래로 드래그한 채 손을 떼면 바텀시트를 닫는다. */
 const DRAG_CLOSE_THRESHOLD_PX = 80;
 
@@ -36,12 +53,15 @@ export function useModalBehavior(onClose: () => void) {
   useEffect(() => {
     const prevFocus = document.activeElement as HTMLElement | null;
     const dialog = dialogRef.current;
+    const entry: StackEntry = { dialog };
+    modalStack.push(entry);
     if (dialog) {
       const focusable = dialog.querySelectorAll<HTMLElement>(FOCUSABLE);
       focusable[0]?.focus();
     }
 
     const handleKeyDown = (e: KeyboardEvent) => {
+      if (!isTopmost(entry)) return;
       if (e.key === "Escape") {
         onCloseRef.current();
         return;
@@ -65,6 +85,7 @@ export function useModalBehavior(onClose: () => void) {
     document.addEventListener("keydown", handleKeyDown);
     return () => {
       document.removeEventListener("keydown", handleKeyDown);
+      modalStack.splice(modalStack.indexOf(entry), 1);
       prevFocus?.focus();
     };
   }, []);
@@ -79,7 +100,8 @@ export function useModalBehavior(onClose: () => void) {
     if (!overlay) return;
 
     const handleTouchMove = (e: TouchEvent) => {
-      if (dialog && e.target instanceof Node && dialog.contains(e.target)) return;
+      if (dialog && e.target instanceof Node && dialog.contains(e.target))
+        return;
       e.preventDefault();
     };
 
