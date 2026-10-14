@@ -3,10 +3,7 @@ import type { CSSProperties } from "react";
 import type { ToastEvent } from "@/utils/toast";
 import { APP_EVENTS } from "@/constants/events";
 import { Z_TOASTER } from "@/constants/zIndex";
-import {
-  BOTTOM_NAV_HEIGHT_PX,
-  TOUCH_TARGET_MIN_HEIGHT,
-} from "@/constants/uiSizes";
+import { BOTTOM_NAV_HEIGHT_PX, TOUCH_TARGET_MIN_HEIGHT } from "@/constants/uiSizes";
 
 const COLORS: Record<string, string> = {
   error: "bg-red-600",
@@ -60,9 +57,7 @@ export default function Toaster() {
               type="button"
               onClick={() => {
                 t.action?.onClick();
-                setToasts((prev) =>
-                  prev.filter((toastItem) => toastItem.id !== t.id),
-                );
+                setToasts((prev) => prev.filter((toastItem) => toastItem.id !== t.id));
               }}
               className={`${TOUCH_TARGET_MIN_HEIGHT} -my-2 px-2 -mr-2 font-medium underline underline-offset-2 shrink-0`}
             >

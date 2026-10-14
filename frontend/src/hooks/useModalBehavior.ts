@@ -100,8 +100,7 @@ export function useModalBehavior(onClose: () => void) {
     if (!overlay) return;
 
     const handleTouchMove = (e: TouchEvent) => {
-      if (dialog && e.target instanceof Node && dialog.contains(e.target))
-        return;
+      if (dialog && e.target instanceof Node && dialog.contains(e.target)) return;
       e.preventDefault();
     };
 

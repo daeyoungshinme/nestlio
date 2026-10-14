@@ -1,12 +1,13 @@
 import { useId, useState } from "react";
 import type { FormEvent } from "react";
+import AmountInput from "@/components/common/AmountInput";
 import Button from "@/components/common/Button";
 import FormInput from "@/components/common/FormInput";
 import CategoryPicker from "@/components/common/CategoryPicker";
 import { INPUT_SM, LABEL_SM } from "@/constants/inputStyles";
 import { TOUCH_TARGET_COMPACT_MOBILE_ONLY } from "@/constants/uiSizes";
 import { recurringSelectedChipClass } from "@/utils/colors";
-import { amountInputPreview, toAmountInputValue } from "@/utils/format";
+import { toAmountInputValue } from "@/utils/format";
 import type { CategoryOut, RecurringFrequency, RecurringOut, TransactionType } from "@/types";
 
 export interface RecurringFormValues {
@@ -125,14 +126,11 @@ export default function RecurringForm({ categories, initial, submitLabel, submit
         className="w-full"
         required
       />
-      <FormInput
+      <AmountInput
         label="금액"
-        type="number"
-        inputMode="decimal"
         value={values.amount}
-        onChange={(e) => setValues((v) => ({ ...v, amount: e.target.value }))}
+        onChange={(amount) => setValues((v) => ({ ...v, amount }))}
         required
-        preview={amountInputPreview(values.amount)}
       />
       <div>
         <label htmlFor={`${fieldId}-0`} className={`block mb-1 font-medium ${LABEL_SM}`}>주기</label>
