@@ -12,10 +12,7 @@ const FAB_BOTTOM_STYLE = {
   "--fab-bottom-mobile": `calc(${BOTTOM_NAV_HEIGHT_PX}px + 1rem + env(safe-area-inset-bottom))`,
 } as CSSProperties;
 
-export default function QuickAddFab({
-  onClick,
-  label = "내역 빠르게 추가",
-}: QuickAddFabProps) {
+export default function QuickAddFab({ onClick, label = "내역 빠르게 추가" }: QuickAddFabProps) {
   return (
     <>
       {/* main의 하단 여백은 BottomNav만큼이라, 맨 아래 카드의 오른쪽(금액 자리)을 FAB가 가린다.
