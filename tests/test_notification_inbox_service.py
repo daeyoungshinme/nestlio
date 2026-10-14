@@ -1,6 +1,7 @@
 """notification_inbox_service — 목표 응원(send_goal_cheer)의 저장 형태."""
 
 from datetime import datetime
+from unittest.mock import patch
 
 import pytest
 
@@ -87,6 +88,19 @@ def test_log_partner_saving_records_inbox_entry_read_by_actor(seeded_db):
     assert (log.notif_type, log.related_type, log.related_id) == ("partner_saving", "savings_product", tx.savings_product_id)
     assert log.detail == 'Spouse 1님이 "ETF"에 300,000원 저축했어요'
     assert db.query(NotificationRead).filter_by(notification_log_id=log_id, user_id=user.id).count() == 1
+
+
+def test_log_partner_saving_failure_rolls_back_so_session_stays_usable(seeded_db):
+    """거래 저장 라우터는 이 실패를 로그로만 흡수하고 같은 세션으로 응답을 만든다 — 롤백은 서비스가 맡는다."""
+    db, user, food = seeded_db["db"], seeded_db["user"], seeded_db["food"]
+    tx = _savings_tx(db, user, food)
+
+    with patch.object(db, "flush", side_effect=RuntimeError("db hiccup")):
+        with pytest.raises(RuntimeError):
+            notification_inbox_service.log_partner_saving(db, user.id, "Spouse 1", tx)
+
+    assert db.query(NotificationLog).filter_by(notif_type="partner_saving").count() == 0
+    assert tx.amount is not None  # 세션이 쓸 수 있는 상태(응답 직렬화 가능)
 
 
 def test_log_partner_saving_skips_non_savings_and_disabled(seeded_db):

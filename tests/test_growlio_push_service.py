@@ -27,12 +27,15 @@ def _product(db, growlio_account_id="g-1", owner_user_id=None):
 
 
 def _push(db, product, token="token"):
-    return growlio_push_service.push_now(
-        db, product.id, "DEPOSIT", Decimal("300000"), date(2026, 10, 8), token, transaction_id=7
-    )
+    """transaction_service와 같은 순서: 세션에 올리고 → (거래와 함께) 커밋 → 커밋 뒤 전송."""
+    row = growlio_push_service.stage(db, product.id, "DEPOSIT", Decimal("300000"), date(2026, 10, 8), transaction_id=7)
+    db.commit()
+    if row is None:
+        return None
+    return growlio_push_service.send_staged(db, row, token)
 
 
-def test_push_now_ignores_products_without_growlio_link(seeded_db):
+def test_stage_ignores_products_without_growlio_link(seeded_db):
     db = seeded_db["db"]
     product = _product(db, growlio_account_id=None)
     with patch.object(growlio_client, "push_transaction") as push:
@@ -41,7 +44,16 @@ def test_push_now_ignores_products_without_growlio_link(seeded_db):
     assert db.query(GrowlioPushQueue).count() == 0
 
 
-def test_push_now_sends_with_queue_row_external_ref_and_marks_sent(seeded_db):
+def test_stage_does_not_commit(seeded_db):
+    """큐 행은 호출자의 거래와 같은 커밋으로 묶여야 하므로 stage 자체는 커밋하지 않는다."""
+    db = seeded_db["db"]
+    product = _product(db)
+    growlio_push_service.stage(db, product.id, "DEPOSIT", Decimal("1"), date(2026, 10, 8))
+    db.rollback()
+    assert db.query(GrowlioPushQueue).count() == 0
+
+
+def test_send_staged_uses_queue_row_external_ref_and_marks_sent(seeded_db):
     db = seeded_db["db"]
     product = _product(db)
     with patch.object(growlio_client, "push_transaction") as push:
@@ -55,7 +67,7 @@ def test_push_now_sends_with_queue_row_external_ref_and_marks_sent(seeded_db):
     assert (row.transaction_id, row.attempts) == (7, 0)
 
 
-def test_push_now_keeps_failed_row_pending(seeded_db):
+def test_send_staged_keeps_failed_row_pending(seeded_db):
     db = seeded_db["db"]
     product = _product(db)
     with patch.object(growlio_client, "push_transaction", side_effect=growlio_client.GrowlioRequestError("down")):
@@ -67,7 +79,7 @@ def test_push_now_keeps_failed_row_pending(seeded_db):
     assert row.last_error == "down"
 
 
-def test_push_now_without_token_only_enqueues(seeded_db):
+def test_send_staged_without_token_leaves_row_queued(seeded_db):
     db = seeded_db["db"]
     product = _product(db)
     with patch.object(growlio_client, "push_transaction") as push:

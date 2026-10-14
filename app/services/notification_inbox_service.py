@@ -211,8 +211,14 @@ def log_partner_saving(
         status="sent",
         detail=f"{actor_name}님이 \"{tx.savings_product.name}\"에 {tx.amount:,.0f}원 저축했어요"[:500],
     )
-    db.add(log)
-    db.flush()
-    db.add(NotificationRead(notification_log_id=log.id, user_id=actor_id, read_at=now))
-    db.commit()
+    # 호출자(거래 저장 라우터)는 실패를 로그로만 흡수하고 같은 세션으로 응답을 직렬화하므로, 실패하면 여기서
+    # 롤백해 세션을 쓸 수 있는 상태로 돌려 놓는다(notification_service.check_and_alert_budget_threshold와 같은 규칙).
+    try:
+        db.add(log)
+        db.flush()
+        db.add(NotificationRead(notification_log_id=log.id, user_id=actor_id, read_at=now))
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise
     return log.id

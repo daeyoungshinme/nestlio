@@ -6,10 +6,17 @@ from unittest.mock import ANY, patch
 import pytest
 
 from app.models.category import Category
+from app.models.growlio_push_queue import GrowlioPushQueue
 from app.models.savings_product import SavingsProduct
 from app.models.transaction import Transaction
 from app.models.user import User
-from app.services import growlio_client, transaction_report_service, transaction_service, transaction_trend_service
+from app.services import (
+    growlio_client,
+    growlio_push_service,
+    transaction_report_service,
+    transaction_service,
+    transaction_trend_service,
+)
 
 
 def test_period_totals_splits_fixed_and_variable(seeded_db):
@@ -787,3 +794,103 @@ def test_delete_transaction_pushes_growlio_only_after_commit(seeded_db):
             transaction_service.delete_transaction(db, tx_id, bearer_token="tok")
 
     mock_push.assert_not_called()
+
+
+def test_create_transaction_queue_row_survives_crash_right_after_commit(seeded_db):
+    """아웃박스 원자성: 커밋 직후(전송 전) 죽어도 거래와 growlio 큐 행이 함께 남아 있어야 재전송된다.
+    예전엔 큐 행을 거래 커밋 뒤 별도 커밋으로 남겨, 그 사이에 죽으면 입금이 growlio에 영영 빠졌다."""
+    db, user = seeded_db["db"], seeded_db["user"]
+    savings_category, product = _add_savings_category_and_product(db, growlio_account_id="growlio-acct-1")
+
+    with patch.object(growlio_push_service, "send_staged", side_effect=RuntimeError("process died")):
+        with pytest.raises(RuntimeError):
+            transaction_service.create_transaction(
+                db, user.id, savings_category.id, "expense", Decimal("50000"), date(2026, 7, 1),
+                savings_product_id=product.id, bearer_token="tok",
+            )
+    db.rollback()
+
+    tx = db.query(Transaction).one()
+    row = db.query(GrowlioPushQueue).one()
+    assert (row.transaction_id, row.transaction_type, row.amount, row.sent_at) == (
+        tx.id, "DEPOSIT", Decimal("50000"), None
+    )
+
+
+def test_create_transaction_commit_failure_leaves_neither_transaction_nor_queue_row(seeded_db):
+    db, user = seeded_db["db"], seeded_db["user"]
+    savings_category, product = _add_savings_category_and_product(db, growlio_account_id="growlio-acct-1")
+
+    with patch.object(db, "commit", side_effect=RuntimeError("db down")), patch.object(
+        growlio_client, "push_transaction"
+    ) as mock_push:
+        with pytest.raises(RuntimeError):
+            transaction_service.create_transaction(
+                db, user.id, savings_category.id, "expense", Decimal("50000"), date(2026, 7, 1),
+                savings_product_id=product.id, bearer_token="tok",
+            )
+    db.rollback()
+
+    mock_push.assert_not_called()
+    assert db.query(Transaction).count() == 0
+    assert db.query(GrowlioPushQueue).count() == 0
+
+
+def test_update_transaction_stages_withdrawal_and_deposit_in_same_commit(seeded_db):
+    db, user = seeded_db["db"], seeded_db["user"]
+    savings_category, product = _add_savings_category_and_product(db, growlio_account_id="growlio-acct-1")
+    tx = transaction_service.create_transaction(
+        db, user.id, savings_category.id, "expense", Decimal("50000"), date(2026, 7, 1),
+        savings_product_id=product.id,
+    )
+
+    with patch.object(growlio_push_service, "send_staged", side_effect=RuntimeError("process died")):
+        with pytest.raises(RuntimeError):
+            transaction_service.update_transaction(db, tx.id, bearer_token="tok", amount=Decimal("70000"))
+    db.rollback()
+
+    rows = db.query(GrowlioPushQueue).order_by(GrowlioPushQueue.id).all()
+    assert [(r.transaction_type, r.amount) for r in rows] == [
+        ("DEPOSIT", Decimal("50000")),
+        ("WITHDRAWAL", Decimal("50000")),
+        ("DEPOSIT", Decimal("70000")),
+    ]
+    assert db.get(Transaction, tx.id).amount == Decimal("70000")
+
+
+def test_delete_transaction_queue_row_survives_crash_right_after_commit(seeded_db):
+    db, user = seeded_db["db"], seeded_db["user"]
+    savings_category, product = _add_savings_category_and_product(db, growlio_account_id="growlio-acct-1")
+    tx = transaction_service.create_transaction(
+        db, user.id, savings_category.id, "expense", Decimal("50000"), date(2026, 7, 1),
+        savings_product_id=product.id,
+    )
+    tx_id = tx.id
+
+    with patch.object(growlio_push_service, "send_staged", side_effect=RuntimeError("process died")):
+        with pytest.raises(RuntimeError):
+            transaction_service.delete_transaction(db, tx_id, bearer_token="tok")
+    db.rollback()
+
+    assert db.get(Transaction, tx_id) is None
+    withdrawal = db.query(GrowlioPushQueue).filter(GrowlioPushQueue.transaction_type == "WITHDRAWAL").one()
+    assert (withdrawal.transaction_id, withdrawal.amount, withdrawal.sent_at) == (tx_id, Decimal("50000"), None)
+
+
+def test_bulk_delete_commit_failure_leaves_no_withdrawal_rows(seeded_db):
+    db, user = seeded_db["db"], seeded_db["user"]
+    savings_category, product = _add_savings_category_and_product(db, growlio_account_id="growlio-acct-1")
+    ids = [
+        transaction_service.create_transaction(
+            db, user.id, savings_category.id, "expense", Decimal("10000"), date(2026, 7, day),
+            savings_product_id=product.id,
+        ).id
+        for day in (1, 2)
+    ]
+
+    with patch.object(db, "commit", side_effect=RuntimeError("db down")):
+        with pytest.raises(RuntimeError):
+            transaction_service.bulk_delete_transactions(db, ids, bearer_token="tok")
+
+    assert db.query(Transaction).count() == 2
+    assert db.query(GrowlioPushQueue).filter(GrowlioPushQueue.transaction_type == "WITHDRAWAL").count() == 0
