@@ -5,7 +5,7 @@ import BottomNav from "./BottomNav";
 
 export default function AppLayout() {
   return (
-    <div className="flex h-screen bg-gray-50 dark:bg-gray-950">
+    <div className="flex h-[100dvh] bg-gray-50 dark:bg-gray-950">
       <Sidebar />
       <div className="flex-1 flex flex-col overflow-hidden">
         <Header />

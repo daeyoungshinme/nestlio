@@ -33,7 +33,7 @@ export default function Modal({ children, onClose, title, size = "md", closeOnBa
   return (
     <div
       ref={overlayRef}
-      className={`fixed inset-0 pb-[env(safe-area-inset-bottom)] bg-black/40 flex items-end sm:items-center justify-center ${Z_MODAL} sm:p-4`}
+      className={`fixed inset-0 bg-black/40 flex items-end sm:items-center justify-center ${Z_MODAL} sm:p-4`}
       onClick={closeOnBackdrop ? onClose : undefined}
     >
       <div
@@ -41,7 +41,7 @@ export default function Modal({ children, onClose, title, size = "md", closeOnBa
         role="dialog"
         aria-modal="true"
         aria-labelledby={title != null ? titleId : undefined}
-        className={`bg-white dark:bg-gray-900 rounded-t-2xl sm:rounded-2xl shadow-xl w-full ${SIZE_CLASSES[size]} max-h-[85dvh] flex flex-col overscroll-contain`}
+        className={`bg-white dark:bg-gray-900 rounded-t-2xl sm:rounded-2xl shadow-xl w-full ${SIZE_CLASSES[size]} max-h-[85dvh] pb-[env(safe-area-inset-bottom)] sm:pb-0 flex flex-col overscroll-contain`}
         style={viewportHeight != null ? { maxHeight: `${viewportHeight * MAX_HEIGHT_RATIO}px` } : undefined}
         onClick={(e) => e.stopPropagation()}
       >
