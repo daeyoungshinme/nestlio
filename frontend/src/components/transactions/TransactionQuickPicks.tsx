@@ -21,6 +21,27 @@ const EXPENSE_TYPE_GROUPS = EXPENSE_TYPE_FILTER_OPTIONS.filter(
 const QUICK_TABS = ["계획", "최근"] as const;
 type QuickTab = (typeof QUICK_TABS)[number];
 
+/** 마지막으로 고른 빠른 입력 탭(뷰어별 편의 상태). 기본은 "최근" — 탭 1번으로 바로 등록되는 쪽이라
+ * 매일 쓰는 입력에서 더 빠르다. 저장소를 못 쓰는 환경(사생활 보호 모드 등)이면 기본값으로 동작한다. */
+const QUICK_TAB_STORAGE_KEY = "nestlio:quick-pick-tab";
+
+function readStoredQuickTab(): QuickTab {
+  try {
+    const stored = localStorage.getItem(QUICK_TAB_STORAGE_KEY);
+    return (QUICK_TABS as readonly string[]).includes(stored ?? "") ? (stored as QuickTab) : "최근";
+  } catch {
+    return "최근";
+  }
+}
+
+function storeQuickTab(tab: QuickTab) {
+  try {
+    localStorage.setItem(QUICK_TAB_STORAGE_KEY, tab);
+  } catch {
+    // 저장 실패는 무시 — 다음에 기본 탭으로 열릴 뿐이다.
+  }
+}
+
 const QUICK_CHIP_CLASS = `shrink-0 px-3 rounded-full border border-gray-200 dark:border-gray-700 text-xs text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed ${TOUCH_TARGET_COMPACT_MOBILE_ONLY}`;
 
 function QuickChip({ label, onClick, disabled }: { label: string; onClick: () => void; disabled?: boolean }) {
@@ -70,7 +91,11 @@ export default function TransactionQuickPicks({
   onQuickAdd,
   onApplyPlanItem,
 }: Props) {
-  const [quickTab, setQuickTab] = useState<QuickTab>("계획");
+  const [quickTab, setQuickTabState] = useState<QuickTab>(readStoredQuickTab);
+  const setQuickTab = (tab: QuickTab) => {
+    setQuickTabState(tab);
+    storeQuickTab(tab);
+  };
 
   const recentType: TransactionType = uiType === "income" ? "income" : "expense";
   const recentIsSavings = uiType === "savings";
@@ -108,6 +133,13 @@ export default function TransactionQuickPicks({
       : [];
   const planFlatItems = uiType === "income" ? planItems.filter((item) => item.section === "income") : [];
   const hasPlanContent = planGroups.length > 0 || planFlatItems.length > 0;
+  // 기억된 탭이 비어 있고 다른 탭에 내용이 있으면 그쪽을 보여준다(저장값은 바꾸지 않는다).
+  const activeTab: QuickTab =
+    quickTab === "최근" && !hasRecentContent && hasPlanContent
+      ? "계획"
+      : quickTab === "계획" && !hasPlanContent && hasRecentContent
+        ? "최근"
+        : quickTab;
 
   return (
     <>
@@ -124,9 +156,9 @@ export default function TransactionQuickPicks({
 
       {uiType !== "savings" && (hasPlanContent || hasRecentContent) && (
         <div className="w-full">
-          <Tabs tabs={QUICK_TABS} activeTab={quickTab} onChange={setQuickTab} variant="pill" />
+          <Tabs tabs={QUICK_TABS} activeTab={activeTab} onChange={setQuickTab} variant="pill" />
           <div className="mt-2">
-            {quickTab === "계획" ? (
+            {activeTab === "계획" ? (
               hasPlanContent ? (
                 <div className="flex flex-col gap-2">
                   {planGroups.map((group) => (

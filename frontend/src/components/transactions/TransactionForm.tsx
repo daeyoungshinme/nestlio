@@ -1,6 +1,7 @@
 import { useId, useState } from "react";
 import type { FormEvent } from "react";
 import { ChevronDown, ChevronUp } from "lucide-react";
+import AmountInput from "@/components/common/AmountInput";
 import Button from "@/components/common/Button";
 import CategoryPicker from "@/components/common/CategoryPicker";
 import FormInput from "@/components/common/FormInput";
@@ -10,7 +11,7 @@ import type { UiType } from "@/components/transactions/TransactionQuickPicks";
 import { INLINE_BUTTON_OFFSET, INPUT_SM, LABEL_SM } from "@/constants/inputStyles";
 import { PAYMENT_METHOD_OPTIONS } from "@/constants/transactions";
 import { currentDateIso } from "@/utils/date";
-import { amountInputPreview, toAmountInputValue } from "@/utils/format";
+import { toAmountInputValue } from "@/utils/format";
 import type {
   CategoryOut,
   AccountWithBalanceOut,
@@ -207,16 +208,13 @@ export default function TransactionForm({
         />
       )}
 
-      <FormInput
+      <AmountInput
         label="금액"
-        type="number"
-        inputMode="decimal"
         value={values.amount}
-        onChange={(e) => setValues((v) => ({ ...v, amount: e.target.value }))}
+        onChange={(amount) => setValues((v) => ({ ...v, amount }))}
         required
         className={isStack ? "w-full" : "w-32"}
         inputSize={isStack ? "md" : "sm"}
-        preview={amountInputPreview(values.amount)}
       />
 
       {isStack ? (
@@ -401,9 +399,19 @@ export default function TransactionForm({
         </div>
       )}
 
-      <Button type="submit" loading={submitting} className={isStack ? "w-full" : buttonOffset}>
-        {submitLabel}
-      </Button>
+      {isStack ? (
+        // 모바일 키보드가 열리면 폼이 시트 높이를 넘겨 맨 아래 버튼이 화면 밖으로 밀린다.
+        // 시트의 스크롤 영역 바닥에 붙여 두어 키보드를 닫거나 스크롤하지 않고도 바로 누를 수 있게 한다.
+        <div className="sticky bottom-0 w-full -mb-3 pt-3 pb-3 bg-white dark:bg-gray-900">
+          <Button type="submit" loading={submitting} className="w-full">
+            {submitLabel}
+          </Button>
+        </div>
+      ) : (
+        <Button type="submit" loading={submitting} className={buttonOffset}>
+          {submitLabel}
+        </Button>
+      )}
     </form>
   );
 }
