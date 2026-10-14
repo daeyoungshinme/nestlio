@@ -16,7 +16,7 @@ from app.services import (
     transaction_report_service,
     transaction_trend_service,
 )
-from app.utils.dates import month_bounds, parse_year_month, today_kst, year_month_str
+from app.utils.dates import month_bounds, parse_year_month, shift_month, today_kst, year_month_str
 
 
 def build(db: Session, *, year_month: str | None = None, today: date | None = None) -> dict:
@@ -72,4 +72,26 @@ def build(db: Session, *, year_month: str | None = None, today: date | None = No
         "savings_streak_months": streak,
         "investable_surplus": investable_surplus,
         "surplus_allocation": surplus_allocation,
+    }
+
+
+def build_retrospective(db: Session, today: date) -> dict:
+    """지난달(가장 최근 완결된 달) 회고 데이터의 단일 소스. 대시보드의 월간 회고 카드
+    (GET /dashboard/retrospective)와 월간 요약 이메일(notification_service.send_monthly_summary)이 같은
+    기간·집계를 쓴다 — 이메일은 이 결과에 저축 스트릭·부부 기여도 문구를 얹고 HTML로 렌더한다."""
+    start, end = month_bounds(shift_month(today, -1))
+    year_month = year_month_str(start)
+    totals = transaction_report_service.period_totals(db, start, end)
+    owner_totals = transaction_report_service.totals_by_owner(db, start, end)
+    breakdown = transaction_report_service.category_breakdown(db, start, end, "expense")
+    insights = coaching_engine.compute_insights(db, year_month, totals=totals, breakdown=breakdown)
+    return {
+        "year_month": year_month,
+        "start": start,
+        "end": end,
+        "totals": totals,
+        "owner_totals": owner_totals,
+        "breakdown": breakdown,
+        "top_categories": breakdown[:3],
+        "insights": insights,
     }

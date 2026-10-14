@@ -71,7 +71,7 @@ class Settings(BaseSettings):
     # /internal/jobs/* 엔드포인트 인증용 공유 시크릿 (GitHub Actions 예약 워크플로가 호출)
     internal_job_secret: str = ""
 
-    # Google OAuth (Calendar/Gmail 연동, scripts/google_auth_setup.py에서 사용)
+    # Google OAuth (Gmail 알림 메일 발송 전용, scripts/google_auth_setup.py에서 사용)
     google_oauth_client_id: str = ""
     google_oauth_client_secret: str = ""
 

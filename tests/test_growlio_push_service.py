@@ -132,7 +132,7 @@ def test_flush_stops_at_first_failure_and_skips_rows_over_max_attempts(seeded_db
         assert _flush(db, user.id) == 0
 
     assert push.call_count == 1  # 첫 실패에서 멈춘다
-    assert growlio_push_service.pending_count(db, user.id) == 2  # MAX_ATTEMPTS에 닿은 행은 대기 목록에서 빠진다
+    assert growlio_push_service.pending_query(db, user.id).count() == 2  # MAX_ATTEMPTS에 닿은 행은 대기 목록에서 빠진다
 
 
 def test_flush_never_raises(seeded_db):

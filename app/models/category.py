@@ -14,7 +14,6 @@ class Category(Base):
     )  # 'income' | 'expense'
     type: Mapped[str] = mapped_column(String(10))  # 'fixed' | 'variable' | 'irregular'
     color: Mapped[str] = mapped_column(String(20), default="#888888")
-    icon: Mapped[str | None] = mapped_column(String(50), nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     is_discretionary: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false())
     is_debt: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false())

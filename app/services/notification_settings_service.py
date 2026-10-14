@@ -17,8 +17,8 @@ from app.config import settings
 from app.models.user import User
 from app.services import user_setting_service
 
-# 'calendar_event'는 모델 주석에는 남아 있지만 실제로 발송하는 코드 경로가 없어(죽은 타입)
-# 토글 대상에서 제외한다.
+# 설정 화면에서 켜고 끌 수 있는 알림 종류. 사용자가 직접 누르는 발송(테스트 메일·초대장)과 목표 응원은
+# 토글 대상이 아니다.
 NOTIF_TYPES = (
     "email_weekly",
     "email_monthly",
@@ -31,7 +31,6 @@ NOTIF_TYPES = (
 )
 
 NOTIFY_RECIPIENT_EMAILS_KEY = "notify_recipient_emails"
-MAX_RECIPIENTS = 5
 
 
 def _setting_key(notif_type: str) -> str:

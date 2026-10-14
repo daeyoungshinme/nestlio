@@ -10,7 +10,7 @@ from app.models.savings_product import SavingsProduct
 class GoalFundingSource(Base):
     """FinancialGoal과 (SavingsProduct|Account|Loan) 중 하나를 연결하는 행. 목표 하나를 저축상품·계좌
     여러 개(예: 부부가 각자 다른 상품/계좌로 모으는 경우)와 대출(차감 대상)로 채울 수 있게 한다 —
-    FinancialGoal.current_amount는 이제 모델이 아니라 app/services/goal_service.py의
+    FinancialGoal.current_amount는 이제 모델이 아니라 app/services/goal_progress_service.py의
     compute_current_amount(db, goal)에서 계산된다 (계좌 잔액이 거래내역 기반 파생값이라 DB 세션이
     필요하기 때문). savings_product_id/account_id/loan_id 중 정확히 하나만 채워진다."""
 
