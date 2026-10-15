@@ -71,7 +71,7 @@
 - `TZ=Asia/Seoul` — 날짜 경계의 이중 방어(코드는 `now_kst()`로 1차 방어).
 - `APP_ENV=production`(또는 Render의 `RENDER`)이면 필수 시크릿 누락 시 부팅 실패(`config.validate_startup`).
 - `GROWLIO_API_BASE_URL` — 비면 growlio 연동 전체가 꺼진다.
-- `SUPABASE_SERVICE_ROLE_KEY` + `SUPABASE_STORAGE_BUCKET` — 둘 중 하나라도 비면 부부 사진 "없음"으로 동작(`couple_photo_service`, `/media/couple-photo` 프록시).
+- `SUPABASE_SERVICE_ROLE_KEY` + `SUPABASE_STORAGE_BUCKET` — 둘 중 하나라도 비면 부부 사진 "없음"으로 동작(`couple_photo_service`, `/media/couple-photo` 프록시). 사진 유무·URL은 스토리지에 묻지 않고 `user_settings`의 `couple_photo_version`(앱의 업로드·삭제가 갱신, `""`=없음)으로 판단한다 — Supabase 대시보드에서 오브젝트를 직접 지우면 어긋나니 키도 같이 지운다(행이 없으면 다음 조회가 HEAD로 한 번 다시 확인).
 - `INTERNAL_JOB_SECRET` — `/internal/jobs/*`의 `X-Internal-Job-Secret` 헤더 값.
 - `GOOGLE_OAUTH_CLIENT_ID`/`_SECRET` — 최초 연결은 로컬에서 `scripts/google_auth_setup.py` 1회 실행(토큰 만료·revoke 시에도 재실행).
 - 코칭 임계값(`SAVINGS_RATE_*`, `BUDGET_*_PCT` 등)은 기본값을 환경별로 바꿀 때만 `.env`에 넣는다(`render.yaml`엔 두지 않는다).

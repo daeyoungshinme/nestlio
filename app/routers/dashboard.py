@@ -31,7 +31,7 @@ def dashboard_bootstrap(
 ):
     """대시보드 첫 화면 묶음 조회(dashboard_service.bootstrap) — GET /net-worth와 같은 기회주의적 growlio 후크도 건다."""
     net_worth_service.schedule_background_refresh(background_tasks, bearer_token, user.id, now=now_kst())
-    return dashboard_service.bootstrap(db, today_kst())
+    return dashboard_service.bootstrap(db, today_kst(), user.id)
 
 
 @router.get("/monthly-retrospective", response_model=MonthlyRetrospectiveOut)

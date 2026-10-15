@@ -287,3 +287,40 @@ def test_reminders_still_logged_in_app_when_google_not_connected(mock_connected,
     assert event_reminder_service.send_due_reminders(db, now=datetime(2026, 7, 15, 9, 15)) == 0
     mock_send.assert_not_called()
     assert len(_reminder_logs(db)) == 1
+
+
+def test_reminder_scan_loads_only_events_that_can_be_due(seeded_db):
+    """매 틱 리마인더 있는 일정 전체를 로드하지 않는다 — 지난 단건, 먼 미래 단건, 끝난 반복 일정은 후보에서 빠지고
+    오래전에 시작한 진행 중 반복 일정은 남는다."""
+    db, user = seeded_db["db"], seeded_db["user"]
+    now = datetime(2026, 7, 15, 9, 0)
+
+    def make(title, start_at, **kwargs):
+        return event_service.create_event(
+            db, created_by=user.id, title=title, start_at=start_at, reminder_minutes_before=60, **kwargs
+        )
+
+    due_once = make("곧", datetime(2026, 7, 15, 10, 0))
+    make("지난", datetime(2026, 7, 1, 10, 0))
+    make("먼 미래", datetime(2026, 9, 1, 10, 0))
+    weekly = make("매주", datetime(2025, 1, 1, 10, 0), frequency="weekly")
+    make("끝난 매주", datetime(2025, 1, 1, 10, 0), frequency="weekly", recurrence_end_date=date(2026, 7, 1))
+    event_service.create_event(db, created_by=user.id, title="리마인더 없음", start_at=datetime(2026, 7, 15, 9, 30))
+
+    candidates = event_reminder_service._candidate_events(db, now, window_minutes=30)
+
+    assert {event.id for event in candidates} == {due_once.id, weekly.id}
+
+
+@patch(_SEND)
+@patch(_CONNECTED, return_value=False)
+def test_reminder_scan_horizon_uses_largest_offset(mock_connected, mock_send, seeded_db):
+    """horizon은 가장 큰 리마인더 오프셋 기준 — 하루 전 리마인더 일정도 후보에 든다."""
+    db, user = seeded_db["db"], seeded_db["user"]
+    day_before = event_service.create_event(
+        db, created_by=user.id, title="이사", start_at=datetime(2026, 7, 16, 9, 0), reminder_minutes_before=24 * 60
+    )
+
+    assert event_reminder_service.send_due_reminders(db, now=datetime(2026, 7, 15, 9, 0)) == 1
+    [log] = _reminder_logs(db)
+    assert log.related_id == day_before.id

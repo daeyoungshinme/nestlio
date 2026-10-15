@@ -1,5 +1,6 @@
 import logging
 from datetime import date
+from decimal import Decimal
 from typing import Literal
 
 from sqlalchemy.orm import Session
@@ -154,17 +155,21 @@ def check_and_alert_budget_threshold(db: Session, category_id: int, year_month: 
         raise
 
 
-def _celebrate_goal_milestone(db: Session, goal, today: date | None = None) -> bool:
+def _celebrate_goal_milestone(
+    db: Session, goal, today: date | None = None, current_amount: Decimal | None = None
+) -> bool:
     """Send a celebration email the first time this goal's progress crosses a milestone,
     deduped per goal per milestone so re-saving the same goal doesn't re-send. If progress
     jumped past multiple milestones at once, only the highest is sent. Milestone-crossing +
     dedup bookkeeping lives in notification_log_service. 일반 목표(kind="goal")는 25/50/75/100% 각각
-    축하하고, 챌린지(kind="challenge")는 옛 Challenge 모델과 동일하게 100% 한 번만 축하한다."""
+    축하하고, 챌린지(kind="challenge")는 옛 Challenge 모델과 동일하게 100% 한 번만 축하한다.
+    current_amount는 일괄 확인(check_all_goal_milestones)이 미리 계산해 넘기는 값이다."""
     today = today or today_kst()
     if goal is None or not goal.required_amount:
         return False
     is_challenge = goal.kind == "challenge"
-    current_amount = goal_progress_service.compute_current_amount(db, goal)
+    if current_amount is None:
+        current_amount = goal_progress_service.compute_current_amount(db, goal)
     progress_pct = goal_progress_service.compute_progress_pct(current_amount, goal.required_amount)
     milestone = notification_log_service.highest_crossed_milestone(
         progress_pct, milestones=(100,) if is_challenge else notification_log_service.MILESTONES
@@ -194,10 +199,13 @@ def check_and_celebrate_goal_milestone(db: Session, goal_id: int, today: date | 
 
 
 def check_all_goal_milestones(db: Session, today: date | None = None) -> int:
+    goals = goal_service.list_goals(db)
+    # 진행금액은 한 번에 계산한다(goal_progress_service.current_amounts) — 목표마다 조회하면 N+1이 된다.
+    amounts = goal_progress_service.current_amounts(db, goals)
     sent = 0
-    for goal in goal_service.list_goals(db):
+    for goal in goals:
         try:
-            if _celebrate_goal_milestone(db, goal, today):
+            if _celebrate_goal_milestone(db, goal, today, current_amount=amounts[goal.id]):
                 sent += 1
         except Exception:
             # 한 목표의 실패가 세션을 오염시켜 이후 log_sent 커밋이 연쇄 실패하지 않도록 롤백.

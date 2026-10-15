@@ -24,8 +24,8 @@ router = APIRouter(prefix="/settings", tags=["settings"])
 
 
 @router.get("", response_model=SettingsOut)
-def get_settings(db: Session = Depends(get_db), _: User = Depends(get_current_user)):
-    return settings_service.build_settings_out(db)
+def get_settings(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    return settings_service.build_settings_out(db, current_user.id)
 
 
 @router.put("/notify-emails", response_model=SettingsOut)
@@ -35,7 +35,7 @@ def set_notify_emails(
     current_user: User = Depends(get_current_user),
 ):
     notification_settings_service.set_recipients(db, payload.emails, current_user.id)
-    return settings_service.build_settings_out(db)
+    return settings_service.build_settings_out(db, current_user.id)
 
 
 @router.put("/coaching-thresholds", response_model=SettingsOut)
@@ -45,7 +45,7 @@ def set_coaching_thresholds(
     current_user: User = Depends(get_current_user),
 ):
     coaching_settings_service.set_thresholds(db, payload.model_dump(), current_user.id)
-    return settings_service.build_settings_out(db)
+    return settings_service.build_settings_out(db, current_user.id)
 
 
 @router.put("/notification-prefs", response_model=SettingsOut)
@@ -55,27 +55,27 @@ def set_notification_prefs(
     current_user: User = Depends(get_current_user),
 ):
     notification_settings_service.set_prefs(db, payload.model_dump(), current_user.id)
-    return settings_service.build_settings_out(db)
+    return settings_service.build_settings_out(db, current_user.id)
 
 
 @router.post("/couple-photo", response_model=SettingsOut)
 def upload_couple_photo(
     db: Session = Depends(get_db),
     file: UploadFile = File(...),
-    _: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_user),
 ):
     # async def가 아니라 def — 스토리지 업로드(httpx 동기, 최대 30초)와 DB 조회가 블로킹이라
     # 이벤트 루프에서 돌면 단일 프로세스(Render) 전체 요청이 그동안 멈춘다. def는 스레드풀에서 돈다.
     # 상한+1바이트까지만 읽는다 — 크기 초과 판정은 save_photo가 그대로 한다(전체를 메모리에 올리지 않음).
     raw = file.file.read(int(settings.max_upload_size_mb * 1024 * 1024) + 1)
-    couple_photo_service.save_photo(raw, file.content_type)
-    return settings_service.build_settings_out(db)
+    couple_photo_service.save_photo(db, raw, file.content_type, current_user.id)
+    return settings_service.build_settings_out(db, current_user.id)
 
 
 @router.delete("/couple-photo", response_model=SettingsOut)
-def delete_couple_photo(db: Session = Depends(get_db), _: User = Depends(get_current_user)):
-    couple_photo_service.delete_photo()
-    return settings_service.build_settings_out(db)
+def delete_couple_photo(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    couple_photo_service.delete_photo(db, current_user.id)
+    return settings_service.build_settings_out(db, current_user.id)
 
 
 @router.post("/test-weekly-email", response_model=TestEmailResultOut)

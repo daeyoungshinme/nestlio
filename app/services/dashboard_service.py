@@ -1,8 +1,10 @@
 """화면 단위 응답의 오케스트레이션 — 대시보드 메인(build)·첫 화면 묶음(bootstrap)·월간 회고(build_retrospective)·연간 리포트(yearly_report).
 
 라우터에 흩어져 있던 기준 월 해석, ~15개 서비스 호출 조합, target_monthly/streak 계산을
-서비스 계층으로 모아 재사용·테스트가 가능하게 했다. 순수 조합 로직이며 DB 쓰기는 없다.
+서비스 계층으로 모아 재사용·테스트가 가능하게 했다. 순수 조합 로직이며 DB 쓰기는 없다(예외: bootstrap이 사진 버전을 처음 한 번 기록 —
+couple_photo_service.get_photo_url).
 """
+import uuid
 from datetime import date
 
 from sqlalchemy.orm import Session
@@ -103,12 +105,12 @@ def build_retrospective(db: Session, today: date) -> dict:
     }
 
 
-def bootstrap(db: Session, today: date) -> dict:
+def bootstrap(db: Session, today: date, user_id: uuid.UUID) -> dict:
     """대시보드 첫 화면에 필요한 settings/net-worth/financial-goals/savings-products/users를 한 번에 — 모바일 등
     고지연 환경에서 마운트 시 병렬 요청 수를 줄이기 위함. 각 리소스의 개별 엔드포인트(GET /settings 등)는
     대시보드 밖 화면들이 계속 쓰므로 그대로 둔다(응답 모양도 그 엔드포인트들과 같다)."""
     return {
-        "settings": settings_service.build_settings_out(db),
+        "settings": settings_service.build_settings_out(db, user_id),
         "net_worth": net_worth_service.overview(db, 12),
         "goals": goal_progress_service.list_out(db, goal_service.list_goals(db), today),
         "savings_products": savings_product_service.list_products(db),

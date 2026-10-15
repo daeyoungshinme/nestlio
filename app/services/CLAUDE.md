@@ -46,7 +46,7 @@
 | 거래 | `transaction_service`(CRUD, 저축상품 연결 검증, growlio push) · `transaction_report_service`(한 기간 집계·`period_snapshot`, 공용 쿼리 조각) · `transaction_trend_service`(여러 달 시계열·평균, 범위 1회 조회 후 달별 버킷팅) · `transaction_import_service`(CSV import·export) | 아래 "누가 기록했나 vs 누가 썼나" 참고 |
 | 일정 | `event_service`(CRUD, 반복 전개 `occurrences_in_range`) · `event_reminder_service`(리마인더, 배우자 알림) | `event_service`는 알림을 모른다 — 생성·수정·삭제 뒤 배우자 알림은 라우터가 `notify_other_spouse_best_effort`로 부른다 |
 | 저축상품 | `savings_product_service`(CRUD, `list_products`, `get_emergency_fund_balance`) · `savings_product_plan_service`(연간계획·실적, `PLAN_PRODUCT_TYPES`) · `savings_product_growlio_service`(growlio 동기화) | 상품 목록은 항상 `list_products(db)` 재사용 |
-| 목표 | `goal_service`(CRUD, 챌린지 상태 동기화, 자금원 연동, growlio 조회) · `goal_progress_service`(진행률·ETA·`to_out`, 커밋 없음) | `goal_service` → `goal_progress_service` 단방향 |
+| 목표 | `goal_service`(CRUD, 챌린지 상태 동기화, 자금원 연동, growlio 조회) · `goal_progress_service`(진행률·ETA·`to_out`, 커밋 없음. 목표 여러 개는 `list_out`/`current_amounts`로 — 목표마다 `to_out`/`compute_current_amount`를 돌리면 N+1) | `goal_service` → `goal_progress_service` 단방향 |
 | 알림 | `notification_service`(발송·판정) · `notification_inbox_service`(목록·읽음·반응·목표 응원) · `notification_log_service`(dedup) | 앞 둘은 서로 import하지 않음 |
 | 코칭 | `coaching_engine`(규칙 기반 `Insight`, `compute_insights`) · `savings_coaching_service`(여유자금 배분, 비상금, 저축 페이스·연속 달성) | `coaching_engine` → `savings_coaching_service` 단방향 |
 
