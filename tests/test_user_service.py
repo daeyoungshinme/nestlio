@@ -59,3 +59,14 @@ def test_mirror_supabase_user_returns_winner_on_concurrent_first_login(db_sessio
 
     assert user.id == user_id
     assert db_session.query(User).count() == 1
+
+
+def test_ensure_mirrored_user_creates_until_household_full(db_session):
+    import uuid
+
+    first = user_service.ensure_mirrored_user(db_session, uuid.uuid4(), "a@example.com")
+    second = user_service.ensure_mirrored_user(db_session, uuid.uuid4(), "b@example.com")
+    assert (first.display_name, second.display_name) == ("a", "b")
+
+    with pytest.raises(user_service.HouseholdCapacityError):
+        user_service.ensure_mirrored_user(db_session, uuid.uuid4(), "c@example.com")

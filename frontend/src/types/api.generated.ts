@@ -144,10 +144,7 @@ export interface paths {
         };
         /**
          * Dashboard Bootstrap
-         * @description 대시보드 첫 화면에 필요한 settings/net-worth/financial-goals/savings-products/users를
-         *     한 번에 조회한다 — 모바일 등 고지연 환경에서 대시보드 마운트 시 발생하는 병렬 요청 수를
-         *     줄이기 위함. 각 리소스의 개별 엔드포인트(GET /settings 등)는 대시보드 밖 화면들이 계속
-         *     쓰므로 그대로 둔다.
+         * @description 대시보드 첫 화면 묶음 조회(dashboard_service.bootstrap) — GET /net-worth와 같은 기회주의적 growlio 후크도 건다.
          */
         get: operations["dashboard_bootstrap_api_v1_dashboard_bootstrap_get"];
         put?: never;

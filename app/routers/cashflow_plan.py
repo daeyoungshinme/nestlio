@@ -15,7 +15,7 @@ from app.schemas.cashflow_plan import (
 )
 from app.schemas.common import YearMonth
 from app.services import budget_service, cashflow_plan_service, coaching_settings_service
-from app.utils.dates import months_remaining_in_year, parse_year_month, shift_month, today_kst, year_month_str
+from app.utils.dates import parse_year_month, shift_month, today_kst, year_month_str
 
 router = APIRouter(prefix="/cashflow-plan", tags=["cashflow-plan"])
 
@@ -75,15 +75,13 @@ def split_plan_item(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    months = months_remaining_in_year(parse_year_month(payload.start_year_month))
-    cashflow_plan_service.split_item_into_months(
+    months = cashflow_plan_service.split_item_for_rest_of_year(
         db,
         payload.section,
         payload.owner_user_id,
         payload.name,
         payload.total_amount,
         payload.start_year_month,
-        months,
         payload.sort_order,
         current_user.id,
         category_id=payload.category_id,

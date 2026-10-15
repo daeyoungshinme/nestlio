@@ -4,7 +4,7 @@ from datetime import datetime
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from app.errors import DomainError, InvalidInputError
+from app.errors import DomainError, ForbiddenError, InvalidInputError
 from app.models.user import User
 from app.utils.dates import now_kst
 
@@ -23,6 +23,10 @@ class UserError(DomainError):
 
 
 class CannotRemoveSelfError(UserError, InvalidInputError):
+    pass
+
+
+class HouseholdCapacityError(UserError, ForbiddenError):
     pass
 
 
@@ -53,6 +57,18 @@ def mirror_supabase_user(db: Session, user_id: uuid.UUID, email: str) -> User:
         return existing
     db.refresh(user)
     return user
+
+
+def ensure_mirrored_user(db: Session, user_id: uuid.UUID, email: str) -> User:
+    """처음 보는 Supabase 사용자를 로컬 User로 자동 미러링한다(dependencies.get_current_user 전용).
+
+    nestlio는 자체 회원가입이 없다 — 인증된(=Supabase JWT가 유효한) 요청이면 가구 정원(MAX_HOUSEHOLD_USERS)에
+    도달할 때까지 첫 요청에서 바로 등록한다. growlio처럼 같은 Supabase 프로젝트를 공유하는 계정도 이 정원
+    안에서는 초대 없이 로그인만으로 등록된다. 배우자 초대(invite_service)는 표시 이름을 미리 정해 초대장을
+    보내는 보조 수단일 뿐 계정 생성의 게이트가 아니다. 정원이 차면 HouseholdCapacityError(403)."""
+    if not household_has_capacity(db):
+        raise HouseholdCapacityError(f"이미 가구 인원({MAX_HOUSEHOLD_USERS}명)이 모두 등록되어 있습니다.")
+    return mirror_supabase_user(db, user_id, email)
 
 
 def get_user(db: Session, user_id: uuid.UUID) -> User | None:

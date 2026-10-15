@@ -1,8 +1,10 @@
 import logging
 from datetime import date
+from typing import Literal
 
 from sqlalchemy.orm import Session
 
+from app.errors import ConflictError
 from app.services import (
     budget_service,
     coaching_settings_service,
@@ -312,3 +314,42 @@ def check_savings_pace_reminder(db: Session, today: date | None = None) -> bool:
     notification_log_service.log_sent(db, "savings_pace_reminder", year_month, detail=body)
     db.commit()
     return True
+
+
+def alert_budget_after_transaction_save(db: Session, tx) -> None:
+    """지출 거래 저장 직후 그 카테고리 예산 임계치 알림 — 실패해도 거래는 이미 저장됐으니 로그만 남긴다
+    (check_and_alert_budget_threshold가 실패 시 롤백까지 하므로 호출자는 같은 세션으로 응답을 만들 수 있다).
+    과거 날짜 지출이면 그 달 예산을 본다(이번 달 기준이면 엉뚱한 달을 검사한다)."""
+    if tx.type != "expense":
+        return
+    try:
+        check_and_alert_budget_threshold(db, tx.category_id, year_month_str(tx.transaction_date))
+    except Exception:
+        logger.exception("예산 초과 알림 발송 실패 (거래는 정상 저장됨)")
+
+
+def celebrate_goal_milestone_best_effort(db: Session, goal_id: int, today: date | None = None) -> None:
+    """목표 생성·수정·월별 실적 입력 직후 호출 — 축하 알림 실패가 목표 저장 응답을 막지 않게 로그만 남긴다."""
+    try:
+        check_and_celebrate_goal_milestone(db, goal_id, today)
+    except Exception:
+        logger.exception("목표 달성 축하 알림 처리 실패 (목표는 정상 저장됨)")
+
+
+_TEST_SUMMARY = {
+    "weekly": ("email_weekly", "주간", send_weekly_summary),
+    "monthly": ("email_monthly", "월간", send_monthly_summary),
+}
+
+
+def send_test_summary(db: Session, kind: Literal["weekly", "monthly"]) -> dict:
+    """설정 화면의 테스트 발송 버튼. "Google 연동이 실제로 동작하는지" 확인하는 QA용이라, 일반 알림
+    파이프라인과 달리 미연동/꺼짐 상태에서는 조용히 건너뛰지 않고 ConflictError(409)로 알린다. Gmail 실패·토큰
+    만료도 흡수하지 않고 올린다(전역 핸들러가 502/409로 변환)."""
+    setting_key, label, send = _TEST_SUMMARY[kind]
+    if not is_connected():
+        raise ConflictError("Google 계정이 연결되어 있지 않습니다.")
+    if not notification_settings_service.is_enabled(db, setting_key):
+        raise ConflictError(f"{label} 요약 알림이 꺼져 있습니다. 설정에서 켜주세요.")
+    sent = send(db, force=True)
+    return {"sent": sent, "message": f"{label} 요약 이메일을 발송했습니다." if sent else "발송하지 못했습니다."}

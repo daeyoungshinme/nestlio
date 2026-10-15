@@ -5,7 +5,7 @@ from app.database import get_db
 from app.dependencies import get_bearer_token, get_current_user
 from app.models.user import User
 from app.schemas.net_worth import NetWorthGrowlioUnlinkedOut, NetWorthOut
-from app.services import growlio_push_service, net_worth_service
+from app.services import net_worth_service
 from app.utils.dates import now_kst
 
 router = APIRouter(prefix="/net-worth", tags=["net-worth"])
@@ -19,18 +19,9 @@ def get_net_worth(
     bearer_token: str = Depends(get_bearer_token),
     user: User = Depends(get_current_user),
 ):
-    # 대시보드·자산 화면이 공유하는 이 엔드포인트를 후크로, auto_sync_enabled인데 오래된 growlio
-    # 연동 잔액을 응답 후 백그라운드로 조용히 새로고침한다(스케줄러엔 사용자 JWT가 없어서).
-    # 밀린 growlio 입출금 반영(아웃박스)을 먼저 보내고 잔액을 새로고친다 — 순서가 바뀌면 새로고친 잔액에 방금 보낸
-    # 입출금이 빠진다. BackgroundTasks는 등록 순서대로 실행된다.
-    background_tasks.add_task(growlio_push_service.flush_pending, bearer_token, user.id, now=now_kst())
-    background_tasks.add_task(
-        net_worth_service.refresh_stale_growlio_links, bearer_token, user.id, now=now_kst()
-    )
-    return {
-        "current": net_worth_service.compute_current(db),
-        "history": net_worth_service.list_history(db, months),
-    }
+    # 대시보드·자산 화면이 공유하는 이 엔드포인트를 후크로 밀린 growlio 반영·오래된 잔액 새로고침을 응답 후에 돌린다.
+    net_worth_service.schedule_background_refresh(background_tasks, bearer_token, user.id, now=now_kst())
+    return net_worth_service.overview(db, months)
 
 
 @router.get("/growlio-unlinked", response_model=NetWorthGrowlioUnlinkedOut)

@@ -229,3 +229,18 @@ def test_yearly_totals_excludes_other_years(seeded_db):
     totals = transaction_trend_service.yearly_totals(db, 2026)
 
     assert totals["expense"] == Decimal("800000")
+
+
+def test_decode_upload_accepts_utf8_bom_and_cp949():
+    assert transaction_import_service.decode_upload("날짜,구분".encode("utf-8-sig")) == "날짜,구분"
+    assert transaction_import_service.decode_upload("날짜,구분".encode("cp949")) == "날짜,구분"
+
+
+def test_decode_upload_rejects_unreadable_encoding_and_oversized(monkeypatch):
+    from app.errors import InvalidInputError, PayloadTooLargeError
+
+    with pytest.raises(InvalidInputError):
+        transaction_import_service.decode_upload(b"\xff\xfe\xfa\xfb")
+    monkeypatch.setattr(transaction_import_service.settings, "max_upload_size_mb", 1)
+    with pytest.raises(PayloadTooLargeError):
+        transaction_import_service.decode_upload(b"a" * (1024 * 1024 + 1))

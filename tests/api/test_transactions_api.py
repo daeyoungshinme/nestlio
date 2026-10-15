@@ -228,7 +228,7 @@ def test_import_csv_undecodable_file_returns_400(client):
 
 
 def test_import_csv_over_size_limit_returns_413(client, monkeypatch):
-    monkeypatch.setattr("app.routers.transactions.settings.max_upload_size_mb", 1)
+    monkeypatch.setattr("app.services.transaction_import_service.settings.max_upload_size_mb", 1)
     oversized = b"a" * (1024 * 1024 + 1)
 
     resp = client.post("/api/v1/transactions/import", files={"file": ("big.csv", oversized, "text/csv")})

@@ -13,7 +13,7 @@ from app.models.annual_plan_item import AnnualPlanItem
 from app.models.annual_plan_item_monthly_target import AnnualPlanItemMonthlyTarget
 from app.models.recurring_expense import RecurringExpense
 from app.services import annual_plan_service, plan_targets, transaction_report_service, transaction_trend_service
-from app.utils.dates import month_bounds, parse_year_month, shift_month, year_month_str
+from app.utils.dates import month_bounds, months_remaining_in_year, parse_year_month, shift_month, year_month_str
 from app.utils.plan_status import pct_of
 
 
@@ -129,8 +129,8 @@ def split_item_into_months(
     """총액을 `months`개월로 나눠 `start_year_month`부터 매월 금액을 가진 항목 하나를 만든다 (할부처럼 분할).
     나눗셈 나머지는 앞쪽 달부터 1원 단위로 얹어 합계가 총액과 정확히 일치하도록 한다 — KRW는
     소수점 단위가 없으므로 원 단위로 quantize한다. frontend/src/utils/monthRange.ts의
-    distributeAmountEvenly()와 같은 나머지 보정 규칙이다. 호출부(라우터)는 그 해 남은 달 수만 넘기므로
-    항목은 항상 한 해 안에 들어간다. 이후 각 달 금액은 이번 달/연간 화면에서 따로 조정할 수 있다."""
+    distributeAmountEvenly()와 같은 나머지 보정 규칙이다. 화면의 할부 등록은 split_item_for_rest_of_year로
+    그 해 남은 달 수만 넘기므로 항목은 항상 한 해 안에 들어간다. 이후 각 달 금액은 이번 달/연간 화면에서 따로 조정할 수 있다."""
     unit = Decimal("1")
     base = (total_amount / months).quantize(unit, rounding=ROUND_DOWN)
     remainder_units = int((total_amount - base * months) / unit)
@@ -163,6 +163,26 @@ def split_item_into_months(
     db.commit()
     db.refresh(item)
     return item
+
+
+def split_item_for_rest_of_year(
+    db: Session,
+    section: str,
+    owner_user_id: uuid.UUID | None,
+    name: str,
+    total_amount: Decimal,
+    start_year_month: str,
+    sort_order: int,
+    updated_by: uuid.UUID,
+    category_id: int | None = None,
+) -> int:
+    """할부 등록(POST /cashflow-plan/items/split) — 시작 달부터 그 해 말까지 나눈다. 나눈 개월 수를 반환한다."""
+    months = months_remaining_in_year(parse_year_month(start_year_month))
+    split_item_into_months(
+        db, section, owner_user_id, name, total_amount, start_year_month, months, sort_order, updated_by,
+        category_id=category_id,
+    )
+    return months
 
 
 def link_recurring(db: Session, item_id: int, recurring_expense_id: int) -> AnnualPlanItem | None:

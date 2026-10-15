@@ -121,17 +121,6 @@ def get_current_user(
         # user_service.REMOVED_USER_DETAIL 문자열을 매칭해 자동 로그아웃시킨다.
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=user_service.REMOVED_USER_DETAIL)
     if user is None:
-        # nestlio는 자체 회원가입이 없다 - 대신 인증된(=Supabase JWT가 유효한) 요청이면
-        # 로컬 users가 가구 인원 상한(MAX_HOUSEHOLD_USERS, 2명)에 도달할 때까지는 첫 요청에서
-        # 바로 Supabase Auth 사용자를 로컬 User 행으로 자동 미러링한다 - growlio처럼 같은
-        # Supabase 프로젝트를 공유하는 계정도 이 상한 안에서는 초대 없이 로그인만으로 등록된다.
-        # 상한에 도달한 뒤에는 더 이상 새 계정이 생기지 않는다. 배우자 초대(invite_service)는
-        # 여전히 쓸 수 있지만 필수 경로는 아니다 - 표시 이름을 미리 지정해 초대장을 보내는
-        # 보조 수단일 뿐, 계정 생성 자체를 막는 게이트가 아니다.
-        if not user_service.household_has_capacity(db):
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="이미 가구 인원(2명)이 모두 등록되어 있습니다.",
-            )
-        user = user_service.mirror_supabase_user(db, user_id, payload.get("email", ""))
+        # 자동 미러링(가구 정원까지) — 정원이 차면 HouseholdCapacityError가 전역 핸들러에서 403이 된다.
+        user = user_service.ensure_mirrored_user(db, user_id, payload.get("email", ""))
     return user

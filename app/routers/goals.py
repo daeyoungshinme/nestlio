@@ -62,10 +62,7 @@ def create_goal(
         now=now,
         expected_annual_return_pct=payload.expected_annual_return_pct,
     )
-    try:
-        notification_service.check_and_celebrate_goal_milestone(db, goal.id, today)
-    except Exception:
-        logger.exception("목표 달성 축하 알림 처리 실패 (목표는 정상 저장됨)")
+    notification_service.celebrate_goal_milestone_best_effort(db, goal.id, today)
     return goal_progress_service.to_out(db, goal, today)
 
 
@@ -97,10 +94,7 @@ def update_goal(
     )
     if goal is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "재무목표를 찾을 수 없습니다.")
-    try:
-        notification_service.check_and_celebrate_goal_milestone(db, goal.id, today)
-    except Exception:
-        logger.exception("목표 달성 축하 알림 처리 실패 (목표는 정상 저장됨)")
+    notification_service.celebrate_goal_milestone_best_effort(db, goal.id, today)
     return goal_progress_service.to_out(db, goal, today)
 
 
@@ -116,10 +110,7 @@ def update_monthly_target(
     if goal is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "재무목표를 찾을 수 없습니다.")
     today = today_kst()
-    try:
-        notification_service.check_and_celebrate_goal_milestone(db, goal.id, today)
-    except Exception:
-        logger.exception("목표 달성 축하 알림 처리 실패 (월별 목표는 정상 저장됨)")
+    notification_service.celebrate_goal_milestone_best_effort(db, goal.id, today)
     return goal_progress_service.to_out(db, goal, today)
 
 

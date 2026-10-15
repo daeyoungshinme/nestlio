@@ -550,3 +550,14 @@ def test_list_items_loads_monthly_targets_without_n_plus_one(seeded_db, count_se
 
     assert len(items) == 5
     assert n[0] <= 2  # 항목 조인 1 + monthly_targets selectin 1 (항목 수와 무관)
+
+
+def test_split_item_for_rest_of_year_uses_remaining_months(seeded_db):
+    db, user = seeded_db["db"], seeded_db["user"]
+    months = cashflow_plan_service.split_item_for_rest_of_year(
+        db, "irregular", None, "가전 할부", Decimal("600000"), "2026-07", 0, user.id
+    )
+    assert months == 6
+    item = annual_plan_service.list_items(db, 2026)[0]
+    assert sorted(t.year_month for t in item.monthly_targets) == [f"2026-{m:02d}" for m in range(7, 13)]
+    assert sum(t.target_amount for t in item.monthly_targets) == Decimal("600000")

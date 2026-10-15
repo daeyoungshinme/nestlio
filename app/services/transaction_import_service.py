@@ -7,12 +7,32 @@ from decimal import Decimal, InvalidOperation
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
+from app.config import settings
+from app.errors import InvalidInputError, PayloadTooLargeError
 from app.models.category import Category
 from app.models.transaction import Transaction
 
 CSV_HEADER = ["날짜", "구분", "카테고리", "금액", "메모", "입력자"]
 CSV_TYPE_LABELS = {"income": "수입", "expense": "지출"}
 CSV_TYPE_BY_LABEL = {"수입": "income", "지출": "expense", "income": "income", "expense": "expense"}
+
+
+
+def max_upload_bytes() -> int:
+    return settings.max_upload_size_mb * 1024 * 1024
+
+
+def decode_upload(raw: bytes) -> str:
+    """업로드된 CSV 바이트를 텍스트로. 호출부는 상한+1바이트까지만 읽어 넘긴다(통째로 read()하면 거대한 업로드
+    하나가 Render 무료 인스턴스 메모리를 다 쓴다). 엑셀이 저장하는 CP949도 받는다."""
+    if len(raw) > max_upload_bytes():
+        raise PayloadTooLargeError(f"CSV 파일은 {settings.max_upload_size_mb}MB를 넘을 수 없습니다.")
+    for encoding in ("utf-8-sig", "cp949"):
+        try:
+            return raw.decode(encoding)
+        except UnicodeDecodeError:
+            continue
+    raise InvalidInputError("CSV 파일 인코딩을 읽을 수 없습니다. UTF-8 또는 CP949로 저장해 주세요.")
 
 
 def export_csv(transactions: list[Transaction]) -> str:

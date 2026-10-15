@@ -19,6 +19,13 @@
 - 전용 예외는 `app/errors.py`의 베이스(`InvalidInputError` 400 / `ForbiddenError` 403 / `NotFoundError` 404 / `ConflictError` 409 / `UnprocessableError` 422 / `UpstreamError` 502)를 상속한다. `app/exception_handlers.py`가 전역에서 `{"detail": str(exc)}`로 바꾸므로 **라우터는 catch해서 HTTPException으로 다시 던지지 않는다**. 맨 `ValueError`를 도메인 오류로 쓰지 않는다(라우터마다 400/409로 제각각 매핑되던 원인). 상태코드는 `tests/test_exception_handlers.py`가 고정한다.
 - 한 함수에 두 방식이 섞여 있다고 자동으로 버그는 아니다 — 라우터까지 대조해 각 분기가 실제로 다른 상태를 구분하는지 본다.
 
+## 라우터에 두지 않는 것
+
+라우터는 입력 파싱·인증·서비스 호출·응답 헤더만 한다. 아래는 서비스에 있다 — 새 엔드포인트도 같은 자리에 둔다.
+- 여러 서비스 조합으로 만드는 화면 응답: `dashboard_service`(`build`·`bootstrap`·`yearly_report`), 설정 응답 `settings_service.build_settings_out`
+- 저장 직후 best-effort 부수효과(실패해도 응답은 성공): `notification_service.alert_budget_after_transaction_save`·`celebrate_goal_milestone_best_effort`, `notification_inbox_service.log_partner_saving_best_effort` — 실패 시 롤백까지 하므로 라우터는 try/except 없이 부른다
+- 기본 조회 기간(`transaction_service.period_or_this_month`·`list_with_totals`), 업로드 디코딩(`transaction_import_service.decode_upload`), 할부 개월 수(`cashflow_plan_service.split_item_for_rest_of_year`), 사용자 자동 미러링·정원(`user_service.ensure_mirrored_user`)
+
 ## Google 연동 가드
 
 - Google 연동은 Gmail 알림 메일 발송뿐이다(구글 캘린더 동기화·시트 가져오기는 토큰 유지비 대비 쓰임이 적어 2026-10 제거). `gmail_service`를 부르기 전에 `google_auth.is_connected()`를 확인한다. 미연결이면 `GoogleNotConnectedError`.
@@ -79,5 +86,5 @@
 - 가져오기·동기화 로직은 공용 헬퍼를 재사용한다: `already_linked_growlio_ids(db, model)`(중복 가져오기 방지), `to_decimal_krw(raw)`, `find_by_growlio_id(items, id)`. 도메인마다 다른 가져오기 루프 본문은 통합하지 않는다.
 - 받아 쓰는 값: 계좌 평가액·원금(`fetch_account_balances` — 투자 상품은 `invested_amount_krw`를 `principal_amount`로, 원금 없는 응답이면 기존 유지), 부동산 시세·대출(`fetch_real_estate_items`), 투자목표 설정(`fetch_investment_goal`, 목표 폼 프리필), 수익률 KPI(`fetch_performance`)·목표 달성 가능성(`fetch_goal_feasibility`) — 뒤 둘은 `goal_service.fetch_growlio_insight`가 묶는다. 목표에 growlio 계좌가 연동돼 있으면 `fetch_account_performance`(그 계좌들만의 XIRR → `eta_with_actual_return_year_month`)와 `fetch_net_deposits`(증권사에서 growlio로 직접 들어온 월 순입금, nestlio push 분 제외, 최근 6개월)도 더한다 — 둘 다 best-effort라 구버전 growlio(404)면 그 필드만 비운다. 복리 ETA(`goal_progress_service.compute_eta_with_return`)는 growlio 없이 nestlio가 계산한다.
 - **전체 동기화(`sync_all_*`)**: `account_service.sync_all_accounts`/`savings_product_growlio_service.sync_all_from_growlio`/`real_estate_service.sync_all_from_growlio` 공통 규칙 — growlio 목록은 **1회만** 조회해 매칭하고, 매칭 실패(배우자 소유 등)는 전체를 중단하지 않고 `{id, name, reason}`을 `failed`에 담는다. 반환은 `tuple[int, list[dict]]`. 새 리소스 타입도 이 시그니처를 따른다.
-- **입출금 반영 아웃박스(`growlio_push_service`, `GrowlioPushQueue`)**: 저축·투자 거래 저장/수정/삭제의 growlio 반영은 큐 행을 **거래와 같은 커밋으로** 세션에 올리고(`stage` — 따로 커밋하면 그 사이 실패 시 반영이 영영 빠진다) 커밋 뒤 바로 보내 본다(`send_staged`). 실패·토큰 없음이면 남겨 두고, `GET /dashboard/bootstrap`·`GET /net-worth` 응답 후 `flush_pending`이 호출자·공동 소유 행을 재전송한다(잔액 새로고침보다 **먼저** 등록 — BackgroundTasks는 등록 순). growlio에 `external_ref="nestlio:q{id}"`로 보내 growlio가 중복 기록을 막으므로 재전송이 안전하다. 행은 거래·상품과 FK로 묶지 않는다(삭제돼도 반영할 동작은 남아야 함). `MAX_ATTEMPTS` 넘게 실패한 행은 더 보내지 않고 `last_error`에 원인을 남긴다.
+- **입출금 반영 아웃박스(`growlio_push_service`, `GrowlioPushQueue`)**: 저축·투자 거래 저장/수정/삭제의 growlio 반영은 큐 행을 **거래와 같은 커밋으로** 세션에 올리고(`stage` — 따로 커밋하면 그 사이 실패 시 반영이 영영 빠진다) 커밋 뒤 바로 보내 본다(`send_staged`). 실패·토큰 없음이면 남겨 두고, `GET /dashboard/bootstrap`·`GET /net-worth` 응답 후 `flush_pending`이 호출자·공동 소유 행을 재전송한다(잔액 새로고침보다 **먼저** 등록 — BackgroundTasks는 등록 순. 두 작업 등록은 `net_worth_service.schedule_background_refresh` 한 곳에서만 한다). growlio에 `external_ref="nestlio:q{id}"`로 보내 growlio가 중복 기록을 막으므로 재전송이 안전하다. 행은 거래·상품과 FK로 묶지 않는다(삭제돼도 반영할 동작은 남아야 함). `MAX_ATTEMPTS` 넘게 실패한 행은 더 보내지 않고 `last_error`에 원인을 남긴다.
 - **기회주의적 갱신(`net_worth_service.refresh_stale_growlio_links`)**: 스케줄러엔 사용자 JWT가 없어 예약 동기화가 불가능하므로, `auto_sync_enabled`이고 `STALE_GROWLIO_LINK_AFTER`(12h)보다 오래된 SavingsProduct/Loan 연동(호출자·공동 소유만)이 있으면 `GET /net-worth`·`GET /dashboard/bootstrap` 응답 후 `BackgroundTasks`로 `sync_all_from_growlio(auto_sync_only=True, owner_user_id=호출자)`를 돌린다. 자체 `SessionLocal()`을 열고 절대 raise하지 않는다. **은행 계좌(`sync_all_accounts`)는 돌리지 않는다** — `initial_balance`를 역산 재기준하므로 수동 동기화 전용이다(`models/account.py` 주석).

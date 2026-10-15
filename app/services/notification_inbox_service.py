@@ -1,3 +1,4 @@
+import logging
 import uuid
 from datetime import datetime
 
@@ -11,6 +12,8 @@ from app.models.transaction import Transaction
 from app.models.user import User
 from app.services import notification_settings_service
 from app.utils.dates import now_kst
+
+logger = logging.getLogger(__name__)
 
 
 class NotificationError(DomainError):
@@ -223,3 +226,11 @@ def log_partner_saving(
         db.rollback()
         raise
     return log.id
+
+
+def log_partner_saving_best_effort(db: Session, actor: User, tx: Transaction) -> None:
+    """거래 저장 라우터용 — 알림 실패가 거래 저장 응답을 막지 않게 로그만 남긴다(log_partner_saving이 롤백까지 한다)."""
+    try:
+        log_partner_saving(db, actor.id, actor.display_name, tx)
+    except Exception:
+        logger.exception("배우자 저축 알림 기록 실패 (거래는 정상 저장됨)")
