@@ -3,7 +3,7 @@ import uuid
 from datetime import date
 from typing import Literal
 
-from fastapi import APIRouter, Depends, File, HTTPException, Response, UploadFile, status
+from fastapi import APIRouter, Depends, File, HTTPException, Query, Response, UploadFile, status
 from sqlalchemy.orm import Session
 
 from app.database import get_db
@@ -30,6 +30,8 @@ from app.utils.dates import today_kst
 
 router = APIRouter(prefix="/transactions", tags=["transactions"])
 logger = logging.getLogger("transactions")
+# 검색어는 거래 내역·카테고리명 LIKE 검색에만 쓴다 — 무제한이면 긴 문자열이 그대로 쿼리에 실린다.
+SEARCH_QUERY_MAX_LENGTH = 100
 
 
 @router.get("", response_model=TransactionListOut)
@@ -39,7 +41,7 @@ def list_transactions(
     category_id: int | None = None,
     type: Literal["income", "expense"] | None = None,
     user_id: uuid.UUID | None = None,
-    q: str | None = None,
+    q: str | None = Query(default=None, max_length=SEARCH_QUERY_MAX_LENGTH),
     db: Session = Depends(get_db),
     _: User = Depends(get_current_user),
 ):
@@ -108,7 +110,7 @@ def export_csv(
     category_id: int | None = None,
     type: Literal["income", "expense"] | None = None,
     user_id: uuid.UUID | None = None,
-    q: str | None = None,
+    q: str | None = Query(default=None, max_length=SEARCH_QUERY_MAX_LENGTH),
     db: Session = Depends(get_db),
     _: User = Depends(get_current_user),
 ):

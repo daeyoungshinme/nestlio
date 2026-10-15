@@ -22,3 +22,22 @@ def test_today_kst_matches_now_kst_date():
     assert today_kst() == now_kst().date()
 
 
+
+
+def test_model_timestamp_columns_default_to_kst_in_python():
+    """`server_default=func.now()`만 있으면 Postgres 세션 TZ(Supabase=UTC)로 찍혀 "naive == KST" 규칙이 깨진다 —
+    타임스탬프 컬럼은 파이썬 쪽 `default=now_kst`(갱신 컬럼은 `onupdate`도)를 함께 둔다."""
+    import app.models  # noqa: F401 — 모든 모델을 metadata에 등록
+    from app.database import Base
+
+    missing = []
+    for table in Base.metadata.tables.values():
+        for column in table.columns:
+            server_default = getattr(column.server_default, "arg", None)
+            if server_default is None or "now" not in str(server_default).lower():
+                continue
+            if column.default is None or not column.default.is_callable:
+                missing.append(f"{table.name}.{column.name} default")
+            if column.onupdate is not None and not column.onupdate.is_callable:
+                missing.append(f"{table.name}.{column.name} onupdate")
+    assert not missing

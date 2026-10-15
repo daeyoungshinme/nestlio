@@ -20,6 +20,12 @@ class PhotoStorageError(UpstreamError):
     pass
 
 
+def _storage_failure(message: str, resp: httpx.Response) -> PhotoStorageError:
+    """스토리지 응답 본문은 로그에만 남긴다 — 예외 문구는 그대로 클라이언트 detail이 된다."""
+    logger.warning("couple_photo_storage_error status=%s body=%s", resp.status_code, resp.text[:500])
+    return PhotoStorageError(f"{message} (스토리지 오류 {resp.status_code})")
+
+
 def _storage_configured() -> bool:
     return bool(settings.supabase_project_url and settings.supabase_service_role_key)
 
@@ -54,7 +60,7 @@ def save_photo(raw: bytes, content_type: str | None) -> str:
     except httpx.HTTPError as exc:
         raise PhotoStorageError("사진 업로드 중 네트워크 오류가 발생했습니다.") from exc
     if resp.status_code >= 400:
-        raise PhotoStorageError(f"사진 업로드에 실패했습니다: {resp.status_code} {resp.text}")
+        raise _storage_failure("사진 업로드에 실패했습니다.", resp)
     return f"/media/{OBJECT_KEY}?t={int(time.time())}"
 
 
@@ -76,7 +82,7 @@ def get_photo_url() -> str | None:
     if _is_not_found(resp):
         return None
     if resp.status_code >= 400:
-        raise PhotoStorageError(f"사진 조회에 실패했습니다: {resp.status_code} {resp.text}")
+        raise _storage_failure("사진 조회에 실패했습니다.", resp)
     return f"/media/{OBJECT_KEY}?t={int(time.time())}"
 
 
@@ -100,7 +106,7 @@ def get_photo_bytes() -> tuple[bytes, str] | None:
     if _is_not_found(resp):
         return None
     if resp.status_code >= 400:
-        raise PhotoStorageError(f"사진 조회에 실패했습니다: {resp.status_code} {resp.text}")
+        raise _storage_failure("사진 조회에 실패했습니다.", resp)
     content_type = resp.headers.get("content-type", "application/octet-stream")
     return resp.content, content_type
 
@@ -119,4 +125,4 @@ def delete_photo() -> None:
     except httpx.HTTPError as exc:
         raise PhotoStorageError("사진 삭제 중 네트워크 오류가 발생했습니다.") from exc
     if resp.status_code >= 400 and not _is_not_found(resp):
-        raise PhotoStorageError(f"사진 삭제에 실패했습니다: {resp.status_code} {resp.text}")
+        raise _storage_failure("사진 삭제에 실패했습니다.", resp)

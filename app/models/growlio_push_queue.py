@@ -7,6 +7,7 @@ from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.database import Base
+from app.utils.dates import now_kst
 
 
 class GrowlioPushQueue(Base):
@@ -34,4 +35,4 @@ class GrowlioPushQueue(Base):
     last_error: Mapped[str | None] = mapped_column(String(200), nullable=True)
     # 채워지면 growlio에 반영 완료(nullable timestamp = 상태 마커).
     sent_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=now_kst, server_default=func.now())

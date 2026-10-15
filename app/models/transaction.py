@@ -11,6 +11,7 @@ from app.models.account import Account
 from app.models.category import Category
 from app.models.savings_product import SavingsProduct
 from app.models.user import User
+from app.utils.dates import now_kst
 
 
 class Transaction(Base):
@@ -39,8 +40,8 @@ class Transaction(Base):
         ),
         nullable=True,
     )
-    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
-    updated_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), onupdate=func.now())
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=now_kst, server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=now_kst, server_default=func.now(), onupdate=now_kst)
 
     user: Mapped["User"] = relationship(foreign_keys=[user_id], lazy="joined")
     owner: Mapped["User | None"] = relationship(foreign_keys=[owner_user_id], lazy="joined")

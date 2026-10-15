@@ -5,7 +5,9 @@ from app.config import settings
 
 is_sqlite = settings.database_url.startswith("sqlite")
 connect_args = {"check_same_thread": False} if is_sqlite else {"sslmode": "require"}
-engine = create_engine(settings.database_url, connect_args=connect_args)
+# Render 무료 티어는 15분 미사용 시 슬립한다 — 깨어난 뒤 풀에 남은 끊긴 연결로 첫 요청이 500 나지 않도록
+# 체크아웃 때마다 가볍게 확인한다.
+engine = create_engine(settings.database_url, connect_args=connect_args, pool_pre_ping=True)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 # growlio와 같은 Supabase Postgres 인스턴스를 공유하므로, growlio의 public 스키마와

@@ -1,5 +1,9 @@
 from unittest.mock import patch
 
+import pytest
+
+from app.services import coaching_settings_service
+
 
 @patch("app.services.settings_service.is_connected", return_value=False)
 def test_get_settings_reflects_config(mock_is_connected, client):
@@ -72,6 +76,29 @@ def test_set_coaching_thresholds_overrides_and_persists(mock_is_connected, clien
 
     # persists across a fresh GET
     assert client.get("/api/v1/settings").json()["coaching_thresholds"] == payload
+
+
+def _thresholds(**overrides):
+    """env 기본값(유효한 조합)에서 일부만 바꾼 임계값 payload."""
+    defaults = {name: getattr(coaching_settings_service.settings, name) for name in coaching_settings_service.THRESHOLD_FIELDS}
+    return {**defaults, **overrides}
+
+
+@pytest.mark.parametrize(
+    "overrides,message",
+    [
+        ({"budget_critical_pct": 150}, None),  # 0-100 범위 밖
+        ({"savings_rate_warn": 10, "savings_rate_critical": 20}, "저축률"),  # 낮을수록 나쁨: warn > critical
+        ({"budget_warn_pct": 100, "budget_critical_pct": 90}, "예산"),  # 높을수록 나쁨: warn < critical
+        ({"fixed_cost_ratio_warn": 50, "fixed_cost_ratio_critical": 50}, "고정비율"),
+    ],
+)
+@patch("app.services.settings_service.is_connected", return_value=False)
+def test_set_coaching_thresholds_rejects_out_of_range_or_inverted_pairs(mock_is_connected, client, overrides, message):
+    resp = client.put("/api/v1/settings/coaching-thresholds", json=_thresholds(**overrides))
+    assert resp.status_code == 422
+    if message:
+        assert message in str(resp.json()["detail"])
 
 
 @patch("app.services.notification_service.is_connected", return_value=False)

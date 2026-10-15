@@ -9,6 +9,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.database import Base
 from app.models.goal_funding_source import GoalFundingSource
 from app.models.goal_monthly_target import GoalMonthlyTarget
+from app.utils.dates import now_kst
 
 
 class FinancialGoal(Base):
@@ -45,7 +46,7 @@ class FinancialGoal(Base):
     status: Mapped[str] = mapped_column(String(10), default="active")  # 'active' | 'succeeded'
     completed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     created_by_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
-    updated_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), onupdate=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=now_kst, server_default=func.now(), onupdate=now_kst)
 
     # 컬렉션 두 개를 모두 joined로 걸면 목표당 (funding_sources × monthly_targets) 행이 곱으로
     # 불어나므로 selectin(컬렉션별 IN 쿼리 1회)으로 로드한다.

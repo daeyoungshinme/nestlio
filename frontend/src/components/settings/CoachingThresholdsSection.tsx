@@ -83,7 +83,7 @@ export default function CoachingThresholdsSection({ thresholds }: { thresholds: 
                 type="number"
                 inputMode="numeric"
                 min={0}
-                max={999}
+                max={100}
                 step={1}
                 value={thresholdEdits[key] ?? thresholds[key]}
                 onChange={(e) => setThresholdEdits((prev) => ({ ...prev, [key]: Number(e.target.value) }))}

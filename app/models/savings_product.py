@@ -7,6 +7,7 @@ from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
+from app.utils.dates import now_kst
 
 
 class SavingsProduct(Base):
@@ -24,7 +25,7 @@ class SavingsProduct(Base):
     principal_amount: Mapped[Decimal | None] = mapped_column(Numeric(14, 2), nullable=True)
     sort_order: Mapped[int] = mapped_column(Integer, default=0)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
-    updated_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), onupdate=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=now_kst, server_default=func.now(), onupdate=now_kst)
     # 부부 중 누구 소유인지 (NULL이면 공통/가구 공유). growlio에서 가져온 상품은 가져오기를 실행한
     # 사용자로 자동 설정된다 — growlio 자체가 그 사람의 Supabase JWT 기준으로 스코프되기 때문.
     owner_user_id: Mapped[uuid.UUID | None] = mapped_column(

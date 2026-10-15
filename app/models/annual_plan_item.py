@@ -9,6 +9,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.database import Base
 from app.models.category import Category
 from app.models.recurring_expense import RecurringExpense
+from app.utils.dates import now_kst
 
 
 class AnnualPlanItem(Base):
@@ -53,7 +54,7 @@ class AnnualPlanItem(Base):
         index=True,
     )
     updated_by: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
-    updated_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), onupdate=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=now_kst, server_default=func.now(), onupdate=now_kst)
 
     category: Mapped["Category | None"] = relationship(lazy="joined")
     recurring_expense: Mapped["RecurringExpense | None"] = relationship(lazy="joined")

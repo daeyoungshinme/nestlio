@@ -4,6 +4,7 @@ from sqlalchemy import DateTime, String, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.database import Base
+from app.utils.dates import now_kst
 
 
 class GoogleOAuthToken(Base):
@@ -17,5 +18,5 @@ class GoogleOAuthToken(Base):
     token_uri: Mapped[str] = mapped_column(String(200))
     scopes: Mapped[str] = mapped_column(String(500))  # 콤마로 join (sqlite/postgres 양쪽 호환)
     expiry: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
-    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
-    updated_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), onupdate=func.now())
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=now_kst, server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=now_kst, server_default=func.now(), onupdate=now_kst)

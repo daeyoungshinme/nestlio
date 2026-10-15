@@ -4,6 +4,7 @@ from sqlalchemy import DateTime, ForeignKey, Integer, String, UniqueConstraint, 
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
+from app.utils.dates import now_kst
 
 
 class SavingsProductAnnualPlan(Base):
@@ -21,7 +22,7 @@ class SavingsProductAnnualPlan(Base):
     year: Mapped[int] = mapped_column(Integer)
     start_month: Mapped[str] = mapped_column(String(7))  # 'YYYY-MM'
     end_month: Mapped[str] = mapped_column(String(7))
-    updated_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), onupdate=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=now_kst, server_default=func.now(), onupdate=now_kst)
 
     monthly_targets: Mapped[list["SavingsProductAnnualPlanMonthlyTarget"]] = relationship(
         cascade="all, delete-orphan", order_by="SavingsProductAnnualPlanMonthlyTarget.year_month"

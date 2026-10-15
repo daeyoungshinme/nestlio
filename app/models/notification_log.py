@@ -4,6 +4,7 @@ from sqlalchemy import DateTime, Integer, String, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.database import Base
+from app.utils.dates import now_kst
 
 
 class NotificationLog(Base):
@@ -19,6 +20,6 @@ class NotificationLog(Base):
     # full ISO datetime for event_reminder (one dedupe entry per occurrence), 초 단위 ISO datetime for
     # goal_cheer (dedupe 없음) — 20자 상한이라 마이크로초를 붙이면 안 된다
     year_month: Mapped[str | None] = mapped_column(String(20), nullable=True)
-    sent_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+    sent_at: Mapped[datetime] = mapped_column(DateTime, default=now_kst, server_default=func.now())
     status: Mapped[str] = mapped_column(String(20), default="sent")
     detail: Mapped[str | None] = mapped_column(String(500), nullable=True)

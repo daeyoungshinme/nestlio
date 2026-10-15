@@ -68,6 +68,7 @@ export default function LedgerListControls({
           type="search"
           value={searchInput}
           onChange={(e) => onSearchChange(e.target.value)}
+          maxLength={100}
           placeholder="메모나 카테고리로 검색"
           aria-label="거래 내역 검색"
           className={`${INPUT_SM} w-full pl-9 ${searchInput ? "pr-11" : ""}`}

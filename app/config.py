@@ -1,10 +1,36 @@
 import logging
 import os
+from collections.abc import Mapping
 
 from pydantic import model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 logger = logging.getLogger(__name__)
+
+
+# (warn/info, critical, 표시 이름). 저축률·목표 페이스·저축 실행률은 "낮을수록 나쁨", 나머지는 "높을수록 나쁨".
+_LOWER_IS_WORSE_PAIRS = (
+    ("savings_rate_warn", "savings_rate_critical", "저축률"),
+    ("goal_pace_info_pct", "goal_pace_critical_pct", "목표 페이스"),
+    ("savings_execution_warn_pct", "savings_execution_critical_pct", "저축 실행률"),
+)
+_HIGHER_IS_WORSE_PAIRS = (
+    ("fixed_cost_ratio_warn", "fixed_cost_ratio_critical", "고정비율"),
+    ("budget_warn_pct", "budget_critical_pct", "예산"),
+)
+
+
+def threshold_order_errors(values: Mapping[str, float]) -> list[str]:
+    """warn/critical 쌍의 방향 위반 문구 목록. `values`에 둘 다 있는 쌍만 검사한다 —
+    env 기본값(`Settings`)과 설정 화면 입력(`CoachingThresholdsIn`)이 같은 규칙을 쓴다."""
+    errors = []
+    for warn, crit, label in _LOWER_IS_WORSE_PAIRS:
+        if warn in values and crit in values and not values[warn] > values[crit]:
+            errors.append(f"{label}은(는) 경고 값이 위험 값보다 커야 합니다.")
+    for warn, crit, label in _HIGHER_IS_WORSE_PAIRS:
+        if warn in values and crit in values and not values[warn] < values[crit]:
+            errors.append(f"{label}은(는) 경고 값이 위험 값보다 작아야 합니다.")
+    return errors
 
 
 class Settings(BaseSettings):
@@ -75,8 +101,7 @@ class Settings(BaseSettings):
     google_oauth_client_id: str = ""
     google_oauth_client_secret: str = ""
 
-    # 코칭 임계값은 0-100 % 범위여야 하고, warn/critical 쌍은 방향이 맞아야 한다
-    # (저축률만 "낮을수록 나쁨"이라 warn > critical, 나머지는 "높을수록 나쁨"이라 warn < critical).
+    # 코칭 임계값은 0-100 % 범위여야 하고, warn/critical 쌍은 방향이 맞아야 한다(threshold_order_errors).
     # 설정 화면에서 조정 가능한 값이지만 여기 기본값의 오타는 부팅 시점에 잡는다.
     @model_validator(mode="after")
     def _validate_thresholds(self) -> "Settings":
@@ -89,19 +114,9 @@ class Settings(BaseSettings):
             value = getattr(self, name)
             if not 0 <= value <= 100:
                 raise ValueError(f"{name}={value} — 코칭 임계값은 0-100 범위여야 합니다.")
-        for hi, lo, label in (
-            (self.savings_rate_warn, self.savings_rate_critical, "SAVINGS_RATE"),
-            (self.goal_pace_info_pct, self.goal_pace_critical_pct, "GOAL_PACE"),
-            (self.savings_execution_warn_pct, self.savings_execution_critical_pct, "SAVINGS_EXECUTION"),
-        ):
-            if not hi > lo:
-                raise ValueError(f"{label}: '낮을수록 나쁨' 임계값은 warn/info > critical이어야 합니다.")
-        for warn, crit, label in (
-            (self.fixed_cost_ratio_warn, self.fixed_cost_ratio_critical, "FIXED_COST_RATIO"),
-            (self.budget_warn_pct, self.budget_critical_pct, "BUDGET"),
-        ):
-            if not warn < crit:
-                raise ValueError(f"{label}_WARN은 {label}_CRITICAL보다 작아야 합니다.")
+        errors = threshold_order_errors({name: getattr(self, name) for name in pct_fields})
+        if errors:
+            raise ValueError(" ".join(errors))
         return self
 
 

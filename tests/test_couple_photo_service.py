@@ -62,3 +62,15 @@ def test_is_not_found_treats_404_and_400_as_not_found_but_not_500():
     assert couple_photo_service._is_not_found(resp_404) is True
     assert couple_photo_service._is_not_found(resp_400) is True
     assert couple_photo_service._is_not_found(resp_500) is False
+
+
+def test_storage_error_detail_does_not_include_upstream_body(monkeypatch):
+    """스토리지 응답 본문(내부 버킷명·에러 JSON)은 로그에만 — 예외 문구는 그대로 클라이언트 detail이 된다."""
+    _configure_storage(monkeypatch)
+    failed = httpx.Response(500, text='{"error":"internal bucket secret-xyz"}', request=httpx.Request("HEAD", "https://e"))
+
+    with patch("app.services.couple_photo_service.httpx.head", return_value=failed):
+        with pytest.raises(couple_photo_service.PhotoStorageError) as exc_info:
+            couple_photo_service.get_photo_url()
+    assert "secret-xyz" not in str(exc_info.value)
+    assert "500" in str(exc_info.value)

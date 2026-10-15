@@ -64,3 +64,17 @@ def test_milestone_already_logged_roundtrip(db_session):
     # 다른 마일스톤/다른 대상은 별개로 취급된다
     assert notification_log_service.milestone_already_logged(db_session, "goal_milestone", related_id=1, milestone=75) is False
     assert notification_log_service.milestone_already_logged(db_session, "goal_milestone", related_id=2, milestone=50) is False
+
+
+def test_log_sent_stamps_sent_at_in_kst(seeded_db):
+    """sent_at은 DB 서버 시각(UTC일 수 있음)이 아니라 KST 벽시계 — 알림함이 날짜를 그대로 보여 준다."""
+    from datetime import timedelta
+
+    from app.utils.dates import now_kst
+
+    db = seeded_db["db"]
+    notification_log_service.log_sent(db, "email_weekly", "2026-07-06")
+    from app.models.notification_log import NotificationLog
+
+    log = db.query(NotificationLog).one()
+    assert abs(log.sent_at - now_kst()) < timedelta(minutes=1)
