@@ -231,7 +231,7 @@ def small_frequent_opportunities(
                 rule_code="small_frequent",
                 severity="info",
                 title=f"{meta[cat_id].name}에서 소액 결제가 {count}번 있었어요",
-                detail=f"{_won(max_amount)} 이하 결제 합계 {_won(total)}. {cut_pct:.0f}%만 줄여도 월 {_won(saving)}예요.",
+                detail=f"{_won(max_amount)} 이하 결제 합계 {_won(total)}. {cut_pct:.0f}%만 줄여도 월 {_won(saving)}이에요.",
                 current_monthly_amount=total,
                 estimated_monthly_saving=saving,
                 category_ids=frozenset({cat_id}),
