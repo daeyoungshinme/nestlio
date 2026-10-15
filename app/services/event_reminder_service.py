@@ -2,6 +2,7 @@ import logging
 import uuid
 from datetime import datetime, timedelta
 
+from sqlalchemy import and_, func, or_
 from sqlalchemy.orm import Session
 
 from app.models.event import Event
@@ -29,11 +30,7 @@ def send_due_reminders(db: Session, now: datetime, window_minutes: int = 30) -> 
     if not notification_settings_service.is_enabled(db, NOTIF_TYPE):
         return 0
 
-    candidates = (
-        db.query(Event)
-        .filter(Event.reminder_minutes_before.isnot(None))
-        .all()
-    )
+    candidates = _candidate_events(db, now, window_minutes)
     due_pairs = [
         (event, occurrence) for event in candidates for occurrence in _due_occurrences(event, now, window_minutes)
     ]
@@ -50,6 +47,33 @@ def send_due_reminders(db: Session, now: datetime, window_minutes: int = 30) -> 
             db.rollback()
             logger.exception("event_reminder_failed event_id=%s", event.id)
     return reminded
+
+
+def _candidate_events(db: Session, now: datetime, window_minutes: int) -> list[Event]:
+    """이번 틱에 리마인더가 나갈 수 있는 일정만 DB에서 고른다 — 리마인더가 있는 일정 전체(지난 일정 포함)를
+    매 틱 로드하지 않기 위해. 발송 대상 회차는 now < 회차 ≤ now + 리마인더 오프셋 + window이므로
+    가장 큰 오프셋으로 잡은 horizon까지만 본다(정확한 판정은 _due_occurrences가 일정별 오프셋으로 한다).
+    - 단건: 시작이 (now, horizon] 안
+    - 반복: 첫 회차가 horizon 이전이고, 반복 종료일이 없거나 오늘 이후"""
+    max_lead = db.query(func.max(Event.reminder_minutes_before)).scalar()
+    if max_lead is None:
+        return []
+    horizon = now + timedelta(minutes=max_lead + window_minutes)
+    return (
+        db.query(Event)
+        .filter(
+            Event.reminder_minutes_before.isnot(None),
+            Event.start_at <= horizon,
+            or_(
+                and_(Event.frequency == "once", Event.start_at > now),
+                and_(
+                    Event.frequency != "once",
+                    or_(Event.recurrence_end_date.is_(None), Event.recurrence_end_date >= now.date()),
+                ),
+            ),
+        )
+        .all()
+    )
 
 
 def _remind(db: Session, event: Event, occurrence: datetime) -> bool:

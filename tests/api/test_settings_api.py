@@ -176,3 +176,16 @@ def test_get_settings_survives_photo_storage_outage(mock_is_connected, client):
     assert resp.json()["couple_photo_url"] is None
     assert bootstrap.status_code == 200
     assert bootstrap.json()["settings"]["couple_photo_url"] is None
+
+
+def test_versioned_couple_photo_is_cacheable(client):
+    """사진 URL은 버전(?v=)이 바뀔 때만 바뀌므로 버전 붙은 요청만 오래 캐시한다."""
+    from app.services import couple_photo_service
+
+    with patch.object(couple_photo_service, "get_photo_bytes", return_value=(b"img", "image/jpeg")):
+        versioned = client.get("/media/couple-photo?v=20261015090000")
+        bare = client.get("/media/couple-photo")
+
+    assert versioned.status_code == 200
+    assert "immutable" in versioned.headers["cache-control"]
+    assert "immutable" not in bare.headers.get("cache-control", "")

@@ -1,3 +1,4 @@
+from dataclasses import dataclass, field
 from datetime import date
 from decimal import Decimal
 
@@ -11,9 +12,20 @@ from app.utils.dates import month_bounds, months_between, parse_year_month, shif
 from app.utils.money import whole_won
 
 
-def funding_source_breakdown(db: Session, goal: FinancialGoal) -> list[dict]:
-    account_ids = [fs.account_id for fs in goal.funding_sources if fs.account_id is not None]
-    account_balances = account_service.balances_for(db, account_ids)
+def _linked_account_ids(goal: FinancialGoal) -> list[int]:
+    return [fs.account_id for fs in goal.funding_sources if fs.account_id is not None]
+
+
+def _linked_product_ids(goal: FinancialGoal) -> list[int]:
+    return [fs.savings_product_id for fs in goal.funding_sources if fs.savings_product_id is not None]
+
+
+def funding_source_breakdown(
+    db: Session, goal: FinancialGoal, account_balances: dict[int, Decimal] | None = None
+) -> list[dict]:
+    """account_balances를 넘기면(목표 여러 개를 한 번에 계산하는 _Prefetched) 계좌 잔액을 다시 조회하지 않는다."""
+    if account_balances is None:
+        account_balances = account_service.balances_for(db, _linked_account_ids(goal))
 
     items: list[dict] = []
     for fs in goal.funding_sources:
@@ -92,34 +104,50 @@ def compute_linked_monthly_achieved(db: Session, goal: FinancialGoal, year_month
     한 거래가 계좌와 저축상품 양쪽에 걸려 있으면(같은 목표에 둘 다 연동된 경우, 계좌에서 상품으로
     이체) 계좌 쪽 -amount와 상품 쪽 +amount가 상쇄돼 목표 내부 이동이 이중 집계되지 않는다.
 
-    year_months가 비었거나 연동된 저축상품/계좌가 없으면 빈 dict."""
-    result = {ym: Decimal("0") for ym in year_months}
-    if not year_months:
-        return result
-    account_ids = [fs.account_id for fs in goal.funding_sources if fs.account_id is not None]
-    product_ids = [fs.savings_product_id for fs in goal.funding_sources if fs.savings_product_id is not None]
-    if not account_ids and not product_ids:
-        return result
+    year_months가 비었거나 연동된 저축상품/계좌가 없으면 0으로 채운 dict."""
+    return _bucket_linked_rows(goal, year_months, _linked_transaction_rows(db, [goal], year_months))
 
+
+def _linked_transaction_rows(db: Session, goals: list[FinancialGoal], year_months: list[str]) -> list:
+    """목표들에 연동된 계좌·저축상품의 거래를 year_months 범위에서 한 번에 가져온다 — 목표마다 조회하면
+    목표 목록이 N+1이 된다. 행을 어느 목표에 귀속할지는 _bucket_linked_rows가 정한다."""
+    account_ids = {aid for goal in goals for aid in _linked_account_ids(goal)}
+    product_ids = {pid for goal in goals for pid in _linked_product_ids(goal)}
     month_starts = [parse_year_month(ym) for ym in year_months]
-    range_start = min(month_starts)
-    range_end = month_bounds(max(month_starts))[1]
+    if not month_starts or not (account_ids or product_ids):
+        return []
 
     link_filters = []
     if account_ids:
         link_filters.append(Transaction.account_id.in_(account_ids))
     if product_ids:
         link_filters.append(Transaction.savings_product_id.in_(product_ids))
-    rows = (
-        db.query(Transaction.transaction_date, Transaction.type, Transaction.amount, Transaction.savings_product_id)
+    return (
+        db.query(
+            Transaction.transaction_date,
+            Transaction.type,
+            Transaction.amount,
+            Transaction.account_id,
+            Transaction.savings_product_id,
+        )
         .filter(
-            Transaction.transaction_date >= range_start,
-            Transaction.transaction_date <= range_end,
+            Transaction.transaction_date >= min(month_starts),
+            Transaction.transaction_date <= month_bounds(max(month_starts))[1],
             or_(*link_filters),
         )
         .all()
     )
-    for tx_date, tx_type, amount, savings_product_id in rows:
+
+
+def _bucket_linked_rows(goal: FinancialGoal, year_months: list[str], rows: list) -> dict[str, Decimal]:
+    """compute_linked_monthly_achieved의 집계 규칙. rows에는 다른 목표 몫이 섞여 있을 수 있어 이 목표에
+    연동된 계좌·상품의 거래만 고른다."""
+    result = {ym: Decimal("0") for ym in year_months}
+    account_ids = set(_linked_account_ids(goal))
+    product_ids = set(_linked_product_ids(goal))
+    for tx_date, tx_type, amount, account_id, savings_product_id in rows:
+        if account_id not in account_ids and savings_product_id not in product_ids:
+            continue
         ym = year_month_str(tx_date)
         if ym not in result:
             continue
@@ -225,26 +253,74 @@ def planned_monthly_for_goal(goal: FinancialGoal, planned_by_product: dict[int, 
     return sum((planned_by_product.get(pid, Decimal("0")) for pid in product_ids), Decimal("0"))
 
 
+@dataclass
+class _Prefetched:
+    """목표 여러 개의 진행금액 계산에 필요한 조회를 목표 수와 무관하게 한 번씩 해 둔 것 — 계좌 잔액,
+    연동 목표의 월별 거래(목록 응답만), 순자산(순자산 목표가 있을 때만)."""
+
+    account_balances: dict[int, Decimal]
+    linked_rows: list = field(default_factory=list)
+    net_worth: Decimal | None = None
+
+
+def _is_linked_goal(goal: FinancialGoal) -> bool:
+    return goal.kind == "goal" and bool(goal.funding_sources)
+
+
+def _prefetch(db: Session, goals: list[FinancialGoal], include_linked_rows: bool) -> _Prefetched:
+    linked_goals = [goal for goal in goals if _is_linked_goal(goal)] if include_linked_rows else []
+    return _Prefetched(
+        account_balances=account_service.balances_for(
+            db, sorted({aid for goal in goals for aid in _linked_account_ids(goal)})
+        ),
+        linked_rows=_linked_transaction_rows(
+            db, linked_goals, [mt.year_month for goal in linked_goals for mt in goal.monthly_targets]
+        ),
+        net_worth=net_worth_now(db) if any(goal.kind == "net_worth" for goal in goals) else None,
+    )
+
+
+def current_amounts(db: Session, goals: list[FinancialGoal]) -> dict[int, Decimal]:
+    """목표 id → compute_current_amount 값. 목표 수와 무관한 쿼리 수로 계산한다(마일스톤 일괄 확인용)."""
+    prefetched = _prefetch(db, goals, include_linked_rows=False)
+    return {
+        goal.id: (
+            prefetched.net_worth
+            if goal.kind == "net_worth"
+            else current_amount_from_breakdown(goal, funding_source_breakdown(db, goal, prefetched.account_balances))
+        )
+        for goal in goals
+    }
+
+
 def list_out(db: Session, goals: list[FinancialGoal], today: date) -> list[dict]:
-    """목표 목록 응답. 상품별 이번 달 계획액은 목표와 무관하므로 한 번만 조회해 모든 목표가 나눠 쓴다."""
+    """목표 목록 응답. 상품별 이번 달 계획액·계좌 잔액·연동 거래·순자산은 목표마다 조회하지 않고 한 번만
+    가져와 모든 목표가 나눠 쓴다(쿼리 수가 목표 수와 무관 — tests/test_goal_service.py가 고정)."""
     planned_by_product = savings_product_plan_service.planned_by_product_for_month(db, year_month_str(today))
-    return [to_out(db, goal, today, planned_by_product=planned_by_product) for goal in goals]
+    prefetched = _prefetch(db, goals, include_linked_rows=True)
+    return [to_out(db, goal, today, planned_by_product=planned_by_product, prefetched=prefetched) for goal in goals]
 
 
 def to_out(
-    db: Session, goal: FinancialGoal, today: date, planned_by_product: dict[int, Decimal] | None = None
+    db: Session,
+    goal: FinancialGoal,
+    today: date,
+    planned_by_product: dict[int, Decimal] | None = None,
+    prefetched: _Prefetched | None = None,
 ) -> dict:
-    breakdown = funding_source_breakdown(db, goal)
+    if prefetched is None:
+        prefetched = _prefetch(db, [goal], include_linked_rows=True)
+    breakdown = funding_source_breakdown(db, goal, prefetched.account_balances)
     if planned_by_product is None:
         planned_by_product = savings_product_plan_service.planned_by_product_for_month(db, year_month_str(today))
     planned_monthly = planned_monthly_for_goal(goal, planned_by_product)
     current_amount = (
-        net_worth_now(db) if goal.kind == "net_worth" else current_amount_from_breakdown(goal, breakdown)
+        prefetched.net_worth if goal.kind == "net_worth" else current_amount_from_breakdown(goal, breakdown)
     )
     months_remaining = compute_months_remaining(today, goal.target_date)
-    is_linked_goal = goal.kind == "goal" and bool(goal.funding_sources)
+    is_linked_goal = _is_linked_goal(goal)
     linked_monthly_achieved = (
-        compute_linked_monthly_achieved(db, goal, [mt.year_month for mt in goal.monthly_targets])
+        _bucket_linked_rows(goal, [mt.year_month for mt in goal.monthly_targets], prefetched.linked_rows)
         if is_linked_goal
         else {}
     )

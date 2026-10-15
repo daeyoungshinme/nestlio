@@ -846,3 +846,61 @@ def test_goals_monthly_total_counts_only_unlinked_long_term_goals(seeded_db):
     challenge = goal_service.create_goal(db, 1, "커피 줄이기", None, Decimal("100000"), Decimal("50000"), kind="challenge")
 
     assert goals_monthly_total([unlinked, linked, challenge]) == Decimal("200000")
+
+
+def _make_linked_goals(db, user, salary, count, start):
+    """계좌·저축상품 연동 + 월별 목표가 있는 목표를 count개 만든다(각자 다른 계좌·상품)."""
+    for i in range(start, start + count):
+        account = account_service.create_account(db, f"통장{i}", "checking", Decimal("0"))
+        product = savings_product_service.create_product(db, f"적금{i}", Decimal("100000"), Decimal("10000"))
+        goal_service.create_goal(
+            db,
+            1,
+            f"목표{i}",
+            None,
+            Decimal("1000000"),
+            Decimal("0"),
+            target_date=date(2026, 12, 31),
+            funding_sources=[{"type": "account", "id": account.id}, {"type": "savings_product", "id": product.id}],
+            monthly_targets=[{"year_month": "2026-09", "target_amount": Decimal("100000")}],
+        )
+        transaction_service.create_transaction(
+            db, user.id, salary.id, "income", Decimal(10000 * (i + 1)), date(2026, 9, 5), account_id=account.id
+        )
+
+
+def test_list_out_query_count_does_not_grow_with_goal_count(seeded_db, count_selects):
+    db, user, salary = seeded_db["db"], seeded_db["user"], seeded_db["salary"]
+    goal_service.create_goal(db, 1, "수동목표", None, Decimal("1000000"), Decimal("0"), current_amount=Decimal("5"))
+    _make_linked_goals(db, user, salary, count=1, start=0)
+
+    def measure():
+        goals = goal_service.list_goals(db)
+        with count_selects() as n:
+            goal_progress_service.list_out(db, goals, date(2026, 9, 10))
+        return n[0]
+
+    few = measure()
+    _make_linked_goals(db, user, salary, count=4, start=1)
+    assert measure() == few
+
+
+def test_list_out_matches_per_goal_to_out(seeded_db):
+    """배치 경로(list_out)가 목표마다 따로 계산한 to_out과 같은 값을 낸다 — 한 번에 가져온 거래가 다른
+    목표의 월 달성액에 섞이지 않는다."""
+    db, user, salary = seeded_db["db"], seeded_db["user"], seeded_db["salary"]
+    _make_linked_goals(db, user, salary, count=3, start=0)
+    goals = goal_service.list_goals(db)
+    today = date(2026, 9, 10)
+
+    batched = goal_progress_service.list_out(db, goals, today)
+
+    assert batched == [goal_progress_service.to_out(db, goal, today) for goal in goals]
+    assert [out["monthly_targets"][0]["achieved_amount"] for out in batched] == [
+        Decimal("10000"),
+        Decimal("20000"),
+        Decimal("30000"),
+    ]
+    assert goal_progress_service.current_amounts(db, goals) == {
+        goal.id: goal_progress_service.compute_current_amount(db, goal) for goal in goals
+    }
