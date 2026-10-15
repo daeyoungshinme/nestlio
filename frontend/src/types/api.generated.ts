@@ -2265,6 +2265,24 @@ export interface components {
             /** Benchmark Insurance Warn Pct */
             benchmark_insurance_warn_pct: number;
         };
+        /** CoverageStatusOut */
+        CoverageStatusOut: {
+            /** Insured Label */
+            insured_label: string;
+            /** Coverage */
+            coverage: string;
+            /** Total Amount */
+            total_amount: string;
+            /** Target Amount */
+            target_amount: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "over" | "ok" | "gap" | "no_target";
+            /** Rider Count */
+            rider_count: number;
+        };
         /**
          * DashboardBootstrapOut
          * @description 대시보드 첫 화면에 필요한, 느리게 변하는 참조 데이터를 한 번에 묶어 조회한다 — 요청 수를
@@ -2871,7 +2889,7 @@ export interface components {
              * Rule Code
              * @enum {string}
              */
-            rule_code: "insurance_ratio" | "indemnity_duplicate" | "coverage_overlap" | "renewal_soon" | "auto_renewal_soon" | "savings_type" | "payment_ending" | "unregistered_premium";
+            rule_code: "insurance_ratio" | "indemnity_duplicate" | "coverage_overlap" | "renewal_soon" | "auto_renewal_soon" | "savings_type" | "payment_ending" | "unregistered_premium" | "over_coverage" | "coverage_gap" | "renewable_rider_share" | "rider_premium_mismatch";
             /**
              * Severity
              * @enum {string}
@@ -3062,6 +3080,10 @@ export interface components {
             guideline_pct: number;
             /** By Insured */
             by_insured: components["schemas"]["InsuredPremiumOut"][];
+            /** Coverage Table */
+            coverage_table: components["schemas"]["CoverageStatusOut"][];
+            /** Top Riders */
+            top_riders: components["schemas"]["TopRiderOut"][];
         };
         /** InsuranceTargetsIn */
         InsuranceTargetsIn: {
@@ -3882,6 +3904,19 @@ export interface components {
             sent: boolean;
             /** Message */
             message: string;
+        };
+        /** TopRiderOut */
+        TopRiderOut: {
+            /** Policy Name */
+            policy_name: string;
+            /** Rider Name */
+            rider_name: string;
+            /** Coverage */
+            coverage: string;
+            /** Monthly Premium */
+            monthly_premium: string;
+            /** Is Renewable */
+            is_renewable: boolean;
         };
         /** TotalsOut */
         TotalsOut: {

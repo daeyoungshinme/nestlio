@@ -10,6 +10,11 @@
   auto_insurance_renewal_notice_days     — 자동차보험 갱신일 며칠 전부터 비교를 권할지
   insurance_payment_ending_months        — 납입 완료 몇 개월 전부터 알릴지
   insurance_unregistered_tolerance_pct   — 보험료 카테고리 실지출이 등록 계약 합보다 몇 % 넘게 많으면 미등록 계약을 의심할지
+  insurance_over_coverage_tolerance_pct  — 정액 보장 합계가 적정 기준보다 몇 % 넘게 많으면 감액 후보로 볼지
+  insurance_renewable_rider_share_pct    — 갱신형 특약이 계약 보험료의 몇 % 이상이면 알릴지
+  적정 가입금액 기준은 insurance_target_service(부부가 설정에서 조정, 기본값 config.insurance_target_*)
+
+특약(InsuranceRider)을 입력한 계약은 특약 단위로, 입력 안 한 계약은 계약 단위로만 본다(부부가 주요 특약만 점진적으로 입력).
 """
 import uuid
 from collections import defaultdict
@@ -20,12 +25,15 @@ from decimal import Decimal
 from sqlalchemy.orm import Session
 
 from app.config import settings
+from app.constants.insurance import INDEMNITY_COVERAGES, TARGETED_COVERAGES
 from app.models.category import Category
 from app.models.insurance_policy import InsurancePolicy
+from app.models.insurance_rider import InsuranceRider
 from app.models.user import User
 from app.services import (
     coaching_settings_service,
     insurance_service,
+    insurance_target_service,
     spending_review_service,
     transaction_report_service,
     transaction_trend_service,
@@ -43,6 +51,7 @@ COVERAGE_LABELS = {
     "death": "사망",
     "disability": "상해후유장해",
     "driver": "운전자",
+    "driver_legal": "운전자 벌금·합의·변호사비",
     "liability": "일상배상책임",
     "dental": "치아",
 }
@@ -103,31 +112,236 @@ def insurance_ratio_finding(protection_monthly: Decimal, avg_income: Decimal, wa
     )
 
 
+@dataclass(frozen=True)
+class _IndemnityUnit:
+    """비례보상 보장 하나 — 실손 계약 전체이거나, 다른 계약 안의 비례보상 특약."""
+
+    coverage: str
+    label: str
+    monthly_premium: Decimal
+    policy_id: int
+
+
+def indemnity_units(policy: InsurancePolicy) -> list[_IndemnityUnit]:
+    """실손 계약은 계약 전체가 실손 1단위. 그 밖의 계약은 비례보상 특약마다 1단위 — 특약을 입력 안 했으면 보장 태그로
+    단위를 만들되 보험료는 모른다(0). 그래서 중복은 잡히지만 절감 추정에는 아는 보험료만 들어간다."""
+    if policy.policy_type == "indemnity":
+        return [_IndemnityUnit("medical_indemnity", policy.name, policy.monthly_premium, policy.id)]
+    if policy.riders:
+        return [
+            _IndemnityUnit(r.coverage, f"{policy.name} · {r.name}", r.monthly_premium, policy.id)
+            for r in policy.riders
+            if r.coverage in INDEMNITY_COVERAGES
+        ]
+    return [
+        _IndemnityUnit(c, policy.name, Decimal("0"), policy.id)
+        for c in dict.fromkeys(policy.coverages or [])
+        if c in INDEMNITY_COVERAGES
+    ]
+
+
+_INDEMNITY_ADVICE = {
+    "medical_indemnity": "실손은 중복 가입해도 실제 치료비 이상 받지 못해요. 가입 시기·보장을 비교해 하나만 남기는 걸 검토해 보세요. "
+    "회사 단체실손이 있다면 개인실손 '중지' 제도도 확인해 보세요.",
+    "liability": "일상배상책임은 실제 배상액을 계약끼리 나눠 보상해요. 가족형 하나면 가족 전체가 보장되는 경우가 많으니 "
+    "가족 범위·한도를 확인하고 나머지 특약 해지를 검토해 보세요.",
+    "driver_legal": "운전자 벌금·형사합의·변호사비는 실제 비용만큼 나눠 보상해요. 자동차보험 특약과 겹치는지도 확인하고 "
+    "한 곳만 남기는 걸 검토해 보세요.",
+}
+
+
 def indemnity_duplicate_findings(
     policies: list[InsurancePolicy], user_names: dict[uuid.UUID, str]
 ) -> list[InsuranceFinding]:
-    """같은 피보험자의 실손이 2건 이상 — 실손은 실제 치료비를 계약끼리 나눠 보상(비례보상)하므로 여러 개여도 더 받지 않는다.
-    어느 쪽을 남길지는 가입 시기(세대)·보장 범위에 달려 있어, 절감 추정은 보수적으로 "가장 비싼 1건만 남김" 기준."""
+    """같은 피보험자의 같은 비례보상 보장(실손·일상배상·운전자 비용)이 2단위 이상 — 여러 개여도 더 받지 않는다.
+    어느 쪽을 남길지는 가입 시기·보장 범위에 달려 있어, 절감 추정은 보수적으로 "가장 비싼 1단위만 남김" 기준."""
     result = []
     for group in _by_insured(policies).values():
-        indemnity = [p for p in group if p.policy_type == "indemnity"]
-        if len(indemnity) < 2:
+        by_coverage: dict[str, list[_IndemnityUnit]] = defaultdict(list)
+        for policy in group:
+            for unit in indemnity_units(policy):
+                by_coverage[unit.coverage].append(unit)
+        who = insured_label(group[0], user_names)
+        for coverage, units in by_coverage.items():
+            if len(units) < 2:
+                continue
+            premiums = [u.monthly_premium for u in units]
+            saving = whole_won(sum(premiums, Decimal("0")) - max(premiums))
+            if coverage == "medical_indemnity":
+                title = f"{who}님 실손보험이 {len(units)}개예요"
+            else:
+                title = f"{who}님 {COVERAGE_LABELS[coverage]} 보장이 {len(units)}곳에 있어요"
+            result.append(
+                InsuranceFinding(
+                    "indemnity_duplicate",
+                    "critical",
+                    title,
+                    f"{', '.join(u.label for u in units)}. {_INDEMNITY_ADVICE[coverage]}",
+                    saving,
+                    sorted({u.policy_id for u in units}),
+                )
+            )
+    return result
+
+
+def _riders_by_coverage(group: list[InsurancePolicy]) -> dict[str, list[tuple[InsurancePolicy, InsuranceRider]]]:
+    by_coverage: dict[str, list[tuple[InsurancePolicy, InsuranceRider]]] = defaultdict(list)
+    for policy in group:
+        for rider in policy.riders:
+            if rider.coverage_amount and rider.coverage_amount > 0:
+                by_coverage[rider.coverage].append((policy, rider))
+    return by_coverage
+
+
+def _amount_label(coverage: str, amount: Decimal) -> str:
+    return f"1일 {_won(amount)}" if coverage == "hospitalization" else _won(amount)
+
+
+def plan_reduction(
+    riders: list[tuple[InsurancePolicy, InsuranceRider]], excess: Decimal
+) -> list[tuple[InsurancePolicy, InsuranceRider, Decimal, Decimal]]:
+    """초과분(excess)을 어느 특약에서 얼마씩 줄일지 — 갱신형을 먼저, 그다음 가입금액 대비 월 보험료가 비싼(효율 낮은)
+    특약부터 깎는다. 반환: (계약, 특약, 감액 금액, 그만큼의 월 절감). 특약 일부만 감액하면 보험료도 비례해 준다고 본다."""
+    ordered = sorted(
+        riders,
+        key=lambda pr: (not pr[1].is_renewable, -(pr[1].monthly_premium / pr[1].coverage_amount)),
+    )
+    plan = []
+    remaining = excess
+    for policy, rider in ordered:
+        if remaining <= 0:
+            break
+        cut = min(remaining, rider.coverage_amount)
+        plan.append((policy, rider, cut, whole_won(rider.monthly_premium * cut / rider.coverage_amount)))
+        remaining -= cut
+    return plan
+
+
+def coverage_amount_findings(
+    policies: list[InsurancePolicy],
+    user_names: dict[uuid.UUID, str],
+    targets: dict[str, Decimal],
+    tolerance_pct: float,
+) -> tuple[list[InsuranceFinding], list[dict]]:
+    """정액 보장 합계를 적정 기준과 비교 — (점검 결과, 보장 현황표 행).
+    합계 > 기준 × (1 + tolerance%)면 over_coverage(감액 시 월 절감 추정), 합계 < 기준이면 coverage_gap(줄이지 말 곳).
+    특약을 하나도 입력 안 한 피보험자는 합계를 모르므로 건너뛴다."""
+    findings: list[InsuranceFinding] = []
+    table: list[dict] = []
+    tolerance = 1 + Decimal(str(tolerance_pct)) / 100
+    for group in _by_insured(policies).values():
+        if not any(p.riders for p in group):
             continue
-        premiums = [p.monthly_premium for p in indemnity]
-        saving = whole_won(sum(premiums, Decimal("0")) - max(premiums))
-        names = ", ".join(p.name for p in indemnity)
+        who = insured_label(group[0], user_names)
+        by_coverage = _riders_by_coverage(group)
+        coverages = list(TARGETED_COVERAGES) + [
+            c for c in by_coverage if c not in TARGETED_COVERAGES and c not in INDEMNITY_COVERAGES and c != "other"
+        ]
+        for coverage in coverages:
+            riders = by_coverage.get(coverage, [])
+            total = sum((r.coverage_amount for _, r in riders), Decimal("0"))
+            target = targets.get(coverage, Decimal("0"))
+            if not target:
+                status = "no_target"
+            elif total > target * tolerance:
+                status = "over"
+            elif total < target:
+                status = "gap"
+            else:
+                status = "ok"
+            if status == "no_target" and total == 0:
+                continue
+            table.append(
+                {
+                    "insured_label": who,
+                    "coverage": coverage,
+                    "total_amount": total,
+                    "target_amount": target,
+                    "status": status,
+                    "rider_count": len(riders),
+                }
+            )
+            label = COVERAGE_LABELS.get(coverage, coverage)
+            if status == "over":
+                plan = plan_reduction(riders, total - target)
+                saving = sum((s for *_, s in plan), Decimal("0"))
+                steps = ", ".join(f"{p.name} {r.name} {_amount_label(coverage, cut)} 감액" for p, r, cut, _ in plan)
+                findings.append(
+                    InsuranceFinding(
+                        "over_coverage",
+                        "warning",
+                        f"{who}님 {label} 보장이 {_amount_label(coverage, total)}로 기준({_amount_label(coverage, target)})보다 많아요",
+                        f"기준까지 줄인다면 {steps}을 검토해 보세요(갱신형·보험료 대비 보장이 작은 특약 먼저). "
+                        "특약 감액·해지가 되는지, 해약환급금은 얼마인지 보험사에 먼저 확인하세요.",
+                        saving,
+                        sorted({p.id for p, *_ in plan}),
+                    )
+                )
+            elif status == "gap":
+                findings.append(
+                    InsuranceFinding(
+                        "coverage_gap",
+                        "info",
+                        f"{who}님 {label} 보장은 {_amount_label(coverage, total)}로 기준({_amount_label(coverage, target)})보다 적어요",
+                        "보험료를 줄일 때 이 보장은 남겨 두세요. 입력하지 않은 특약이 있다면 추가하면 더 정확해져요.",
+                        policy_ids=sorted({p.id for p, _ in riders}),
+                    )
+                )
+    return findings, table
+
+
+def renewable_rider_share_findings(policies: list[InsurancePolicy], share_pct: float) -> list[InsuranceFinding]:
+    """갱신형 특약 월 보험료가 계약 월 보험료의 share_pct% 이상 — 갱신 때마다 오르는 몫이 크다."""
+    result = []
+    for policy in policies:
+        renewable = sum((r.monthly_premium for r in policy.riders if r.is_renewable), Decimal("0"))
+        if policy.monthly_premium <= 0 or renewable <= 0:
+            continue
+        share = float(renewable / policy.monthly_premium * 100)
+        if share < share_pct:
+            continue
         result.append(
             InsuranceFinding(
-                "indemnity_duplicate",
-                "critical",
-                f"{insured_label(indemnity[0], user_names)}님 실손보험이 {len(indemnity)}개예요",
-                f"{names}. 실손은 중복 가입해도 실제 치료비 이상 받지 못해요. 가입 시기·보장을 비교해 하나만 남기는 걸 "
-                "검토해 보세요. 회사 단체실손이 있다면 개인실손 '중지' 제도도 확인해 보세요.",
-                saving,
-                [p.id for p in indemnity],
+                "renewable_rider_share",
+                "warning",
+                f"{policy.name} 보험료의 {share:.0f}%가 갱신형 특약이에요",
+                f"갱신형 특약 월 {_won(renewable)}은 갱신 때마다 오를 수 있어요. 같은 보장의 비갱신형 특약·상품과 "
+                "갱신 후 예상 보험료를 비교해 보세요.",
+                policy_ids=[policy.id],
             )
         )
     return result
+
+
+def rider_premium_mismatch_findings(policies: list[InsurancePolicy]) -> list[InsuranceFinding]:
+    """입력한 특약 보험료 합이 계약 보험료보다 크면 입력 오류일 가능성이 크다."""
+    return [
+        InsuranceFinding(
+            "rider_premium_mismatch",
+            "info",
+            f"{p.name} 특약 보험료 합이 계약 보험료보다 커요",
+            f"특약 합 월 {_won(p.riders_monthly_premium)} > 계약 월 {_won(p.monthly_premium)}. 납입 주기나 금액을 확인해 주세요.",
+            policy_ids=[p.id],
+        )
+        for p in policies
+        if p.riders and p.riders_monthly_premium > p.monthly_premium
+    ]
+
+
+def top_riders(policies: list[InsurancePolicy], limit: int = 5) -> list[dict]:
+    rows = [
+        {
+            "policy_name": p.name,
+            "rider_name": r.name,
+            "coverage": r.coverage,
+            "monthly_premium": r.monthly_premium,
+            "is_renewable": r.is_renewable,
+        }
+        for p in policies
+        for r in p.riders
+        if r.monthly_premium > 0
+    ]
+    return sorted(rows, key=lambda row: row["monthly_premium"], reverse=True)[:limit]
 
 
 def coverage_overlap_findings(
@@ -286,7 +500,13 @@ def build_insurance_review(
     findings: list[InsuranceFinding] = []
     ratio = insurance_ratio_finding(protection_monthly, avg_income, thresholds["benchmark_insurance_warn_pct"])
     duplicates = indemnity_duplicate_findings(policies, user_names)
-    findings += [f for f in (ratio,) if f] + duplicates
+    over_and_gap, coverage_table = coverage_amount_findings(
+        policies, user_names, insurance_target_service.get_targets(db), settings.insurance_over_coverage_tolerance_pct
+    )
+    over = [f for f in over_and_gap if f.rule_code == "over_coverage"]
+    findings += [f for f in (ratio,) if f] + duplicates + over_and_gap
+    findings += renewable_rider_share_findings(policies, settings.insurance_renewable_rider_share_pct)
+    findings += rider_premium_mismatch_findings(policies)
     findings += coverage_overlap_findings(policies, user_names)
     findings += renewal_findings(
         policies, today, settings.insurance_renewal_notice_days, settings.auto_insurance_renewal_notice_days
@@ -301,10 +521,11 @@ def build_insurance_review(
 
     rank = {"critical": 0, "warning": 1, "info": 2}
     findings.sort(key=lambda f: (rank.get(f.severity, 3), -f.estimated_monthly_saving))
-    # 실손 중복분은 소득 대비 초과분의 일부일 수 있다 — 겹쳐 세지 않고 큰 쪽만.
+    # 비례보상 중복과 정액 보장 과다는 서로 다른 보장이라 더해도 겹치지 않는다. 둘 다 소득 대비 초과분의 일부일 수
+    # 있으므로 그것과는 겹쳐 세지 않고 큰 쪽만.
     estimated = max(
         ratio.estimated_monthly_saving if ratio else Decimal("0"),
-        sum((f.estimated_monthly_saving for f in duplicates), Decimal("0")),
+        sum((f.estimated_monthly_saving for f in duplicates + over), Decimal("0")),
     )
 
     by_insured: dict[str, dict] = {}
@@ -325,6 +546,8 @@ def build_insurance_review(
             "protection_income_pct": float(protection_monthly / avg_income * 100) if avg_income > 0 else None,
             "guideline_pct": thresholds["benchmark_insurance_warn_pct"],
             "by_insured": sorted(by_insured.values(), key=lambda e: e["monthly_premium"], reverse=True),
+            "coverage_table": coverage_table,
+            "top_riders": top_riders(policies),
         },
         "findings": [
             {
