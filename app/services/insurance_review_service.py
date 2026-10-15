@@ -98,7 +98,7 @@ def insurance_ratio_finding(protection_monthly: Decimal, avg_income: Decimal, wa
         "insurance_ratio",
         "warning",
         f"보장성 보험료가 소득의 {pct:.1f}%예요 (가이드라인 {warn_pct:.0f}%)",
-        f"월 {_won(protection_monthly)} 중 {_won(excess)}가 가이드라인을 넘어요. 겹치는 보장이나 특약부터 살펴보세요.",
+        f"월 {_won(protection_monthly)} 중 {_won(excess)}이 가이드라인을 넘어요. 겹치는 보장이나 특약부터 살펴보세요.",
         excess,
     )
 
@@ -200,7 +200,7 @@ def savings_type_finding(policies: list[InsurancePolicy]) -> InsuranceFinding | 
     return InsuranceFinding(
         "savings_type",
         "info",
-        f"저축성 보험에 월 {_won(monthly)}를 내고 있어요",
+        f"저축성 보험에 월 {_won(monthly)}을 내고 있어요",
         "저축성 보험은 중도 해지하면 원금보다 적게 돌려받을 수 있어요. 부담되면 해지보다 감액·납입유예를 먼저 알아보고, "
         "새로 저축할 돈은 적금·연금저축과 수익률·세제 혜택을 비교해 보세요.",
         policy_ids=[p.id for p in savings],
@@ -220,7 +220,7 @@ def payment_ending_findings(policies: list[InsurancePolicy], today: date, months
                 "payment_ending",
                 "info",
                 f"{policy.name} 납입이 {end:%Y년 %m월}에 끝나요",
-                f"그 뒤로 매달 {_won(policy.monthly_premium)}가 생겨요. 저축·투자 계획에 미리 넣어 두면 흐지부지 쓰이지 않아요.",
+                f"그 뒤로 매달 {_won(policy.monthly_premium)}이 생겨요. 저축·투자 계획에 미리 넣어 두면 흐지부지 쓰이지 않아요.",
                 policy_ids=[policy.id],
             )
         )
