@@ -48,7 +48,7 @@
 | 저축상품 | `savings_product_service`(CRUD, `list_products`, `get_emergency_fund_balance`) · `savings_product_plan_service`(연간계획·실적, `PLAN_PRODUCT_TYPES`) · `savings_product_growlio_service`(growlio 동기화) | 상품 목록은 항상 `list_products(db)` 재사용 |
 | 목표 | `goal_service`(CRUD, 챌린지 상태 동기화, 자금원 연동, growlio 조회) · `goal_progress_service`(진행률·ETA·`to_out`, 커밋 없음. 목표 여러 개는 `list_out`/`current_amounts`로 — 목표마다 `to_out`/`compute_current_amount`를 돌리면 N+1) | `goal_service` → `goal_progress_service` 단방향 |
 | 알림 | `notification_service`(발송·판정) · `notification_inbox_service`(목록·읽음·반응·목표 응원) · `notification_log_service`(dedup) | 앞 둘은 서로 import하지 않음 |
-| 코칭 | `coaching_engine`(규칙 기반 `Insight`, `compute_insights`) · `savings_coaching_service`(여유자금 배분, 비상금, 저축 페이스·연속 달성) | `coaching_engine` → `savings_coaching_service` 단방향 |
+| 코칭 | `coaching_engine`(규칙 기반 `Insight`, `compute_insights`) · `savings_coaching_service`(여유자금 배분, 비상금, 저축 페이스·연속 달성) · `spending_review_service`(절감 점검: 규칙별 월 절감 추정 `SavingOpportunity`, 중복 합산 방지 `merge_opportunities`) | `coaching_engine` → `savings_coaching_service` 단방향. `spending_review_service` → `coaching_engine`(벤치마크 임계값) 단방향 |
 
 - `transaction_import_service`: 파싱/생성 로직은 `import_rows(db, rows, user_id)` 하나에 있고 `import_csv`는 CSV 문자열을 `rows`로 나눠 위임하는 얇은 래퍼다 — 매칭/skip 로직은 `import_rows`만 고친다. CSV 헤더·라벨을 바꿀 때는 `CSV_HEADER`/`CSV_TYPE_LABELS`/`CSV_TYPE_BY_LABEL`을 함께 갱신한다.
 - **누가 기록했나 vs 누가 썼나**: `Transaction.user_id`는 입력한 사람, `Transaction.owner_user_id`는 실제 소비 주체(공통 지출은 `NULL`)다. 배우자가 대신 입력하는 경우가 있어 "부부별 지출" 표시는 `*_by_owner` 계열 집계를 쓴다. 새 집계 함수는 어느 축이 필요한지 먼저 정한다.

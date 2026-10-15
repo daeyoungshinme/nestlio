@@ -7,7 +7,8 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.dependencies import get_current_user
 from app.models.user import User
-from app.schemas.reports import CategoryTrendOut, YearlyReportOut
+from app.schemas.common import YearMonth
+from app.schemas.reports import CategoryTrendOut, SavingsReviewOut, YearlyReportOut
 from app.services import dashboard_service, transaction_trend_service
 from app.utils.dates import today_kst
 
@@ -44,3 +45,13 @@ def category_trend(
     _: User = Depends(get_current_user),
 ):
     return transaction_trend_service.category_monthly_trend(db, months=months)
+
+
+@router.get("/savings-review", response_model=SavingsReviewOut)
+def savings_review(
+    year_month: YearMonth | None = None,
+    owner: str | None = None,
+    db: Session = Depends(get_db),
+    _: User = Depends(get_current_user),
+):
+    return dashboard_service.build_savings_review(db, year_month, _parse_owner_filter(owner), today_kst())

@@ -102,3 +102,22 @@ def test_category_trend_returns_trailing_months_with_series(client, seeded_db):
     assert len(body["months"]) == 3
     food_series = next(s for s in body["series"] if s["name"] == "식비")
     assert Decimal(food_series["amounts"][-1]) == Decimal("40000")
+
+
+def test_savings_review_returns_spending_items(client, seeded_db):
+    db, user, food = seeded_db["db"], seeded_db["user"], seeded_db["food"]
+    transaction_service.create_transaction(db, user.id, food.id, "expense", Decimal("100000"), date(2026, 8, 10))
+    transaction_service.create_transaction(db, user.id, food.id, "expense", Decimal("150000"), date(2026, 9, 10))
+
+    resp = client.get("/api/v1/reports/savings-review", params={"year_month": "2026-09"})
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["year_month"] == "2026-09"
+    assert body["spending"]["items"][0]["rule_code"] == "trend_up"
+    assert Decimal(body["total_estimated_monthly_saving"]) == Decimal("50000")
+
+
+def test_savings_review_rejects_bad_params(client):
+    assert client.get("/api/v1/reports/savings-review", params={"year_month": "2026-9"}).status_code == 422
+    assert client.get("/api/v1/reports/savings-review", params={"owner": "nope"}).status_code == 422
