@@ -1205,6 +1205,58 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/insurance-policies": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Policies */
+        get: operations["list_policies_api_v1_insurance_policies_get"];
+        put?: never;
+        /** Create Policy */
+        post: operations["create_policy_api_v1_insurance_policies_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/insurance-policies/{policy_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Update Policy */
+        put: operations["update_policy_api_v1_insurance_policies__policy_id__put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/insurance-policies/{policy_id}/deactivate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Deactivate Policy */
+        post: operations["deactivate_policy_api_v1_insurance_policies__policy_id__deactivate_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/loans": {
         parameters: {
             query?: never;
@@ -2778,6 +2830,97 @@ export interface components {
             severity: "info" | "warning" | "critical";
             /** Message */
             message: string;
+        };
+        /**
+         * InsurancePolicyIn
+         * @description 생성·수정 공용(PUT은 전체 교체).
+         */
+        InsurancePolicyIn: {
+            /** Name */
+            name: string;
+            /** Insurer */
+            insurer?: string | null;
+            /**
+             * Policy Type
+             * @enum {string}
+             */
+            policy_type: "indemnity" | "diagnosis" | "life" | "accident" | "auto" | "home" | "savings" | "other";
+            /** Insured User Id */
+            insured_user_id?: string | null;
+            /** Insured Name */
+            insured_name?: string | null;
+            /** Premium Amount */
+            premium_amount: number | string;
+            /**
+             * Payment Frequency
+             * @default monthly
+             * @enum {string}
+             */
+            payment_frequency: "monthly" | "yearly";
+            /**
+             * Is Renewable
+             * @default false
+             */
+            is_renewable: boolean;
+            /** Next Renewal Date */
+            next_renewal_date?: string | null;
+            /** Payment End Date */
+            payment_end_date?: string | null;
+            /** Coverage End Date */
+            coverage_end_date?: string | null;
+            /** Coverages */
+            coverages?: ("medical_indemnity" | "cancer" | "stroke" | "heart" | "surgery" | "hospitalization" | "death" | "disability" | "driver" | "liability" | "dental")[];
+            /** Recurring Expense Id */
+            recurring_expense_id?: number | null;
+            /** Memo */
+            memo?: string | null;
+        };
+        /** InsurancePolicyOut */
+        InsurancePolicyOut: {
+            /** Id */
+            id: number;
+            /** Name */
+            name: string;
+            /** Insurer */
+            insurer: string | null;
+            /**
+             * Policy Type
+             * @enum {string}
+             */
+            policy_type: "indemnity" | "diagnosis" | "life" | "accident" | "auto" | "home" | "savings" | "other";
+            /** Insured User Id */
+            insured_user_id: string | null;
+            /** Insured Name */
+            insured_name: string | null;
+            /** Premium Amount */
+            premium_amount: string;
+            /**
+             * Payment Frequency
+             * @enum {string}
+             */
+            payment_frequency: "monthly" | "yearly";
+            /** Monthly Premium */
+            monthly_premium: string;
+            /** Is Renewable */
+            is_renewable: boolean;
+            /** Next Renewal Date */
+            next_renewal_date: string | null;
+            /** Payment End Date */
+            payment_end_date: string | null;
+            /** Coverage End Date */
+            coverage_end_date: string | null;
+            /** Coverages */
+            coverages: ("medical_indemnity" | "cancer" | "stroke" | "heart" | "surgery" | "hospitalization" | "death" | "disability" | "driver" | "liability" | "dental")[];
+            /** Recurring Expense Id */
+            recurring_expense_id: number | null;
+            /** Memo */
+            memo: string | null;
+            /** Is Active */
+            is_active: boolean;
+            /** Sort Order */
+            sort_order: number;
+            /** Updated At */
+            updated_at?: string | null;
         };
         /** InviteAcceptIn */
         InviteAcceptIn: {
@@ -6430,6 +6573,140 @@ export interface operations {
             };
             path: {
                 product_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_policies_api_v1_insurance_policies_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InsurancePolicyOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_policy_api_v1_insurance_policies_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["InsurancePolicyIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InsurancePolicyOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_policy_api_v1_insurance_policies__policy_id__put: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                policy_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["InsurancePolicyIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InsurancePolicyOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    deactivate_policy_api_v1_insurance_policies__policy_id__deactivate_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                policy_id: number;
             };
             cookie?: never;
         };

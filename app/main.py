@@ -16,6 +16,7 @@ from app.routers import (
     dashboard,
     events,
     goals,
+    insurance,
     internal_jobs,
     invites,
     loans,
@@ -78,6 +79,7 @@ app.include_router(cashflow_plan.router, prefix=API_PREFIX)
 app.include_router(goals.router, prefix=API_PREFIX)
 app.include_router(invites.router, prefix=API_PREFIX)
 app.include_router(savings_products.router, prefix=API_PREFIX)
+app.include_router(insurance.router, prefix=API_PREFIX)
 app.include_router(loans.router, prefix=API_PREFIX)
 app.include_router(real_estate.router, prefix=API_PREFIX)
 app.include_router(net_worth.router, prefix=API_PREFIX)
