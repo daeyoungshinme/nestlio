@@ -94,3 +94,13 @@ def test_cancel_invite(mock_connected, client):
     resp = client.delete(f"/api/v1/invites/{invite_id}")
     assert resp.status_code == 204
     assert client.get("/api/v1/invites").json() == []
+
+
+@patch("app.services.invite_service.is_connected", return_value=False)
+def test_accept_invite_with_non_uuid_sub_returns_401(mock_connected, client):
+    create_resp = client.post("/api/v1/invites", json={"email": "spouse2@example.com"})
+    token = create_resp.json()["accept_url"].split("token=")[1]
+    client.app.dependency_overrides[get_token_payload] = lambda: {"sub": "not-a-uuid", "email": "spouse2@example.com"}
+
+    resp = client.post(f"/api/v1/invites/token/{token}/accept", json={"display_name": "배우자"})
+    assert resp.status_code == 401

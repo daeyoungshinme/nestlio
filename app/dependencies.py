@@ -46,8 +46,10 @@ def verify_supabase_token(token: str) -> dict:
             signing_key.key,
             algorithms=[signing_key.algorithm_name],
             audience="authenticated",
+            # 같은 JWKS를 쓰는 다른 발급 경로의 토큰을 받지 않도록 발급자도 고정한다(Supabase Auth = <project>/auth/v1).
+            issuer=f"{settings.supabase_project_url.rstrip('/')}/auth/v1",
             leeway=_LEEWAY,
-            options={"verify_exp": True, "verify_aud": True},
+            options={"verify_exp": True, "verify_aud": True, "verify_iss": True},
         )
     except jwt.ExpiredSignatureError as exc:
         raise ValueError("expired token") from exc

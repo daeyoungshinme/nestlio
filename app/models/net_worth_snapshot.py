@@ -5,6 +5,7 @@ from sqlalchemy import Date, DateTime, Numeric, String, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.database import Base
+from app.utils.dates import now_kst
 
 
 class NetWorthSnapshot(Base):
@@ -17,4 +18,4 @@ class NetWorthSnapshot(Base):
     savings_total: Mapped[Decimal] = mapped_column(Numeric(14, 2), default=0)
     loans_total: Mapped[Decimal] = mapped_column(Numeric(14, 2), default=0)
     net_worth: Mapped[Decimal] = mapped_column(Numeric(14, 2), default=0)
-    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=now_kst, server_default=func.now())

@@ -52,7 +52,7 @@ def test_threshold_range_validation():
 
 
 def test_threshold_pair_ordering():
-    with pytest.raises(ValueError, match="SAVINGS_RATE"):
+    with pytest.raises(ValueError, match="저축률"):
         Settings(savings_rate_warn=5, savings_rate_critical=10)
-    with pytest.raises(ValueError, match="BUDGET"):
+    with pytest.raises(ValueError, match="예산"):
         Settings(budget_warn_pct=100, budget_critical_pct=90)

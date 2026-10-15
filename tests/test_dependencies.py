@@ -169,3 +169,38 @@ def test_jwks_outage_returns_503_not_401(unauth_client, monkeypatch):
     monkeypatch.setattr("app.dependencies._get_jwks_client", lambda: _UnreachableJwks())
     resp = unauth_client.get("/api/v1/users/me", headers={"Authorization": "Bearer some-token"})
     assert resp.status_code == 503
+
+
+class _StaticHmacJwks:
+    """서명 검증까지 실제로 돌리기 위한 가짜 JWKS — 실 Supabase는 비대칭 키지만 issuer/audience 검사는 같다."""
+
+    secret = "s" * 64  # PyJWT는 짧은 HMAC 키에 경고를 낸다(경고=에러)
+
+    def get_signing_key_from_jwt(self, token):
+        return type("Key", (), {"key": self.secret, "algorithm_name": "HS256"})()
+
+
+def _signed_token(**claims):
+    import jwt
+
+    payload = {"sub": str(uuid.uuid4()), "aud": "authenticated", "exp": 4_102_444_800, **claims}
+    return jwt.encode(payload, _StaticHmacJwks.secret, algorithm="HS256")
+
+
+def test_verify_token_requires_supabase_issuer(monkeypatch):
+    monkeypatch.setattr(dependencies, "_get_jwks_client", lambda: _StaticHmacJwks())
+    monkeypatch.setattr(dependencies.settings, "supabase_project_url", "https://proj.supabase.co/")
+
+    claims = dependencies.verify_supabase_token(_signed_token(iss="https://proj.supabase.co/auth/v1"))
+    assert claims["aud"] == "authenticated"
+
+    with pytest.raises(ValueError):
+        dependencies.verify_supabase_token(_signed_token(iss="https://other.supabase.co/auth/v1"))
+    with pytest.raises(ValueError):
+        dependencies.verify_supabase_token(_signed_token())  # iss 누락
+
+
+def test_security_headers_include_clickjacking_and_object_csp(unauth_client):
+    csp = unauth_client.get("/api/v1/users/me").headers["Content-Security-Policy"]
+    for directive in ("frame-ancestors 'none'", "object-src 'none'", "base-uri 'self'"):
+        assert directive in csp

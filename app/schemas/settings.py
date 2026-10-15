@@ -1,6 +1,8 @@
 import re
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
+
+from app.config import threshold_order_errors
 
 MAX_NOTIFY_RECIPIENTS = 5
 _EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
@@ -26,22 +28,29 @@ class CoachingThresholdsOut(BaseModel):
 
 
 class CoachingThresholdsIn(BaseModel):
-    savings_rate_warn: float = Field(ge=0, le=999)
-    savings_rate_critical: float = Field(ge=0, le=999)
-    fixed_cost_ratio_warn: float = Field(ge=0, le=999)
-    fixed_cost_ratio_critical: float = Field(ge=0, le=999)
-    budget_warn_pct: float = Field(ge=0, le=999)
-    budget_critical_pct: float = Field(ge=0, le=999)
-    discretionary_ratio_warn: float = Field(ge=0, le=999)
-    debt_ratio_warn: float = Field(ge=0, le=999)
-    benchmark_food_warn_pct: float = Field(ge=0, le=999)
-    benchmark_housing_warn_pct: float = Field(ge=0, le=999)
-    benchmark_communication_warn_pct: float = Field(ge=0, le=999)
-    benchmark_transport_warn_pct: float = Field(ge=0, le=999)
-    benchmark_leisure_warn_pct: float = Field(ge=0, le=999)
-    benchmark_healthcare_warn_pct: float = Field(ge=0, le=999)
-    benchmark_education_warn_pct: float = Field(ge=0, le=999)
-    benchmark_insurance_warn_pct: float = Field(ge=0, le=999)
+    savings_rate_warn: float = Field(ge=0, le=100)
+    savings_rate_critical: float = Field(ge=0, le=100)
+    fixed_cost_ratio_warn: float = Field(ge=0, le=100)
+    fixed_cost_ratio_critical: float = Field(ge=0, le=100)
+    budget_warn_pct: float = Field(ge=0, le=100)
+    budget_critical_pct: float = Field(ge=0, le=100)
+    discretionary_ratio_warn: float = Field(ge=0, le=100)
+    debt_ratio_warn: float = Field(ge=0, le=100)
+    benchmark_food_warn_pct: float = Field(ge=0, le=100)
+    benchmark_housing_warn_pct: float = Field(ge=0, le=100)
+    benchmark_communication_warn_pct: float = Field(ge=0, le=100)
+    benchmark_transport_warn_pct: float = Field(ge=0, le=100)
+    benchmark_leisure_warn_pct: float = Field(ge=0, le=100)
+    benchmark_healthcare_warn_pct: float = Field(ge=0, le=100)
+    benchmark_education_warn_pct: float = Field(ge=0, le=100)
+    benchmark_insurance_warn_pct: float = Field(ge=0, le=100)
+
+    @model_validator(mode="after")
+    def _check_pair_order(self) -> "CoachingThresholdsIn":
+        errors = threshold_order_errors(self.model_dump())
+        if errors:
+            raise ValueError(" ".join(errors))
+        return self
 
 
 class NotificationPrefsOut(BaseModel):

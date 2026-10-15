@@ -7,6 +7,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
 from app.models.user import User
+from app.utils.dates import now_kst
 
 
 class Event(Base):
@@ -32,7 +33,7 @@ class Event(Base):
     # "nullable timestamp = 상태 마커" 패턴 - 채워지면 완료.
     completed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True, default=None)
     created_by: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"))
-    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=now_kst, server_default=func.now())
 
     # users 테이블을 참조하는 FK가 두 개(created_by/assignee_id)라 SQLAlchemy가 자동으로 어느 쪽인지
     # 추론하지 못한다 - 두 관계 모두 foreign_keys를 명시해야 한다.

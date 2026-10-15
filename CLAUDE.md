@@ -23,7 +23,7 @@
 - 라우터: `Depends(get_current_user)`로 인증, `response_model=`로 응답 스키마 명시, DB 세션은 `Depends(get_db)`. 없는 리소스 404, 잘못된 상태 전이 409. 서비스의 도메인 예외(`app/errors.py` 상속)는 전역 핸들러(`app/exception_handlers.py`)가 상태코드로 바꾸므로 라우터에서 try/except로 다시 매핑하지 않는다.
 - 설정: `app/config.py`의 모듈 전역 `settings` 하나를 import해서 쓴다. 코칭엔진 임계값(저축률·고정비 비율·예산 경고/위험 %·벤치마크 등)도 여기가 기본값이고, 부부가 설정 화면에서 바꾼 값이 우선한다.
 - models: `app.database.Base` 상속, 모든 테이블은 `household` 스키마. 자주 조인되는 관계는 `lazy="joined"`.
-- 날짜: 월/연 경계는 `app/utils/dates.py` 헬퍼(`month_bounds`, `year_bounds`, `shift_month`, `advance_due_date` 등)로만 계산한다. 현재 시각은 `now_kst()`/`today_kst()` — `datetime.now()`/`date.today()` 직접 호출 금지(앱은 naive datetime을 KST 벽시계로 취급하는데 컨테이너는 UTC).
+- 날짜: 월/연 경계는 `app/utils/dates.py` 헬퍼(`month_bounds`, `year_bounds`, `shift_month`, `advance_due_date` 등)로만 계산한다. 현재 시각은 `now_kst()`/`today_kst()` — `datetime.now()`/`date.today()` 직접 호출 금지(앱은 naive datetime을 KST 벽시계로 취급하는데 컨테이너는 UTC). 모델 타임스탬프 컬럼도 `default=now_kst`(갱신 컬럼은 `onupdate=now_kst`)를 둔다 — `server_default=func.now()`만 있으면 Postgres 세션 TZ(UTC)로 찍힌다(`tests/test_dates.py`가 가드).
 - 금액: 항상 `Decimal`(float 금지). 나눗셈으로 만든 금액(평균 등)은 `app/utils/money.py`의 `whole_won()`으로 원 단위 반올림한다 — 소수가 남으면 `Numeric(12,2)` 저장값과 제안값이 영원히 달라진다.
 
 ### schemas (`app/schemas/`)

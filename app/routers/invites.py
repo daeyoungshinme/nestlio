@@ -50,10 +50,12 @@ def accept_invite(
     """Supabase JWT는 필요하지만(서명 검증만) 로컬 User 미러링은 거치지 않는 엔드포인트 —
     프론트엔드가 supabase.auth.signUp(및 필요 시 이메일 확인) 이후, 세션이 확립된 시점에 호출한다.
     user_id/email은 클라이언트가 아니라 검증된 JWT에서만 가져온다."""
-    sub = token_payload.get("sub")
-    if not sub:
-        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Invalid token payload")
+    try:
+        user_id = uuid.UUID(token_payload.get("sub") or "")
+    except ValueError:
+        # sub 누락·비UUID — 서명은 맞아도 이 앱이 쓸 수 없는 토큰이다(500이 아니라 401).
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Invalid token payload") from None
     user = invite_service.accept_invite(
-        db, token, uuid.UUID(sub), token_payload.get("email", ""), payload.display_name
+        db, token, user_id, token_payload.get("email", ""), payload.display_name
     )
     return user
