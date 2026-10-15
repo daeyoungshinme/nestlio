@@ -14,6 +14,7 @@ from app.services import (
     coaching_settings_service,
     goal_progress_service,
     goal_service,
+    insurance_review_service,
     net_worth_service,
     savings_coaching_service,
     savings_product_service,
@@ -142,11 +143,18 @@ def yearly_report(db: Session, year: int, owner_filter) -> dict:
 
 def build_savings_review(db: Session, year_month: str | None, owner_filter, today: date) -> dict:
     """절감 점검 화면(SavingsReviewOut). 기준월 기본값은 지난달 — spending_review_service.default_year_month.
-    owner_filter는 yearly_report와 같은 값(None=가구 전체, "shared"=공통, UUID=배우자)."""
+    owner_filter는 yearly_report와 같은 값(None=가구 전체, "shared"=공통, UUID=배우자) — 소비 점검에만 적용하고
+    보험 점검은 계약 기준이라 항상 가구 전체다. 보험은 소비 점검의 벤치마크에서 빠져 있어 두 총액을 그냥 더한다."""
     year_month = year_month or spending_review_service.default_year_month(today)
-    spending = spending_review_service.build_spending_review(db, year_month, owner=owner_filter, today=today)
+    thresholds = coaching_settings_service.get_thresholds(db)
+    spending = spending_review_service.build_spending_review(
+        db, year_month, owner=owner_filter, today=today, thresholds=thresholds
+    )
+    insurance = insurance_review_service.build_insurance_review(db, today=today, thresholds=thresholds)
     return {
         "year_month": year_month,
         "spending": spending,
-        "total_estimated_monthly_saving": spending["total_estimated_monthly_saving"],
+        "insurance": insurance,
+        "total_estimated_monthly_saving": spending["total_estimated_monthly_saving"]
+        + insurance["total_estimated_monthly_saving"],
     }

@@ -41,7 +41,9 @@ def _apply(policy: InsurancePolicy, fields: dict) -> None:
     # 피보험자가 부부 중 한 명이면 이름은 사용자 표시 이름을 쓰므로 따로 저장하지 않는다.
     if policy.insured_user_id is not None:
         policy.insured_name = None
-    # 비갱신형에는 갱신일이 없다.
+    # 자동차보험은 매년 갱신한다. 그 밖의 비갱신형에는 갱신일이 없다.
+    if policy.policy_type == "auto":
+        policy.is_renewable = True
     if not policy.is_renewable:
         policy.next_renewal_date = None
 

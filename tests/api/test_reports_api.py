@@ -121,3 +121,21 @@ def test_savings_review_returns_spending_items(client, seeded_db):
 def test_savings_review_rejects_bad_params(client):
     assert client.get("/api/v1/reports/savings-review", params={"year_month": "2026-9"}).status_code == 422
     assert client.get("/api/v1/reports/savings-review", params={"owner": "nope"}).status_code == 422
+
+
+def test_savings_review_includes_insurance(client, seeded_db):
+    resp = client.post(
+        "/api/v1/insurance-policies",
+        json={"name": "실손A", "policy_type": "indemnity", "insured_name": "아이", "premium_amount": "30000"},
+    )
+    assert resp.status_code == 201
+    client.post(
+        "/api/v1/insurance-policies",
+        json={"name": "실손B", "policy_type": "indemnity", "insured_name": "아이", "premium_amount": "20000"},
+    )
+
+    body = client.get("/api/v1/reports/savings-review", params={"year_month": "2026-09"}).json()
+
+    assert body["insurance"]["summary"]["policies_count"] == 2
+    assert body["insurance"]["findings"][0]["rule_code"] == "indemnity_duplicate"
+    assert Decimal(body["total_estimated_monthly_saving"]) == Decimal("20000")
