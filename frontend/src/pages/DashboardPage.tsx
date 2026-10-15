@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import CoachingInsights from "@/components/home/CoachingInsights";
+import SavingsReviewLinkCard from "@/components/review/SavingsReviewLinkCard";
 import HomeGoalHero from "@/components/home/HomeGoalHero";
 import MonthFlowCard from "@/components/home/MonthFlowCard";
 import MonthlyRetrospectiveCard from "@/components/dashboard/MonthlyRetrospectiveCard";
@@ -171,6 +172,8 @@ export default function DashboardPage() {
       />
 
       <CoachingInsights insights={data.insights} ownerOverspend={data.owner_overspend_highlights} />
+
+      <SavingsReviewLinkCard />
 
       <TodayScheduleCard day={today} users={users} />
 

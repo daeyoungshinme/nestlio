@@ -1015,3 +1015,138 @@ export interface NetWorthGrowlioUnlinkedOut {
   net_total: string;
   item_count: number;
 }
+
+// --- 절감 점검 (GET /reports/savings-review, /insurance-policies) ---
+
+export type InsightSeverityLevel = "info" | "warning" | "critical";
+
+export type SavingOpportunityRule =
+  | "trend_up"
+  | "benchmark_excess"
+  | "chronic_overrun"
+  | "small_frequent"
+  | "subscription"
+  | "unregistered_recurring";
+
+export interface SavingOpportunityOut {
+  rule_code: SavingOpportunityRule;
+  severity: InsightSeverityLevel;
+  category_id: number | null;
+  title: string;
+  detail: string;
+  current_monthly_amount: string;
+  estimated_monthly_saving: string;
+  related: string[];
+}
+
+export interface SpendingReviewOut {
+  year_month: string;
+  months_analyzed: number;
+  items: SavingOpportunityOut[];
+  total_estimated_monthly_saving: string;
+}
+
+export type InsuranceFindingRule =
+  | "insurance_ratio"
+  | "indemnity_duplicate"
+  | "coverage_overlap"
+  | "renewal_soon"
+  | "auto_renewal_soon"
+  | "savings_type"
+  | "payment_ending"
+  | "unregistered_premium";
+
+export interface InsuranceFindingOut {
+  rule_code: InsuranceFindingRule;
+  severity: InsightSeverityLevel;
+  title: string;
+  detail: string;
+  estimated_monthly_saving: string;
+  policy_ids: number[];
+}
+
+export interface InsuredPremiumOut {
+  label: string;
+  monthly_premium: string;
+  count: number;
+}
+
+export interface InsuranceSummaryOut {
+  policies_count: number;
+  total_monthly_premium: string;
+  protection_monthly_premium: string;
+  savings_monthly_premium: string;
+  avg_monthly_income: string;
+  protection_income_pct: number | null;
+  guideline_pct: number;
+  by_insured: InsuredPremiumOut[];
+}
+
+export interface InsuranceReviewOut {
+  summary: InsuranceSummaryOut;
+  findings: InsuranceFindingOut[];
+  total_estimated_monthly_saving: string;
+}
+
+export interface SavingsReviewOut {
+  year_month: string;
+  spending: SpendingReviewOut;
+  insurance: InsuranceReviewOut;
+  total_estimated_monthly_saving: string;
+}
+
+export type PolicyType = "indemnity" | "diagnosis" | "life" | "accident" | "auto" | "home" | "savings" | "other";
+
+export type PaymentFrequency = "monthly" | "yearly";
+
+export type Coverage =
+  | "medical_indemnity"
+  | "cancer"
+  | "stroke"
+  | "heart"
+  | "surgery"
+  | "hospitalization"
+  | "death"
+  | "disability"
+  | "driver"
+  | "liability"
+  | "dental";
+
+export interface InsurancePolicyOut {
+  id: number;
+  name: string;
+  insurer: string | null;
+  policy_type: PolicyType;
+  insured_user_id: string | null;
+  insured_name: string | null;
+  premium_amount: string;
+  payment_frequency: PaymentFrequency;
+  monthly_premium: string;
+  is_renewable: boolean;
+  next_renewal_date: string | null;
+  payment_end_date: string | null;
+  coverage_end_date: string | null;
+  coverages: Coverage[];
+  recurring_expense_id: number | null;
+  memo: string | null;
+  is_active: boolean;
+  sort_order: number;
+  updated_at?: string | null;
+}
+
+export interface InsurancePolicyIn {
+  name: string;
+  insurer?: string | null;
+  policy_type: PolicyType;
+  insured_user_id?: string | null;
+  insured_name?: string | null;
+  premium_amount: string;
+  payment_frequency?: PaymentFrequency;
+  is_renewable?: boolean;
+  next_renewal_date?: string | null;
+  payment_end_date?: string | null;
+  coverage_end_date?: string | null;
+  coverages?: Coverage[];
+  recurring_expense_id?: number | null;
+  memo?: string | null;
+}

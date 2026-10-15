@@ -72,6 +72,12 @@ import type {
   InsightOut,
   InviteAcceptIn,
   InviteOut,
+  InsuranceFindingOut,
+  InsurancePolicyIn,
+  InsurancePolicyOut,
+  InsuranceReviewOut,
+  InsuranceSummaryOut,
+  InsuredPremiumOut,
   LoanCreateIn,
   LoanOut,
   MonthlyRetrospectiveOut,
@@ -116,6 +122,9 @@ import type {
   UserOut,
   YearlyMonthRowOut,
   YearlyReportOut,
+  SavingOpportunityOut,
+  SavingsReviewOut,
+  SpendingReviewOut,
 } from "./index";
 
 type Schemas = components["schemas"];
@@ -249,4 +258,13 @@ export type HandWrittenApiTypeChecks = [
   Expect<SameKeys<NetWorthOut, Schemas["NetWorthOut"]>>,
   Expect<SameKeys<NetWorthGrowlioUnlinkedOut, Schemas["NetWorthGrowlioUnlinkedOut"]>>,
   Expect<SameKeys<BudgetRowOut, Schemas["CategoryBudgetRowOut"]>>,
+  Expect<SameKeys<SavingOpportunityOut, Schemas["SavingOpportunityOut"]>>,
+  Expect<SameKeys<SpendingReviewOut, Schemas["SpendingReviewOut"]>>,
+  Expect<SameKeys<InsuranceFindingOut, Schemas["InsuranceFindingOut"]>>,
+  Expect<SameKeys<InsuredPremiumOut, Schemas["InsuredPremiumOut"]>>,
+  Expect<SameKeys<InsuranceSummaryOut, Schemas["InsuranceSummaryOut"]>>,
+  Expect<SameKeys<InsuranceReviewOut, Schemas["InsuranceReviewOut"]>>,
+  Expect<SameKeys<SavingsReviewOut, Schemas["SavingsReviewOut"]>>,
+  Expect<SameKeys<InsurancePolicyOut, Schemas["InsurancePolicyOut"]>>,
+  Expect<SameKeys<InsurancePolicyIn, Schemas["InsurancePolicyIn"]>>,
 ];

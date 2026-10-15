@@ -28,6 +28,7 @@ export function useInvalidateTransactionRelated() {
     void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.yearlyReportAll });
     void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.categoryTrendAll });
     void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.monthlyRetrospective });
+    void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.savingsReviewAll });
   };
 }
 
