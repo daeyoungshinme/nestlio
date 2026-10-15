@@ -29,25 +29,33 @@ logger = logging.getLogger(__name__)
 GOOGLE_REAUTH_NOTIF_TYPE = "google_reauth"
 
 
-def _send_email_best_effort(db: Session, subject: str, body: str, html_body: str | None = None) -> bool:
-    """알림 메일은 부가 채널이다 — 인앱 알림(NotificationLog)이 정본이라, 메일 발송 실패가 호출부의
-    log_sent까지 막아 인앱 알림이 유실되거나 예약 잡이 500으로 끝나면 안 된다. Google 미연결이면
-    보내지 않고, 토큰 만료/revoke(GoogleAuthError)나 Gmail API 오류(GmailSendError)는 경고 로그만
-    남기고 False를 돌려준다. 토큰 만료는 부부가 알아야 고칠 수 있으므로 인앱 알림도 (월 1회) 남긴다."""
+# "sent" = 발송함, "skipped" = 보낼 수 없는 상태(Google 미연결·토큰 만료·수신자 없음 — 재시도해도 같음),
+# "failed" = Gmail API 오류(다음에 다시 시도할 가치가 있음).
+MailResult = Literal["sent", "skipped", "failed"]
+
+
+def send_email_best_effort(
+    db: Session, subject: str, body: str, *, html_body: str | None = None, to: list[str] | None = None
+) -> MailResult:
+    """모든 알림 메일의 단일 발송 경로. 알림 메일은 부가 채널이다 — 인앱 알림(NotificationLog)이 정본이라,
+    메일 발송 실패가 호출부의 log_sent까지 막아 인앱 알림이 유실되거나 예약 잡이 500으로 끝나면 안 된다.
+    그래서 예외를 던지지 않고 결과만 돌려준다. 토큰 만료는 부부가 알아야 고칠 수 있으므로 인앱 알림도
+    (월 1회) 남긴다. `to`를 안 주면 설정된 수신자 전원(notification_settings_service.get_recipients)."""
     if not is_connected():
-        return False
+        return "skipped"
+    recipients = to if to is not None else notification_settings_service.get_recipients(db)
+    if not recipients:
+        return "skipped"
     try:
-        gmail_service.send_email(
-            subject, body, to=notification_settings_service.get_recipients(db), html_body=html_body
-        )
+        gmail_service.send_email(subject, body, to=recipients, html_body=html_body)
     except GoogleAuthError as exc:
         logger.warning("알림 메일 미발송 — 구글 재연결 필요: %s", subject)
         _log_google_reauth_needed(db, str(exc))
-        return False
+        return "skipped"
     except GmailSendError:
         logger.warning("알림 메일 발송 실패: %s", subject, exc_info=True)
-        return False
-    return True
+        return "failed"
+    return "sent"
 
 
 def _log_google_reauth_needed(db: Session, message: str) -> None:
@@ -55,24 +63,6 @@ def _log_google_reauth_needed(db: Session, message: str) -> None:
     if notification_log_service.already_sent(db, GOOGLE_REAUTH_NOTIF_TYPE, period_key):
         return
     notification_log_service.log_sent(db, GOOGLE_REAUTH_NOTIF_TYPE, period_key, detail=message)
-
-
-def _format_summary(title: str, start: date, end: date, totals: dict, breakdown: list[dict]) -> str:
-    lines = [
-        f"{title} ({start} ~ {end})",
-        "",
-        f"수입: {totals['income']:,.0f}원",
-        f"지출: {totals['expense']:,.0f}원",
-        f"  - 고정지출: {totals['fixed']:,.0f}원",
-        f"  - 변동지출: {totals['variable']:,.0f}원",
-        f"  - 비정기지출: {totals['irregular']:,.0f}원",
-        f"저축(수입-지출): {totals['savings']:,.0f}원",
-        "",
-        "카테고리별 지출:",
-    ]
-    for row in breakdown:
-        lines.append(f"  - {row['name']}: {row['amount']:,.0f}원")
-    return "\n".join(lines)
 
 
 def _savings_streak(db: Session, end: date) -> int:
@@ -83,34 +73,6 @@ def _savings_streak(db: Session, end: date) -> int:
     return savings_coaching_service.savings_streak_months(savings_coaching_service.savings_pace_history(db, trend, goals))
 
 
-def _contribution_summary_text(owner_totals: list[dict]) -> str | None:
-    """부부 각자의 저축 기여도(totals_by_owner, owner_user_id 기준 실제 지출/저축 주체)를 한 줄로
-    요약한다 — 대시보드 CoupleContributionCard와 같은 축. "공통" 항목과 1인 가구는 비교 대상이
-    아니므로 생략(정렬·리더 판정은 transaction_report_service.rank_owner_contributions 공유)."""
-    ranked = transaction_report_service.rank_owner_contributions(owner_totals)
-    if ranked is None:
-        return None
-    parts = [f"{o['display_name']} {o['savings']:,.0f}원" for o in ranked]
-    line = "부부 저축 기여도: " + " · ".join(parts)
-    leader = next((o for o in ranked if o["is_leader"]), None)
-    if leader:
-        line += f" — {leader['display_name']}님이 이번엔 더 모았어요"
-    return line
-
-
-def _with_streak_and_contribution(body: str, *, streak: int, owner_totals: list[dict]) -> str:
-    """주간·월간 요약 본문에 공통으로 붙는 '연속 N개월 페이스' + '부부 기여도' 줄을 덧붙인다."""
-    extra_lines = []
-    if streak > 0:
-        extra_lines.append(f"연속 {streak}개월째 목표 페이스를 지키고 있어요 \U0001F525")
-    contribution_text = _contribution_summary_text(owner_totals)
-    if contribution_text:
-        extra_lines.append(contribution_text)
-    if extra_lines:
-        body += "\n\n" + "\n".join(extra_lines)
-    return body
-
-
 def send_weekly_summary(db: Session, today: date | None = None, force: bool = False) -> bool:
     today = today or today_kst()
     start, end = week_bounds(today)
@@ -119,42 +81,39 @@ def send_weekly_summary(db: Session, today: date | None = None, force: bool = Fa
         return False
     if not force and notification_log_service.already_sent(db, "email_weekly", period_key):
         return False
-    totals = transaction_report_service.period_totals(db, start, end)
-    breakdown = transaction_report_service.category_breakdown(db, start, end, "expense")
-    owner_totals = transaction_report_service.totals_by_owner(db, start, end)
+    snapshot = transaction_report_service.period_snapshot(db, start, end)
+    totals, breakdown, owner_totals = snapshot["totals"], snapshot["breakdown"], snapshot["owner_totals"]
     streak = _savings_streak(db, end)
-    body = _format_summary("주간 가계부 요약", start, end, totals, breakdown)
-    body = _with_streak_and_contribution(body, streak=streak, owner_totals=owner_totals)
-
+    body = email_templates.summary_text(
+        "주간 가계부 요약", start, end, totals, breakdown, owner_totals=owner_totals, streak=streak
+    )
     html = email_templates.build_weekly_summary_html(
         start, end, totals, breakdown, owner_totals=owner_totals, streak=streak
     )
-    _send_email_best_effort(db, f"[Nestlio] 주간 요약 ({start} ~ {end})", body, html_body=html)
+    send_email_best_effort(db, f"[Nestlio] 주간 요약 ({start} ~ {end})", body, html_body=html)
     notification_log_service.log_sent(db, "email_weekly", period_key, detail=body[:500])
     return True
 
 
 def send_monthly_summary(db: Session, today: date | None = None, force: bool = False) -> bool:
     today = today or today_kst()
-    r = dashboard_service.build_retrospective(db, today)
-    start, end, period_key = r["start"], r["end"], r["year_month"]
+    # 켜짐·중복 여부를 먼저 본다 — 회고 집계(코칭 인사이트 포함)는 매일 도는 예약 잡에서 대부분 버려진다.
+    _, _, period_key = dashboard_service.retrospective_period(today)
     if not force and not notification_settings_service.is_enabled(db, "email_monthly"):
         return False
     if not force and notification_log_service.already_sent(db, "email_monthly", period_key):
         return False
+    r = dashboard_service.build_retrospective(db, today)
+    start, end = r["start"], r["end"]
     totals, breakdown, owner_totals, insights = r["totals"], r["breakdown"], r["owner_totals"], r["insights"]
     streak = _savings_streak(db, end)
-    body = _format_summary("월간 가계부 요약", start, end, totals, breakdown)
-    body = _with_streak_and_contribution(body, streak=streak, owner_totals=owner_totals)
-
-    if insights:
-        body += "\n\n자산증식 코칭:\n"
-        body += "\n".join(f"  - [{i.severity}] {i.message}" for i in insights)
-
+    body = email_templates.summary_text(
+        "월간 가계부 요약", start, end, totals, breakdown, owner_totals=owner_totals, streak=streak, insights=insights
+    )
     html = email_templates.build_monthly_summary_html(
         start, end, totals, breakdown, insights, owner_totals=owner_totals, streak=streak
     )
-    _send_email_best_effort(db, f"[Nestlio] {period_key} 월간 요약", body, html_body=html)
+    send_email_best_effort(db, f"[Nestlio] {period_key} 월간 요약", body, html_body=html)
     notification_log_service.log_sent(db, "email_monthly", period_key, detail=body[:500])
     return True
 
@@ -170,13 +129,8 @@ def _send_threshold_alert(db: Session, row: dict, year_month: str) -> bool:
     period_key = f"{year_month}:{row['status']}"
     if notification_log_service.already_sent(db, "threshold_alert", period_key, related_id=category_id):
         return False
-    level = "위험" if row["status"] == "critical" else "주의"
-    body = (
-        f"{row['name']} 카테고리 예산 {level} 알림\n\n"
-        f"예산: {row['budget']:,.0f}원\n"
-        f"실제 지출: {row['actual']:,.0f}원 ({row['pct']:.0f}%)"
-    )
-    _send_email_best_effort(db, f"[Nestlio] 예산 {level} - {row['name']}", body)
+    subject, body = email_templates.threshold_alert_message(row)
+    send_email_best_effort(db, subject, body)
     notification_log_service.log_sent(db, "threshold_alert", period_key, related_id=category_id, detail=body[:200])
     return True
 
@@ -223,27 +177,8 @@ def _celebrate_goal_milestone(db: Session, goal, today: date | None = None) -> b
         return False
     if notification_log_service.milestone_already_logged(db, notif_type, goal.id, milestone):
         return False
-    if is_challenge:
-        body = (
-            f'\U0001F389 "{goal.name}" 챌린지 성공! \U0001F389\n\n'
-            f"목표 {goal.required_amount:,.0f}원을 두 분이 함께 달성했어요!\n\n"
-            f"현재: {current_amount:,.0f}원 / 목표 {goal.required_amount:,.0f}원"
-        )
-        subject = f"[Nestlio] 챌린지 성공 - {goal.name}"
-    else:
-        congrats = "드디어 목표를 이뤘어요! 두 분이 함께 만든 결과예요." if milestone >= 100 else "두 분이 함께 여기까지 왔어요, 축하해요!"
-        body = (
-            f'\U0001F389 "{goal.name}" 목표 {milestone}% 달성! \U0001F389\n\n'
-            f"{congrats}\n\n"
-            f"현재 저축액: {current_amount:,.0f}원 / 목표 {goal.required_amount:,.0f}원"
-        )
-        if milestone < 100 and goal.target_date is not None:
-            remaining_amount = max(goal.required_amount - current_amount, 0)
-            remaining_days = (goal.target_date - today).days
-            if remaining_days > 0:
-                body += f"\n목표일까지 D-{remaining_days}, 이제 {remaining_amount:,.0f}원만 더 모으면 돼요."
-        subject = f"[Nestlio] 우리 부부 목표 달성 축하 - {goal.name} {milestone}%"
-    _send_email_best_effort(db, subject, body)
+    subject, body = email_templates.goal_milestone_message(goal, milestone, current_amount, today)
+    send_email_best_effort(db, subject, body)
     notification_log_service.log_milestone(db, notif_type, related_type, goal.id, milestone, body)
     return True
 
@@ -307,10 +242,8 @@ def check_savings_pace_reminder(db: Session, today: date | None = None) -> bool:
     if planned <= 0 or remaining <= 0:
         return False
     streak = _savings_streak(db, today)
-    body = f"이번 달 저축·투자 계획 {planned:,.0f}원 중 {remaining:,.0f}원이 남았어요. 월말 전에 함께 채워봐요!"
-    if streak > 0:
-        body += f" 지금까지 {streak}개월 연속 달성 중이에요."
-    _send_email_best_effort(db, "[Nestlio] 이번 달 저축 계획까지 조금 남았어요", body)
+    subject, body = email_templates.savings_pace_reminder_message(planned, remaining, streak)
+    send_email_best_effort(db, subject, body)
     notification_log_service.log_sent(db, "savings_pace_reminder", year_month, detail=body)
     db.commit()
     return True

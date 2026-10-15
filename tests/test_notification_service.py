@@ -1,4 +1,3 @@
-import uuid
 from datetime import date, datetime
 from decimal import Decimal
 from unittest.mock import patch
@@ -337,45 +336,6 @@ def test_challenge_success_celebration_skips_while_active(mock_send, seeded_db):
     mock_send.assert_not_called()
 
 
-@pytest.mark.parametrize(
-    "owner_totals",
-    [
-        [],
-        [{"owner_user_id": None, "display_name": "공통", "savings": Decimal("100000")}],
-        [{"owner_user_id": uuid.uuid4(), "display_name": "혼자", "savings": Decimal("100000")}],
-    ],
-)
-def test_contribution_summary_text_skips_when_fewer_than_two_contributors(owner_totals):
-    assert notification_service._contribution_summary_text(owner_totals) is None
-
-
-def test_contribution_summary_text_declares_leader_when_savings_differ():
-    id1, id2 = uuid.uuid4(), uuid.uuid4()
-    owner_totals = [
-        {"owner_user_id": id1, "display_name": "민준", "savings": Decimal("300000")},
-        {"owner_user_id": id2, "display_name": "서연", "savings": Decimal("500000")},
-    ]
-
-    text = notification_service._contribution_summary_text(owner_totals)
-
-    assert text is not None
-    assert "이번엔 더 모았어요" in text
-    assert text.index("서연") < text.index("민준")  # savings 내림차순 = 1위가 먼저 나열
-
-
-def test_contribution_summary_text_omits_leader_line_on_tie():
-    id1, id2 = uuid.uuid4(), uuid.uuid4()
-    owner_totals = [
-        {"owner_user_id": id1, "display_name": "민준", "savings": Decimal("400000")},
-        {"owner_user_id": id2, "display_name": "서연", "savings": Decimal("400000")},
-    ]
-
-    text = notification_service._contribution_summary_text(owner_totals)
-
-    assert text is not None
-    assert "더 모았어요" not in text
-
-
 def test_savings_streak_counts_consecutive_months_meeting_goal_pace(seeded_db):
     db, user, food = seeded_db["db"], seeded_db["user"], seeded_db["food"]
     from app.services import transaction_service
@@ -590,3 +550,47 @@ def test_savings_pace_reminder_respects_disabled_pref(_conn, seeded_db):
 @patch("app.services.notification_service.is_connected", return_value=False)
 def test_savings_pace_reminder_skips_without_any_plan(_conn, seeded_db):
     assert notification_service.check_savings_pace_reminder(seeded_db["db"], today=date(2026, 9, 28)) is False
+
+
+@pytest.mark.parametrize(
+    "connected,side_effect,expected",
+    [
+        (True, None, "sent"),
+        (False, None, "skipped"),
+        (True, GoogleAuthError("만료"), "skipped"),  # 재시도해도 같다 — 재연결 알림만 남긴다
+        (True, GmailSendError("HTTP 503"), "failed"),  # 일시 장애 — 호출부가 재시도를 고를 수 있다
+    ],
+)
+def test_send_email_best_effort_reports_result(seeded_db, connected, side_effect, expected):
+    db = seeded_db["db"]
+    with (
+        patch("app.services.notification_service.is_connected", return_value=connected),
+        patch("app.services.notification_service.gmail_service.send_email", side_effect=side_effect),
+    ):
+        assert notification_service.send_email_best_effort(db, "제목", "본문") == expected
+
+
+@patch("app.services.notification_service.is_connected", return_value=True)
+@patch("app.services.notification_service.gmail_service.send_email")
+def test_send_email_best_effort_explicit_recipients(mock_send, mock_connected, seeded_db):
+    db = seeded_db["db"]
+
+    assert notification_service.send_email_best_effort(db, "제목", "본문", to=["a@example.com"]) == "sent"
+    assert mock_send.call_args.kwargs["to"] == ["a@example.com"]
+
+    mock_send.reset_mock()
+    assert notification_service.send_email_best_effort(db, "제목", "본문", to=[]) == "skipped"
+    mock_send.assert_not_called()
+
+
+@patch("app.services.notification_service.dashboard_service.build_retrospective")
+def test_monthly_summary_checks_pref_and_dedup_before_aggregating(mock_build, seeded_db):
+    """매일 도는 예약 잡이 이미 보낸 달·꺼진 설정이면 회고 집계(코칭 인사이트 포함)를 돌리지 않는다."""
+    db = seeded_db["db"]
+    notification_service.notification_log_service.log_sent(db, "email_monthly", "2026-07")
+    assert notification_service.send_monthly_summary(db, today=date(2026, 8, 3)) is False
+
+    notification_settings_service.set_prefs(db, {"email_monthly": False}, seeded_db["user"].id)
+    assert notification_service.send_monthly_summary(db, today=date(2026, 9, 3)) is False
+
+    mock_build.assert_not_called()

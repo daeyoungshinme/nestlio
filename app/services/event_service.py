@@ -82,8 +82,6 @@ def create_event(
     reminder_minutes_before: int | None = None,
     assignee_id: uuid.UUID | None = None,
 ) -> Event:
-    from app.services import event_reminder_service
-
     event = Event(
         title=title,
         description=description,
@@ -100,13 +98,10 @@ def create_event(
     db.add(event)
     db.commit()
     db.refresh(event)
-    event_reminder_service.notify_other_spouse(db, event, actor_id=created_by, action_label="새 일정이 등록되었습니다")
     return event
 
 
-def update_event(db: Session, event_id: int, actor_id: uuid.UUID, **fields) -> Event | None:
-    from app.services import event_reminder_service
-
+def update_event(db: Session, event_id: int, **fields) -> Event | None:
     event = db.get(Event, event_id)
     if event is None:
         return None
@@ -114,27 +109,23 @@ def update_event(db: Session, event_id: int, actor_id: uuid.UUID, **fields) -> E
         setattr(event, key, value)
     db.commit()
     db.refresh(event)
-    event_reminder_service.notify_other_spouse(db, event, actor_id=actor_id, action_label="일정이 변경되었습니다")
     return event
 
 
-def delete_event(db: Session, event_id: int, actor_id: uuid.UUID) -> bool:
-    from app.services import event_reminder_service
-
+def delete_event(db: Session, event_id: int) -> Event | None:
+    """삭제한 일정을 돌려준다(없으면 None) — 커밋 후 detached여도 이미 로드된 컬럼은 그대로 읽혀
+    호출부가 배우자 알림(event_reminder_service.notify_other_spouse_best_effort)에 쓸 수 있다."""
     event = db.get(Event, event_id)
     if event is None:
-        return False
-    # 삭제된 객체는 커밋 후 detached여도 이미 로드된 컬럼은 그대로 읽혀 배우자 알림에 쓸 수 있다.
+        return None
     db.delete(event)
     db.commit()
-    event_reminder_service.notify_other_spouse(db, event, actor_id=actor_id, action_label="일정이 삭제되었습니다")
-    return True
+    return event
 
 
 def set_completed(db: Session, event_id: int, completed: bool, now: datetime | None = None) -> Event | None:
-    """완료 체크 토글. 체크박스 토글마다 배우자에게 메일이 가면 과도하므로
-    event_reminder_service.notify_other_spouse를 호출하지 않는다(담당자 배정 자체는
-    create_event/update_event가 이미 알린다)."""
+    """완료 체크 토글. 체크박스 토글마다 배우자에게 메일이 가면 과도하므로 라우터가
+    배우자 알림을 보내지 않는다(담당자 배정 자체는 생성·수정 알림이 이미 알린다)."""
     now = now or now_kst()
     event = db.get(Event, event_id)
     if event is None:

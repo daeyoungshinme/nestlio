@@ -1,5 +1,8 @@
 from datetime import date
 from decimal import Decimal
+from unittest.mock import patch
+
+from app.models.user import User
 
 
 def test_create_list_update_delete_event(client, seeded_db):
@@ -113,3 +116,21 @@ def test_weekly_event_expands_into_multiple_occurrences(client):
 
     assert resp.status_code == 200
     assert len(resp.json()["items"]) == 5
+
+
+@patch("app.services.notification_service.gmail_service.send_email")
+@patch("app.services.notification_service.is_connected", return_value=True)
+def test_event_crud_notifies_other_spouse(mock_connected, mock_send, client, seeded_db):
+    db = seeded_db["db"]
+    spouse2 = User(email="spouse2@example.com", display_name="Spouse 2")
+    db.add(spouse2)
+    db.commit()
+
+    event_id = client.post(
+        "/api/v1/events", json={"title": "여행", "start_at": "2026-08-01T09:00:00", "frequency": "once"}
+    ).json()["id"]
+    assert client.delete(f"/api/v1/events/{event_id}").status_code == 204
+
+    subjects = [c.args[0] for c in mock_send.call_args_list]
+    assert subjects == ["[Nestlio] 새 일정이 등록되었습니다: 여행", "[Nestlio] 일정이 삭제되었습니다: 여행"]
+    assert all(c.kwargs["to"] == [spouse2.email] for c in mock_send.call_args_list)

@@ -77,3 +77,21 @@ def test_safety_net_runs_savings_pace_reminder_with_kst_today(seeded_db, monkeyp
     jobs.daily_threshold_safety_net()
 
     assert seen == [date(2026, 9, 28)]
+
+
+def test_event_reminder_check_logs_in_app_without_google(seeded_db, monkeypatch):
+    """Gmail 미연결이어도 잡이 돈다 — 인앱 리마인더는 남고 메일만 건너뛴다."""
+    from datetime import datetime
+
+    from app.services import event_service
+
+    db, user = seeded_db["db"], seeded_db["user"]
+    event_service.create_event(
+        db, created_by=user.id, title="병원", start_at=datetime(2026, 7, 15, 10, 0), reminder_minutes_before=60
+    )
+    monkeypatch.setattr(jobs, "now_kst", lambda: datetime(2026, 7, 15, 9, 0))
+
+    jobs.event_reminder_check()
+
+    db.expire_all()
+    assert db.query(NotificationLog).filter(NotificationLog.notif_type == "event_reminder").count() == 1

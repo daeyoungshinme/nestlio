@@ -7,23 +7,28 @@ from sqlalchemy.orm import Session
 from app.models.event import Event
 from app.models.notification_log import NotificationLog
 from app.models.user import User
-from app.services import event_service, gmail_service, notification_settings_service
-from app.services.google_auth import is_connected
+from app.services import (
+    email_templates,
+    event_service,
+    notification_log_service,
+    notification_service,
+    notification_settings_service,
+)
 
 logger = logging.getLogger(__name__)
 
+NOTIF_TYPE = "event_reminder"
+
 
 def send_due_reminders(db: Session, now: datetime, window_minutes: int = 30) -> int:
-    """Send reminder emails for occurrences whose reminder time has arrived (or arrives within
-    `window_minutes`) and whose event is still upcoming. Meant to be called by a periodic
-    scheduler job — catch-up safe: a missed/delayed tick is recovered on the next run, and
-    NotificationLog dedup prevents duplicate sends."""
-    if not is_connected():
-        return 0
-    if not notification_settings_service.is_enabled(db, "event_reminder"):
+    """Remind about occurrences whose reminder time has arrived (or arrives within `window_minutes`)
+    and whose event is still upcoming. Meant to be called by a periodic scheduler job — catch-up
+    safe: a missed/delayed tick is recovered on the next run, and NotificationLog dedup prevents
+    duplicate sends. 인앱 알림은 Google 연결과 무관하게 남고, 메일은 연결돼 있을 때만 간다.
+    반환값은 이번 틱에 기록(=알림)한 리마인더 수."""
+    if not notification_settings_service.is_enabled(db, NOTIF_TYPE):
         return 0
 
-    sent = 0
     candidates = (
         db.query(Event)
         .filter(Event.reminder_minutes_before.isnot(None))
@@ -33,16 +38,32 @@ def send_due_reminders(db: Session, now: datetime, window_minutes: int = 30) -> 
         (event, occurrence) for event in candidates for occurrence in _due_occurrences(event, now, window_minutes)
     ]
     already_notified = _already_notified_pairs(db, {event.id for event, _ in due_pairs})
+    reminded = 0
     for event, occurrence in due_pairs:
         if (event.id, occurrence.isoformat()) in already_notified:
             continue
-        # 발송에 성공했을 때만 기록한다 — 실패까지 "보냄"으로 남기면 Gmail 일시 장애 한 번에
-        # 리마인더가 영구 유실된다. 기록이 없으면 다음 틱(일정 시작 전까지)에 다시 시도한다.
-        if not _send_reminder_email(db, event, occurrence):
-            continue
-        _log_notified(db, event.id, occurrence)
-        sent += 1
-    return sent
+        try:
+            if _remind(db, event, occurrence):
+                reminded += 1
+        except Exception:
+            # 한 건의 실패가 세션을 오염시켜 나머지 리마인더의 log_sent 커밋까지 막지 않도록 롤백.
+            db.rollback()
+            logger.exception("event_reminder_failed event_id=%s", event.id)
+    return reminded
+
+
+def _remind(db: Session, event: Event, occurrence: datetime) -> bool:
+    body = email_templates.event_summary_text(event, occurrence)
+    result = notification_service.send_email_best_effort(db, f"[Nestlio] 일정 리마인더: {event.title}", body)
+    # Gmail 일시 오류("failed")면 기록하지 않는다 — "보냄"으로 남기면 장애 한 번에 리마인더가 영구
+    # 유실된다. 기록이 없으면 다음 틱(일정 시작 전까지)에 다시 시도한다. 미연결·토큰 만료("skipped")는
+    # 재시도해도 같으므로 인앱 알림만 남긴다.
+    if result == "failed":
+        return False
+    notification_log_service.log_sent(
+        db, NOTIF_TYPE, occurrence.isoformat(), related_id=event.id, related_type="event", detail=body
+    )
+    return True
 
 
 def _due_occurrences(event: Event, now: datetime, window_minutes: int) -> list[datetime]:
@@ -61,13 +82,13 @@ def _due_occurrences(event: Event, now: datetime, window_minutes: int) -> list[d
 
 def _already_notified_pairs(db: Session, event_ids: set[int]) -> set[tuple[int, str]]:
     """(event_id, occurrence.isoformat()) 쌍을 한 번의 쿼리로 모아온다 — occurrence마다
-    개별 SELECT를 던지던 이전 방식(N+1)을 피하기 위함."""
+    notification_log_service.already_sent를 부르면 N+1이 된다. 키 규칙은 _remind의 log_sent와 같다."""
     if not event_ids:
         return set()
     rows = (
         db.query(NotificationLog.related_id, NotificationLog.year_month)
         .filter(
-            NotificationLog.notif_type == "event_reminder",
+            NotificationLog.notif_type == NOTIF_TYPE,
             NotificationLog.related_id.in_(event_ids),
         )
         .all()
@@ -75,55 +96,18 @@ def _already_notified_pairs(db: Session, event_ids: set[int]) -> set[tuple[int, 
     return {(related_id, year_month) for related_id, year_month in rows}
 
 
-def _log_notified(db: Session, event_id: int, occurrence: datetime) -> None:
-    db.add(
-        NotificationLog(
-            notif_type="event_reminder",
-            related_type="event",
-            related_id=event_id,
-            year_month=occurrence.isoformat(),
-            status="sent",
-        )
-    )
-    db.commit()
-
-
-def _send_reminder_email(db: Session, event: Event, occurrence: datetime) -> bool:
-    body = _event_summary_text(event, occurrence)
+def notify_other_spouse_best_effort(db: Session, event: Event, actor_id: uuid.UUID, action_label: str) -> None:
+    """일정 생성·수정·삭제 직후 라우터가 호출한다. 설정된 수신자 중 행위자 본인 이메일은 빼고 보낸다 —
+    자기 자신에게 "방금 내가 한 행동" 메일을 보낼 필요는 없다(다른 알림과 달리 이 경로만 행위자를 배제).
+    메일 전용이라 인앱 알림은 남기지 않고, 실패해도 일정은 이미 저장됐으니 로그만 남긴다."""
     try:
-        gmail_service.send_email(
-            f"[Nestlio] 일정 리마인더: {event.title}", body, to=notification_settings_service.get_recipients(db)
+        actor = db.get(User, actor_id)
+        recipients = [
+            email for email in notification_settings_service.get_recipients(db) if actor is None or email != actor.email
+        ]
+        body = email_templates.event_summary_text(event, event.start_at, header=action_label)
+        notification_service.send_email_best_effort(
+            db, f"[Nestlio] {action_label}: {event.title}", body, to=recipients
         )
-    except Exception:  # 한 건 실패가 나머지 리마인더를 막지 않도록 로그만 남긴다(다음 틱에 재시도)
-        logger.exception("일정 리마인더 이메일 발송 실패: %s", event.title)
-        return False
-    return True
-
-
-def notify_other_spouse(db: Session, event: Event, actor_id: uuid.UUID, action_label: str) -> None:
-    """설정된 수신자 목록(notification_settings_service.get_recipients) 중 행위자 본인 이메일은
-    제외하고 보낸다 - 자기 자신에게 "방금 내가 한 행동" 메일을 보낼 필요는 없기 때문. 다른 발송
-    경로(notification_service)와 달리 이 함수만 행위자를 배제하는 이유가 여기 있다."""
-    if not is_connected():
-        return
-    actor = db.get(User, actor_id)
-    recipients = [email for email in notification_settings_service.get_recipients(db) if actor is None or email != actor.email]
-    if not recipients:
-        return
-    body = _event_summary_text(event, event.start_at, header=action_label)
-    try:
-        gmail_service.send_email(f"[Nestlio] {action_label}: {event.title}", body, to=recipients)
-    except Exception:  # best-effort 부수효과, 로그만 남기고 진행
-        logger.exception("일정 알림 이메일 발송 실패: %s", event.title)
-
-
-def _event_summary_text(event: Event, when: datetime, header: str | None = None) -> str:
-    lines = [header] if header else []
-    lines.append(event.title)
-    lines.append(f"일시: {when.strftime('%Y-%m-%d %H:%M')}")
-    if event.location:
-        lines.append(f"장소: {event.location}")
-    if event.description:
-        lines.append("")
-        lines.append(event.description)
-    return "\n".join(lines)
+    except Exception:
+        logger.exception("일정 알림 이메일 처리 실패 (일정은 정상 저장됨): %s", event.title)

@@ -30,9 +30,8 @@ def build(db: Session, *, year_month: str | None = None, today: date | None = No
     anchor = parse_year_month(year_month) if year_month else today
     start, end = month_bounds(anchor)
 
-    totals = transaction_report_service.period_totals(db, start, end)
-    owner_totals = transaction_report_service.totals_by_owner(db, start, end)
-    expense_breakdown = transaction_report_service.category_breakdown(db, start, end, "expense")
+    snapshot = transaction_report_service.period_snapshot(db, start, end)
+    totals, owner_totals, expense_breakdown = snapshot["totals"], snapshot["owner_totals"], snapshot["breakdown"]
     current_ym = year_month_str(start)
     goals = goal_service.list_goals(db)
     actual_saved = net_worth_service.savings_delta(db, current_ym)
@@ -79,23 +78,26 @@ def build(db: Session, *, year_month: str | None = None, today: date | None = No
     }
 
 
-def build_retrospective(db: Session, today: date) -> dict:
-    """지난달(가장 최근 완결된 달) 회고 데이터의 단일 소스. 대시보드의 월간 회고 카드
-    (GET /dashboard/retrospective)와 월간 요약 이메일(notification_service.send_monthly_summary)이 같은
-    기간·집계를 쓴다 — 이메일은 이 결과에 저축 스트릭·부부 기여도 문구를 얹고 HTML로 렌더한다."""
+def retrospective_period(today: date) -> tuple[date, date, str]:
+    """회고 대상 = 지난달(가장 최근 완결된 달)의 (시작일, 말일, "YYYY-MM"). 월간 메일은 집계 전에
+    이 키로 켜짐·중복 여부부터 확인한다."""
     start, end = month_bounds(shift_month(today, -1))
-    year_month = year_month_str(start)
-    totals = transaction_report_service.period_totals(db, start, end)
-    owner_totals = transaction_report_service.totals_by_owner(db, start, end)
-    breakdown = transaction_report_service.category_breakdown(db, start, end, "expense")
-    insights = coaching_engine.compute_insights(db, year_month, totals=totals, breakdown=breakdown)
+    return start, end, year_month_str(start)
+
+
+def build_retrospective(db: Session, today: date) -> dict:
+    """지난달 회고 데이터의 단일 소스. 대시보드의 월간 회고 카드(GET /dashboard/retrospective)와
+    월간 요약 이메일(notification_service.send_monthly_summary)이 같은 기간·집계를 쓴다 — 이메일은
+    이 결과에 저축 스트릭·부부 기여도 문구를 얹고 HTML로 렌더한다."""
+    start, end, year_month = retrospective_period(today)
+    snapshot = transaction_report_service.period_snapshot(db, start, end)
+    breakdown = snapshot["breakdown"]
+    insights = coaching_engine.compute_insights(db, year_month, totals=snapshot["totals"], breakdown=breakdown)
     return {
         "year_month": year_month,
         "start": start,
         "end": end,
-        "totals": totals,
-        "owner_totals": owner_totals,
-        "breakdown": breakdown,
+        **snapshot,
         "top_categories": breakdown[:3],
         "insights": insights,
     }

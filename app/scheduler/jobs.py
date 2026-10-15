@@ -10,7 +10,6 @@ from app.services import (
     notification_service,
     recurring_service,
 )
-from app.services.google_auth import is_connected
 from app.utils.dates import now_kst, today_kst
 
 logger = logging.getLogger("scheduler")
@@ -99,7 +98,6 @@ def event_reminder_check(db) -> None:
 
     윈도우를 실행 주기(15분)보다 넓은 30분으로 잡는다 — GitHub Actions cron은 best-effort라
     5~15분씩 밀리거나 틱이 통째로 누락될 수 있는데, 좁은 윈도우면 그 사이 리마인더가 조용히
-    유실된다. 중복 발송은 send_due_reminders의 NotificationLog dedup이 막는다."""
-    if not is_connected():
-        return
+    유실된다. 중복 발송은 send_due_reminders의 NotificationLog dedup이 막는다. Google 미연결이어도
+    돌린다 — 인앱 리마인더는 남고 메일만 건너뛴다(다른 잡과 같은 규칙)."""
     event_reminder_service.send_due_reminders(db, now=now_kst(), window_minutes=30)

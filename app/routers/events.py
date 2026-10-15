@@ -13,7 +13,7 @@ from app.schemas.event import (
     EventOut,
     EventUpdateIn,
 )
-from app.services import event_service, recurring_service
+from app.services import event_reminder_service, event_service, recurring_service
 from app.utils.dates import month_bounds, today_kst
 
 router = APIRouter(prefix="/events", tags=["events"])
@@ -55,6 +55,7 @@ def create_event(
         reminder_minutes_before=payload.reminder_minutes_before,
         assignee_id=payload.assignee_id,
     )
+    event_reminder_service.notify_other_spouse_best_effort(db, event, current_user.id, "새 일정이 등록되었습니다")
     return event_service.to_out_dict(event)
 
 
@@ -68,7 +69,6 @@ def update_event(
     event = event_service.update_event(
         db,
         event_id,
-        actor_id=current_user.id,
         title=payload.title,
         description=payload.description,
         location=payload.location,
@@ -82,6 +82,7 @@ def update_event(
     )
     if event is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="일정을 찾을 수 없습니다.")
+    event_reminder_service.notify_other_spouse_best_effort(db, event, current_user.id, "일정이 변경되었습니다")
     return event_service.to_out_dict(event)
 
 
@@ -104,6 +105,7 @@ def delete_event(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    deleted = event_service.delete_event(db, event_id, actor_id=current_user.id)
-    if not deleted:
+    deleted = event_service.delete_event(db, event_id)
+    if deleted is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="일정을 찾을 수 없습니다.")
+    event_reminder_service.notify_other_spouse_best_effort(db, deleted, current_user.id, "일정이 삭제되었습니다")

@@ -9,7 +9,7 @@ from app.config import settings
 from app.errors import ConflictError, DomainError, ForbiddenError, NotFoundError
 from app.models.invite import Invite
 from app.models.user import User
-from app.services import gmail_service, user_service
+from app.services import email_templates, gmail_service, user_service
 from app.services.google_auth import is_connected
 from app.utils.dates import now_kst
 
@@ -62,12 +62,9 @@ def to_out(invite: Invite) -> dict:
 def _send_invite_email(invite: Invite) -> bool:
     if not is_connected():
         return False
-    body = (
-        "nestlio에 배우자로 초대되었습니다.\n\n"
-        f"아래 링크에서 계정을 만들어주세요 (7일 이내 유효):\n{_accept_url(invite.token)}"
-    )
+    subject, body = email_templates.invite_message(_accept_url(invite.token), INVITE_EXPIRY_DAYS)
     try:
-        gmail_service.send_email("[Nestlio] 배우자 초대", body, to=invite.email)
+        gmail_service.send_email(subject, body, to=invite.email)
         return True
     except Exception:
         logger.exception("배우자 초대 이메일 발송 실패: %s", invite.email)
