@@ -1,6 +1,7 @@
 import { apiDelete, apiGet, apiPost, apiPut } from "@/api/client";
 import type {
   CoachingThresholdsIn,
+  InsuranceTargetsIn,
   NotificationPrefsIn,
   NotifyEmailsIn,
   SettingsOut,
@@ -14,6 +15,9 @@ export const setNotifyEmails = (emails: string[]) =>
 
 export const setCoachingThresholds = (payload: CoachingThresholdsIn) =>
   apiPut<SettingsOut>("/settings/coaching-thresholds", payload);
+
+export const setInsuranceTargets = (payload: InsuranceTargetsIn) =>
+  apiPut<SettingsOut>("/settings/insurance-targets", payload);
 
 export const setNotificationPrefs = (payload: NotificationPrefsIn) =>
   apiPut<SettingsOut>("/settings/notification-prefs", payload);

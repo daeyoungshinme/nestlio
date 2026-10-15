@@ -338,6 +338,18 @@ export function recurringAccentBadgeStyle(): string {
   return "bg-indigo-50 dark:bg-indigo-950 text-indigo-600 dark:text-indigo-400";
 }
 
+const COVERAGE_STATUS_BADGE: Record<"over" | "ok" | "gap" | "no_target", string> = {
+  over: "bg-amber-50 dark:bg-amber-950 text-amber-700 dark:text-amber-300",
+  ok: "bg-primary-50 dark:bg-primary-950 text-primary-700 dark:text-primary-300",
+  gap: "bg-blue-50 dark:bg-blue-950 text-blue-700 dark:text-blue-300",
+  no_target: "bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400",
+};
+
+/** 보험 보장 현황표 상태 배지 — 과다(줄일 후보, amber)·적정(primary)·부족(줄이지 말 곳, blue)·기준 없음(gray). */
+export function coverageStatusBadgeClass(status: "over" | "ok" | "gap" | "no_target"): string {
+  return COVERAGE_STATUS_BADGE[status];
+}
+
 /** 다중 선택 칩(선택/미선택) — 보험 보장 태그 등. 반복 규칙 칩(indigo)과 달리 앱 accent(primary)를 쓴다. */
 export function selectableChipClass(selected: boolean): string {
   return selected
