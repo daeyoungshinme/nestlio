@@ -242,7 +242,7 @@ def unregistered_premium_finding(
         "unregistered_premium",
         "info",
         title,
-        f"보험료 카테고리 지출은 월 평균 {_won(actual_monthly)}인데 등록한 계약은 월 {_won(registered_monthly)}예요. "
+        f"보험료 카테고리 지출은 월 평균 {_won(actual_monthly)}인데 등록한 계약은 월 {_won(registered_monthly)}이에요. "
         "자동차세처럼 보험이 아닌 지출이 같은 카테고리에 섞여 있다면 무시하셔도 돼요.",
     )
 
