@@ -582,6 +582,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/reports/savings-review": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Savings Review */
+        get: operations["savings_review_api_v1_reports_savings_review_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/settings": {
         parameters: {
             query?: never;
@@ -3387,6 +3404,31 @@ export interface components {
             /** Reminder Days Before */
             reminder_days_before?: number | null;
         };
+        /** SavingOpportunityOut */
+        SavingOpportunityOut: {
+            /**
+             * Rule Code
+             * @enum {string}
+             */
+            rule_code: "trend_up" | "benchmark_excess" | "chronic_overrun" | "small_frequent" | "subscription" | "unregistered_recurring";
+            /**
+             * Severity
+             * @enum {string}
+             */
+            severity: "info" | "warning" | "critical";
+            /** Category Id */
+            category_id: number | null;
+            /** Title */
+            title: string;
+            /** Detail */
+            detail: string;
+            /** Current Monthly Amount */
+            current_monthly_amount: string;
+            /** Estimated Monthly Saving */
+            estimated_monthly_saving: string;
+            /** Related */
+            related: string[];
+        };
         /** SavingsProductAnnualPlanDetailOut */
         SavingsProductAnnualPlanDetailOut: {
             /** Product Id */
@@ -3616,6 +3658,14 @@ export interface components {
             /** Owner User Id */
             owner_user_id?: string | null;
         };
+        /** SavingsReviewOut */
+        SavingsReviewOut: {
+            /** Year Month */
+            year_month: string;
+            spending: components["schemas"]["SpendingReviewOut"];
+            /** Total Estimated Monthly Saving */
+            total_estimated_monthly_saving: string;
+        };
         /** SettingsOut */
         SettingsOut: {
             /** Google Connected */
@@ -3635,6 +3685,17 @@ export interface components {
             row: string[];
             /** Reason */
             reason: string;
+        };
+        /** SpendingReviewOut */
+        SpendingReviewOut: {
+            /** Year Month */
+            year_month: string;
+            /** Months Analyzed */
+            months_analyzed: number;
+            /** Items */
+            items: components["schemas"]["SavingOpportunityOut"][];
+            /** Total Estimated Monthly Saving */
+            total_estimated_monthly_saving: string;
         };
         /**
          * SurplusAllocationOut
@@ -5234,6 +5295,40 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["CategoryTrendOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    savings_review_api_v1_reports_savings_review_get: {
+        parameters: {
+            query?: {
+                year_month?: string | null;
+                owner?: string | null;
+            };
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SavingsReviewOut"];
                 };
             };
             /** @description Validation Error */
