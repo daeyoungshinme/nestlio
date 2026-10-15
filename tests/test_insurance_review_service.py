@@ -293,7 +293,14 @@ def test_plan_reduction_cuts_renewable_then_least_efficient_first():
 
 
 def test_over_coverage_finding_and_gap_skip_people_without_riders():
-    mine = _with_riders(1, [("암A", "cancer", "40000000", "40000", False), ("암B", "cancer", "20000000", "30000", True)])
+    mine = _with_riders(
+        1,
+        [
+            ("암A", "cancer", "40000000", "40000", False),
+            ("암B", "cancer", "20000000", "30000", True),
+            ("뇌졸중", "stroke", "10000000", "10000", False),
+        ],
+    )
     child_no_riders = _policy(2, insured=None, insured_name="아이", coverages=["cancer"])
 
     findings, table = coverage_amount_findings([mine, child_no_riders], NAMES, TARGETS, 20)
@@ -303,8 +310,9 @@ def test_over_coverage_finding_and_gap_skip_people_without_riders():
     assert over[0].estimated_monthly_saving == D("30000") + D("10000")  # 암B(갱신형) 2,000만 전액 + 암A 1,000만/4,000만
     assert {row["insured_label"] for row in table} == {"대영"}
     gaps = {f.title for f in findings if f.rule_code == "coverage_gap"}
-    assert any("뇌혈관" in t for t in gaps)  # 입력한 특약 기준 0원 < 기준
-    assert not any("사망" in row["coverage"] for row in table)  # 기준 0 + 합계 0이면 행 없음
+    assert gaps == {"대영님 뇌혈관 보장은 10,000,000원으로 기준(20,000,000원)보다 적어요"}
+    # 특약을 하나도 넣지 않은 보장(심장·사망 등)은 미입력일 수 있어 표·점검에서 뺀다.
+    assert {row["coverage"] for row in table} == {"cancer", "stroke"}
 
 
 @pytest.mark.parametrize("renewable_premium,flagged", [("49999", False), ("50000", True)])
@@ -340,3 +348,11 @@ def test_build_review_total_adds_duplicates_and_over_coverage(seeded_db):
     cancer_row = next(r for r in review["summary"]["coverage_table"] if r["coverage"] == "cancer")
     assert cancer_row["status"] == "over" and cancer_row["total_amount"] == D("60000000")
     assert review["summary"]["top_riders"][0]["rider_name"] == "암1"
+
+
+def test_coverage_overlap_leaves_indemnity_types_to_duplicate_rule():
+    a = _policy(1, coverages=["liability", "cancer"])
+    b = _policy(2, coverages=["liability", "cancer"])
+    [finding] = coverage_overlap_findings([a, b], NAMES)
+    assert "암진단 2건" in finding.title
+    assert "일상배상" not in finding.title

@@ -249,7 +249,8 @@ def coverage_amount_findings(
                 status = "gap"
             else:
                 status = "ok"
-            if status == "no_target" and total == 0:
+            # 이 보장 특약을 하나도 안 넣었으면 부족이 아니라 미입력일 가능성이 크다(주요 특약만 입력) — 표·점검에서 뺀다.
+            if total == 0:
                 continue
             table.append(
                 {
@@ -270,7 +271,7 @@ def coverage_amount_findings(
                     InsuranceFinding(
                         "over_coverage",
                         "warning",
-                        f"{who}님 {label} 보장이 {_amount_label(coverage, total)}로 기준({_amount_label(coverage, target)})보다 많아요",
+                        f"{who}님 {label} 보장이 {_amount_label(coverage, total)}으로 기준({_amount_label(coverage, target)})보다 많아요",
                         f"기준까지 줄인다면 {steps}을 검토해 보세요(갱신형·보험료 대비 보장이 작은 특약 먼저). "
                         "특약 감액·해지가 되는지, 해약환급금은 얼마인지 보험사에 먼저 확인하세요.",
                         saving,
@@ -282,7 +283,7 @@ def coverage_amount_findings(
                     InsuranceFinding(
                         "coverage_gap",
                         "info",
-                        f"{who}님 {label} 보장은 {_amount_label(coverage, total)}로 기준({_amount_label(coverage, target)})보다 적어요",
+                        f"{who}님 {label} 보장은 {_amount_label(coverage, total)}으로 기준({_amount_label(coverage, target)})보다 적어요",
                         "보험료를 줄일 때 이 보장은 남겨 두세요. 입력하지 않은 특약이 있다면 추가하면 더 정확해져요.",
                         policy_ids=sorted({p.id for p, _ in riders}),
                     )
@@ -347,13 +348,14 @@ def top_riders(policies: list[InsurancePolicy], limit: int = 5) -> list[dict]:
 def coverage_overlap_findings(
     policies: list[InsurancePolicy], user_names: dict[uuid.UUID, str]
 ) -> list[InsuranceFinding]:
-    """같은 피보험자 + 같은 정액형 보장(실손 제외)이 2건 이상. 정액형은 겹쳐도 각각 받으니 '필요 이상인지' 확인만 권한다."""
+    """같은 피보험자 + 같은 정액형 보장이 2건 이상. 정액형은 겹쳐도 각각 받으니 '필요 이상인지' 확인만 권한다.
+    비례보상 보장(실손·일상배상·운전자 비용)의 중복은 indemnity_duplicate가 따로 본다."""
     result = []
     for group in _by_insured(policies).values():
         by_coverage: dict[str, list[InsurancePolicy]] = defaultdict(list)
         for policy in group:
             for coverage in dict.fromkeys(policy.coverages or []):
-                if coverage != "medical_indemnity":
+                if coverage not in INDEMNITY_COVERAGES:
                     by_coverage[coverage].append(policy)
         overlapping = {c: ps for c, ps in by_coverage.items() if len(ps) >= 2}
         if not overlapping:
