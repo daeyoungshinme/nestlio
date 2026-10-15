@@ -22,6 +22,7 @@ import ProgressBar from "@/components/common/ProgressBar";
 import SkeletonCard from "@/components/common/SkeletonCard";
 import QueryBoundary from "@/components/common/QueryBoundary";
 import EmptyState from "@/components/common/EmptyState";
+import SavingsReviewLinkCard from "@/components/review/SavingsReviewLinkCard";
 import { fetchCategoryTrend, fetchYearlyReport } from "@/api/reports";
 import { useUsers } from "@/hooks/useReferenceData";
 import { QUERY_KEYS } from "@/constants/queryKeys";
@@ -238,6 +239,8 @@ export default function YearlyReportSection({ year }: { year: number }) {
                 </div>
               )}
             </div>
+
+            <SavingsReviewLinkCard />
           </div>
       )}
     </QueryBoundary>

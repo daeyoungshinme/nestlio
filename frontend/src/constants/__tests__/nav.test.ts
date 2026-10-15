@@ -15,6 +15,7 @@ describe("nav", () => {
     ["/goals/3", "목표"],
     ["/settings", "설정"],
     ["/categories", "카테고리"],
+    ["/review", "절감 점검"],
     ["/unknown", undefined],
   ])("pageTitleFor(%s) = %s", (path, expected) => {
     expect(pageTitleFor(path)).toBe(expected);

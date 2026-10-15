@@ -67,6 +67,11 @@ export const QUERY_KEYS = {
   netWorthAll: ["net-worth"] as const,
   netWorthGrowlioUnlinked: ["net-worth", "growlio-unlinked"] as const,
   recurring: ["recurring"] as const,
+  /** 절감 점검 — 거래·계획·반복거래·보험 계약에서 계산하므로 그쪽이 바뀌면 savingsReviewAll을 무효화한다. */
+  savingsReview: (yearMonth: string | undefined, owner?: string) =>
+    ["savings-review", yearMonth ?? "default", owner ?? "all"] as const,
+  savingsReviewAll: ["savings-review"] as const,
+  insurancePolicies: ["insurance-policies"] as const,
   notifications: ["notifications"] as const,
 };
 

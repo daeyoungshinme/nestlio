@@ -338,6 +338,13 @@ export function recurringAccentBadgeStyle(): string {
   return "bg-indigo-50 dark:bg-indigo-950 text-indigo-600 dark:text-indigo-400";
 }
 
+/** 다중 선택 칩(선택/미선택) — 보험 보장 태그 등. 반복 규칙 칩(indigo)과 달리 앱 accent(primary)를 쓴다. */
+export function selectableChipClass(selected: boolean): string {
+  return selected
+    ? "bg-primary text-white"
+    : "bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700";
+}
+
 /** 반복 규칙 선택 칩(활성 상태) — RecurringForm의 요일/주기 토글. */
 export function recurringSelectedChipClass(): string {
   return "bg-indigo-600 text-white";
