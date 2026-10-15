@@ -70,6 +70,10 @@ InsuranceFindingRule = Literal[
     "savings_type",
     "payment_ending",
     "unregistered_premium",
+    "over_coverage",
+    "coverage_gap",
+    "renewable_rider_share",
+    "rider_premium_mismatch",
 ]
 
 
@@ -88,6 +92,23 @@ class InsuredPremiumOut(BaseModel):
     count: int
 
 
+class CoverageStatusOut(BaseModel):
+    insured_label: str
+    coverage: str
+    total_amount: Decimal
+    target_amount: Decimal
+    status: Literal["over", "ok", "gap", "no_target"]
+    rider_count: int
+
+
+class TopRiderOut(BaseModel):
+    policy_name: str
+    rider_name: str
+    coverage: str
+    monthly_premium: Decimal
+    is_renewable: bool
+
+
 class InsuranceSummaryOut(BaseModel):
     policies_count: int
     total_monthly_premium: Decimal
@@ -97,6 +118,8 @@ class InsuranceSummaryOut(BaseModel):
     protection_income_pct: float | None
     guideline_pct: float
     by_insured: list[InsuredPremiumOut]
+    coverage_table: list[CoverageStatusOut]
+    top_riders: list[TopRiderOut]
 
 
 class InsuranceReviewOut(BaseModel):

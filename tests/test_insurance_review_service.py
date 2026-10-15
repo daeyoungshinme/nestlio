@@ -5,14 +5,20 @@ from decimal import Decimal
 import pytest
 
 from app.models.insurance_policy import InsurancePolicy
+from app.models.insurance_rider import InsuranceRider
 from app.services import insurance_review_service, insurance_service, transaction_service
 from app.services.insurance_review_service import (
+    coverage_amount_findings,
     coverage_overlap_findings,
     indemnity_duplicate_findings,
     insurance_ratio_finding,
     payment_ending_findings,
+    plan_reduction,
+    renewable_rider_share_findings,
     renewal_findings,
+    rider_premium_mismatch_findings,
     savings_type_finding,
+    top_riders,
     unregistered_premium_finding,
 )
 
@@ -216,3 +222,137 @@ def test_auto_policy_is_always_renewable(seeded_db):
     policy = _create(seeded_db["db"], policy_type="auto", is_renewable=False, next_renewal_date=date(2026, 11, 1))
     assert policy.is_renewable
     assert policy.next_renewal_date == date(2026, 11, 1)
+
+
+# --- 특약 기반 규칙 ------------------------------------------------------------------------
+
+TARGETS = {"cancer": D("30000000"), "stroke": D("20000000"), "heart": D("20000000"),
+           "hospitalization": D("30000"), "death": D("0"), "disability": D("100000000")}
+
+
+def _with_riders(id_, riders, premium="100000", **kw):
+    policy = _policy(id_, kw.pop("policy_type", "diagnosis"), premium, **kw)
+    policy.riders = [
+        InsuranceRider(id=id_ * 100 + i, name=n, coverage=c, coverage_amount=D(a) if a else None, premium=D(p),
+                       is_renewable=r, sort_order=i)
+        for i, (n, c, a, p, r) in enumerate(riders)
+    ]
+    return policy
+
+
+def test_indemnity_duplicate_counts_riders_inside_other_policies():
+    standalone = _policy(1, "indemnity", "25000", name="실손보험")
+    combo = _with_riders(2, [("질병실손", "medical_indemnity", None, "15000", True), ("암진단", "cancer", "30000000", "30000", False)])
+    liability_a = _with_riders(3, [("일상배상", "liability", "100000000", "1000", False)], premium="50000")
+    liability_b = _with_riders(4, [("가족일상배상", "liability", "100000000", "1500", False)], premium="60000")
+    child = _with_riders(5, [("실손", "medical_indemnity", None, "9000", False)], insured=None, insured_name="아이")
+
+    findings = indemnity_duplicate_findings([standalone, combo, liability_a, liability_b, child], NAMES)
+
+    by_title = {f.title: f for f in findings}
+    assert by_title["대영님 실손보험이 2개예요"].estimated_monthly_saving == D("15000")  # 25,000 남기고 15,000
+    assert by_title["대영님 일상배상책임 보장이 2곳에 있어요"].estimated_monthly_saving == D("1000")
+    assert len(findings) == 2  # 아이 실손 1건은 중복 아님
+
+
+def test_indemnity_duplicate_from_tags_without_riders_has_unknown_saving():
+    a = _policy(1, "accident", coverages=["driver_legal"])
+    b = _policy(2, "auto", coverages=["driver_legal"])
+    [finding] = indemnity_duplicate_findings([a, b], NAMES)
+    assert finding.estimated_monthly_saving == 0
+
+
+@pytest.mark.parametrize(
+    "amounts,expected_status",
+    [
+        (["20000000"], "gap"),
+        (["30000000"], "ok"),
+        (["36000000"], "ok"),  # 기준 × 1.2 = 36,000,000 경계는 ok
+        (["36000001"], "over"),
+    ],
+)
+def test_coverage_status_tolerance_boundary(amounts, expected_status):
+    policy = _with_riders(1, [(f"암{i}", "cancer", a, "30000", False) for i, a in enumerate(amounts)])
+    _, table = coverage_amount_findings([policy], NAMES, TARGETS, 20)
+    cancer = next(row for row in table if row["coverage"] == "cancer")
+    assert cancer["status"] == expected_status
+
+
+def test_plan_reduction_cuts_renewable_then_least_efficient_first():
+    efficient = _with_riders(1, [("암A", "cancer", "30000000", "30000", False)])  # 1,000원/100만
+    pricey = _with_riders(2, [("암B", "cancer", "20000000", "40000", False)])  # 2,000원/100만
+    renewable = _with_riders(3, [("암C", "cancer", "10000000", "5000", True)])
+    riders = [(p, r) for p in (efficient, pricey, renewable) for r in p.riders]
+
+    plan = plan_reduction(riders, D("25000000"))
+
+    assert [(r.name, cut, saving) for _, r, cut, saving in plan] == [
+        ("암C", D("10000000"), D("5000")),  # 갱신형 먼저 전액
+        ("암B", D("15000000"), D("30000")),  # 그다음 효율 낮은 특약 일부(40,000 × 15/20)
+    ]
+
+
+def test_over_coverage_finding_and_gap_skip_people_without_riders():
+    mine = _with_riders(
+        1,
+        [
+            ("암A", "cancer", "40000000", "40000", False),
+            ("암B", "cancer", "20000000", "30000", True),
+            ("뇌졸중", "stroke", "10000000", "10000", False),
+        ],
+    )
+    child_no_riders = _policy(2, insured=None, insured_name="아이", coverages=["cancer"])
+
+    findings, table = coverage_amount_findings([mine, child_no_riders], NAMES, TARGETS, 20)
+
+    over = [f for f in findings if f.rule_code == "over_coverage"]
+    assert len(over) == 1
+    assert over[0].estimated_monthly_saving == D("30000") + D("10000")  # 암B(갱신형) 2,000만 전액 + 암A 1,000만/4,000만
+    assert {row["insured_label"] for row in table} == {"대영"}
+    gaps = {f.title for f in findings if f.rule_code == "coverage_gap"}
+    assert gaps == {"대영님 뇌혈관 보장은 10,000,000원으로 기준(20,000,000원)보다 적어요"}
+    # 특약을 하나도 넣지 않은 보장(심장·사망 등)은 미입력일 수 있어 표·점검에서 뺀다.
+    assert {row["coverage"] for row in table} == {"cancer", "stroke"}
+
+
+@pytest.mark.parametrize("renewable_premium,flagged", [("49999", False), ("50000", True)])
+def test_renewable_rider_share_boundary(renewable_premium, flagged):
+    policy = _with_riders(1, [("갱신 암", "cancer", "10000000", renewable_premium, True)], premium="100000")
+    assert bool(renewable_rider_share_findings([policy], 50)) is flagged
+
+
+def test_rider_premium_mismatch_and_top_riders():
+    policy = _with_riders(1, [("A", "cancer", "1", "70000", False), ("B", "stroke", "1", "40000", True)], premium="100000")
+    assert [f.rule_code for f in rider_premium_mismatch_findings([policy])] == ["rider_premium_mismatch"]
+    assert [r["rider_name"] for r in top_riders([policy])] == ["A", "B"]
+
+
+def test_build_review_total_adds_duplicates_and_over_coverage(seeded_db):
+    db, user = seeded_db["db"], seeded_db["user"]
+
+    def rider(name, coverage, amount, premium, renewable=False):
+        return {"name": name, "coverage": coverage, "coverage_amount": D(amount) if amount else None,
+                "premium": D(premium), "is_renewable": renewable, "end_date": None}
+
+    _create(db, name="실손", insured_user_id=user.id, premium_amount=D("20000"))
+    _create(db, name="종합", policy_type="diagnosis", insured_user_id=user.id, premium_amount=D("100000"),
+            riders=[rider("질병실손", "medical_indemnity", None, "10000"), rider("암1", "cancer", "40000000", "40000"),
+                    rider("암2", "cancer", "20000000", "20000")])
+
+    review = insurance_review_service.build_insurance_review(db, today=TODAY)
+
+    codes = [f["rule_code"] for f in review["findings"]]
+    assert "indemnity_duplicate" in codes and "over_coverage" in codes
+    # 실손 중복 10,000 + 암 3,000만 초과분 감액(효율 같음 → 암1 4,000만 중 3,000만 = 30,000) = 40,000
+    assert review["total_estimated_monthly_saving"] == D("40000")
+    cancer_row = next(r for r in review["summary"]["coverage_table"] if r["coverage"] == "cancer")
+    assert cancer_row["status"] == "over" and cancer_row["total_amount"] == D("60000000")
+    assert review["summary"]["top_riders"][0]["rider_name"] == "암1"
+
+
+def test_coverage_overlap_leaves_indemnity_types_to_duplicate_rule():
+    a = _policy(1, coverages=["liability", "cancer"])
+    b = _policy(2, coverages=["liability", "cancer"])
+    [finding] = coverage_overlap_findings([a, b], NAMES)
+    assert "암진단 2건" in finding.title
+    assert "일상배상" not in finding.title

@@ -115,6 +115,7 @@ class Settings(BaseSettings):
     insurance_target_death: int = 100_000_000
     insurance_target_disability: int = 100_000_000
     insurance_over_coverage_tolerance_pct: float = 20
+    insurance_renewable_rider_share_pct: float = 50
 
     max_upload_size_mb: int = 5
 

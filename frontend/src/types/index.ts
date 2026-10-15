@@ -1067,7 +1067,11 @@ export type InsuranceFindingRule =
   | "auto_renewal_soon"
   | "savings_type"
   | "payment_ending"
-  | "unregistered_premium";
+  | "unregistered_premium"
+  | "over_coverage"
+  | "coverage_gap"
+  | "renewable_rider_share"
+  | "rider_premium_mismatch";
 
 export interface InsuranceFindingOut {
   rule_code: InsuranceFindingRule;
@@ -1084,6 +1088,26 @@ export interface InsuredPremiumOut {
   count: number;
 }
 
+export type CoverageStatus = "over" | "ok" | "gap" | "no_target";
+
+/** 피보험자 × 정액 보장별 합계 가입금액 vs 적정 기준(입력한 특약 기준). coverage는 Coverage 키(백엔드 str). */
+export interface CoverageStatusOut {
+  insured_label: string;
+  coverage: string;
+  total_amount: string;
+  target_amount: string;
+  status: CoverageStatus;
+  rider_count: number;
+}
+
+export interface TopRiderOut {
+  policy_name: string;
+  rider_name: string;
+  coverage: string;
+  monthly_premium: string;
+  is_renewable: boolean;
+}
+
 export interface InsuranceSummaryOut {
   policies_count: number;
   total_monthly_premium: string;
@@ -1093,6 +1117,8 @@ export interface InsuranceSummaryOut {
   protection_income_pct: number | null;
   guideline_pct: number;
   by_insured: InsuredPremiumOut[];
+  coverage_table: CoverageStatusOut[];
+  top_riders: TopRiderOut[];
 }
 
 export interface InsuranceReviewOut {
