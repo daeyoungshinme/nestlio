@@ -8,3 +8,12 @@ def whole_won(amount: Decimal) -> Decimal:
     소수가 남은 채로 제안값에 나가면 Numeric(12,2) 컬럼에 33333.33처럼 저장돼, 저장된 예산과 제안값이
     영원히 달라 "제안 적용" 박스가 사라지지 않는다."""
     return amount.quantize(_WON)
+
+
+def monthly_equivalent(amount: Decimal, frequency: str, occurrences_per_month: int = 1) -> Decimal:
+    """반복 금액(weekly/monthly/yearly)을 월 환산액으로. 월 여러 번(`days_of_month`)이면 occurrences_per_month로 곱한다."""
+    if frequency == "weekly":
+        return whole_won(amount * 52 / 12)
+    if frequency == "yearly":
+        return whole_won(amount / 12)
+    return whole_won(amount * max(occurrences_per_month, 1))

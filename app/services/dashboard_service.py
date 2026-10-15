@@ -18,6 +18,7 @@ from app.services import (
     savings_coaching_service,
     savings_product_service,
     settings_service,
+    spending_review_service,
     transaction_report_service,
     transaction_trend_service,
     user_service,
@@ -136,4 +137,16 @@ def yearly_report(db: Session, year: int, owner_filter) -> dict:
         "totals": totals,
         "breakdown": breakdown,
         "benchmark": coaching_engine.category_benchmark_rows(totals, breakdown, benchmark_pcts),
+    }
+
+
+def build_savings_review(db: Session, year_month: str | None, owner_filter, today: date) -> dict:
+    """절감 점검 화면(SavingsReviewOut). 기준월 기본값은 지난달 — spending_review_service.default_year_month.
+    owner_filter는 yearly_report와 같은 값(None=가구 전체, "shared"=공통, UUID=배우자)."""
+    year_month = year_month or spending_review_service.default_year_month(today)
+    spending = spending_review_service.build_spending_review(db, year_month, owner=owner_filter, today=today)
+    return {
+        "year_month": year_month,
+        "spending": spending,
+        "total_estimated_monthly_saving": spending["total_estimated_monthly_saving"],
     }

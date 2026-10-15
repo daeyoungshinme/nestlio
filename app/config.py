@@ -92,6 +92,16 @@ class Settings(BaseSettings):
     benchmark_education_warn_pct: float = 10
     benchmark_insurance_warn_pct: float = 8
 
+    # 절감 점검(spending_review_service) — 뜻은 그 파일 상단 주석 참고
+    spending_review_lookback_months: int = 6
+    chronic_overrun_months: int = 3
+    recurring_detect_window_months: int = 4
+    recurring_detect_min_months: int = 3
+    recurring_detect_tolerance_pct: float = 10
+    small_spend_max_amount: int = 15000
+    small_spend_min_count: int = 8
+    small_spend_cut_pct: float = 30
+
     max_upload_size_mb: int = 5
 
     # /internal/jobs/* 엔드포인트 인증용 공유 시크릿 (GitHub Actions 예약 워크플로가 호출)
