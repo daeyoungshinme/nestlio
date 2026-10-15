@@ -58,3 +58,31 @@ def test_legacy_values_fall_back_on_output(client, seeded_db):
     [policy] = client.get("/api/v1/insurance-policies").json()
     assert policy["policy_type"] == "other"
     assert policy["coverages"] == ["cancer"]
+
+
+def test_riders_roundtrip_and_limits(client):
+    rider = {"name": "암진단", "coverage": "cancer", "coverage_amount": "30000000", "premium": "40000"}
+    resp = client.post("/api/v1/insurance-policies", json={**BODY, "premium_amount": "60000", "payment_frequency": "monthly", "riders": [rider]})
+    assert resp.status_code == 201
+    body = resp.json()
+    assert body["riders"][0]["coverage"] == "cancer"
+    assert Decimal(body["riders_monthly_premium"]) == Decimal("40000")
+    assert Decimal(body["main_monthly_premium"]) == Decimal("20000")
+
+    assert client.post("/api/v1/insurance-policies", json={**BODY, "riders": [rider] * 41}).status_code == 422
+    assert client.post("/api/v1/insurance-policies", json={**BODY, "riders": [{**rider, "coverage": "pet"}]}).status_code == 422
+    assert client.post("/api/v1/insurance-policies", json={**BODY, "riders": [{**rider, "coverage_amount": "1000000000000"}]}).status_code == 422
+
+
+def test_legacy_rider_coverage_falls_back_to_other(client, seeded_db):
+    from app.models.insurance_rider import InsuranceRider
+
+    db = seeded_db["db"]
+    policy = InsurancePolicy(name="옛", policy_type="other", premium_amount=10000, payment_frequency="monthly",
+                             is_renewable=False, coverages=[], is_active=True, sort_order=0)
+    policy.riders = [InsuranceRider(name="옛 특약", coverage="old_tag", premium=1000, is_renewable=False, sort_order=0)]
+    db.add(policy)
+    db.commit()
+
+    [out] = client.get("/api/v1/insurance-policies").json()
+    assert out["riders"][0]["coverage"] == "other"

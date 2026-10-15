@@ -1,8 +1,10 @@
 import re
+from decimal import Decimal
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
 from app.config import threshold_order_errors
+from app.schemas.common import KrwBalance
 
 MAX_NOTIFY_RECIPIENTS = 5
 _EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
@@ -68,11 +70,32 @@ class NotificationPrefsIn(NotificationPrefsOut):
     pass
 
 
+class InsuranceTargetsOut(BaseModel):
+    """정액 보장별 적정 가입금액(원, 입원일당은 1일 금액). 0이면 기준 없음 — app/constants/insurance.py TARGETED_COVERAGES."""
+
+    cancer: Decimal
+    stroke: Decimal
+    heart: Decimal
+    hospitalization: Decimal
+    death: Decimal
+    disability: Decimal
+
+
+class InsuranceTargetsIn(BaseModel):
+    cancer: KrwBalance
+    stroke: KrwBalance
+    heart: KrwBalance
+    hospitalization: KrwBalance
+    death: KrwBalance
+    disability: KrwBalance
+
+
 class SettingsOut(BaseModel):
     google_connected: bool
     notify_emails: list[str]
     coaching_thresholds: CoachingThresholdsOut
     notification_prefs: NotificationPrefsOut
+    insurance_targets: InsuranceTargetsOut
     couple_photo_url: str | None = None
 
 

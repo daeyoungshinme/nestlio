@@ -425,7 +425,20 @@ export interface SettingsOut {
   coaching_thresholds: CoachingThresholdsOut;
   notification_prefs: NotificationPrefsOut;
   couple_photo_url: string | null;
+  insurance_targets: InsuranceTargetsOut;
 }
+
+/** 정액 보장별 적정 가입금액(원, 입원일당은 1일 금액). "0"이면 기준 없음. */
+export interface InsuranceTargetsOut {
+  cancer: string;
+  stroke: string;
+  heart: string;
+  hospitalization: string;
+  death: string;
+  disability: string;
+}
+
+export type InsuranceTargetsIn = InsuranceTargetsOut;
 
 export interface NotifyEmailsIn {
   emails: string[];
@@ -1109,8 +1122,32 @@ export type Coverage =
   | "death"
   | "disability"
   | "driver"
+  | "driver_legal"
   | "liability"
   | "dental";
+
+export type RiderCoverage = Coverage | "other";
+
+export interface InsuranceRiderOut {
+  id: number;
+  name: string;
+  coverage: RiderCoverage;
+  coverage_amount: string | null;
+  premium: string;
+  monthly_premium: string;
+  is_renewable: boolean;
+  end_date: string | null;
+}
+
+export interface InsuranceRiderIn {
+  id?: number | null;
+  name: string;
+  coverage: RiderCoverage;
+  coverage_amount?: string | null;
+  premium?: string;
+  is_renewable?: boolean;
+  end_date?: string | null;
+}
 
 export interface InsurancePolicyOut {
   id: number;
@@ -1127,6 +1164,9 @@ export interface InsurancePolicyOut {
   payment_end_date: string | null;
   coverage_end_date: string | null;
   coverages: Coverage[];
+  riders: InsuranceRiderOut[];
+  riders_monthly_premium: string;
+  main_monthly_premium: string;
   recurring_expense_id: number | null;
   memo: string | null;
   is_active: boolean;
@@ -1147,6 +1187,8 @@ export interface InsurancePolicyIn {
   payment_end_date?: string | null;
   coverage_end_date?: string | null;
   coverages?: Coverage[];
+  /** 생략(undefined)하면 기존 특약 유지, []이면 전부 삭제. */
+  riders?: InsuranceRiderIn[] | null;
   recurring_expense_id?: number | null;
   memo?: string | null;
 }

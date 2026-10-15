@@ -26,6 +26,7 @@ export const COVERAGE_LABEL: Record<Coverage, string> = {
   death: "사망",
   disability: "상해후유장해",
   driver: "운전자",
+  driver_legal: "운전자 벌금·합의·변호사비",
   liability: "일상배상책임",
   dental: "치아",
 };

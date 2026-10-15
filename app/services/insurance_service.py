@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 from app.constants.sort_order import DEFAULT_SORT_ORDER
 from app.errors import NotFoundError
 from app.models.insurance_policy import InsurancePolicy
+from app.models.insurance_rider import InsuranceRider
 from app.models.recurring_expense import RecurringExpense
 from app.models.user import User
 
@@ -35,9 +36,37 @@ def _validate_refs(db: Session, insured_user_id: uuid.UUID | None, recurring_exp
         raise LinkedRecurringNotFoundError()
 
 
+class RiderNotFoundError(NotFoundError):
+    def __init__(self) -> None:
+        super().__init__("이 계약의 특약이 아닙니다.")
+
+
+def _replace_riders(policy: InsurancePolicy, riders: list[dict]) -> None:
+    """id로 기존 특약을 갱신하고, 없는 id는 추가, 목록에 없는 기존 특약은 삭제(delete-orphan)한다."""
+    existing = {r.id: r for r in policy.riders}
+    kept: list[InsuranceRider] = []
+    for order, fields in enumerate(riders):
+        rider_id = fields.get("id")
+        if rider_id is not None and rider_id not in existing:
+            raise RiderNotFoundError()
+        rider = existing.get(rider_id) if rider_id is not None else InsuranceRider()
+        for key, value in fields.items():
+            if key != "id":
+                setattr(rider, key, value)
+        rider.sort_order = order
+        kept.append(rider)
+    policy.riders = kept
+
+
 def _apply(policy: InsurancePolicy, fields: dict) -> None:
+    riders = fields.pop("riders", None)
     for key, value in fields.items():
         setattr(policy, key, value)
+    if riders is not None:
+        _replace_riders(policy, riders)
+    # 특약을 입력했으면 보장 태그는 특약에서 만든다 — 계약 단위 규칙(coverage_overlap 등)이 그대로 쓴다.
+    if policy.riders:
+        policy.coverages = list(dict.fromkeys(r.coverage for r in policy.riders if r.coverage != "other"))
     # 피보험자가 부부 중 한 명이면 이름은 사용자 표시 이름을 쓰므로 따로 저장하지 않는다.
     if policy.insured_user_id is not None:
         policy.insured_name = None
