@@ -97,3 +97,42 @@ def test_summary_html_handles_empty_breakdown():
     start, end, totals, _ = _summary_inputs()
     html = email_templates.build_weekly_summary_html(start, end, totals, [])
     assert "이 기간 지출 내역이 없어요." in html
+
+
+@pytest.mark.parametrize(
+    "owner_totals",
+    [
+        [],
+        [{"owner_user_id": None, "display_name": "공통", "savings": Decimal("100000")}],
+        [{"owner_user_id": uuid.uuid4(), "display_name": "혼자", "savings": Decimal("100000")}],
+    ],
+)
+def test_contribution_summary_text_skips_when_fewer_than_two_contributors(owner_totals):
+    assert email_templates.contribution_summary_text(owner_totals) is None
+
+
+def test_contribution_summary_text_declares_leader_when_savings_differ():
+    id1, id2 = uuid.uuid4(), uuid.uuid4()
+    owner_totals = [
+        {"owner_user_id": id1, "display_name": "민준", "savings": Decimal("300000")},
+        {"owner_user_id": id2, "display_name": "서연", "savings": Decimal("500000")},
+    ]
+
+    text = email_templates.contribution_summary_text(owner_totals)
+
+    assert text is not None
+    assert "이번엔 더 모았어요" in text
+    assert text.index("서연") < text.index("민준")  # savings 내림차순 = 1위가 먼저 나열
+
+
+def test_contribution_summary_text_omits_leader_line_on_tie():
+    id1, id2 = uuid.uuid4(), uuid.uuid4()
+    owner_totals = [
+        {"owner_user_id": id1, "display_name": "민준", "savings": Decimal("400000")},
+        {"owner_user_id": id2, "display_name": "서연", "savings": Decimal("400000")},
+    ]
+
+    text = email_templates.contribution_summary_text(owner_totals)
+
+    assert text is not None
+    assert "더 모았어요" not in text

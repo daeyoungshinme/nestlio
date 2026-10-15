@@ -894,3 +894,14 @@ def test_bulk_delete_commit_failure_leaves_no_withdrawal_rows(seeded_db):
 
     assert db.query(Transaction).count() == 2
     assert db.query(GrowlioPushQueue).filter(GrowlioPushQueue.transaction_type == "WITHDRAWAL").count() == 0
+
+
+def test_period_snapshot_bundles_totals_owner_and_category(seeded_db):
+    db, user, food = seeded_db["db"], seeded_db["user"], seeded_db["food"]
+    transaction_service.create_transaction(db, user.id, food.id, "expense", Decimal("12000"), date(2026, 7, 3), "점심")
+
+    snapshot = transaction_report_service.period_snapshot(db, date(2026, 7, 1), date(2026, 7, 31))
+
+    assert snapshot["totals"]["expense"] == Decimal("12000")
+    assert [row["name"] for row in snapshot["breakdown"]] == ["식비"]
+    assert {o["display_name"] for o in snapshot["owner_totals"]} >= {"공통"}

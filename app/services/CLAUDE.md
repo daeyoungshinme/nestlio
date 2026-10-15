@@ -22,14 +22,14 @@
 ## 라우터에 두지 않는 것
 
 라우터는 입력 파싱·인증·서비스 호출·응답 헤더만 한다. 아래는 서비스에 있다 — 새 엔드포인트도 같은 자리에 둔다.
-- 여러 서비스 조합으로 만드는 화면 응답: `dashboard_service`(`build`·`bootstrap`·`yearly_report`), 설정 응답 `settings_service.build_settings_out`
+- 여러 서비스 조합으로 만드는 화면 응답: `dashboard_service`(`build`·`bootstrap`·`build_retrospective`·`yearly_report`), 설정 응답 `settings_service.build_settings_out`
 - 저장 직후 best-effort 부수효과(실패해도 응답은 성공): `notification_service.alert_budget_after_transaction_save`·`celebrate_goal_milestone_best_effort`, `notification_inbox_service.log_partner_saving_best_effort` — 실패 시 롤백까지 하므로 라우터는 try/except 없이 부른다
 - 기본 조회 기간(`transaction_service.period_or_this_month`·`list_with_totals`), 업로드 디코딩(`transaction_import_service.decode_upload`), 할부 개월 수(`cashflow_plan_service.split_item_for_rest_of_year`), 사용자 자동 미러링·정원(`user_service.ensure_mirrored_user`)
 
 ## Google 연동 가드
 
 - Google 연동은 Gmail 알림 메일 발송뿐이다(구글 캘린더 동기화·시트 가져오기는 토큰 유지비 대비 쓰임이 적어 2026-10 제거). `gmail_service`를 부르기 전에 `google_auth.is_connected()`를 확인한다. 미연결이면 `GoogleNotConnectedError`.
-- 알림 메일은 `gmail_service.send_email`을 직접 부르지 않고 `notification_service._send_email_best_effort`를 거친다 — 가드 + `GoogleAuthError`/`GmailSendError`를 경고 로그로 흡수해 메일 실패가 인앱 알림이나 예약 잡을 막지 않게 한다. 사용자가 직접 누른 발송(테스트 메일, 초대장)은 반대로 예외를 라우터까지 올린다.
+- 알림 메일은 `gmail_service.send_email`을 직접 부르지 않고 `notification_service.send_email_best_effort`를 거친다 — 가드 + `GoogleAuthError`/`GmailSendError`를 경고 로그로 흡수해 메일 실패가 인앱 알림이나 예약 잡을 막지 않게 한다. 결과는 `"sent"`/`"skipped"`(미연결·토큰 만료 — 재시도 무의미)/`"failed"`(일시 오류)로 돌려주고, 대부분의 호출부는 무시하고 `notification_log_service.log_sent`를 남긴다. 수신자를 좁힐 땐 `to=`(배우자 일정 알림이 행위자 제외). 제목·본문 문자열은 `email_templates`에서 만든다(텍스트 본문은 인앱 `detail`로도 쓰인다). 사용자가 직접 누른 발송(테스트 메일, 초대장)은 반대로 예외를 라우터까지 올린다.
 - 순환 의존·부팅 비용을 피하려고 함수 내부 지연 import를 쓰는 곳이 있다.
 
 ## 알림 dedup
@@ -43,8 +43,8 @@
 
 | 묶음 | 모듈과 책임 | 주의 |
 |---|---|---|
-| 거래 | `transaction_service`(CRUD, 저축상품 연결 검증, growlio push) · `transaction_report_service`(한 기간 집계, 공용 쿼리 조각) · `transaction_trend_service`(여러 달 시계열·평균, 범위 1회 조회 후 달별 버킷팅) · `transaction_import_service`(CSV import·export) | 아래 "누가 기록했나 vs 누가 썼나" 참고 |
-| 일정 | `event_service`(CRUD, 반복 전개 `occurrences_in_range`) · `event_reminder_service`(리마인더, 배우자 알림) | 뒤쪽이 `event_service`를 import하므로 `event_service`는 이를 함수 본문에서만 지연 import |
+| 거래 | `transaction_service`(CRUD, 저축상품 연결 검증, growlio push) · `transaction_report_service`(한 기간 집계·`period_snapshot`, 공용 쿼리 조각) · `transaction_trend_service`(여러 달 시계열·평균, 범위 1회 조회 후 달별 버킷팅) · `transaction_import_service`(CSV import·export) | 아래 "누가 기록했나 vs 누가 썼나" 참고 |
+| 일정 | `event_service`(CRUD, 반복 전개 `occurrences_in_range`) · `event_reminder_service`(리마인더, 배우자 알림) | `event_service`는 알림을 모른다 — 생성·수정·삭제 뒤 배우자 알림은 라우터가 `notify_other_spouse_best_effort`로 부른다 |
 | 저축상품 | `savings_product_service`(CRUD, `list_products`, `get_emergency_fund_balance`) · `savings_product_plan_service`(연간계획·실적, `PLAN_PRODUCT_TYPES`) · `savings_product_growlio_service`(growlio 동기화) | 상품 목록은 항상 `list_products(db)` 재사용 |
 | 목표 | `goal_service`(CRUD, 챌린지 상태 동기화, 자금원 연동, growlio 조회) · `goal_progress_service`(진행률·ETA·`to_out`, 커밋 없음) | `goal_service` → `goal_progress_service` 단방향 |
 | 알림 | `notification_service`(발송·판정) · `notification_inbox_service`(목록·읽음·반응·목표 응원) · `notification_log_service`(dedup) | 앞 둘은 서로 import하지 않음 |

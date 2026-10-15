@@ -194,6 +194,16 @@ def category_breakdown(
     return _rows_to_category_amounts(rows)
 
 
+def period_snapshot(db: Session, date_from: date, date_to: date) -> dict:
+    """한 기간의 "합계·부부별·카테고리별 지출" 3종 세트 — 대시보드(dashboard_service.build), 월간 회고
+    (build_retrospective = 월간 메일), 주간 메일이 같은 조합을 쓴다."""
+    return {
+        "totals": period_totals(db, date_from, date_to),
+        "owner_totals": totals_by_owner(db, date_from, date_to),
+        "breakdown": category_breakdown(db, date_from, date_to, "expense"),
+    }
+
+
 def category_breakdown_by_owner(
     db: Session,
     date_from: date,

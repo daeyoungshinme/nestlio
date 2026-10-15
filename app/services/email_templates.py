@@ -1,6 +1,10 @@
-"""주간/월간 요약 이메일의 HTML 본문을 조립한다. 이메일 클라이언트 호환성을 위해
-테이블 기반 레이아웃 + 인라인 스타일만 사용하고 외부 CSS에 의존하지 않는다."""
-from datetime import date
+"""알림 메일의 제목·본문 조립 — 발송·dedup은 notification_service, 여기는 문자열만 만든다.
+
+- 텍스트 본문: 모든 알림 메일의 기본 파트이자 인앱 알림(NotificationLog.detail)에 그대로 남는 문구.
+- HTML 본문: 주간/월간 요약만. 이메일 클라이언트 호환성을 위해 테이블 기반 레이아웃 +
+  인라인 스타일만 사용하고 외부 CSS에 의존하지 않는다.
+"""
+from datetime import date, datetime
 from decimal import Decimal
 
 from app.services import transaction_report_service
@@ -215,15 +219,9 @@ def _insight_cards(insights: list[Insight]) -> str:
     return "".join(cards)
 
 
-def build_weekly_summary_html(
-    start: date,
-    end: date,
-    totals: dict,
-    breakdown: list[dict],
-    owner_totals: list[dict] | None = None,
-    streak: int = 0,
-) -> str:
-    body = (
+def _summary_body(totals: dict, breakdown: list[dict], owner_totals: list[dict] | None, streak: int) -> str:
+    """주간·월간 요약 HTML의 공통 본문 — 월간은 여기에 코칭 인사이트 카드만 덧붙인다."""
+    return (
         _streak_banner(streak)
         + _stat_row(totals["income"], totals["expense"], totals["savings"])
         + _contribution_section(owner_totals)
@@ -232,6 +230,17 @@ def build_weekly_summary_html(
         + _section_title("카테고리별 지출")
         + _category_bars(breakdown)
     )
+
+
+def build_weekly_summary_html(
+    start: date,
+    end: date,
+    totals: dict,
+    breakdown: list[dict],
+    owner_totals: list[dict] | None = None,
+    streak: int = 0,
+) -> str:
+    body = _summary_body(totals, breakdown, owner_totals, streak)
     subtitle = f"{start.isoformat()} ~ {end.isoformat()}"
     return _shell(f"이번 주 지출 {_won(totals['expense'])}", "주간 가계부 요약", subtitle, body)
 
@@ -245,16 +254,130 @@ def build_monthly_summary_html(
     owner_totals: list[dict] | None = None,
     streak: int = 0,
 ) -> str:
-    body = (
-        _streak_banner(streak)
-        + _stat_row(totals["income"], totals["expense"], totals["savings"])
-        + _contribution_section(owner_totals)
-        + _section_title("지출 구성")
-        + _type_breakdown_bar(totals["fixed"], totals["variable"], totals["irregular"])
-        + _section_title("카테고리별 지출")
-        + _category_bars(breakdown)
-    )
+    body = _summary_body(totals, breakdown, owner_totals, streak)
     if insights:
         body += _section_title("자산증식 코칭") + _insight_cards(insights)
     subtitle = f"{start.isoformat()} ~ {end.isoformat()}"
     return _shell(f"이번 달 지출 {_won(totals['expense'])}", "월간 가계부 요약", subtitle, body)
+
+
+# ---- 텍스트 본문 ----
+
+
+def contribution_summary_text(owner_totals: list[dict]) -> str | None:
+    """부부 각자의 저축 기여도를 한 줄로 — HTML의 _contribution_section과 같은 축·같은 규칙
+    ("공통" 항목과 1인 가구는 생략, 정렬·리더 판정은 transaction_report_service.rank_owner_contributions)."""
+    ranked = transaction_report_service.rank_owner_contributions(owner_totals)
+    if ranked is None:
+        return None
+    parts = [f"{o['display_name']} {o['savings']:,.0f}원" for o in ranked]
+    line = "부부 저축 기여도: " + " · ".join(parts)
+    leader = next((o for o in ranked if o["is_leader"]), None)
+    if leader:
+        line += f" — {leader['display_name']}님이 이번엔 더 모았어요"
+    return line
+
+
+def summary_text(
+    title: str,
+    start: date,
+    end: date,
+    totals: dict,
+    breakdown: list[dict],
+    *,
+    owner_totals: list[dict],
+    streak: int,
+    insights: list[Insight] | None = None,
+) -> str:
+    """주간·월간 요약의 텍스트 본문(HTML 대체 파트 겸 인앱 알림 detail). 월간만 insights를 넘긴다."""
+    lines = [
+        f"{title} ({start} ~ {end})",
+        "",
+        f"수입: {totals['income']:,.0f}원",
+        f"지출: {totals['expense']:,.0f}원",
+        f"  - 고정지출: {totals['fixed']:,.0f}원",
+        f"  - 변동지출: {totals['variable']:,.0f}원",
+        f"  - 비정기지출: {totals['irregular']:,.0f}원",
+        f"저축(수입-지출): {totals['savings']:,.0f}원",
+        "",
+        "카테고리별 지출:",
+    ]
+    lines.extend(f"  - {row['name']}: {row['amount']:,.0f}원" for row in breakdown)
+    body = "\n".join(lines)
+
+    extra_lines = []
+    if streak > 0:
+        extra_lines.append(f"연속 {streak}개월째 목표 페이스를 지키고 있어요 \U0001F525")
+    contribution_text = contribution_summary_text(owner_totals)
+    if contribution_text:
+        extra_lines.append(contribution_text)
+    if extra_lines:
+        body += "\n\n" + "\n".join(extra_lines)
+
+    if insights:
+        body += "\n\n자산증식 코칭:\n"
+        body += "\n".join(f"  - [{i.severity}] {i.message}" for i in insights)
+    return body
+
+
+def threshold_alert_message(row: dict) -> tuple[str, str]:
+    """(제목, 본문) — budget_vs_actual 한 행이 warn/critical에 들어섰을 때."""
+    level = "위험" if row["status"] == "critical" else "주의"
+    body = (
+        f"{row['name']} 카테고리 예산 {level} 알림\n\n"
+        f"예산: {row['budget']:,.0f}원\n"
+        f"실제 지출: {row['actual']:,.0f}원 ({row['pct']:.0f}%)"
+    )
+    return f"[Nestlio] 예산 {level} - {row['name']}", body
+
+
+def goal_milestone_message(goal, milestone: int, current_amount: Decimal, today: date) -> tuple[str, str]:
+    """(제목, 본문) — 챌린지는 100% 성공 한 번, 일반 목표는 25/50/75/100% 마일스톤마다."""
+    if goal.kind == "challenge":
+        body = (
+            f'\U0001F389 "{goal.name}" 챌린지 성공! \U0001F389\n\n'
+            f"목표 {goal.required_amount:,.0f}원을 두 분이 함께 달성했어요!\n\n"
+            f"현재: {current_amount:,.0f}원 / 목표 {goal.required_amount:,.0f}원"
+        )
+        return f"[Nestlio] 챌린지 성공 - {goal.name}", body
+
+    congrats = "드디어 목표를 이뤘어요! 두 분이 함께 만든 결과예요." if milestone >= 100 else "두 분이 함께 여기까지 왔어요, 축하해요!"
+    body = (
+        f'\U0001F389 "{goal.name}" 목표 {milestone}% 달성! \U0001F389\n\n'
+        f"{congrats}\n\n"
+        f"현재 저축액: {current_amount:,.0f}원 / 목표 {goal.required_amount:,.0f}원"
+    )
+    if milestone < 100 and goal.target_date is not None:
+        remaining_amount = max(goal.required_amount - current_amount, 0)
+        remaining_days = (goal.target_date - today).days
+        if remaining_days > 0:
+            body += f"\n목표일까지 D-{remaining_days}, 이제 {remaining_amount:,.0f}원만 더 모으면 돼요."
+    return f"[Nestlio] 우리 부부 목표 달성 축하 - {goal.name} {milestone}%", body
+
+
+def savings_pace_reminder_message(planned: Decimal, remaining: Decimal, streak: int) -> tuple[str, str]:
+    body = f"이번 달 저축·투자 계획 {planned:,.0f}원 중 {remaining:,.0f}원이 남았어요. 월말 전에 함께 채워봐요!"
+    if streak > 0:
+        body += f" 지금까지 {streak}개월 연속 달성 중이에요."
+    return "[Nestlio] 이번 달 저축 계획까지 조금 남았어요", body
+
+
+def invite_message(accept_url: str, expiry_days: int) -> tuple[str, str]:
+    body = (
+        "nestlio에 배우자로 초대되었습니다.\n\n"
+        f"아래 링크에서 계정을 만들어주세요 ({expiry_days}일 이내 유효):\n{accept_url}"
+    )
+    return "[Nestlio] 배우자 초대", body
+
+
+def event_summary_text(event, when: datetime, header: str | None = None) -> str:
+    """일정 리마인더·배우자 일정 알림 본문. header는 "새 일정이 등록되었습니다" 같은 행위 문구."""
+    lines = [header] if header else []
+    lines.append(event.title)
+    lines.append(f"일시: {when.strftime('%Y-%m-%d %H:%M')}")
+    if event.location:
+        lines.append(f"장소: {event.location}")
+    if event.description:
+        lines.append("")
+        lines.append(event.description)
+    return "\n".join(lines)
