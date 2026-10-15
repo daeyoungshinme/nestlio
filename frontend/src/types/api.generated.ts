@@ -650,6 +650,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/settings/insurance-targets": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Set Insurance Targets */
+        put: operations["set_insurance_targets_api_v1_settings_insurance_targets_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/settings/notification-prefs": {
         parameters: {
             query?: never;
@@ -2907,7 +2924,9 @@ export interface components {
             /** Coverage End Date */
             coverage_end_date?: string | null;
             /** Coverages */
-            coverages?: ("medical_indemnity" | "cancer" | "stroke" | "heart" | "surgery" | "hospitalization" | "death" | "disability" | "driver" | "liability" | "dental")[];
+            coverages?: ("medical_indemnity" | "cancer" | "stroke" | "heart" | "surgery" | "hospitalization" | "death" | "disability" | "driver" | "driver_legal" | "liability" | "dental")[];
+            /** Riders */
+            riders?: components["schemas"]["InsuranceRiderIn"][] | null;
             /** Recurring Expense Id */
             recurring_expense_id?: number | null;
             /** Memo */
@@ -2948,7 +2967,13 @@ export interface components {
             /** Coverage End Date */
             coverage_end_date: string | null;
             /** Coverages */
-            coverages: ("medical_indemnity" | "cancer" | "stroke" | "heart" | "surgery" | "hospitalization" | "death" | "disability" | "driver" | "liability" | "dental")[];
+            coverages: ("medical_indemnity" | "cancer" | "stroke" | "heart" | "surgery" | "hospitalization" | "death" | "disability" | "driver" | "driver_legal" | "liability" | "dental")[];
+            /** Riders */
+            riders: components["schemas"]["InsuranceRiderOut"][];
+            /** Riders Monthly Premium */
+            riders_monthly_premium: string;
+            /** Main Monthly Premium */
+            main_monthly_premium: string;
             /** Recurring Expense Id */
             recurring_expense_id: number | null;
             /** Memo */
@@ -2968,6 +2993,57 @@ export interface components {
             /** Total Estimated Monthly Saving */
             total_estimated_monthly_saving: string;
         };
+        /**
+         * InsuranceRiderIn
+         * @description id가 있으면 그 특약을 갱신, 없으면 추가. 계약 저장 때 목록에 없는 기존 특약은 삭제된다.
+         */
+        InsuranceRiderIn: {
+            /** Id */
+            id?: number | null;
+            /** Name */
+            name: string;
+            /**
+             * Coverage
+             * @enum {string}
+             */
+            coverage: "medical_indemnity" | "cancer" | "stroke" | "heart" | "surgery" | "hospitalization" | "death" | "disability" | "driver" | "driver_legal" | "liability" | "dental" | "other";
+            /** Coverage Amount */
+            coverage_amount?: (number | string) | null;
+            /**
+             * Premium
+             * @default 0
+             */
+            premium: number | string;
+            /**
+             * Is Renewable
+             * @default false
+             */
+            is_renewable: boolean;
+            /** End Date */
+            end_date?: string | null;
+        };
+        /** InsuranceRiderOut */
+        InsuranceRiderOut: {
+            /** Id */
+            id: number;
+            /** Name */
+            name: string;
+            /**
+             * Coverage
+             * @enum {string}
+             */
+            coverage: "medical_indemnity" | "cancer" | "stroke" | "heart" | "surgery" | "hospitalization" | "death" | "disability" | "driver" | "driver_legal" | "liability" | "dental" | "other";
+            /** Coverage Amount */
+            coverage_amount: string | null;
+            /** Premium */
+            premium: string;
+            /** Monthly Premium */
+            monthly_premium: string;
+            /** Is Renewable */
+            is_renewable: boolean;
+            /** End Date */
+            end_date: string | null;
+        };
         /** InsuranceSummaryOut */
         InsuranceSummaryOut: {
             /** Policies Count */
@@ -2986,6 +3062,39 @@ export interface components {
             guideline_pct: number;
             /** By Insured */
             by_insured: components["schemas"]["InsuredPremiumOut"][];
+        };
+        /** InsuranceTargetsIn */
+        InsuranceTargetsIn: {
+            /** Cancer */
+            cancer: number | string;
+            /** Stroke */
+            stroke: number | string;
+            /** Heart */
+            heart: number | string;
+            /** Hospitalization */
+            hospitalization: number | string;
+            /** Death */
+            death: number | string;
+            /** Disability */
+            disability: number | string;
+        };
+        /**
+         * InsuranceTargetsOut
+         * @description 정액 보장별 적정 가입금액(원, 입원일당은 1일 금액). 0이면 기준 없음 — app/constants/insurance.py TARGETED_COVERAGES.
+         */
+        InsuranceTargetsOut: {
+            /** Cancer */
+            cancer: string;
+            /** Stroke */
+            stroke: string;
+            /** Heart */
+            heart: string;
+            /** Hospitalization */
+            hospitalization: string;
+            /** Death */
+            death: string;
+            /** Disability */
+            disability: string;
         };
         /** InsuredPremiumOut */
         InsuredPremiumOut: {
@@ -3732,6 +3841,7 @@ export interface components {
             notify_emails: string[];
             coaching_thresholds: components["schemas"]["CoachingThresholdsOut"];
             notification_prefs: components["schemas"]["NotificationPrefsOut"];
+            insurance_targets: components["schemas"]["InsuranceTargetsOut"];
             /** Couple Photo Url */
             couple_photo_url?: string | null;
         };
@@ -5478,6 +5588,41 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": components["schemas"]["CoachingThresholdsIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SettingsOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    set_insurance_targets_api_v1_settings_insurance_targets_put: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["InsuranceTargetsIn"];
             };
         };
         responses: {

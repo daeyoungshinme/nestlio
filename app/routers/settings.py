@@ -7,6 +7,7 @@ from app.dependencies import get_current_user
 from app.models.user import User
 from app.schemas.settings import (
     CoachingThresholdsIn,
+    InsuranceTargetsIn,
     NotificationPrefsIn,
     NotifyEmailsIn,
     SettingsOut,
@@ -15,6 +16,7 @@ from app.schemas.settings import (
 from app.services import (
     coaching_settings_service,
     couple_photo_service,
+    insurance_target_service,
     notification_service,
     notification_settings_service,
     settings_service,
@@ -45,6 +47,16 @@ def set_coaching_thresholds(
     current_user: User = Depends(get_current_user),
 ):
     coaching_settings_service.set_thresholds(db, payload.model_dump(), current_user.id)
+    return settings_service.build_settings_out(db, current_user.id)
+
+
+@router.put("/insurance-targets", response_model=SettingsOut)
+def set_insurance_targets(
+    payload: InsuranceTargetsIn,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    insurance_target_service.set_targets(db, payload.model_dump(), current_user.id)
     return settings_service.build_settings_out(db, current_user.id)
 
 

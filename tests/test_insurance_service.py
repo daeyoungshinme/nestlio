@@ -68,3 +68,53 @@ def test_update_and_deactivate_policy(seeded_db):
     assert insurance_service.list_policies(db) == []
     assert len(insurance_service.list_policies(db, active_only=False)) == 1
     assert not insurance_service.deactivate_policy(db, 9999)
+
+
+def _rider(name, coverage, amount, premium, **kw):
+    return {"name": name, "coverage": coverage, "coverage_amount": Decimal(amount) if amount else None,
+            "premium": Decimal(premium), "is_renewable": kw.get("is_renewable", False), "end_date": None, **({"id": kw["id"]} if "id" in kw else {})}
+
+
+def test_riders_replace_by_id_and_sync_coverages(seeded_db):
+    db = seeded_db["db"]
+    policy = insurance_service.create_policy(
+        db,
+        _fields(
+            policy_type="diagnosis",
+            premium_amount=Decimal("1200000"),
+            payment_frequency="yearly",
+            coverages=["dental"],
+            riders=[_rider("암진단", "cancer", "30000000", "600000"), _rider("골절", "other", None, "120000")],
+        ),
+    )
+    assert [r.name for r in policy.riders] == ["암진단", "골절"]
+    assert policy.coverages == ["cancer"]  # 특약이 있으면 특약에서 만든다(other 제외)
+    assert policy.riders[0].monthly_premium == Decimal("50000")  # 연납 600,000 / 12
+    assert policy.main_monthly_premium == Decimal("40000")  # 100,000 - 50,000 - 10,000
+    cancer_id = policy.riders[0].id
+
+    updated = insurance_service.update_policy(
+        db,
+        policy.id,
+        _fields(
+            policy_type="diagnosis",
+            premium_amount=Decimal("1200000"),
+            payment_frequency="yearly",
+            riders=[_rider("암진단(감액)", "cancer", "20000000", "400000", id=cancer_id), _rider("뇌졸중", "stroke", "20000000", "300000")],
+        ),
+    )
+    assert [(r.id == cancer_id, r.name) for r in updated.riders] == [(True, "암진단(감액)"), (False, "뇌졸중")]
+    assert updated.coverages == ["cancer", "stroke"]
+    from app.models.insurance_rider import InsuranceRider
+
+    assert db.query(InsuranceRider).count() == 2  # "골절"은 delete-orphan
+
+
+def test_riders_none_keeps_existing_and_foreign_id_rejected(seeded_db):
+    db = seeded_db["db"]
+    policy = insurance_service.create_policy(db, _fields(riders=[_rider("실손", "medical_indemnity", None, "30000")]))
+    kept = insurance_service.update_policy(db, policy.id, _fields(riders=None))
+    assert len(kept.riders) == 1
+
+    with pytest.raises(insurance_service.RiderNotFoundError):
+        insurance_service.update_policy(db, policy.id, _fields(riders=[_rider("x", "other", None, "0", id=999)]))

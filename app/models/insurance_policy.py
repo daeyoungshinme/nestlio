@@ -4,9 +4,10 @@ from decimal import Decimal
 
 from sqlalchemy import JSON, Boolean, Date, DateTime, ForeignKey, Integer, Numeric, String, func
 from sqlalchemy.dialects.postgresql import UUID
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
+from app.models.insurance_rider import InsuranceRider
 from app.utils.dates import now_kst
 from app.utils.money import whole_won
 
@@ -40,6 +41,22 @@ class InsurancePolicy(Base):
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     sort_order: Mapped[int] = mapped_column(Integer, default=0)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=now_kst, server_default=func.now(), onupdate=now_kst)
+
+    riders: Mapped[list[InsuranceRider]] = relationship(
+        back_populates="policy",
+        cascade="all, delete-orphan",
+        lazy="selectin",
+        order_by="InsuranceRider.sort_order, InsuranceRider.id",
+    )
+
+    @property
+    def riders_monthly_premium(self) -> Decimal:
+        return sum((r.monthly_premium for r in self.riders), Decimal("0"))
+
+    @property
+    def main_monthly_premium(self) -> Decimal:
+        """계약 월 보험료 − 입력한 특약 합 = 주계약·입력 안 한 특약(음수면 입력 오류라 0)."""
+        return max(self.monthly_premium - self.riders_monthly_premium, Decimal("0"))
 
     @property
     def monthly_premium(self) -> Decimal:

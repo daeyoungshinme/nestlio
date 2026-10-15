@@ -6,7 +6,12 @@ import uuid
 
 from sqlalchemy.orm import Session
 
-from app.services import coaching_settings_service, couple_photo_service, notification_settings_service
+from app.services import (
+    coaching_settings_service,
+    couple_photo_service,
+    insurance_target_service,
+    notification_settings_service,
+)
 from app.services.google_auth import is_connected
 
 
@@ -17,5 +22,6 @@ def build_settings_out(db: Session, user_id: uuid.UUID) -> dict:
         "notify_emails": notification_settings_service.get_recipients(db),
         "coaching_thresholds": coaching_settings_service.get_thresholds(db),
         "notification_prefs": notification_settings_service.get_prefs(db),
+        "insurance_targets": insurance_target_service.get_targets(db),
         "couple_photo_url": couple_photo_service.photo_url_for_display(db, user_id),
     }

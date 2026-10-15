@@ -189,3 +189,29 @@ def test_versioned_couple_photo_is_cacheable(client):
     assert versioned.status_code == 200
     assert "immutable" in versioned.headers["cache-control"]
     assert "immutable" not in bare.headers.get("cache-control", "")
+
+
+@patch("app.services.settings_service.is_connected", return_value=False)
+def test_insurance_targets_default_and_update(mock_is_connected, client):
+    from decimal import Decimal
+
+    targets = client.get("/api/v1/settings").json()["insurance_targets"]
+    assert Decimal(targets["cancer"]) == Decimal("30000000")
+
+    payload = {**{k: str(v) for k, v in targets.items()}, "cancer": "50000000", "death": "0"}
+    resp = client.put("/api/v1/settings/insurance-targets", json=payload)
+    assert resp.status_code == 200
+    assert Decimal(resp.json()["insurance_targets"]["cancer"]) == Decimal("50000000")
+    assert Decimal(resp.json()["insurance_targets"]["death"]) == Decimal("0")
+
+    assert client.put("/api/v1/settings/insurance-targets", json={**payload, "cancer": "-1"}).status_code == 422
+
+
+def test_insurance_targets_fall_back_on_corrupt_value(seeded_db):
+    from decimal import Decimal
+
+    from app.services import insurance_target_service, user_setting_service
+
+    db, user = seeded_db["db"], seeded_db["user"]
+    user_setting_service.set_shared_setting(db, "insurance_target_heart", "abc", user.id)
+    assert insurance_target_service.get_targets(db)["heart"] == Decimal("20000000")
