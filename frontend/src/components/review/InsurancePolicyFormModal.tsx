@@ -4,6 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import Button from "@/components/common/Button";
 import FormInput from "@/components/common/FormInput";
 import Modal from "@/components/common/Modal";
+import RiderListEditor, { riderDraftFrom, riderPayload, type RiderDraft } from "@/components/review/RiderListEditor";
 import { fetchRecurring } from "@/api/recurring";
 import { COVERAGE_LABEL, DEFAULT_COVERAGES, PAYMENT_FREQUENCY_LABEL, POLICY_TYPE_LABEL } from "@/constants/insurance";
 import { INPUT_SM, LABEL_SM } from "@/constants/inputStyles";
@@ -29,6 +30,7 @@ interface Draft {
   payment_end_date: string;
   coverage_end_date: string;
   coverages: Coverage[];
+  riders: RiderDraft[];
   recurring_expense_id: string;
   memo: string;
 }
@@ -48,6 +50,7 @@ function draftFrom(policy: InsurancePolicyOut | null, users: UserOut[] | undefin
       payment_end_date: "",
       coverage_end_date: "",
       coverages: DEFAULT_COVERAGES.indemnity ?? [],
+      riders: [],
       recurring_expense_id: "",
       memo: "",
     };
@@ -65,6 +68,7 @@ function draftFrom(policy: InsurancePolicyOut | null, users: UserOut[] | undefin
     payment_end_date: policy.payment_end_date ?? "",
     coverage_end_date: policy.coverage_end_date ?? "",
     coverages: policy.coverages,
+    riders: policy.riders.map(riderDraftFrom),
     recurring_expense_id: policy.recurring_expense_id !== null ? String(policy.recurring_expense_id) : "",
     memo: policy.memo ?? "",
   };
@@ -86,6 +90,8 @@ function toPayload(draft: Draft): InsurancePolicyIn {
     payment_end_date: draft.payment_end_date || null,
     coverage_end_date: draft.coverage_end_date || null,
     coverages: draft.coverages,
+    // 특약을 넣으면 서버가 특약에서 보장 태그를 다시 만든다. 빈 목록이면 기존 특약을 모두 지운다(폼이 기존 특약으로 시작하므로 의도된 동작).
+    riders: draft.riders.map(riderPayload),
     recurring_expense_id: draft.recurring_expense_id ? Number(draft.recurring_expense_id) : null,
     memo: draft.memo.trim() || null,
   };
@@ -271,6 +277,14 @@ export default function InsurancePolicyFormModal({ policy, users, submitting, on
           />
         </div>
 
+        <RiderListEditor
+          riders={draft.riders}
+          onChange={(riders) => set("riders", riders)}
+          policyPremium={draft.premium_amount}
+          frequencyLabel={PAYMENT_FREQUENCY_LABEL[draft.payment_frequency]}
+        />
+
+        {draft.riders.length === 0 && (
         <div>
           <p id={`${fieldId}-coverages`} className={`block mb-1 font-medium ${LABEL_SM}`}>
             주요 보장 (겹치는 보장을 찾을 때 써요)
@@ -292,6 +306,7 @@ export default function InsurancePolicyFormModal({ policy, users, submitting, on
             })}
           </div>
         </div>
+        )}
 
         <div>
           <label htmlFor={`${fieldId}-recurring`} className={`block mb-1 font-medium ${LABEL_SM}`}>
