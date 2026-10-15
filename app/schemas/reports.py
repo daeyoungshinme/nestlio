@@ -61,7 +61,52 @@ class SpendingReviewOut(BaseModel):
     total_estimated_monthly_saving: Decimal
 
 
+InsuranceFindingRule = Literal[
+    "insurance_ratio",
+    "indemnity_duplicate",
+    "coverage_overlap",
+    "renewal_soon",
+    "auto_renewal_soon",
+    "savings_type",
+    "payment_ending",
+    "unregistered_premium",
+]
+
+
+class InsuranceFindingOut(BaseModel):
+    rule_code: InsuranceFindingRule
+    severity: Literal["info", "warning", "critical"]
+    title: str
+    detail: str
+    estimated_monthly_saving: Decimal
+    policy_ids: list[int]
+
+
+class InsuredPremiumOut(BaseModel):
+    label: str
+    monthly_premium: Decimal
+    count: int
+
+
+class InsuranceSummaryOut(BaseModel):
+    policies_count: int
+    total_monthly_premium: Decimal
+    protection_monthly_premium: Decimal
+    savings_monthly_premium: Decimal
+    avg_monthly_income: Decimal
+    protection_income_pct: float | None
+    guideline_pct: float
+    by_insured: list[InsuredPremiumOut]
+
+
+class InsuranceReviewOut(BaseModel):
+    summary: InsuranceSummaryOut
+    findings: list[InsuranceFindingOut]
+    total_estimated_monthly_saving: Decimal
+
+
 class SavingsReviewOut(BaseModel):
     year_month: str
     spending: SpendingReviewOut
+    insurance: InsuranceReviewOut
     total_estimated_monthly_saving: Decimal

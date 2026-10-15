@@ -2848,6 +2848,27 @@ export interface components {
             /** Message */
             message: string;
         };
+        /** InsuranceFindingOut */
+        InsuranceFindingOut: {
+            /**
+             * Rule Code
+             * @enum {string}
+             */
+            rule_code: "insurance_ratio" | "indemnity_duplicate" | "coverage_overlap" | "renewal_soon" | "auto_renewal_soon" | "savings_type" | "payment_ending" | "unregistered_premium";
+            /**
+             * Severity
+             * @enum {string}
+             */
+            severity: "info" | "warning" | "critical";
+            /** Title */
+            title: string;
+            /** Detail */
+            detail: string;
+            /** Estimated Monthly Saving */
+            estimated_monthly_saving: string;
+            /** Policy Ids */
+            policy_ids: number[];
+        };
         /**
          * InsurancePolicyIn
          * @description 생성·수정 공용(PUT은 전체 교체).
@@ -2938,6 +2959,42 @@ export interface components {
             sort_order: number;
             /** Updated At */
             updated_at?: string | null;
+        };
+        /** InsuranceReviewOut */
+        InsuranceReviewOut: {
+            summary: components["schemas"]["InsuranceSummaryOut"];
+            /** Findings */
+            findings: components["schemas"]["InsuranceFindingOut"][];
+            /** Total Estimated Monthly Saving */
+            total_estimated_monthly_saving: string;
+        };
+        /** InsuranceSummaryOut */
+        InsuranceSummaryOut: {
+            /** Policies Count */
+            policies_count: number;
+            /** Total Monthly Premium */
+            total_monthly_premium: string;
+            /** Protection Monthly Premium */
+            protection_monthly_premium: string;
+            /** Savings Monthly Premium */
+            savings_monthly_premium: string;
+            /** Avg Monthly Income */
+            avg_monthly_income: string;
+            /** Protection Income Pct */
+            protection_income_pct: number | null;
+            /** Guideline Pct */
+            guideline_pct: number;
+            /** By Insured */
+            by_insured: components["schemas"]["InsuredPremiumOut"][];
+        };
+        /** InsuredPremiumOut */
+        InsuredPremiumOut: {
+            /** Label */
+            label: string;
+            /** Monthly Premium */
+            monthly_premium: string;
+            /** Count */
+            count: number;
         };
         /** InviteAcceptIn */
         InviteAcceptIn: {
@@ -3663,6 +3720,7 @@ export interface components {
             /** Year Month */
             year_month: string;
             spending: components["schemas"]["SpendingReviewOut"];
+            insurance: components["schemas"]["InsuranceReviewOut"];
             /** Total Estimated Monthly Saving */
             total_estimated_monthly_saving: string;
         };

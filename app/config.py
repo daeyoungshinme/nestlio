@@ -101,6 +101,11 @@ class Settings(BaseSettings):
     small_spend_max_amount: int = 15000
     small_spend_min_count: int = 8
     small_spend_cut_pct: float = 30
+    # 보험 점검(insurance_review_service)
+    insurance_renewal_notice_days: int = 90
+    auto_insurance_renewal_notice_days: int = 45
+    insurance_payment_ending_months: int = 12
+    insurance_unregistered_tolerance_pct: float = 10
 
     max_upload_size_mb: int = 5
 

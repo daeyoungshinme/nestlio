@@ -84,14 +84,18 @@ class SavingOpportunity:
         return next(iter(self.category_ids)) if len(self.category_ids) == 1 else None
 
 
+def is_insurance_category(name: str, benchmark_group: str | None) -> bool:
+    """보험료 카테고리 — benchmark_group이 태깅되지 않은 가구가 많아 이름("보험료", "자동차세/보험료")으로도 본다."""
+    return benchmark_group == "insurance" or "보험" in name
+
+
 def is_cuttable_category(meta: CategoryMeta) -> bool:
-    """정기결제(구독) 후보가 될 수 있는 카테고리 — 대출상환·저축·주거·보험은 제외. 보험은 benchmark_group이
-    태깅되지 않은 가구가 많아 이름("보험료", "자동차세/보험료")으로도 거른다."""
+    """정기결제(구독) 후보가 될 수 있는 카테고리 — 대출상환·저축·주거·보험은 제외."""
     if meta.is_debt or meta.is_savings:
         return False
     if meta.benchmark_group in _NON_CUTTABLE_GROUPS:
         return False
-    return "보험" not in meta.name
+    return not is_insurance_category(meta.name, meta.benchmark_group)
 
 
 def _won(amount: Decimal) -> str:
@@ -469,7 +473,8 @@ def build_spending_review(
         whole_won(income_total / len(benchmark_months)),
         avg_by_category,
         meta,
-        coaching_engine.benchmark_pcts_from_thresholds(thresholds),
+        # 보험은 보험 점검(insurance_review_service.insurance_ratio)이 계약 기준으로 본다 — 두 번 세지 않는다.
+        {g: pct for g, pct in coaching_engine.benchmark_pcts_from_thresholds(thresholds).items() if g != "insurance"},
     )
 
     candidates += small_frequent_opportunities(
