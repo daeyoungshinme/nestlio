@@ -12,6 +12,11 @@ export default function ShortcutsSection() {
         />
         <SettingsLinkRow to={ROUTES.categories} label="카테고리 관리" hint="고정·변동·비정기지출 카테고리 추가/수정" />
         <SettingsLinkRow
+          to={ROUTES.savingsReview}
+          label="절감 점검"
+          hint="줄일 수 있는 지출·보험료 찾기, 보험·특약 등록"
+        />
+        <SettingsLinkRow
           to={ROUTES.transactionImport}
           label="거래 데이터"
           hint="CSV 가져오기 / 내보내기"
