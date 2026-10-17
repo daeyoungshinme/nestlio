@@ -10,6 +10,7 @@ import NotificationSettingsSection from "@/components/settings/NotificationSetti
 import ShortcutsSection from "@/components/settings/ShortcutsSection";
 import { useLogout } from "@/hooks/useLogout";
 import { useSettings } from "@/hooks/useReferenceData";
+import { dangerActionClass } from "@/utils/colors";
 
 export default function SettingsPage() {
   const settingsQuery = useSettings();
@@ -46,7 +47,7 @@ export default function SettingsPage() {
       <div className="border-t border-gray-200 dark:border-gray-700 pt-4">
         <Button
           variant="secondary"
-          className="w-full sm:w-auto text-gray-500 hover:text-red-600 hover:border-red-300 hover:bg-red-50 dark:hover:bg-red-950"
+          className={`w-full sm:w-auto text-gray-500 hover:border-red-300 dark:hover:border-red-700 ${dangerActionClass("hover")}`}
           onClick={() => void logout()}
         >
           로그아웃

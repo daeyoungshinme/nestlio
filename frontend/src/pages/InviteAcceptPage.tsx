@@ -194,13 +194,13 @@ export default function InviteAcceptPage() {
         </div>
         <div>
           <label
-            htmlFor="invite-display-name"
+            htmlFor={`${fieldId}-display-name`}
             className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1"
           >
             표시 이름
           </label>
           <input
-            id="invite-display-name"
+            id={`${fieldId}-display-name`}
             type="text"
             value={displayName}
             maxLength={100}
@@ -212,13 +212,13 @@ export default function InviteAcceptPage() {
         </div>
         <div>
           <label
-            htmlFor="invite-password"
+            htmlFor={`${fieldId}-password`}
             className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1"
           >
             {alreadyRegistered ? "기존 비밀번호" : "비밀번호"}
           </label>
           <input
-            id="invite-password"
+            id={`${fieldId}-password`}
             type="password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
@@ -230,13 +230,13 @@ export default function InviteAcceptPage() {
         {!alreadyRegistered && (
           <div>
             <label
-              htmlFor="invite-password-confirm"
+              htmlFor={`${fieldId}-password-confirm`}
               className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1"
             >
               비밀번호 확인
             </label>
             <input
-              id="invite-password-confirm"
+              id={`${fieldId}-password-confirm`}
               type="password"
               value={passwordConfirm}
               onChange={(e) => setPasswordConfirm(e.target.value)}

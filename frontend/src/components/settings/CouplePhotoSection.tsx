@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useId, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import Button from "@/components/common/Button";
 import { SettingsSectionCard, onMutationError } from "@/components/settings/shared";
@@ -8,6 +8,7 @@ import { TOUCH_TARGET_MIN_MOBILE_ONLY } from "@/constants/uiSizes";
 import { toast } from "@/utils/toast";
 
 export default function CouplePhotoSection({ photoUrl }: { photoUrl: string | null }) {
+  const fieldId = useId();
   const queryClient = useQueryClient();
   const [couplePhotoFile, setCouplePhotoFile] = useState<File | null>(null);
 
@@ -42,13 +43,13 @@ export default function CouplePhotoSection({ photoUrl }: { photoUrl: string | nu
       {photoUrl && <img src={photoUrl} alt="부부 사진" className="w-full h-32 object-cover rounded-lg" />}
       <div className="flex items-center gap-3">
         <label
-          htmlFor="couple-photo-input"
+          htmlFor={`${fieldId}-input`}
           className={`${TOUCH_TARGET_MIN_MOBILE_ONLY} px-4 rounded-lg border border-gray-300 dark:border-gray-600 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 cursor-pointer transition-colors`}
         >
           파일 선택
         </label>
         <input
-          id="couple-photo-input"
+          id={`${fieldId}-input`}
           type="file"
           accept="image/jpeg,image/png,image/webp"
           onChange={(e) => setCouplePhotoFile(e.target.files?.[0] ?? null)}

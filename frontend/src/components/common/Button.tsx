@@ -1,5 +1,6 @@
 import type { ButtonHTMLAttributes, ReactNode } from "react";
 import { Loader2 } from "lucide-react";
+import { dangerActionClass } from "@/utils/colors";
 
 type Variant = "primary" | "secondary" | "danger" | "ghost" | "outline";
 type Size = "sm" | "md";
@@ -16,7 +17,7 @@ const VARIANT_CLASSES: Record<Variant, string> = {
   primary: "bg-primary text-white hover:bg-primary-700",
   secondary:
     "border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800",
-  danger: "border border-red-300 text-red-600 hover:bg-red-50",
+  danger: dangerActionClass("outline"),
   ghost: "text-gray-400 hover:text-primary hover:bg-primary-50 dark:hover:bg-primary-950",
   outline:
     "border border-primary-300 dark:border-primary-700 text-primary dark:text-primary-400 hover:bg-primary-50 dark:hover:bg-primary-950",

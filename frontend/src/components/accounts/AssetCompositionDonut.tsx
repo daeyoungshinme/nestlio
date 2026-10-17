@@ -2,7 +2,7 @@ import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from "recharts";
 import { PieChart as PieChartIcon } from "lucide-react";
 import EmptyState from "@/components/common/EmptyState";
 import { useThemeStore } from "@/stores/themeStore";
-import { assetCategoryChartColor } from "@/utils/colors";
+import { assetCategoryChartColor, chartTooltipStyle } from "@/utils/colors";
 import type { AssetCategory } from "@/utils/colors";
 import { formatKrwCompact } from "@/utils/format";
 
@@ -25,20 +25,6 @@ const CHART_COLUMN_CLASS = "shrink-0 self-start w-[156px] sm:w-[180px] lg:w-[198
 // 올려 지름은 이전과 거의 동일하게 유지) 위쪽에 붙어 보이게 한다.
 const CHART_BOX_CLASS = "w-full h-[144px] sm:h-[164px] lg:h-[176px]";
 
-function tooltipStyle(isDark: boolean) {
-  const color = isDark ? "#f9fafb" : "#111827";
-  return {
-    contentStyle: {
-      fontSize: 12,
-      borderRadius: 8,
-      border: `1px solid ${isDark ? "#374151" : "#E5E7EB"}`,
-      backgroundColor: isDark ? "#1f2937" : "#ffffff",
-      color,
-    },
-    labelStyle: { color },
-    itemStyle: { color },
-  };
-}
 
 export default function AssetCompositionDonut({ accounts, savingsInvestment, realEstate }: Props) {
   const isDark = useThemeStore((s) => s.isDark);
@@ -78,7 +64,7 @@ export default function AssetCompositionDonut({ accounts, savingsInvestment, rea
                 <Cell key={entry.key} fill={entry.color} />
               ))}
             </Pie>
-            <Tooltip {...tooltipStyle(isDark)} formatter={(v) => formatKrwCompact(Number(v))} />
+            <Tooltip {...chartTooltipStyle(isDark)} formatter={(v) => formatKrwCompact(Number(v))} />
           </PieChart>
         </ResponsiveContainer>
       </div>

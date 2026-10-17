@@ -111,13 +111,13 @@ export default function EventForm({ initialValues, submitLabel, submitting, user
       />
       <div className="flex items-center gap-2">
         <input
-          id="all-day"
+          id={`${fieldId}-all-day`}
           type="checkbox"
           checked={form.all_day}
           onChange={(e) => setForm((f) => ({ ...f, all_day: e.target.checked }))}
           className="h-4 w-4 rounded border-gray-300"
         />
-        <label htmlFor="all-day" className={LABEL_SM}>
+        <label htmlFor={`${fieldId}-all-day`} className={LABEL_SM}>
           종일
         </label>
       </div>

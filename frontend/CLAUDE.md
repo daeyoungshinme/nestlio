@@ -38,7 +38,7 @@ npm run generate:icons      # public/favicon.svg → PNG/ICO
 
 ## Absolute Rules
 
-- **색상/상태**: 상태(`ok`/`warn`/`critical`, `info`/`warning`/`critical`), 카테고리 fixed/variable, 수입/지출 색은 항상 `utils/colors.ts` 함수로 가져온다. 컴포넌트에 `status === "critical" ? "text-red-600" : ...`를 직접 쓰지 않는다. 금액 부호 색 `amountToneClass`, 단독 에러 문구 `errorMessageTextClass`, amber 주의/제안 `cautionTextClass`/`cautionCalloutClass`/`cautionCalloutTextClass`.
+- **색상/상태**: 상태(`ok`/`warn`/`critical`, `info`/`warning`/`critical`), 카테고리 fixed/variable, 수입/지출 색은 항상 `utils/colors.ts` 함수로 가져온다. 컴포넌트에 `status === "critical" ? "text-red-600" : ...`를 직접 쓰지 않는다. 금액 부호 색 `amountToneClass`, 단독 에러 문구 `errorMessageTextClass`, amber 주의/제안 `cautionTextClass`/`cautionCalloutClass`/`cautionCalloutTextClass`. 성공·에러 콜아웃 `successCallout*`/`errorCallout*`, 삭제·제거 같은 파괴적 동작 `dangerActionClass("outline"|"solid"|"hover"|"menu"|"icon")`, recharts 툴팁 `chartTooltipStyle(isDark)`.
 - **accent**: `tailwind.config.ts`의 `primary` 토큰(emerald 계열). 버튼·링크·hover·아이콘·배지에 raw `emerald-*`/`indigo-*`를 쓰지 않는다 — CI grep 가드가 `colors.ts` 밖의 사용을 실패시킨다.
 - **금액**: 백엔드 응답의 `Decimal` 문자열 그대로 다루고, 표시 시점에만 `utils/format.ts`의 `formatKrw`/`formatKrwCompact`. 중간에 `parseFloat` 등으로 반올림하지 않는다.
 - **터치 타깃**: 단독 액션 버튼은 `constants/uiSizes.ts`의 `TOUCH_TARGET_MIN`(44px), 조밀한 배지/탭은 `TOUCH_TARGET_COMPACT_MOBILE_ONLY`(36px). `Button`에 `!min-h-0 !py-1` 같은 override로 깎지 않는다. 글자는 `text-[11px]` 미만 금지 — 좁은 곳은 `formatKrwCompact`로 줄인다.
