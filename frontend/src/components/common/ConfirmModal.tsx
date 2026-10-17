@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 import { useModalBehavior } from "@/hooks/useModalBehavior";
 import { TOUCH_TARGET_MIN } from "@/constants/uiSizes";
 import { Z_CONFIRM_MODAL } from "@/constants/zIndex";
+import { dangerActionClass } from "@/utils/colors";
 
 interface Props {
   message: string;
@@ -46,7 +47,7 @@ export default function ConfirmModal({
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-start gap-3 mb-5">
-          {danger && <AlertTriangle size={20} className="text-red-500 mt-0.5 shrink-0" aria-hidden="true" />}
+          {danger && <AlertTriangle size={20} className={`${dangerActionClass("icon")} mt-0.5 shrink-0`} aria-hidden="true" />}
           <div className="min-w-0 flex-1">
             <p id={msgId} className="text-sm text-gray-700 dark:text-gray-200 leading-relaxed">
               {message}
@@ -67,7 +68,7 @@ export default function ConfirmModal({
             onClick={onConfirm}
             disabled={confirmDisabled}
             className={`${TOUCH_TARGET_MIN} flex-1 sm:flex-none px-4 text-sm font-medium rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${
-              danger ? "bg-red-600 text-white hover:bg-red-700" : "bg-primary text-white hover:bg-primary-700"
+              danger ? dangerActionClass("solid") : "bg-primary text-white hover:bg-primary-700"
             }`}
           >
             {confirmLabel}

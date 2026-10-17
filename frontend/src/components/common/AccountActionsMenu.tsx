@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { MoreVertical } from "lucide-react";
 import { TOUCH_TARGET_MIN_MOBILE_ONLY, TOUCH_TARGET_ROW } from "@/constants/uiSizes";
+import { dangerActionClass } from "@/utils/colors";
 
 export interface AccountActionsMenuItem {
   icon: React.ReactNode;
@@ -63,7 +64,7 @@ export default function AccountActionsMenu({ items, ariaLabel = "더 보기" }: 
           {items.map((item, i) => {
             const itemClassName = `w-full gap-2.5 px-3 text-sm transition-colors disabled:opacity-50 ${TOUCH_TARGET_ROW} ${
               item.variant === "danger"
-                ? "text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950"
+                ? dangerActionClass("menu")
                 : "text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
             }`;
             if (item.href) {

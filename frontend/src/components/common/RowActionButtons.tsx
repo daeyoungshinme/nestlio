@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { Pencil, Trash2 } from "lucide-react";
 import { TOUCH_TARGET_MIN_MOBILE_ONLY } from "@/constants/uiSizes";
+import { dangerActionClass } from "@/utils/colors";
 
 interface Props {
   onEdit?: () => void;
@@ -39,7 +40,7 @@ export default function RowActionButtons({
           onClick={onDelete}
           aria-label={deleteLabel}
           disabled={deleteDisabled}
-          className={`${TOUCH_TARGET_MIN_MOBILE_ONLY} p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950 rounded-lg transition-colors disabled:opacity-50`}
+          className={`${TOUCH_TARGET_MIN_MOBILE_ONLY} p-2 text-gray-400 ${dangerActionClass("hover")} rounded-lg transition-colors disabled:opacity-50`}
         >
           {deleteIcon}
         </button>

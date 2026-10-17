@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useId, useMemo } from "react";
 import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import EmptyState from "@/components/common/EmptyState";
 import { formatKrw, formatKrwCompact, formatYearMonth } from "@/utils/format";
@@ -13,6 +13,7 @@ interface Props {
 
 export default function NetWorthTrendChart({ history }: Props) {
   const isDark = useThemeStore((s) => s.isDark);
+  const fillId = `net-worth-fill-${useId().replace(/:/g, "")}`;
 
   const chartData = useMemo(
     () =>
@@ -47,7 +48,7 @@ export default function NetWorthTrendChart({ history }: Props) {
       <ResponsiveContainer width="100%" height="100%">
         <AreaChart data={chartData}>
           <defs>
-            <linearGradient id="netWorthFill" x1="0" y1="0" x2="0" y2="1">
+            <linearGradient id={fillId} x1="0" y1="0" x2="0" y2="1">
               <stop offset="5%" stopColor={lineColor} stopOpacity={0.3} />
               <stop offset="95%" stopColor={lineColor} stopOpacity={0} />
             </linearGradient>
@@ -56,7 +57,7 @@ export default function NetWorthTrendChart({ history }: Props) {
           <XAxis dataKey="name" tick={{ fontSize: 12 }} interval={tickInterval} />
           <YAxis tick={{ fontSize: 12 }} tickFormatter={(v) => formatKrwCompact(Number(v))} width={70} />
           <Tooltip formatter={(v) => formatKrw(Number(v))} />
-          <Area type="monotone" dataKey="순자산" stroke={lineColor} fill="url(#netWorthFill)" strokeWidth={2} />
+          <Area type="monotone" dataKey="순자산" stroke={lineColor} fill={`url(#${fillId})`} strokeWidth={2} />
         </AreaChart>
       </ResponsiveContainer>
     </div>

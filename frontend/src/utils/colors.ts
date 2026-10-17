@@ -212,6 +212,22 @@ export function assetCategoryChartColor(category: AssetCategory, isDark: boolean
   return ASSET_CATEGORY_CHART_COLOR[category][isDark ? "dark" : "light"];
 }
 
+/** recharts Tooltip 테마 — 기본 툴팁은 다크모드에서 흰 박스라 대비가 깨진다. `<Tooltip {...chartTooltipStyle(isDark)} />`. */
+export function chartTooltipStyle(isDark: boolean) {
+  const color = isDark ? "#f9fafb" : "#111827";
+  return {
+    contentStyle: {
+      fontSize: 12,
+      borderRadius: 8,
+      border: `1px solid ${isDark ? "#374151" : "#E5E7EB"}`,
+      backgroundColor: isDark ? "#1f2937" : "#ffffff",
+      color,
+    },
+    labelStyle: { color },
+    itemStyle: { color },
+  };
+}
+
 const NET_WORTH_TREND_CHART_COLOR = { light: "#2563EB", dark: "#60a5fa" };
 
 /** 순자산 추이 차트(NetWorthTrendChart) 전용 단색 라인/그라디언트 색상. 어두운 배경에서
@@ -295,6 +311,40 @@ export function formErrorTextClass(): string {
 /** 폼 바깥에 단독으로 뜨는 에러 문구(로그인·초대 수락·가져오기 실패 등) — 다크모드 대비까지 맞춘 버전. */
 export function errorMessageTextClass(): string {
   return "text-red-600 dark:text-red-400";
+}
+
+/** 성공 콜아웃 박스(배경+테두리)와 본문 — 이메일 인증 완료 등. */
+export function successCalloutClass(): string {
+  return "bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-700";
+}
+
+export function successCalloutTextClass(): string {
+  return "text-green-700 dark:text-green-300";
+}
+
+/** 에러 콜아웃 박스(배경+테두리)와 본문 — 페이지 단독 실패 안내. */
+export function errorCalloutClass(): string {
+  return "bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-700";
+}
+
+export function errorCalloutTextClass(): string {
+  return "text-red-700 dark:text-red-300";
+}
+
+/** 삭제·제거 같은 파괴적 동작의 색. 컴포넌트마다 red-*를 따로 적던 것을 한곳에서.
+ * outline=테두리 버튼, solid=확인 모달 주 버튼, hover=평소엔 중립이다가 hover에만 빨강(아이콘 버튼·로그아웃),
+ * menu=드롭다운 메뉴 항목, icon=경고 아이콘. */
+const DANGER_CLASS = {
+  outline:
+    "border border-red-300 dark:border-red-700 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950",
+  solid: "bg-red-600 text-white hover:bg-red-700",
+  hover: "hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-950",
+  menu: "text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950",
+  icon: "text-red-500",
+} as const;
+
+export function dangerActionClass(kind: keyof typeof DANGER_CLASS): string {
+  return DANGER_CLASS[kind];
 }
 
 /** 주의·제안 문구(amber) — "최근 평균 제안값", 반복거래 연동 안내, 벤치마크 초과 등. PlanStatus "warn"과 같은 톤. */

@@ -1,5 +1,5 @@
 import { PiggyBank } from "lucide-react";
-import { useState } from "react";
+import { useId, useState } from "react";
 import type { FormEvent } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
@@ -13,6 +13,7 @@ import { QUERY_KEYS } from "@/constants/queryKeys";
 import { errorMessageTextClass } from "@/utils/colors";
 
 export default function LoginPage() {
+  const fieldId = useId();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -53,11 +54,11 @@ export default function LoginPage() {
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label htmlFor="login-email" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+            <label htmlFor={`${fieldId}-email`} className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
               이메일
             </label>
             <input
-              id="login-email"
+              id={`${fieldId}-email`}
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
@@ -68,13 +69,13 @@ export default function LoginPage() {
           </div>
           <div>
             <label
-              htmlFor="login-password"
+              htmlFor={`${fieldId}-password`}
               className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1"
             >
               비밀번호
             </label>
             <input
-              id="login-password"
+              id={`${fieldId}-password`}
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
