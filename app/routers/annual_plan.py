@@ -50,14 +50,14 @@ def upsert_plan_item(
         monthly_targets=[mt.model_dump() for mt in payload.monthly_targets],
     )
     if item is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "연간계획 항목을 찾을 수 없습니다.")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="연간계획 항목을 찾을 수 없습니다.")
     return _plan_list(db, payload.year, today_kst())
 
 
 @router.delete("/items/{item_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_plan_item(item_id: int, db: Session = Depends(get_db), _: User = Depends(get_current_user)):
     if not annual_plan_service.delete_item(db, item_id):
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "연간계획 항목을 찾을 수 없습니다.")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="연간계획 항목을 찾을 수 없습니다.")
 
 
 @router.post("/seed", response_model=AnnualPlanListOut)

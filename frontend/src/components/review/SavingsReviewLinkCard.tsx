@@ -1,14 +1,15 @@
 import { Link } from "react-router-dom";
 import { ChevronRight, Scissors } from "lucide-react";
 import { savingsReviewLink } from "@/constants/routes";
+import { TOUCH_TARGET_MIN_HEIGHT } from "@/constants/uiSizes";
 
 /** 절감 점검(`/review`) 진입 카드 — 주 메뉴에 없는 화면이라 홈과 계획 › 실적 분석에 둔다.
- * 계산이 무거워(최근 7개월 거래·예산·보험) 홈에서 금액을 미리 불러오지 않고 링크만 둔다. */
+ * 계산이 무거워(최근 몇 달 거래·예산·보험 — settings.spending_review_lookback_months) 홈에서 금액을 미리 불러오지 않고 링크만 둔다. */
 export default function SavingsReviewLinkCard() {
   return (
     <Link
       to={savingsReviewLink()}
-      className="card flex items-center gap-3 min-h-[44px] hover:bg-gray-50 dark:hover:bg-gray-900 transition-colors"
+      className={`card flex items-center gap-3 ${TOUCH_TARGET_MIN_HEIGHT} hover:bg-gray-50 dark:hover:bg-gray-900 transition-colors`}
     >
       <Scissors size={18} className="shrink-0 text-primary" aria-hidden="true" />
       <div className="min-w-0 flex-1">

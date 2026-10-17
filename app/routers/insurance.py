@@ -28,11 +28,11 @@ def update_policy(
 ):
     policy = insurance_service.update_policy(db, policy_id, payload.to_fields())
     if policy is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, _NOT_FOUND)
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=_NOT_FOUND)
     return policy
 
 
 @router.post("/{policy_id}/deactivate", status_code=status.HTTP_204_NO_CONTENT)
 def deactivate_policy(policy_id: int, db: Session = Depends(get_db), _: User = Depends(get_current_user)):
     if not insurance_service.deactivate_policy(db, policy_id):
-        raise HTTPException(status.HTTP_404_NOT_FOUND, _NOT_FOUND)
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=_NOT_FOUND)

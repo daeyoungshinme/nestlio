@@ -1,101 +1,23 @@
 import { useId, useState } from "react";
 import type { FormEvent } from "react";
-import { useQuery } from "@tanstack/react-query";
 import Button from "@/components/common/Button";
 import FormInput from "@/components/common/FormInput";
 import Modal from "@/components/common/Modal";
-import RiderListEditor, { riderDraftFrom, riderPayload, type RiderDraft } from "@/components/review/RiderListEditor";
-import { fetchRecurring } from "@/api/recurring";
-import { COVERAGE_LABEL, DEFAULT_COVERAGES, PAYMENT_FREQUENCY_LABEL, POLICY_TYPE_LABEL } from "@/constants/insurance";
+import CoverageChips from "@/components/review/CoverageChips";
+import RiderListEditor from "@/components/review/RiderListEditor";
+import {
+  OTHER_INSURED,
+  policyDraftFrom,
+  policyPayload,
+  withPolicyType,
+  type PolicyDraft,
+} from "@/components/review/insurancePolicyDraft";
+import { PAYMENT_FREQUENCY_LABEL, POLICY_TYPE_LABEL } from "@/constants/insurance";
 import { INPUT_SM, LABEL_SM } from "@/constants/inputStyles";
-import { QUERY_KEYS } from "@/constants/queryKeys";
-import { TOUCH_TARGET_COMPACT_MOBILE_ONLY } from "@/constants/uiSizes";
-import { selectableChipClass } from "@/utils/colors";
-import { amountInputPreview, toAmountInputValue } from "@/utils/format";
+import { TOUCH_TARGET_MIN_HEIGHT } from "@/constants/uiSizes";
+import { useRecurringAll } from "@/hooks/useReferenceData";
+import { amountInputPreview } from "@/utils/format";
 import type { Coverage, InsurancePolicyIn, InsurancePolicyOut, PaymentFrequency, PolicyType, UserOut } from "@/types";
-
-/** 피보험자 select 값 — 부부 user id 또는 "other"(자녀 등, 이름 직접 입력). */
-const OTHER_INSURED = "other";
-
-interface Draft {
-  name: string;
-  insurer: string;
-  policy_type: PolicyType;
-  insured: string;
-  insured_name: string;
-  premium_amount: string;
-  payment_frequency: PaymentFrequency;
-  is_renewable: boolean;
-  next_renewal_date: string;
-  payment_end_date: string;
-  coverage_end_date: string;
-  coverages: Coverage[];
-  riders: RiderDraft[];
-  recurring_expense_id: string;
-  memo: string;
-}
-
-function draftFrom(policy: InsurancePolicyOut | null, users: UserOut[] | undefined): Draft {
-  if (!policy) {
-    return {
-      name: "",
-      insurer: "",
-      policy_type: "indemnity",
-      insured: users?.[0]?.id ?? OTHER_INSURED,
-      insured_name: "",
-      premium_amount: "",
-      payment_frequency: "monthly",
-      is_renewable: false,
-      next_renewal_date: "",
-      payment_end_date: "",
-      coverage_end_date: "",
-      coverages: DEFAULT_COVERAGES.indemnity ?? [],
-      riders: [],
-      recurring_expense_id: "",
-      memo: "",
-    };
-  }
-  return {
-    name: policy.name,
-    insurer: policy.insurer ?? "",
-    policy_type: policy.policy_type,
-    insured: policy.insured_user_id ?? OTHER_INSURED,
-    insured_name: policy.insured_name ?? "",
-    premium_amount: toAmountInputValue(policy.premium_amount),
-    payment_frequency: policy.payment_frequency,
-    is_renewable: policy.is_renewable,
-    next_renewal_date: policy.next_renewal_date ?? "",
-    payment_end_date: policy.payment_end_date ?? "",
-    coverage_end_date: policy.coverage_end_date ?? "",
-    coverages: policy.coverages,
-    riders: policy.riders.map(riderDraftFrom),
-    recurring_expense_id: policy.recurring_expense_id !== null ? String(policy.recurring_expense_id) : "",
-    memo: policy.memo ?? "",
-  };
-}
-
-function toPayload(draft: Draft): InsurancePolicyIn {
-  const isOther = draft.insured === OTHER_INSURED;
-  const renewable = draft.is_renewable || draft.policy_type === "auto";
-  return {
-    name: draft.name.trim(),
-    insurer: draft.insurer.trim() || null,
-    policy_type: draft.policy_type,
-    insured_user_id: isOther ? null : draft.insured,
-    insured_name: isOther ? draft.insured_name.trim() || null : null,
-    premium_amount: draft.premium_amount,
-    payment_frequency: draft.payment_frequency,
-    is_renewable: renewable,
-    next_renewal_date: renewable ? draft.next_renewal_date || null : null,
-    payment_end_date: draft.payment_end_date || null,
-    coverage_end_date: draft.coverage_end_date || null,
-    coverages: draft.coverages,
-    // 특약을 넣으면 서버가 특약에서 보장 태그를 다시 만든다. 빈 목록이면 기존 특약을 모두 지운다(폼이 기존 특약으로 시작하므로 의도된 동작).
-    riders: draft.riders.map(riderPayload),
-    recurring_expense_id: draft.recurring_expense_id ? Number(draft.recurring_expense_id) : null,
-    memo: draft.memo.trim() || null,
-  };
-}
 
 interface Props {
   policy: InsurancePolicyOut | null;
@@ -107,29 +29,15 @@ interface Props {
 
 export default function InsurancePolicyFormModal({ policy, users, submitting, onClose, onSubmit }: Props) {
   const fieldId = useId();
-  const [draft, setDraft] = useState<Draft>(() => draftFrom(policy, users));
-  const { data: recurring } = useQuery({
-    queryKey: QUERY_KEYS.recurring,
-    queryFn: () => fetchRecurring({ include_inactive: true }),
-  });
+  const [draft, setDraft] = useState<PolicyDraft>(() => policyDraftFrom(policy, users));
+  const { data: recurring } = useRecurringAll();
   const expenseRecurrings = (recurring?.items ?? []).filter((r) => r.type === "expense");
   const isAuto = draft.policy_type === "auto";
   const showRenewalDate = draft.is_renewable || isAuto;
 
-  const set = <K extends keyof Draft>(key: K, value: Draft[K]) => setDraft((d) => ({ ...d, [key]: value }));
+  const set = <K extends keyof PolicyDraft>(key: K, value: PolicyDraft[K]) => setDraft((d) => ({ ...d, [key]: value }));
 
-  const changeType = (policyType: PolicyType) =>
-    setDraft((d) => {
-      // 보장이 비어 있거나 이전 종류의 대표 보장 그대로면 새 종류의 대표 보장으로 바꾼다(직접 고친 건 건드리지 않는다).
-      const prevDefaults = DEFAULT_COVERAGES[d.policy_type] ?? [];
-      const untouched =
-        d.coverages.length === prevDefaults.length && d.coverages.every((c) => prevDefaults.includes(c));
-      return {
-        ...d,
-        policy_type: policyType,
-        coverages: untouched ? (DEFAULT_COVERAGES[policyType] ?? []) : d.coverages,
-      };
-    });
+  const changeType = (policyType: PolicyType) => setDraft((d) => withPolicyType(d, policyType));
 
   const toggleCoverage = (coverage: Coverage) =>
     setDraft((d) => ({
@@ -140,7 +48,7 @@ export default function InsurancePolicyFormModal({ policy, users, submitting, on
   const handleSubmit = (e: FormEvent) => {
     e.preventDefault();
     if (!draft.name.trim() || draft.premium_amount === "") return;
-    onSubmit(toPayload(draft));
+    onSubmit(policyPayload(draft));
   };
 
   return (
@@ -241,7 +149,7 @@ export default function InsurancePolicyFormModal({ policy, users, submitting, on
         </div>
 
         {!isAuto && (
-          <label className={`flex items-center gap-2 min-h-[44px] ${LABEL_SM}`}>
+          <label className={`flex items-center gap-2 ${TOUCH_TARGET_MIN_HEIGHT} ${LABEL_SM}`}>
             <input
               type="checkbox"
               checked={draft.is_renewable}
@@ -284,29 +192,7 @@ export default function InsurancePolicyFormModal({ policy, users, submitting, on
           frequencyLabel={PAYMENT_FREQUENCY_LABEL[draft.payment_frequency]}
         />
 
-        {draft.riders.length === 0 && (
-        <div>
-          <p id={`${fieldId}-coverages`} className={`block mb-1 font-medium ${LABEL_SM}`}>
-            주요 보장 (겹치는 보장을 찾을 때 써요)
-          </p>
-          <div role="group" aria-labelledby={`${fieldId}-coverages`} className="flex flex-wrap gap-1.5">
-            {(Object.keys(COVERAGE_LABEL) as Coverage[]).map((coverage) => {
-              const selected = draft.coverages.includes(coverage);
-              return (
-                <button
-                  key={coverage}
-                  type="button"
-                  aria-pressed={selected}
-                  onClick={() => toggleCoverage(coverage)}
-                  className={`rounded-full px-3 text-xs font-medium transition-colors ${TOUCH_TARGET_COMPACT_MOBILE_ONLY} ${selectableChipClass(selected)}`}
-                >
-                  {COVERAGE_LABEL[coverage]}
-                </button>
-              );
-            })}
-          </div>
-        </div>
-        )}
+        {draft.riders.length === 0 && <CoverageChips selected={draft.coverages} onToggle={toggleCoverage} />}
 
         <div>
           <label htmlFor={`${fieldId}-recurring`} className={`block mb-1 font-medium ${LABEL_SM}`}>

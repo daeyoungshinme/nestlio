@@ -6,6 +6,7 @@ from typing import Literal
 from fastapi import APIRouter, Depends, File, HTTPException, Query, Response, UploadFile, status
 from sqlalchemy.orm import Session
 
+from app.config import settings
 from app.database import get_db
 from app.dependencies import get_bearer_token, get_current_user
 from app.models.user import User
@@ -132,7 +133,7 @@ def import_csv(
 ):
     # async def가 아니라 def — 가져오기 전체가 동기 DB 작업이라 이벤트 루프를 막지 않게 스레드풀에서 돈다.
     # 상한+1바이트까지만 읽는다(크기 초과 판정과 인코딩 판별은 decode_upload).
-    raw = file.file.read(transaction_import_service.max_upload_bytes() + 1)
+    raw = file.file.read(settings.max_upload_bytes + 1)
     text = transaction_import_service.decode_upload(raw)
     return transaction_import_service.import_csv(db, text, current_user.id)
 

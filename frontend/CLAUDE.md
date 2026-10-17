@@ -75,6 +75,7 @@ npm run generate:icons      # public/favicon.svg → PNG/ICO
 | `/accounts` | 자산 | 계좌/저축·투자/부동산/대출 4개 `CollapsibleGroup`(접힌 섹션은 마운트·쿼리 안 함). `?section=`. 상단 `AccountsSnapshotCard`의 "전체 동기화"가 **growlio 잔액 동기화의 유일한 수동 진입점** |
 | `/plan` | `PlanPage` | `[이번 달 \| 연간]`(`?view=`). 아래 "계획 화면" 참고 |
 | `/goals`, `/goals/:id` | `GoalsTab`, `GoalDetailPage` | 재무목표·챌린지·순자산 목표. 상세에 응원·시나리오·growlio 인사이트. 순자산 목표는 가구당 하나, 목록·홈 Hero에서 항상 맨 앞(`pinNetWorthFirst`) |
+| `/review` | `SavingsReviewPage` | 절감 점검 `[소비 \| 보험]`(`?tab=`). 주 메뉴에 없음 — 홈·계획 "실적 분석"의 `SavingsReviewLinkCard`로 진입. 컴포넌트는 `components/review/`(보험 계약 폼 `InsurancePolicyFormModal` + 순수 변환 `insurancePolicyDraft.ts`, 특약 `RiderListEditor`, 보장 현황 `CoverageStatusTable`·적정 기준 `InsuranceTargetsModal`). 쿼리 키 `savingsReview`는 `dashboardAll` 하위라 거래·계획·반복·카테고리·이름·임계값 변경에 자동 갱신되고, 보험 계약·적정 기준 저장만 `savingsReviewAll`을 직접 무효화한다 |
 | `/settings` | 설정 | 헤더 톱니 아이콘으로 진입. 다크모드·로그아웃은 여기에만 |
 
 레거시 리다이렉트(지우지 않는다 — 외부 링크·메일 딥링크): `/calendar`·`/budgets`·`/recurring` → `/transactions`, `/schedule` → `/transactions?view=일정`(`LegacyScheduleRedirect`), `/financial-plan`(구 `?tab=`/`?view=` 포함) → `/goals` 또는 `/plan?view=`(`LegacyFinancialPlanRedirect`), `/reports/yearly` → `/plan?view=연간&section=분석`, `/transactions/:id/edit` → `/transactions`.

@@ -8,6 +8,7 @@ from decimal import ROUND_DOWN, Decimal
 
 from sqlalchemy.orm import Session
 
+from app.constants.sections import EXPENSE_SECTIONS, SECTIONS
 from app.errors import ConflictError, InvalidInputError, NotFoundError
 from app.models.annual_plan_item import AnnualPlanItem
 from app.models.annual_plan_item_monthly_target import AnnualPlanItemMonthlyTarget
@@ -293,12 +294,7 @@ def actuals_for_month(db: Session, year_month: str) -> dict[str, Decimal]:
     month_start = parse_year_month(year_month)
     start, end = month_bounds(month_start)
     totals = transaction_report_service.period_totals(db, start, end)
-    return {
-        "income": totals["income"],
-        "fixed": totals["fixed"],
-        "variable": totals["variable"],
-        "irregular": totals["irregular"],
-    }
+    return {section: totals[section] for section in SECTIONS}
 
 
 def suggested_totals(db: Session, year_month: str) -> dict[str, Decimal]:
@@ -334,27 +330,19 @@ def compute_summary(
     warn_pct: float | None = None,
     critical_pct: float | None = None,
 ) -> dict:
-    income_total = sum((item.amount for item in items if item.section == "income"), Decimal("0"))
-    fixed_total = sum((item.amount for item in items if item.section == "fixed"), Decimal("0"))
-    variable_total = sum((item.amount for item in items if item.section == "variable"), Decimal("0"))
-    irregular_total = sum((item.amount for item in items if item.section == "irregular"), Decimal("0"))
-    expense_total = fixed_total + variable_total + irregular_total
+    totals = {
+        section: sum((item.amount for item in items if item.section == section), Decimal("0")) for section in SECTIONS
+    }
+    expense_total = sum((totals[section] for section in EXPENSE_SECTIONS), Decimal("0"))
     actuals = actuals or {}
     suggested = suggested or {}
-
     return {
-        "income": _section_summary(
-            "income", income_total, actuals.get("income"), suggested.get("income"), warn_pct, critical_pct
-        ),
-        "fixed": _section_summary(
-            "fixed", fixed_total, actuals.get("fixed"), suggested.get("fixed"), warn_pct, critical_pct
-        ),
-        "variable": _section_summary(
-            "variable", variable_total, actuals.get("variable"), suggested.get("variable"), warn_pct, critical_pct
-        ),
-        "irregular": _section_summary(
-            "irregular", irregular_total, actuals.get("irregular"), suggested.get("irregular"), warn_pct, critical_pct
-        ),
+        **{
+            section: _section_summary(
+                section, totals[section], actuals.get(section), suggested.get(section), warn_pct, critical_pct
+            )
+            for section in SECTIONS
+        },
         "expense_total": expense_total,
-        "available": income_total - expense_total,
+        "available": totals["income"] - expense_total,
     }

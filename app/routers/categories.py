@@ -43,11 +43,11 @@ def update_category(
         db, category_id, payload.name, payload.type, payload.color, payload.kind, payload.benchmark_group
     )
     if category is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "카테고리를 찾을 수 없습니다.")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="카테고리를 찾을 수 없습니다.")
     return category
 
 
 @router.post("/{category_id}/deactivate", status_code=status.HTTP_204_NO_CONTENT)
 def deactivate_category(category_id: int, db: Session = Depends(get_db), _: User = Depends(get_current_user)):
     if not category_service.deactivate_category(db, category_id):
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "카테고리를 찾을 수 없습니다.")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="카테고리를 찾을 수 없습니다.")

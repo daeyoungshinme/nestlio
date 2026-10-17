@@ -54,7 +54,7 @@ def accept_invite(
         user_id = uuid.UUID(token_payload.get("sub") or "")
     except ValueError:
         # sub 누락·비UUID — 서명은 맞아도 이 앱이 쓸 수 없는 토큰이다(500이 아니라 401).
-        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Invalid token payload") from None
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token payload") from None
     user = invite_service.accept_invite(
         db, token, user_id, token_payload.get("email", ""), payload.display_name
     )

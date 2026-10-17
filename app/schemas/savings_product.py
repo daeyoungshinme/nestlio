@@ -7,6 +7,7 @@ from pydantic import BaseModel, ConfigDict
 
 from app.schemas.common import KrwAmount, KrwBalance, YearMonth, bounded_str
 from app.schemas.growlio import GrowlioImportIn, GrowlioSyncAllOut
+from app.utils.plan_status import PlanStatus
 
 
 class SavingsProductOut(BaseModel):
@@ -55,7 +56,7 @@ class SavingsProductPlanItemOut(BaseModel):
     planned: Decimal
     actual: Decimal
     pct: float
-    status: Literal["ok", "warn", "critical"]
+    status: PlanStatus
     suggested_monthly_saving_amount: Decimal | None = None
 
 
@@ -63,7 +64,7 @@ class SavingsProductPlanGroupOut(BaseModel):
     planned: Decimal
     actual: Decimal | None
     pct: float | None
-    status: Literal["ok", "warn", "critical"] | None
+    status: PlanStatus | None
 
 
 class SavingsProductPlanListOut(BaseModel):
@@ -81,7 +82,7 @@ class SavingsProductAnnualPlanItemOut(BaseModel):
     target_to_date: Decimal
     actual: Decimal
     pct: float
-    status: Literal["ok", "warn", "critical"]
+    status: PlanStatus
 
 
 class SavingsProductAnnualPlanGroupOut(BaseModel):
@@ -90,7 +91,7 @@ class SavingsProductAnnualPlanGroupOut(BaseModel):
     actual: Decimal | None
     pct: float | None
     annual_pct: float | None
-    status: Literal["ok", "warn", "critical"] | None
+    status: PlanStatus | None
 
 
 class SavingsProductAnnualPlanListOut(BaseModel):

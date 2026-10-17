@@ -1,6 +1,8 @@
 /** 상태/심각도별 Tailwind 색상 매핑을 한 곳에 모아둔다 - 컴포넌트에서 조건부 색상 클래스를
  * 직접 작성하지 않고 항상 이 유틸을 통해서만 가져온다 (growlio의 utils/colors.ts 컨벤션과 동일). */
 
+import type { CoverageStatus } from "@/types";
+
 export type InsightSeverity = "info" | "warning" | "critical";
 
 const INSIGHT_SEVERITY_STYLE: Record<InsightSeverity, string> = {
@@ -388,7 +390,7 @@ export function recurringAccentBadgeStyle(): string {
   return "bg-indigo-50 dark:bg-indigo-950 text-indigo-600 dark:text-indigo-400";
 }
 
-const COVERAGE_STATUS_BADGE: Record<"over" | "ok" | "gap" | "no_target", string> = {
+const COVERAGE_STATUS_BADGE: Record<CoverageStatus, string> = {
   over: "bg-amber-50 dark:bg-amber-950 text-amber-700 dark:text-amber-300",
   ok: "bg-primary-50 dark:bg-primary-950 text-primary-700 dark:text-primary-300",
   gap: "bg-blue-50 dark:bg-blue-950 text-blue-700 dark:text-blue-300",
@@ -396,7 +398,7 @@ const COVERAGE_STATUS_BADGE: Record<"over" | "ok" | "gap" | "no_target", string>
 };
 
 /** 보험 보장 현황표 상태 배지 — 과다(줄일 후보, amber)·적정(primary)·부족(줄이지 말 곳, blue)·기준 없음(gray). */
-export function coverageStatusBadgeClass(status: "over" | "ok" | "gap" | "no_target"): string {
+export function coverageStatusBadgeClass(status: CoverageStatus): string {
   return COVERAGE_STATUS_BADGE[status];
 }
 

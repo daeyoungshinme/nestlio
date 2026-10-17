@@ -3,7 +3,8 @@ import { Plus, Trash2 } from "lucide-react";
 import Button from "@/components/common/Button";
 import { RIDER_COVERAGE_LABEL } from "@/constants/insurance";
 import { INPUT_SM, LABEL_SM } from "@/constants/inputStyles";
-import { TOUCH_TARGET_MIN } from "@/constants/uiSizes";
+import { TOUCH_TARGET_MIN, TOUCH_TARGET_MIN_HEIGHT } from "@/constants/uiSizes";
+import { sumAmounts } from "@/utils/amount";
 import { formatKrw } from "@/utils/format";
 import type { InsuranceRiderIn, InsuranceRiderOut, RiderCoverage } from "@/types";
 
@@ -68,7 +69,7 @@ export default function RiderListEditor({ riders, onChange, policyPremium, frequ
     ]);
   const remove = (key: string) => onChange(riders.filter((r) => r.key !== key));
 
-  const ridersTotal = riders.reduce((sum, r) => sum + (Number(r.premium) || 0), 0);
+  const ridersTotal = sumAmounts(riders, (r) => r.premium || 0);
   const rest = (Number(policyPremium) || 0) - ridersTotal;
 
   return (
@@ -152,7 +153,7 @@ export default function RiderListEditor({ riders, onChange, policyPremium, frequ
               />
             </div>
           </div>
-          <label className={`flex items-center gap-2 min-h-[44px] ${LABEL_SM}`}>
+          <label className={`flex items-center gap-2 ${TOUCH_TARGET_MIN_HEIGHT} ${LABEL_SM}`}>
             <input
               type="checkbox"
               checked={rider.is_renewable}
