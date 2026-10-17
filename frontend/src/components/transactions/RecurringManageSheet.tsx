@@ -1,6 +1,5 @@
 import { useMemo, useState } from "react";
 import type { ReactNode } from "react";
-import { useQuery } from "@tanstack/react-query";
 import { ChevronLeft, Plus, Power, RotateCcw } from "lucide-react";
 import Button from "@/components/common/Button";
 import CollapsibleGroup from "@/components/common/CollapsibleGroup";
@@ -11,8 +10,7 @@ import Modal from "@/components/common/Modal";
 import RowActionButtons from "@/components/common/RowActionButtons";
 import RecurringForm, { buildRecurringPayload } from "@/components/transactions/RecurringForm";
 import type { RecurringFormValues } from "@/components/transactions/RecurringForm";
-import { fetchRecurring } from "@/api/recurring";
-import { QUERY_KEYS } from "@/constants/queryKeys";
+import { useRecurringAll } from "@/hooks/useReferenceData";
 import { useRecurringMutations } from "@/hooks/useRecurringMutations";
 import { transactionTypeBadgeStyle } from "@/utils/colors";
 import { formatKrw } from "@/utils/format";
@@ -76,10 +74,7 @@ export default function RecurringManageSheet({ categories, onClose }: Props) {
   const [formTarget, setFormTarget] = useState<"new" | RecurringOut | null>(null);
   const [deactivateTarget, setDeactivateTarget] = useState<RecurringOut | null>(null);
 
-  const recurringQuery = useQuery({
-    queryKey: QUERY_KEYS.recurring,
-    queryFn: () => fetchRecurring({ include_inactive: true }),
-  });
+  const recurringQuery = useRecurringAll();
 
   const {
     createMutation,
