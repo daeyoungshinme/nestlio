@@ -27,7 +27,7 @@ jobs:
       api_types: ${{ github.event_name == 'push' || steps.filter.outputs.api_types == 'true' || steps.filter.outputs.ci == 'true' }}
     steps:
       - uses: actions/checkout@v7
-      - uses: dorny/paths-filter@v3
+      - uses: dorny/paths-filter@v4
         id: filter
         if: github.event_name == 'pull_request'
         with:
