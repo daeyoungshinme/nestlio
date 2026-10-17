@@ -139,3 +139,11 @@ def test_savings_review_includes_insurance(client, seeded_db):
     assert body["insurance"]["summary"]["policies_count"] == 2
     assert body["insurance"]["findings"][0]["rule_code"] == "indemnity_duplicate"
     assert Decimal(body["total_estimated_monthly_saving"]) == Decimal("20000")
+
+
+def test_owner_query_accepts_all_shared_uuid_and_rejects_others(client, seeded_db):
+    user_id = seeded_db["user"].id
+    for owner in ("all", "shared", str(user_id)):
+        assert client.get("/api/v1/reports/yearly", params={"year": 2026, "owner": owner}).status_code == 200
+    assert client.get("/api/v1/reports/yearly", params={"owner": "nobody"}).status_code == 422
+    assert client.get("/api/v1/reports/savings-review", params={"owner": "nobody"}).status_code == 422

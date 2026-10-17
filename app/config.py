@@ -132,6 +132,11 @@ class Settings(BaseSettings):
 
     # 코칭 임계값은 0-100 % 범위여야 하고, warn/critical 쌍은 방향이 맞아야 한다(threshold_order_errors).
     # 설정 화면에서 조정 가능한 값이지만 여기 기본값의 오타는 부팅 시점에 잡는다.
+    @property
+    def max_upload_bytes(self) -> int:
+        """업로드 상한(바이트) — 사진·CSV 공통. 라우터는 이 값 + 1바이트까지만 읽어 넘긴다(통째로 read() 금지)."""
+        return int(self.max_upload_size_mb * 1024 * 1024)
+
     @model_validator(mode="after")
     def _validate_thresholds(self) -> "Settings":
         pct_fields = [

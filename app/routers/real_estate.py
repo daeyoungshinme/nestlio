@@ -55,6 +55,6 @@ def sync_real_estate(
 ):
     result = real_estate_service.sync_from_growlio(db, savings_product_id, bearer_token, now=now_kst())
     if result is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "부동산 상품을 찾을 수 없습니다.")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="부동산 상품을 찾을 수 없습니다.")
     product, loan = result
     return RealEstateImportResultOut(savings_product=product, loan=loan)

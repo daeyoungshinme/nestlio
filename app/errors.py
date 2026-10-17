@@ -40,3 +40,9 @@ class UpstreamError(DomainError):
     """외부 서비스(growlio·Gmail·Supabase Storage) 호출 실패."""
 
     status_code = 502
+
+
+class ServiceUnavailableError(UpstreamError):
+    """외부 의존성이 일시적으로 응답하지 않음 — 클라이언트가 잠시 후 재시도하면 되는 상태."""
+
+    status_code = 503

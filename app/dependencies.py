@@ -13,6 +13,7 @@ from sqlalchemy.orm import Session
 
 from app.config import settings
 from app.database import get_db
+from app.errors import ServiceUnavailableError
 from app.models.user import User
 from app.services import user_service
 
@@ -32,9 +33,13 @@ def _get_jwks_client() -> PyJWKClient:
     return _jwks_client
 
 
-class AuthUnavailableError(Exception):
+class AuthUnavailableError(ServiceUnavailableError):
     """JWKS(서명 공개키)를 못 받아와 토큰을 검증할 수 없는 상태 — 토큰이 잘못된 게 아니라 Supabase
-    쪽 장애다. 401로 응답하면 프론트가 세션 갱신 → 재요청 → 로그아웃으로 이어지므로 503으로 구분한다."""
+    쪽 장애다. 401로 응답하면 프론트가 세션 갱신 → 재요청 → 로그아웃으로 이어지므로 503으로 구분한다
+    (전역 핸들러 app/exception_handlers.py가 status_code로 변환)."""
+
+    def __init__(self) -> None:
+        super().__init__("인증 서버에 연결하지 못했습니다. 잠시 후 다시 시도해 주세요.")
 
 
 def verify_supabase_token(token: str) -> dict:
@@ -74,11 +79,6 @@ def _verify_or_http_error(token: str) -> dict:
         return verify_supabase_token(token)
     except ValueError as exc:
         raise _token_error(exc) from None
-    except AuthUnavailableError:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="인증 서버에 연결하지 못했습니다. 잠시 후 다시 시도해 주세요.",
-        ) from None
 
 
 def _token_error(exc: ValueError) -> HTTPException:

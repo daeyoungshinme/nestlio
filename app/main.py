@@ -1,13 +1,7 @@
-from pathlib import Path
+from fastapi import FastAPI
 
-from fastapi import FastAPI, HTTPException, Request, Response
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.middleware.gzip import GZipMiddleware
-from fastapi.responses import FileResponse
-from fastapi.staticfiles import StaticFiles
-
-from app.config import settings as app_settings
 from app.exception_handlers import register_exception_handlers
+from app.middleware import register_middleware
 from app.routers import (
     accounts,
     annual_plan,
@@ -20,6 +14,7 @@ from app.routers import (
     internal_jobs,
     invites,
     loans,
+    media,
     net_worth,
     notifications,
     real_estate,
@@ -30,96 +25,38 @@ from app.routers import (
     transactions,
     users,
 )
-from app.services import couple_photo_service
-
-FRONTEND_DIST = Path(__file__).resolve().parent.parent / "frontend" / "dist"
-
-
-app = FastAPI(title="Nestlio")
-# GZip을 CORS/보안 헤더보다 먼저 등록한다 - Starlette은 먼저 등록한 미들웨어가 응답을
-# 가장 나중에(가장 바깥에서) 처리하므로, 이래야 최종 응답 바디가 압축된다.
-app.add_middleware(GZipMiddleware, minimum_size=500)
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=app_settings.cors_origins,
-    allow_credentials=False,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-@app.middleware("http")
-async def add_security_headers(request: Request, call_next):
-    response = await call_next(request)
-    if request.url.path.startswith("/assets/"):
-        # Vite 빌드 산출물은 콘텐츠 해시 파일명이라 장기 캐시가 안전하다.
-        response.headers["Cache-Control"] = "public, max-age=31536000, immutable"
-    response.headers["X-Content-Type-Options"] = "nosniff"
-    response.headers["X-Frame-Options"] = "DENY"
-    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
-    response.headers["Content-Security-Policy"] = (
-        "default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; "
-        "connect-src 'self' https://*.supabase.co wss://*.supabase.co; "
-        "frame-ancestors 'none'; object-src 'none'; base-uri 'self'"
-    )
-    response.headers["Strict-Transport-Security"] = "max-age=63072000; includeSubDomains"
-    return response
-
+from app.spa import mount_spa
 
 API_PREFIX = "/api/v1"
-app.include_router(users.router, prefix=API_PREFIX)
-app.include_router(categories.router, prefix=API_PREFIX)
-app.include_router(dashboard.router, prefix=API_PREFIX)
-app.include_router(transactions.router, prefix=API_PREFIX)
-app.include_router(recurring.router, prefix=API_PREFIX)
-app.include_router(events.router, prefix=API_PREFIX)
-app.include_router(accounts.router, prefix=API_PREFIX)
-app.include_router(reports.router, prefix=API_PREFIX)
-app.include_router(settings.router, prefix=API_PREFIX)
-app.include_router(cashflow_plan.router, prefix=API_PREFIX)
-app.include_router(goals.router, prefix=API_PREFIX)
-app.include_router(invites.router, prefix=API_PREFIX)
-app.include_router(savings_products.router, prefix=API_PREFIX)
-app.include_router(insurance.router, prefix=API_PREFIX)
-app.include_router(loans.router, prefix=API_PREFIX)
-app.include_router(real_estate.router, prefix=API_PREFIX)
-app.include_router(net_worth.router, prefix=API_PREFIX)
-app.include_router(notifications.router, prefix=API_PREFIX)
-app.include_router(annual_plan.router, prefix=API_PREFIX)
+# 등록 순서 = OpenAPI 경로 순서(api.generated.ts) — 바꾸면 생성 타입 파일이 통째로 재배열된다.
+API_ROUTERS = (
+    users.router,
+    categories.router,
+    dashboard.router,
+    transactions.router,
+    recurring.router,
+    events.router,
+    accounts.router,
+    reports.router,
+    settings.router,
+    cashflow_plan.router,
+    goals.router,
+    invites.router,
+    savings_products.router,
+    insurance.router,
+    loans.router,
+    real_estate.router,
+    net_worth.router,
+    notifications.router,
+    annual_plan.router,
+)
+
+app = FastAPI(title="Nestlio")
+register_middleware(app)
+for api_router in API_ROUTERS:
+    app.include_router(api_router, prefix=API_PREFIX)
 app.include_router(internal_jobs.router)
-
 register_exception_handlers(app)
-
-
-@app.get("/media/couple-photo", include_in_schema=False)
-def serve_couple_photo(v: str | None = None):
-    # 인증 없이 서빙 — <img src>는 Authorization 헤더를 못 보내고, 기존 StaticFiles 마운트도
-    # 비인증이었으므로 동작을 그대로 유지한다. 응답의 URL은 사진 버전(?v=)을 달고 나가 업로드·삭제 때만
-    # 바뀌므로(couple_photo_service.get_photo_url) 버전이 붙은 요청은 브라우저가 오래 캐시해도 된다.
-    try:
-        result = couple_photo_service.get_photo_bytes()
-    except couple_photo_service.PhotoStorageError:
-        raise HTTPException(status_code=502) from None
-    if result is None:
-        raise HTTPException(status_code=404)
-    content, content_type = result
-    headers = {"Cache-Control": "private, max-age=31536000, immutable"} if v else None
-    return Response(content=content, media_type=content_type, headers=headers)
-
-# growlio는 별도 nginx가 프론트엔드를 서빙하지만, nestlio는 운영 단순화를 위해
-# FastAPI가 빌드된 SPA(frontend/dist, `npm run build` 산출물)를 직접 서빙한다.
-# /api/v1/* 라우터가 모두 등록된 "이후"에 마운트해야 이 catch-all이 API 경로를 가로채지 않는다.
-# `frontend/dist`가 없으면(빌드 전, 또는 API만 쓰는 개발 환경) 조용히 건너뛴다.
-if FRONTEND_DIST.is_dir():
-    app.mount("/assets", StaticFiles(directory=FRONTEND_DIST / "assets"), name="frontend-assets")
-
-    @app.get("/{full_path:path}", include_in_schema=False)
-    def serve_spa(full_path: str):
-        # 없는 API 경로(삭제된 엔드포인트를 부르는 구버전 클라이언트 등)가 index.html 200으로 떨어지면
-        # 프론트가 HTML을 JSON으로 파싱하다 엉뚱한 에러를 내므로 API 네임스페이스는 404로 끊는다.
-        if full_path.startswith(("api/", "internal/")):
-            raise HTTPException(status_code=404)
-        frontend_root = FRONTEND_DIST.resolve()
-        candidate = (frontend_root / full_path).resolve()
-        if full_path and candidate.is_relative_to(frontend_root) and candidate.is_file():
-            return FileResponse(candidate)
-        return FileResponse(frontend_root / "index.html")
+app.include_router(media.router)
+# SPA catch-all은 모든 라우터 "이후"에 — 먼저 등록하면 API 경로를 가로챈다.
+mount_spa(app)

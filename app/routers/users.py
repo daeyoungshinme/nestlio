@@ -42,7 +42,7 @@ def update_user(
     그대로 반환), 배우자의 표시 이름도 이 엔드포인트로 바꿀 수 있다."""
     user = user_service.get_active_user(db, user_id)
     if user is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "사용자를 찾을 수 없습니다.")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="사용자를 찾을 수 없습니다.")
     return user_service.update_display_name(db, user, payload.display_name)
 
 
@@ -57,5 +57,5 @@ def remove_user(
     본인은 이 엔드포인트로 제거할 수 없다."""
     user = user_service.get_active_user(db, user_id)
     if user is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "사용자를 찾을 수 없습니다.")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="사용자를 찾을 수 없습니다.")
     user_service.remove_user(db, target=user, requested_by=current_user)
