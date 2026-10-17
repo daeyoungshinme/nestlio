@@ -13,7 +13,7 @@ T = TypeVar("T")
 
 def get_shared_setting(db: Session, key: str, default: str | None = None) -> str | None:
     """Settings like the emergency-fund balance are shared household state, not
-    per-spouse - any row with this key (regardless of who last saved it) applies."""
+    per-spouse — key는 가구 전체에서 unique(uq_user_settings_key)라 행은 많아야 하나다."""
     row = db.query(UserSetting).filter(UserSetting.key == key).first()
     return row.value if row else default
 
@@ -41,7 +41,7 @@ def set_shared_settings(db: Session, values: dict[str, str], user_id: uuid.UUID)
             db.add(UserSetting(user_id=user_id, key=key, value=value))
         else:
             row.value = value
-            row.user_id = user_id
+            row.user_id = user_id  # 마지막으로 저장한 사람(행은 key당 하나라 소유자가 아니다)
     db.commit()
 
 
