@@ -9,6 +9,7 @@ from datetime import date
 
 from sqlalchemy.orm import Session
 
+from app.models.category import Category
 from app.services import (
     coaching_engine,
     coaching_settings_service,
@@ -147,10 +148,13 @@ def build_savings_review(db: Session, year_month: str | None, owner_filter, toda
     보험 점검은 계약 기준이라 항상 가구 전체다. 보험은 소비 점검의 벤치마크에서 빠져 있어 두 총액을 그냥 더한다."""
     year_month = year_month or spending_review_service.default_year_month(today)
     thresholds = coaching_settings_service.get_thresholds(db)
+    categories = db.query(Category).all()
     spending = spending_review_service.build_spending_review(
-        db, year_month, owner=owner_filter, today=today, thresholds=thresholds
+        db, year_month, owner=owner_filter, today=today, thresholds=thresholds, categories=categories
     )
-    insurance = insurance_review_service.build_insurance_review(db, today=today, thresholds=thresholds)
+    insurance = insurance_review_service.build_insurance_review(
+        db, today=today, thresholds=thresholds, categories=categories
+    )
     return {
         "year_month": year_month,
         "spending": spending,

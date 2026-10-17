@@ -34,3 +34,16 @@ def test_get_shared_settings_omits_missing_keys(seeded_db):
     result = user_setting_service.get_shared_settings(db, ["a", "b"])
 
     assert result == {"a": "1"}
+
+
+def test_get_overrides_parses_saved_and_falls_back_on_missing_or_corrupt(seeded_db):
+    from decimal import Decimal
+
+    db, user = seeded_db["db"], seeded_db["user"]
+    user_setting_service.set_overrides(db, "t_", ("a", "b"), {"a": Decimal("1.5"), "c": "무시"}, user.id)
+    user_setting_service.set_shared_setting(db, "t_b", "not-a-number", user.id)
+
+    result = user_setting_service.get_overrides(db, "t_", ("a", "b", "z"), Decimal, lambda f: Decimal(len(f)))
+
+    assert result == {"a": Decimal("1.5"), "b": Decimal("1"), "z": Decimal("1")}
+    assert user_setting_service.get_shared_setting(db, "t_c") is None  # fields 밖 키는 저장하지 않는다

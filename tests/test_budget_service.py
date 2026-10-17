@@ -151,3 +151,16 @@ def test_budget_includes_category_budgeted_only_in_annual_plan(seeded_db):
 
     assert budget_service.get_budgets_for_month(db, "2026-07") == {food.id: Decimal("500000")}
     assert budget_service.get_budgets_for_month(db, "2026-08") == {}
+
+
+def test_get_budgets_for_months_matches_single_month_lookup(seeded_db):
+    db, user, food, rent = seeded_db["db"], seeded_db["user"], seeded_db["food"], seeded_db["rent"]
+    _set_budget(db, food, "2026-07", "100000", user.id)
+    _set_budget(db, food, "2026-08", "120000", user.id)
+    _set_budget(db, rent, "2026-08", "800000", user.id)
+
+    months = ["2026-06", "2026-07", "2026-08"]
+    batched = budget_service.get_budgets_for_months(db, months)
+
+    assert batched == {m: budget_service.get_budgets_for_month(db, m) for m in months}
+    assert batched["2026-06"] == {}

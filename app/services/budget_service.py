@@ -33,6 +33,30 @@ def get_budgets_for_month(db: Session, year_month: str) -> dict[int, Decimal]:
     return dict(rows)
 
 
+def get_budgets_for_months(db: Session, year_months: list[str]) -> dict[str, dict[int, Decimal]]:
+    """get_budgets_for_month()를 여러 달에 대해 쿼리 1개로 — {year_month: {category_id: 예산}}(없는 달은 빈 dict)."""
+    result: dict[str, dict[int, Decimal]] = {ym: {} for ym in year_months}
+    if not year_months:
+        return result
+    query = db.query(
+        AnnualPlanItemMonthlyTarget.year_month,
+        plan_targets.EFFECTIVE_CATEGORY_ID,
+        func.sum(plan_targets.EFFECTIVE_TARGET_AMOUNT),
+    ).select_from(AnnualPlanItemMonthlyTarget).join(AnnualPlanItem, AnnualPlanItemMonthlyTarget.item_id == AnnualPlanItem.id)
+    rows = (
+        plan_targets.join_recurring(query)
+        .filter(
+            AnnualPlanItemMonthlyTarget.year_month.in_(year_months),
+            plan_targets.EFFECTIVE_CATEGORY_ID.isnot(None),
+        )
+        .group_by(AnnualPlanItemMonthlyTarget.year_month, plan_targets.EFFECTIVE_CATEGORY_ID)
+        .all()
+    )
+    for year_month, category_id, amount in rows:
+        result[year_month][category_id] = amount
+    return result
+
+
 def build_category_rows(
     db: Session,
     actuals: dict[int, Decimal],

@@ -1,8 +1,14 @@
+import logging
 import uuid
+from collections.abc import Callable, Iterable
+from typing import TypeVar
 
 from sqlalchemy.orm import Session
 
 from app.models.user_setting import UserSetting
+
+logger = logging.getLogger(__name__)
+T = TypeVar("T")
 
 
 def get_shared_setting(db: Session, key: str, default: str | None = None) -> str | None:
@@ -37,3 +43,30 @@ def set_shared_settings(db: Session, values: dict[str, str], user_id: uuid.UUID)
             row.value = value
             row.user_id = user_id
     db.commit()
+
+
+def get_overrides(
+    db: Session, prefix: str, fields: Iterable[str], parse: Callable[[str], T], default: Callable[[str], T]
+) -> dict[str, T]:
+    """부부가 설정 화면에서 바꾼 값(키 = prefix + field)이 있으면 그 값, 없으면 default(field)(대개 app.config 기본값).
+    코칭 임계값·보험 적정 기준이 같은 방식이다. 손상된 행(수기 편집·오래된 데이터) 때문에 대시보드·설정 화면이
+    500이 나지 않게 파싱 실패도 기본값으로 폴백한다."""
+    fields = list(fields)
+    saved = get_shared_settings(db, [prefix + field for field in fields])
+    result: dict[str, T] = {}
+    for field in fields:
+        raw = saved.get(prefix + field)
+        if raw is None:
+            result[field] = default(field)
+            continue
+        try:
+            result[field] = parse(raw)
+        except (TypeError, ValueError, ArithmeticError):  # Decimal은 InvalidOperation(ArithmeticError)
+            logger.warning("setting %s%s has invalid value %r; using default", prefix, field, raw)
+            result[field] = default(field)
+    return result
+
+
+def set_overrides(db: Session, prefix: str, fields: Iterable[str], values: dict, updated_by: uuid.UUID) -> None:
+    """get_overrides의 저장 짝 — fields에 든 키만, 한 번의 커밋으로."""
+    set_shared_settings(db, {prefix + field: str(values[field]) for field in fields if field in values}, updated_by)

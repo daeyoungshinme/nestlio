@@ -106,6 +106,10 @@ class Settings(BaseSettings):
     auto_insurance_renewal_notice_days: int = 45
     insurance_payment_ending_months: int = 12
     insurance_unregistered_tolerance_pct: float = 10
+    # 보험료 카테고리 실제 지출 평균 기간(연납·비정기 납입이 섞여 길게)과 소득 대비 비율의 소득 평균 기간
+    insurance_premium_lookback_months: int = 12
+    insurance_income_lookback_months: int = 3
+    insurance_top_riders: int = 5
     # 적정 가입금액 기본값(원, 입원일당은 1일 금액) — 통상 가이드 수준이며 부부가 설정에서 바꾼다(insurance_target_service).
     # 0이면 기준 없음. 합계가 기준 × (1 + tolerance%)를 넘으면 보장 과다(감액 후보).
     insurance_target_cancer: int = 30_000_000

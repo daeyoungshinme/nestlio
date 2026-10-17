@@ -26,6 +26,7 @@ from sqlalchemy.orm import Session
 
 from app.config import settings
 from app.constants.insurance import INDEMNITY_COVERAGES, TARGETED_COVERAGES
+from app.constants.severity import severity_rank
 from app.models.category import Category
 from app.models.insurance_policy import InsurancePolicy
 from app.models.insurance_rider import InsuranceRider
@@ -38,7 +39,7 @@ from app.services import (
     transaction_trend_service,
 )
 from app.utils.dates import shift_month, today_kst
-from app.utils.money import whole_won
+from app.utils.money import format_won, whole_won
 
 COVERAGE_LABELS = {
     "medical_indemnity": "실손의료비",
@@ -65,9 +66,6 @@ class InsuranceFinding:
     estimated_monthly_saving: Decimal = Decimal("0")
     policy_ids: list[int] = field(default_factory=list)
 
-
-def _won(amount: Decimal) -> str:
-    return f"{amount:,.0f}원"
 
 
 def insured_key(policy: InsurancePolicy) -> str:
@@ -108,7 +106,7 @@ def insurance_ratio_finding(protection_monthly: Decimal, avg_income: Decimal, wa
         "insurance_ratio",
         "warning",
         f"보장성 보험료가 소득의 {pct:.1f}%예요 (가이드라인 {warn_pct:.0f}%)",
-        f"월 {_won(protection_monthly)} 중 {_won(excess)}이 가이드라인을 넘어요. 겹치는 보장이나 특약부터 살펴보세요.",
+        f"월 {format_won(protection_monthly)} 중 {format_won(excess)}이 가이드라인을 넘어요. 겹치는 보장이나 특약부터 살펴보세요.",
         excess,
     )
 
@@ -195,7 +193,7 @@ def _riders_by_coverage(group: list[InsurancePolicy]) -> dict[str, list[tuple[In
 
 
 def _amount_label(coverage: str, amount: Decimal) -> str:
-    return f"1일 {_won(amount)}" if coverage == "hospitalization" else _won(amount)
+    return f"1일 {format_won(amount)}" if coverage == "hospitalization" else format_won(amount)
 
 
 def plan_reduction(
@@ -307,7 +305,7 @@ def renewable_rider_share_findings(policies: list[InsurancePolicy], share_pct: f
                 "renewable_rider_share",
                 "warning",
                 f"{policy.name} 보험료의 {share:.0f}%가 갱신형 특약이에요",
-                f"갱신형 특약 월 {_won(renewable)}은 갱신 때마다 오를 수 있어요. 같은 보장의 비갱신형 특약·상품과 "
+                f"갱신형 특약 월 {format_won(renewable)}은 갱신 때마다 오를 수 있어요. 같은 보장의 비갱신형 특약·상품과 "
                 "갱신 후 예상 보험료를 비교해 보세요.",
                 policy_ids=[policy.id],
             )
@@ -322,7 +320,7 @@ def rider_premium_mismatch_findings(policies: list[InsurancePolicy]) -> list[Ins
             "rider_premium_mismatch",
             "info",
             f"{p.name} 특약 보험료 합이 계약 보험료보다 커요",
-            f"특약 합 월 {_won(p.riders_monthly_premium)} > 계약 월 {_won(p.monthly_premium)}. 납입 주기나 금액을 확인해 주세요.",
+            f"특약 합 월 {format_won(p.riders_monthly_premium)} > 계약 월 {format_won(p.monthly_premium)}. 납입 주기나 금액을 확인해 주세요.",
             policy_ids=[p.id],
         )
         for p in policies
@@ -330,7 +328,7 @@ def rider_premium_mismatch_findings(policies: list[InsurancePolicy]) -> list[Ins
     ]
 
 
-def top_riders(policies: list[InsurancePolicy], limit: int = 5) -> list[dict]:
+def top_riders(policies: list[InsurancePolicy], limit: int) -> list[dict]:
     rows = [
         {
             "policy_name": p.name,
@@ -417,7 +415,7 @@ def savings_type_finding(policies: list[InsurancePolicy]) -> InsuranceFinding | 
     return InsuranceFinding(
         "savings_type",
         "info",
-        f"저축성 보험에 월 {_won(monthly)}을 내고 있어요",
+        f"저축성 보험에 월 {format_won(monthly)}을 내고 있어요",
         "저축성 보험은 중도 해지하면 원금보다 적게 돌려받을 수 있어요. 부담되면 해지보다 감액·납입유예를 먼저 알아보고, "
         "새로 저축할 돈은 적금·연금저축과 수익률·세제 혜택을 비교해 보세요.",
         policy_ids=[p.id for p in savings],
@@ -437,7 +435,7 @@ def payment_ending_findings(policies: list[InsurancePolicy], today: date, months
                 "payment_ending",
                 "info",
                 f"{policy.name} 납입이 {end:%Y년 %m월}에 끝나요",
-                f"그 뒤로 매달 {_won(policy.monthly_premium)}이 생겨요. 저축·투자 계획에 미리 넣어 두면 흐지부지 쓰이지 않아요.",
+                f"그 뒤로 매달 {format_won(policy.monthly_premium)}이 생겨요. 저축·투자 계획에 미리 넣어 두면 흐지부지 쓰이지 않아요.",
                 policy_ids=[policy.id],
             )
         )
@@ -454,12 +452,12 @@ def unregistered_premium_finding(
     if registered_monthly <= 0:
         title = "보험 계약을 등록하면 점검해 드릴게요"
     else:
-        title = f"등록 안 된 보험이 있을 수 있어요 (월 {_won(gap)} 차이)"
+        title = f"등록 안 된 보험이 있을 수 있어요 (월 {format_won(gap)} 차이)"
     return InsuranceFinding(
         "unregistered_premium",
         "info",
         title,
-        f"보험료 카테고리 지출은 월 평균 {_won(actual_monthly)}인데 등록한 계약은 월 {_won(registered_monthly)}이에요. "
+        f"보험료 카테고리 지출은 월 평균 {format_won(actual_monthly)}인데 등록한 계약은 월 {format_won(registered_monthly)}이에요. "
         "자동차세처럼 보험이 아닌 지출이 같은 카테고리에 섞여 있다면 무시하셔도 돼요.",
     )
 
@@ -467,11 +465,11 @@ def unregistered_premium_finding(
 # --- DB-aware 래퍼 ----------------------------------------------------------------------------
 
 
-def _insurance_category_monthly_avg(db: Session, today: date, months: int = 12) -> Decimal:
+def _insurance_category_monthly_avg(db: Session, today: date, categories: list[Category], months: int) -> Decimal:
     """보험료 카테고리의 직전 months개월(이번 달 제외) 월 평균 지출 — 연납·비정기 납입이 섞이므로 12개월로 본다.
     지출 기록이 있는 달로만 나눈다(쓰기 시작한 지 3개월이면 3으로)."""
     category_ids = {
-        c.id for c in db.query(Category).all() if spending_review_service.is_insurance_category(c.name, c.benchmark_group)
+        c.id for c in categories if spending_review_service.is_insurance_category(c.name, c.benchmark_group)
     }
     if not category_ids:
         return Decimal("0")
@@ -482,9 +480,15 @@ def _insurance_category_monthly_avg(db: Session, today: date, months: int = 12) 
 
 
 def build_insurance_review(
-    db: Session, *, today: date | None = None, thresholds: dict[str, float] | None = None
+    db: Session,
+    *,
+    today: date | None = None,
+    thresholds: dict[str, float] | None = None,
+    categories: list[Category] | None = None,
 ) -> dict:
+    """thresholds·categories는 절감 점검이 소비 점검과 한 번만 읽어 넘긴다(없으면 여기서 조회)."""
     today = today or today_kst()
+    categories = categories if categories is not None else db.query(Category).all()
     thresholds = thresholds if thresholds is not None else coaching_settings_service.get_thresholds(db)
     policies = insurance_service.list_policies(db)
     user_names = {u.id: u.display_name for u in db.query(User).all()}
@@ -492,7 +496,9 @@ def build_insurance_review(
     total_monthly = sum((p.monthly_premium for p in policies), Decimal("0"))
     savings_monthly = sum((p.monthly_premium for p in policies if p.policy_type == "savings"), Decimal("0"))
     protection_monthly = total_monthly - savings_monthly
-    avg_income = transaction_trend_service.trailing_average_by_section(db, today, months=3, active_months_only=True)[
+    avg_income = transaction_trend_service.trailing_average_by_section(
+        db, today, months=settings.insurance_income_lookback_months, active_months_only=True
+    )[
         "income"
     ]
 
@@ -513,13 +519,14 @@ def build_insurance_review(
     findings += [f for f in (savings_type_finding(policies),) if f]
     findings += payment_ending_findings(policies, today, settings.insurance_payment_ending_months)
     unregistered = unregistered_premium_finding(
-        _insurance_category_monthly_avg(db, today), total_monthly, settings.insurance_unregistered_tolerance_pct
+        _insurance_category_monthly_avg(db, today, categories, settings.insurance_premium_lookback_months),
+        total_monthly,
+        settings.insurance_unregistered_tolerance_pct
     )
     if unregistered:
         findings.append(unregistered)
 
-    rank = {"critical": 0, "warning": 1, "info": 2}
-    findings.sort(key=lambda f: (rank.get(f.severity, 3), -f.estimated_monthly_saving))
+    findings.sort(key=lambda f: (severity_rank(f.severity), -f.estimated_monthly_saving))
     # 비례보상 중복과 정액 보장 과다는 서로 다른 보장이라 더해도 겹치지 않는다. 둘 다 소득 대비 초과분의 일부일 수
     # 있으므로 그것과는 겹쳐 세지 않고 큰 쪽만.
     estimated = max(
@@ -546,7 +553,7 @@ def build_insurance_review(
             "guideline_pct": thresholds["benchmark_insurance_warn_pct"],
             "by_insured": sorted(by_insured.values(), key=lambda e: e["monthly_premium"], reverse=True),
             "coverage_table": coverage_table,
-            "top_riders": top_riders(policies),
+            "top_riders": top_riders(policies, settings.insurance_top_riders),
         },
         "findings": [
             {

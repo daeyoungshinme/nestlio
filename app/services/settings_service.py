@@ -6,6 +6,7 @@ import uuid
 
 from sqlalchemy.orm import Session
 
+from app.config import settings
 from app.services import (
     coaching_settings_service,
     couple_photo_service,
@@ -23,5 +24,6 @@ def build_settings_out(db: Session, user_id: uuid.UUID) -> dict:
         "coaching_thresholds": coaching_settings_service.get_thresholds(db),
         "notification_prefs": notification_settings_service.get_prefs(db),
         "insurance_targets": insurance_target_service.get_targets(db),
+        "insurance_over_coverage_tolerance_pct": settings.insurance_over_coverage_tolerance_pct,
         "couple_photo_url": couple_photo_service.photo_url_for_display(db, user_id),
     }

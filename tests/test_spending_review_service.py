@@ -276,3 +276,40 @@ def test_build_spending_review_chronic_overrun_uses_plan_budget(seeded_db):
 
     overrun = next(i for i in review["items"] if i["rule_code"] == "chronic_overrun")
     assert overrun["estimated_monthly_saving"] == D("30000")
+
+
+def test_build_excludes_insurance_from_benchmark_excess(seeded_db):
+    """보험료는 보험 점검이 계약 기준으로 본다 — 소비 점검 벤치마크에서 두 번 세지 않는다."""
+    from app.models.category import Category
+
+    db, user, salary = seeded_db["db"], seeded_db["user"], seeded_db["salary"]
+    insurance = Category(name="보험료", type="fixed", color="#8b5cf6", benchmark_group="insurance")
+    db.add(insurance)
+    db.commit()
+    for month in (7, 8, 9):
+        transaction_service.create_transaction(db, user.id, salary.id, "income", D("1000000"), date(2026, month, 1))
+        _expense(db, user, insurance, "500000", date(2026, month, 5))
+
+    review = spending_review_service.build_spending_review(db, "2026-09", today=date(2026, 10, 15))
+
+    assert [i for i in review["items"] if i["category_id"] == insurance.id and i["rule_code"] == "benchmark_excess"] == []
+
+
+def test_build_flags_small_frequent_and_unregistered_recurring(seeded_db):
+    from app.models.category import Category
+
+    db, user = seeded_db["db"], seeded_db["user"]
+    cafe = Category(name="카페", type="variable", color="#a16207", is_discretionary=True)
+    subs = Category(name="구독", type="fixed", color="#0ea5e9")
+    db.add_all([cafe, subs])
+    db.commit()
+    for day in range(1, 9):  # 8회 × 5,000원
+        _expense(db, user, cafe, "5000", date(2026, 9, day))
+    for month in (7, 8, 9):
+        _expense(db, user, subs, "10900", date(2026, month, 20), description="유튜브 프리미엄")
+
+    review = spending_review_service.build_spending_review(db, "2026-09", today=date(2026, 10, 15))
+
+    by_rule = {i["rule_code"]: i for i in review["items"]}
+    assert by_rule["small_frequent"]["estimated_monthly_saving"] == D("12000")  # 40,000 × 30%
+    assert by_rule["unregistered_recurring"]["category_id"] == subs.id
