@@ -1,4 +1,5 @@
 import { Link } from "react-router-dom";
+import { TOUCH_TARGET_MIN_HEIGHT } from "@/constants/uiSizes";
 import { insightSeverityStyle } from "@/utils/colors";
 import { formatKrw } from "@/utils/format";
 import type { InsightSeverityLevel } from "@/types";
@@ -30,7 +31,7 @@ export default function ReviewFindingCard({ severity, title, detail, saving, rel
         </ul>
       )}
       {link && (
-        <Link to={link.to} className="text-xs font-semibold underline hover:no-underline min-h-[44px] inline-flex items-center">
+        <Link to={link.to} className={`text-xs font-semibold underline hover:no-underline ${TOUCH_TARGET_MIN_HEIGHT} inline-flex items-center`}>
           {link.label}
         </Link>
       )}

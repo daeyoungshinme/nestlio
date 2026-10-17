@@ -5,6 +5,7 @@ import { fetchDashboardBootstrap } from "@/api/dashboardBootstrap";
 import { fetchGoals } from "@/api/goals";
 import { fetchLoans } from "@/api/loans";
 import { fetchNetWorth } from "@/api/netWorth";
+import { fetchRecurring } from "@/api/recurring";
 import { fetchSavingsProducts } from "@/api/savingsProducts";
 import { fetchSettings } from "@/api/settings";
 import { fetchMe, fetchUsers } from "@/api/users";
@@ -120,4 +121,13 @@ export function useSpouse() {
   const me = useMe().data;
   const users = useUsers().data;
   return me ? users?.find((u) => u.id !== me.id) : undefined;
+}
+
+/** 반복 내역 전체(중지된 것 포함) — 반복 내역 관리 시트와 보험 계약의 "연결할 반복 내역"이 같은 캐시를 쓴다. */
+export function useRecurringAll(options?: RefDataOptions) {
+  return useQuery({
+    queryKey: QUERY_KEYS.recurring,
+    queryFn: () => fetchRecurring({ include_inactive: true }),
+    ...options,
+  });
 }

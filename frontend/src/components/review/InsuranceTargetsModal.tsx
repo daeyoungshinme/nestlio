@@ -9,7 +9,6 @@ import { setInsuranceTargets } from "@/api/settings";
 import { COVERAGE_LABEL, TARGETED_COVERAGES } from "@/constants/insurance";
 import { QUERY_KEYS } from "@/constants/queryKeys";
 import { useSettings } from "@/hooks/useReferenceData";
-import { extractErrorMessage } from "@/utils/error";
 import { amountInputPreview, toAmountInputValue } from "@/utils/format";
 import { toast } from "@/utils/toast";
 import type { InsuranceTargetsIn, InsuranceTargetsOut } from "@/types";
@@ -20,13 +19,27 @@ export default function InsuranceTargetsModal({ onClose }: { onClose: () => void
   return (
     <Modal onClose={onClose} title="적정 보장 기준">
       <QueryBoundary query={settingsQuery} errorMessage="설정을 불러오지 못했어요" compact>
-        {(settings) => <TargetsForm initial={settings.insurance_targets} onDone={onClose} />}
+        {(settings) => (
+          <TargetsForm
+            initial={settings.insurance_targets}
+            tolerancePct={settings.insurance_over_coverage_tolerance_pct}
+            onDone={onClose}
+          />
+        )}
       </QueryBoundary>
     </Modal>
   );
 }
 
-function TargetsForm({ initial, onDone }: { initial: InsuranceTargetsOut; onDone: () => void }) {
+function TargetsForm({
+  initial,
+  tolerancePct,
+  onDone,
+}: {
+  initial: InsuranceTargetsOut;
+  tolerancePct: number;
+  onDone: () => void;
+}) {
   const queryClient = useQueryClient();
   const [draft, setDraft] = useState<InsuranceTargetsIn>(() => {
     const values = { ...initial };
@@ -42,7 +55,6 @@ function TargetsForm({ initial, onDone }: { initial: InsuranceTargetsOut; onDone
       toast("기준을 저장했어요.", "success");
       onDone();
     },
-    onError: (err) => toast(extractErrorMessage(err), "error"),
   });
 
   const handleSubmit = (e: FormEvent) => {
@@ -55,7 +67,7 @@ function TargetsForm({ initial, onDone }: { initial: InsuranceTargetsOut; onDone
   return (
     <form onSubmit={handleSubmit} className="p-6 overflow-y-auto flex flex-col gap-3">
       <p className="text-xs text-gray-500 dark:text-gray-400">
-        피보험자 1명 기준 합계예요. 이보다 20% 넘게 많으면 감액 후보로, 적으면 &apos;부족&apos;으로 보여드려요. 0이면 비교하지 않아요.
+        피보험자 1명 기준 합계예요. 이보다 {tolerancePct}% 넘게 많으면 감액 후보로, 적으면 &apos;부족&apos;으로 보여드려요. 0이면 비교하지 않아요.
         기본값은 통상적인 가이드일 뿐이니 소득·부양가족·대출에 맞게 바꿔 주세요.
       </p>
       {TARGETED_COVERAGES.map((key) => (
