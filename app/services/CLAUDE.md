@@ -57,7 +57,7 @@
 
 - DB 쓰기 없음. 대부분 순수 계산 함수(집계값 → `Insight`)라 파라미터화 테스트로 경계값을 촘촘히 검증한다(`tests/test_coaching_engine.py`). 새 룰도 같은 방식으로.
 - 예외: `compute_insights`, `emergency_fund_context`, `compute_surplus_allocation`, `savings_pace_history`는 `db`를 받아 직접 조회까지 하는 DB-aware 래퍼다 — 순수 함수로 착각하지 않는다.
-- 부부가 바꿀 수 있는 설정값(코칭 임계값 `coaching_settings_service`, 보험 적정 기준 `insurance_target_service`)은 `user_setting_service.get_overrides`/`set_overrides`(키 prefix + `settings` 기본값 폴백, 손상 값도 폴백)로 읽고 쓴다 — 새 설정 묶음도 같은 헬퍼로. 심각도 정렬은 `app/constants/severity.severity_rank`, 문구의 금액 표기는 `app/utils/money.format_won`.
+- 부부가 바꿀 수 있는 설정값(코칭 임계값 `coaching_settings_service`, 보험 적정 기준 `insurance_target_service`)은 `user_setting_service.get_overrides`/`set_overrides`(키 prefix + `settings` 기본값 폴백, 손상 값도 폴백)로 읽고 쓴다 — 새 설정 묶음도 같은 헬퍼로. `user_settings`는 가구 공유라 key당 한 행(`uq_user_settings_key`)이고 `user_id`는 마지막으로 저장한 사람이다. 심각도 정렬은 `app/constants/severity.severity_rank`, 문구의 금액 표기는 `app/utils/money.format_won`.
 - 임계값은 하드코딩하지 않고 `settings`에서. 예산 경고/위험 %는 가구가 바꿀 수 있으므로 예산 상태를 계산하는 곳(계획 화면, 예산 알림 메일)은 `coaching_settings_service.budget_thresholds(db)`를 꺼내 `budget_vs_actual` 등에 넘긴다 — 생략하면 env 기본값이 쓰여 화면과 알림 판정이 어긋난다.
 - **"얼마 저축할지"의 원본은 저축·투자 상품의 월 계획**(`savings_product_plan_service.planned_by_product_for_month` — `SavingsProductAnnualPlan` 그리드, 없으면 `monthly_saving_amount`). `savings_pace_basis`가 (실적, 목표)를 고른다: 그 달 상품 계획이 있으면 계획 대비 실제 납입액(저축상품 연결 거래), 없는 가구만 목표들의 `monthly_saving_amount` 합 대비 수입−지출로 폴백. 목표의 월 계획액도 같은 원본(`goal_progress_service.planned_monthly_for_goal`)이고, 목표 저장은 연동 상품의 계획액을 건드리지 않는다.
 

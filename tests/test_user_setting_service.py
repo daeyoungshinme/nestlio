@@ -47,3 +47,18 @@ def test_get_overrides_parses_saved_and_falls_back_on_missing_or_corrupt(seeded_
 
     assert result == {"a": Decimal("1.5"), "b": Decimal("1"), "z": Decimal("1")}
     assert user_setting_service.get_shared_setting(db, "t_c") is None  # fields 밖 키는 저장하지 않는다
+
+
+def test_key_is_unique_across_household(seeded_db):
+    """두 사람이 같은 key 행을 따로 가질 수 없다(uq_user_settings_key) — 공유 설정 값이 행 순서에 따라 흔들리지 않게."""
+    import pytest
+    from sqlalchemy.exc import IntegrityError
+
+    from app.models.user_setting import UserSetting
+
+    db, user = seeded_db["db"], seeded_db["user"]
+    user_setting_service.set_shared_setting(db, "theme", "light", user.id)
+    db.add(UserSetting(user_id=user.id, key="theme", value="dark"))
+    with pytest.raises(IntegrityError):
+        db.commit()
+    db.rollback()

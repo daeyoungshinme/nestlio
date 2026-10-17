@@ -8,8 +8,10 @@ from app.database import Base
 
 
 class UserSetting(Base):
+    """부부 공유 설정(key/value) — key당 한 행이다(누가 저장해도 같은 행을 덮어쓴다). user_id는 마지막으로 저장한 사람."""
+
     __tablename__ = "user_settings"
-    __table_args__ = (UniqueConstraint("user_id", "key", name="uq_user_setting_key"),)
+    __table_args__ = (UniqueConstraint("key", name="uq_user_settings_key"),)
 
     id: Mapped[int] = mapped_column(primary_key=True)
     user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"))
