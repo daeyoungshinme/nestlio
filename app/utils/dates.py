@@ -46,6 +46,17 @@ def shift_month(d: date, delta: int) -> date:
     return date(year, month, 1)
 
 
+def recent_month_starts(anchor: date, months: int, *, include_anchor: bool = True) -> list[date]:
+    """anchor 달까지(include_anchor=False면 직전 달까지) 최근 months개월의 1일 — 오래된 달부터."""
+    last = 0 if include_anchor else 1
+    return [shift_month(anchor, -offset) for offset in range(months - 1 + last, last - 1, -1)]
+
+
+def span_bounds(month_starts: list[date]) -> tuple[date, date]:
+    """여러 달(1일 목록, 순서 무관)을 한 번에 조회할 때의 (첫 달 1일, 마지막 달 말일)."""
+    return min(month_starts), month_bounds(max(month_starts))[1]
+
+
 def year_month_str(d: date) -> str:
     return d.strftime("%Y-%m")
 
