@@ -7,6 +7,8 @@ from pydantic import BaseModel, BeforeValidator, Field, StringConstraints
 from app.constants.benchmark_groups import BENCHMARK_GROUPS
 
 BenchmarkGroup = Literal[tuple(BENCHMARK_GROUPS)]  # type: ignore[valid-type]
+# 카테고리 type = 지출 섹션(app/constants/sections.py EXPENSE_SECTIONS와 같은 값).
+CategoryType = Literal["fixed", "variable", "irregular"]
 
 
 def _blank_to_zero(v: object) -> object:
@@ -80,7 +82,7 @@ class CategoryAmountOut(BaseModel):
     category_id: int
     name: str
     color: str
-    type: Literal["fixed", "variable", "irregular"]
+    type: CategoryType
     amount: Decimal
 
 

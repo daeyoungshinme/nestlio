@@ -555,9 +555,23 @@ export interface NotificationReactionOut {
   created_at: string;
 }
 
+/** 알림 종류 — 백엔드 schemas/notification.py NotifType과 같은 값(apiDrift.check.ts가 가드). "other"는 모르는 옛 값의 폴백. */
+export type NotifType =
+  | "email_weekly"
+  | "email_monthly"
+  | "threshold_alert"
+  | "goal_milestone"
+  | "challenge_success"
+  | "event_reminder"
+  | "goal_cheer"
+  | "savings_pace_reminder"
+  | "partner_saving"
+  | "google_reauth"
+  | "other";
+
 export interface NotificationOut {
   id: number;
-  notif_type: string;
+  notif_type: NotifType;
   related_type: string | null;
   related_id: number | null;
   year_month: string | null;

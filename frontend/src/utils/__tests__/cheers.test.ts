@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { latestPartnerCheer } from "@/utils/cheers";
-import type { NotificationOut } from "@/types";
+import type { NotificationOut, NotifType } from "@/types";
 
-const notif = (id: number, notif_type: string, reactions: NotificationOut["reactions"]): NotificationOut => ({
+const notif = (id: number, notif_type: NotifType, reactions: NotificationOut["reactions"]): NotificationOut => ({
   id,
   notif_type,
   related_type: null,

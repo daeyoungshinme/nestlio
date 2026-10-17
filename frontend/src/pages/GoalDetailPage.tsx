@@ -21,10 +21,10 @@ import { progressStatusBadgeClass, progressStatusLabel } from "@/utils/colors";
 import { formatDate, formatKrw, formatKrwCompact, formatPercent, formatYearMonth } from "@/utils/format";
 import { extractErrorMessage } from "@/utils/error";
 import { toast } from "@/utils/toast";
-import type { FinancialGoalOut, NotificationOut } from "@/types";
+import { CHEER_EMOJIS } from "@/utils/cheers";
+import type { FinancialGoalOut, NotificationOut, NotifType } from "@/types";
 
-const CHEER_EMOJIS = ["🎉", "👏", "❤️", "💪", "🥳"];
-const GOAL_NOTIF_TYPES = new Set(["goal_milestone", "challenge_success", "goal_cheer"]);
+const GOAL_NOTIF_TYPES: ReadonlySet<NotifType> = new Set(["goal_milestone", "challenge_success", "goal_cheer"]);
 const SCENARIO_STEP = 50_000;
 const SCENARIO_MAX = 1_000_000;
 

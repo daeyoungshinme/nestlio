@@ -2,7 +2,7 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict
 
-from app.schemas.common import BenchmarkGroup, bounded_str
+from app.schemas.common import BenchmarkGroup, CategoryType, bounded_str
 
 
 class CategoryOut(BaseModel):
@@ -11,7 +11,7 @@ class CategoryOut(BaseModel):
     id: int
     name: str
     kind: Literal["income", "expense"]
-    type: Literal["fixed", "variable", "irregular"]
+    type: CategoryType
     color: str
     is_active: bool
     is_discretionary: bool = False
@@ -24,7 +24,7 @@ class CategoryOut(BaseModel):
 class CategoryCreateIn(BaseModel):
     name: bounded_str(100)
     kind: Literal["income", "expense"] = "expense"
-    type: Literal["fixed", "variable", "irregular"]
+    type: CategoryType
     color: bounded_str(20)
     benchmark_group: BenchmarkGroup | None = None
 
@@ -32,6 +32,6 @@ class CategoryCreateIn(BaseModel):
 class CategoryUpdateIn(BaseModel):
     name: bounded_str(100)
     kind: Literal["income", "expense"]
-    type: Literal["fixed", "variable", "irregular"]
+    type: CategoryType
     color: bounded_str(20)
     benchmark_group: BenchmarkGroup | None = None
