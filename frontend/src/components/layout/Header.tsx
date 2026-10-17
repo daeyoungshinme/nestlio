@@ -18,11 +18,11 @@ import { TOUCH_TARGET_COMPACT_MOBILE_ONLY, TOUCH_TARGET_MIN } from "@/constants/
 import { formatDate } from "@/utils/format";
 import { extractErrorMessage } from "@/utils/error";
 import { toast } from "@/utils/toast";
-import type { NotificationOut } from "@/types";
+import type { NotificationOut, NotifType } from "@/types";
 // 축하·저축 알림에만 응원 반응을 남길 수 있다 — 예산 경고 등은 축하할 대상이 아니라 반응 UI를 노출하지 않는다.
-import { REACTABLE_NOTIF_TYPES } from "@/utils/cheers";
+import { CHEER_EMOJIS, REACTABLE_NOTIF_TYPES } from "@/utils/cheers";
 
-const NOTIF_TYPE_LABEL: Record<string, string> = {
+const NOTIF_TYPE_LABEL: Record<NotifType, string> = {
   email_weekly: "주간 요약",
   email_monthly: "월간 요약",
   threshold_alert: "예산 초과 경고",
@@ -33,12 +33,12 @@ const NOTIF_TYPE_LABEL: Record<string, string> = {
   savings_pace_reminder: "월말 저축 리마인더",
   partner_saving: "배우자 저축",
   google_reauth: "구글 연동 만료",
+  other: "알림",
 };
 
-const REACTION_EMOJIS = ["🎉", "👏", "❤️", "💪", "🥳"];
 
 function notificationTitle(n: NotificationOut): string {
-  return NOTIF_TYPE_LABEL[n.notif_type] ?? n.notif_type;
+  return NOTIF_TYPE_LABEL[n.notif_type];
 }
 
 export default function Header() {
@@ -166,7 +166,7 @@ export default function Header() {
                     </button>
                     {REACTABLE_NOTIF_TYPES.has(n.notif_type) && (
                       <div className="mt-2 flex items-center flex-wrap gap-1.5">
-                        {REACTION_EMOJIS.map((emoji) => (
+                        {CHEER_EMOJIS.map((emoji) => (
                           <button
                             key={emoji}
                             type="button"

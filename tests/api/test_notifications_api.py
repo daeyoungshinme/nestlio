@@ -81,3 +81,13 @@ def test_react_to_notification_rejects_unknown_emoji(mock_send, client, seeded_d
 def test_react_to_unknown_notification_returns_404(client):
     resp = client.put("/api/v1/notifications/999999/reaction", json={"emoji": "🎉"})
     assert resp.status_code == 404
+
+
+def test_unknown_notif_type_falls_back_to_other(client, seeded_db):
+    """없앤 알림 종류의 옛 로그가 남아 있어도 알림함 응답이 500이 나지 않는다."""
+    from app.services import notification_log_service
+
+    notification_log_service.log_sent(seeded_db["db"], "retired_type", "2026-01")
+
+    [item] = client.get("/api/v1/notifications").json()["items"]
+    assert item["notif_type"] == "other"

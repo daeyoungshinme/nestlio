@@ -6,7 +6,8 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict
 
 from app.schemas.cashflow_plan import CashflowSection
-from app.schemas.common import KrwAmount, YearMonth, bounded_str
+from app.schemas.common import CategoryType, KrwAmount, YearMonth, bounded_str
+from app.utils.plan_status import PlanStatus
 
 
 class AnnualPlanItemMonthlyTargetOut(BaseModel):
@@ -60,7 +61,7 @@ class AnnualPlanSectionMonthOut(BaseModel):
     target_amount: Decimal
     actual: Decimal | None
     pct: float | None
-    status: Literal["ok", "warn", "critical"] | None
+    status: PlanStatus | None
 
 
 class AnnualPlanSectionSummaryOut(BaseModel):
@@ -71,7 +72,7 @@ class AnnualPlanSectionSummaryOut(BaseModel):
     actual: Decimal
     pct: float | None
     annual_pct: float | None
-    status: Literal["ok", "warn", "critical"] | None
+    status: PlanStatus | None
     monthly: list[AnnualPlanSectionMonthOut]
 
 
@@ -87,12 +88,12 @@ class AnnualPlanSummaryOut(BaseModel):
 class AnnualCategoryBudgetRowOut(BaseModel):
     category_id: int
     name: str
-    type: Literal["fixed", "variable", "irregular"]
+    type: CategoryType
     color: str
     budget: Decimal
     actual: Decimal
     pct: float
-    status: Literal["ok", "warn", "critical"]
+    status: PlanStatus
 
 
 class AnnualPlanListOut(BaseModel):

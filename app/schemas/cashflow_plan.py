@@ -4,9 +4,10 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict
 
-from app.schemas.common import KrwAmount, YearMonth, bounded_str
+from app.schemas.common import CategoryType, KrwAmount, YearMonth, bounded_str
+from app.utils.plan_status import PlanStatus
 
-CashflowSection = Literal["income", "fixed", "variable", "irregular"]
+CashflowSection = Literal["income", CategoryType]
 
 
 class CashflowPlanItemOut(BaseModel):
@@ -61,7 +62,7 @@ class CashflowPlanSectionSummaryOut(BaseModel):
     planned: Decimal
     actual: Decimal | None
     pct: float | None
-    status: Literal["ok", "warn", "critical"] | None
+    status: PlanStatus | None
     suggested_amount: Decimal | None = None
 
 
@@ -80,12 +81,12 @@ class CategoryBudgetRowOut(BaseModel):
 
     category_id: int
     name: str
-    type: Literal["fixed", "variable", "irregular"]
+    type: CategoryType
     color: str
     budget: Decimal
     actual: Decimal
     pct: float
-    status: Literal["ok", "warn", "critical"]
+    status: PlanStatus
     suggested_amount: Decimal | None = None
 
 

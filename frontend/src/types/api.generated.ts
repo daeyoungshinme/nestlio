@@ -3339,8 +3339,11 @@ export interface components {
         NotificationOut: {
             /** Id */
             id: number;
-            /** Notif Type */
-            notif_type: string;
+            /**
+             * Notif Type
+             * @enum {string}
+             */
+            notif_type: "email_weekly" | "email_monthly" | "threshold_alert" | "goal_milestone" | "challenge_success" | "event_reminder" | "goal_cheer" | "savings_pace_reminder" | "partner_saving" | "google_reauth" | "other";
             /** Related Type */
             related_type: string | null;
             /** Related Id */
