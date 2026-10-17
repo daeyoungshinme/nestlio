@@ -1,0 +1,13 @@
+name: setup-frontend-deps
+description: .nvmrc 노드 + npm 캐시 + frontend/ npm ci
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-node@v7
+      with:
+        node-version-file: .nvmrc
+        cache: "npm"
+        cache-dependency-path: frontend/package-lock.json
+    - run: npm ci
+      shell: bash
+      working-directory: frontend

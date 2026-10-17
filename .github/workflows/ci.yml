@@ -13,19 +13,58 @@ permissions:
   contents: read
 
 jobs:
+  # PR에서 바뀐 경로만 해당 job을 돌린다. main push와 CI 설정(워크플로·로컬 액션) 변경은 전부 돈다.
+  # (main은 브랜치 보호가 없어 skip된 job이 required check를 막을 일도 없다.)
+  changes:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      backend: ${{ github.event_name == 'push' || steps.filter.outputs.backend == 'true' || steps.filter.outputs.ci == 'true' }}
+      frontend: ${{ github.event_name == 'push' || steps.filter.outputs.frontend == 'true' || steps.filter.outputs.ci == 'true' }}
+      api_types: ${{ github.event_name == 'push' || steps.filter.outputs.api_types == 'true' || steps.filter.outputs.ci == 'true' }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dorny/paths-filter@v3
+        id: filter
+        if: github.event_name == 'pull_request'
+        with:
+          filters: |
+            ci:
+              - ".github/workflows/ci.yml"
+              - ".github/actions/**"
+            backend:
+              - "app/**"
+              - "migrations/**"
+              - "scripts/**"
+              - "tests/**"
+              - "requirements*.txt"
+              - "pyproject.toml"
+              - "alembic.ini"
+              - ".python-version"
+              - ".pre-commit-config.yaml"
+              - "render.yaml"
+              - ".nvmrc"
+            frontend:
+              - "frontend/**"
+              - ".nvmrc"
+            api_types:
+              - "app/**"
+              - "requirements.txt"
+              - "frontend/src/types/**"
+              - "frontend/scripts/**"
+              - "frontend/package*.json"
+
   backend:
+    needs: changes
+    if: needs.changes.outputs.backend == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v7
-      - uses: actions/setup-python@v7
-        with:
-          python-version-file: ".python-version"
-          cache: "pip"
-          cache-dependency-path: |
-            requirements.txt
-            requirements-dev.txt
-      - run: pip install -r requirements.txt -r requirements-dev.txt
+      - uses: ./.github/actions/setup-python-deps
       - run: ruff check .
       - run: pip check
       # 런타임 의존성(requirements.txt)만 취약점 스캔 — dev 전용(pytest/ruff 등)은 배포에 안 들어간다.
@@ -37,22 +76,21 @@ jobs:
   # 컬럼 추가 후 리비전 생성을 잊으면 배포(alembic upgrade head) 후에야 터진다.
   # 임베디드 Postgres(household 스키마)가 필요해 backend job과 분리한다.
   migration-drift:
+    needs: changes
+    if: needs.changes.outputs.backend == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v7
-      - uses: actions/setup-python@v7
-        with:
-          python-version-file: ".python-version"
-          cache: "pip"
-          cache-dependency-path: |
-            requirements.txt
-            requirements-dev.txt
       # pgserver 핀은 requirements-dev.txt 한 곳에만 둔다(dependabot이 그 파일만 올리므로 여기 복사하면 어긋난다).
-      - run: pip install -r requirements.txt "$(grep -E '^pgserver==' requirements-dev.txt)"
+      - uses: ./.github/actions/setup-python-deps
+        with:
+          install-args: -r requirements.txt "$(grep -E '^pgserver==' requirements-dev.txt)"
       - run: python scripts/check_migration_drift.py
 
   frontend:
+    needs: changes
+    if: needs.changes.outputs.frontend == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     defaults:
@@ -60,12 +98,7 @@ jobs:
         working-directory: frontend
     steps:
       - uses: actions/checkout@v7
-      - uses: actions/setup-node@v7
-        with:
-          node-version-file: .nvmrc
-          cache: "npm"
-          cache-dependency-path: frontend/package-lock.json
-      - run: npm ci
+      - uses: ./.github/actions/setup-frontend-deps
       # 게이트: 런타임 의존성(브라우저 번들로 나가는 것)에 high 이상 취약점이 있으면 실패.
       # 상위에서 아직 못 고치는 전이 취약점은 package.json `overrides` 로 고정.
       - run: npm audit --omit=dev --audit-level=high
@@ -95,23 +128,16 @@ jobs:
   # 추적 파일로 두고, 여기서 FastAPI 스키마로 재생성한 뒤 커밋된 것과 달라지면 실패시킨다.
   # (스키마를 바꾼 PR은 `npm run generate:api-types` 를 돌려 재생성 파일을 함께 커밋해야 한다.)
   api-types-drift:
+    needs: changes
+    if: needs.changes.outputs.api_types == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v7
-      - uses: actions/setup-python@v7
+      - uses: ./.github/actions/setup-python-deps
         with:
-          python-version-file: ".python-version"
-          cache: "pip"
-          cache-dependency-path: requirements.txt
-      - uses: actions/setup-node@v7
-        with:
-          node-version-file: .nvmrc
-          cache: "npm"
-          cache-dependency-path: frontend/package-lock.json
-      - run: pip install -r requirements.txt
-      - run: npm ci
-        working-directory: frontend
+          install-args: -r requirements.txt
+      - uses: ./.github/actions/setup-frontend-deps
       - run: npm run generate:api-types
         working-directory: frontend
       - name: fail if api.generated.ts is stale

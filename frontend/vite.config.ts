@@ -28,7 +28,7 @@ export default defineConfig({
             // 묶었더니(2026-09) Rolldown이 그 청크에서 대시보드 청크로 쓰이지 않는 cross-chunk
             // import를 하나 만들어내서, recharts를 전혀 쓰지 않는 대시보드(로그인 후 기본
             // 랜딩 라우트)가 매번 121KB gzip 청크를 불필요하게 받아오는 회귀가 있었다. 대신
-            // 자동 분할에 맡기면 NetWorthTrendChart/AssetCompositionDonut/ReportsYearlyPage가
+            // 자동 분할에 맡기면 NetWorthTrendChart/AssetCompositionDonut/YearlyReportSection이
             // 실제로 공유하는 조각만 별도 청크로 나뉘고, 대시보드는 recharts를 전혀 받지 않는다
             // (scripts/check-bundle-size.mjs의 checkDashboardHasNoRecharts가 이 회귀를 가드).
           }

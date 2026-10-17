@@ -23,7 +23,8 @@ updates:
         update-types: ["minor", "patch"]
 
   - package-ecosystem: github-actions
-    directory: "/"
+    # 로컬 composite action(.github/actions/*)이 쓰는 setup-python/setup-node도 함께 올린다.
+    directories: ["/", "/.github/actions/*"]
     schedule:
       interval: weekly
     groups:

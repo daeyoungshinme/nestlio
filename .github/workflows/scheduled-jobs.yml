@@ -33,8 +33,9 @@ permissions:
 jobs:
   call-internal-job:
     runs-on: ubuntu-24.04
-    # 매달린 실행이 cancel-in-progress:false 직렬화 큐를 막지 않도록. 각 curl은 --max-time 170.
-    timeout-minutes: 10
+    # 매달린 실행이 cancel-in-progress:false 직렬화 큐를 막지 않도록. 각 curl은 최악 3회 × 170초 + 재시도 대기 ≈ 9분이고,
+    # 월요일이 1일이면 23:00 틱에서 주간·월간 메일 두 curl이 연달아 돌아 ≈ 18분 — 그보다 여유 있게.
+    timeout-minutes: 25
     env:
       APP_URL: ${{ secrets.APP_URL }}
       INTERNAL_JOB_SECRET: ${{ secrets.INTERNAL_JOB_SECRET }}

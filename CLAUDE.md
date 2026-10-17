@@ -48,7 +48,7 @@
 | 배포 스냅샷 | `dev.sh run` — `frontend/dist` 빌드 후 uvicorn 단일 프로세스(8899) |
 | 프론트만 | `cd frontend && npm run dev` (`/api` → 8899 프록시) |
 | 테스트 | `pytest` |
-| 린트 | `ruff check .` (미사용 import·bugbear·import 정렬만, 포매터 전면 재정렬 안 함) |
+| 린트 | `ruff check .` (pyflakes·import 정렬·bugbear·pyupgrade(UP)·comprehensions(C4)만, 포매터 전면 재정렬 안 함) |
 | pre-commit | `pre-commit install` (ruff `--fix`, oxlint, 위생 훅) |
 
 - `dev.sh`도 Windows(Git Bash) 전용이다. 8899/5273이 사용 중이면(대개 이미 떠 있는 사용자의 개발 서버) **기존 프로세스를 죽이지 않고** 다음 빈 포트로 넘어간다 — 실제 포트는 스크립트 출력으로 확인한다.
@@ -58,6 +58,8 @@
 ## CI (`.github/workflows/ci.yml`)
 
 백엔드: `ruff check` · `pip check` · `pip-audit` · `pytest`. `migration-drift`: `scripts/check_migration_drift.py`(임베디드 Postgres)로 모델 == 마이그레이션 head. `api-types-drift`: 스키마 ↔ `api.generated.ts`. 프론트: `npm audit --omit=dev --audit-level=high`(게이트), raw `emerald-`/`indigo-` 색상 grep 가드, `npm run lint`/`test`/`build`/`check:bundle-size`.
+
+PR은 `changes` job(dorny/paths-filter)이 바뀐 경로의 job만 돌린다(main push·CI 설정 변경은 전부). 공통 setup은 `.github/actions/setup-python-deps`·`setup-frontend-deps` composite action. `render.yaml`의 `PYTHON_VERSION`/`NODE_VERSION`은 `.python-version`/`.nvmrc`와 같아야 한다(`tests/test_dev_tooling.py`).
 
 ## 마이그레이션
 
