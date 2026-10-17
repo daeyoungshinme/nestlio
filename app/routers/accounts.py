@@ -67,7 +67,7 @@ def update_account(
         db, account_id, payload.name, payload.account_type, payload.current_balance, payload.owner_user_id
     )
     if account is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "계좌를 찾을 수 없습니다.")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="계좌를 찾을 수 없습니다.")
     return account
 
 
@@ -80,7 +80,7 @@ def sync_account(
 ):
     account = account_service.sync_account(db, account_id, bearer_token, now=now_kst())
     if account is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "계좌를 찾을 수 없습니다.")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="계좌를 찾을 수 없습니다.")
     return account
 
 
@@ -97,4 +97,4 @@ def sync_all_accounts(
 @router.post("/{account_id}/deactivate", status_code=status.HTTP_204_NO_CONTENT)
 def deactivate(account_id: int, db: Session = Depends(get_db), _: User = Depends(get_current_user)):
     if not account_service.deactivate_account(db, account_id):
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "계좌를 찾을 수 없습니다.")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="계좌를 찾을 수 없습니다.")

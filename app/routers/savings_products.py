@@ -58,7 +58,7 @@ def get_product_annual_plan(
 ):
     plan = savings_product_plan_service.get_annual_plan(db, product_id, year)
     if plan is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "저축/투자 상품을 찾을 수 없습니다.")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="저축/투자 상품을 찾을 수 없습니다.")
     return plan
 
 
@@ -78,7 +78,7 @@ def upsert_product_annual_plan(
         [t.model_dump() for t in payload.monthly_targets],
     )
     if plan is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "저축/투자 상품을 찾을 수 없습니다.")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="저축/투자 상품을 찾을 수 없습니다.")
     return savings_product_plan_service.get_annual_plan(db, product_id, payload.year)
 
 
@@ -121,7 +121,7 @@ def update_product(
         payload.owner_user_id,
     )
     if product is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "저축/투자 상품을 찾을 수 없습니다.")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="저축/투자 상품을 찾을 수 없습니다.")
     return product
 
 
@@ -136,7 +136,7 @@ def set_growlio_link(
         db, product_id, payload.growlio_account_id, payload.auto_sync_enabled
     )
     if product is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "저축/투자 상품을 찾을 수 없습니다.")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="저축/투자 상품을 찾을 수 없습니다.")
     return product
 
 
@@ -149,7 +149,7 @@ def sync_product(
 ):
     product = savings_product_growlio_service.sync_from_growlio(db, product_id, bearer_token, now=now_kst())
     if product is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "저축/투자 상품을 찾을 수 없습니다.")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="저축/투자 상품을 찾을 수 없습니다.")
     return product
 
 
@@ -179,4 +179,4 @@ def import_growlio_accounts(
 @router.post("/{product_id}/deactivate", status_code=status.HTTP_204_NO_CONTENT)
 def deactivate_product(product_id: int, db: Session = Depends(get_db), _: User = Depends(get_current_user)):
     if not savings_product_service.deactivate_product(db, product_id):
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "저축상품을 찾을 수 없습니다.")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="저축/투자 상품을 찾을 수 없습니다.")

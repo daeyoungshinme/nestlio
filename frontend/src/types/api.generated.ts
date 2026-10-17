@@ -5448,7 +5448,7 @@ export interface operations {
         parameters: {
             query?: {
                 year?: number | null;
-                owner?: string | null;
+                owner?: string | ("all" | "shared") | null;
             };
             header?: {
                 authorization?: string | null;
@@ -5515,7 +5515,7 @@ export interface operations {
         parameters: {
             query?: {
                 year_month?: string | null;
-                owner?: string | null;
+                owner?: string | ("all" | "shared") | null;
             };
             header?: {
                 authorization?: string | null;

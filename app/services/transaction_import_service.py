@@ -18,14 +18,10 @@ CSV_TYPE_BY_LABEL = {"수입": "income", "지출": "expense", "income": "income"
 
 
 
-def max_upload_bytes() -> int:
-    return settings.max_upload_size_mb * 1024 * 1024
-
-
 def decode_upload(raw: bytes) -> str:
     """업로드된 CSV 바이트를 텍스트로. 호출부는 상한+1바이트까지만 읽어 넘긴다(통째로 read()하면 거대한 업로드
     하나가 Render 무료 인스턴스 메모리를 다 쓴다). 엑셀이 저장하는 CP949도 받는다."""
-    if len(raw) > max_upload_bytes():
+    if len(raw) > settings.max_upload_bytes:
         raise PayloadTooLargeError(f"CSV 파일은 {settings.max_upload_size_mb}MB를 넘을 수 없습니다.")
     for encoding in ("utf-8-sig", "cp949"):
         try:

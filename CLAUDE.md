@@ -19,7 +19,7 @@
 
 ## 아키텍처 규칙
 
-- 계층: `app/routers` → `app/services` → `app/models`. 라우터는 서비스 함수만 호출하고 모델을 직접 쿼리/수정하지 않는다.
+- 계층: `app/routers` → `app/services` → `app/models`. 라우터는 서비스 함수만 호출하고 모델을 직접 쿼리/수정하지 않는다. 앱 조립은 `app/main.py`(라우터 목록 `API_ROUTERS` — 순서 = OpenAPI 순서), 미들웨어 `app/middleware.py`, SPA 서빙 `app/spa.py`, 부부 사진 `/media/couple-photo`는 `app/routers/media.py`.
 - 라우터: `Depends(get_current_user)`로 인증, `response_model=`로 응답 스키마 명시, DB 세션은 `Depends(get_db)`. 없는 리소스 404, 잘못된 상태 전이 409. 서비스의 도메인 예외(`app/errors.py` 상속)는 전역 핸들러(`app/exception_handlers.py`)가 상태코드로 바꾸므로 라우터에서 try/except로 다시 매핑하지 않는다.
 - 설정: `app/config.py`의 모듈 전역 `settings` 하나를 import해서 쓴다. 코칭엔진 임계값(저축률·고정비 비율·예산 경고/위험 %·벤치마크 등)도 여기가 기본값이고, 부부가 설정 화면에서 바꾼 값이 우선한다.
 - models: `app.database.Base` 상속, 모든 테이블은 `household` 스키마. 자주 조인되는 관계는 `lazy="joined"`.

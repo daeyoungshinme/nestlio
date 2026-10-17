@@ -56,19 +56,19 @@ def update_recurring(
     fields = payload.model_dump(exclude_unset=True)
     recurring = recurring_service.update_recurring(db, recurring_id, **fields)
     if recurring is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "고정지출을 찾을 수 없습니다.")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="고정지출을 찾을 수 없습니다.")
     return recurring
 
 
 @router.post("/{recurring_id}/deactivate", status_code=status.HTTP_204_NO_CONTENT)
 def deactivate(recurring_id: int, db: Session = Depends(get_db), _: User = Depends(get_current_user)):
     if not recurring_service.deactivate_recurring(db, recurring_id):
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "고정지출을 찾을 수 없습니다.")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="고정지출을 찾을 수 없습니다.")
 
 
 @router.post("/{recurring_id}/reactivate", response_model=RecurringOut)
 def reactivate(recurring_id: int, db: Session = Depends(get_db), _: User = Depends(get_current_user)):
     recurring = recurring_service.reactivate_recurring(db, recurring_id)
     if recurring is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "고정지출을 찾을 수 없습니다.")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="고정지출을 찾을 수 없습니다.")
     return recurring

@@ -93,7 +93,7 @@ def update_goal(
         expected_annual_return_pct=payload.expected_annual_return_pct,
     )
     if goal is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "재무목표를 찾을 수 없습니다.")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="목표를 찾을 수 없습니다.")
     notification_service.celebrate_goal_milestone_best_effort(db, goal.id, today)
     return goal_progress_service.to_out(db, goal, today)
 
@@ -108,7 +108,7 @@ def update_monthly_target(
 ):
     goal = goal_service.update_monthly_target_achieved(db, goal_id, year_month, payload.achieved_amount)
     if goal is None:
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "재무목표를 찾을 수 없습니다.")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="목표를 찾을 수 없습니다.")
     today = today_kst()
     notification_service.celebrate_goal_milestone_best_effort(db, goal.id, today)
     return goal_progress_service.to_out(db, goal, today)
@@ -117,7 +117,7 @@ def update_monthly_target(
 @router.delete("/{goal_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_goal(goal_id: int, db: Session = Depends(get_db), _: User = Depends(get_current_user)):
     if not goal_service.delete_goal(db, goal_id):
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "목표를 찾을 수 없습니다.")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="목표를 찾을 수 없습니다.")
 
 
 @router.post("/{goal_id}/cheer", response_model=GoalCheerOut, status_code=status.HTTP_201_CREATED)

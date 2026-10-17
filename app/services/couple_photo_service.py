@@ -60,8 +60,7 @@ def _new_version() -> str:
 def save_photo(db: Session, raw: bytes, content_type: str | None, user_id: uuid.UUID) -> str:
     if content_type not in ALLOWED_CONTENT_TYPES:
         raise InvalidPhotoError("jpg/png/webp 형식의 이미지만 업로드할 수 있습니다.")
-    max_bytes = int(settings.max_upload_size_mb * 1024 * 1024)
-    if len(raw) > max_bytes:
+    if len(raw) > settings.max_upload_bytes:
         raise InvalidPhotoError(f"파일 크기는 {settings.max_upload_size_mb:g}MB를 넘을 수 없습니다.")
     if not _storage_configured():
         raise PhotoStorageError("SUPABASE_SERVICE_ROLE_KEY가 설정되어 있지 않아 사진을 저장할 수 없습니다.")
