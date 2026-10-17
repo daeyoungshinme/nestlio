@@ -35,10 +35,9 @@ from app.services import (
     insurance_service,
     insurance_target_service,
     spending_review_service,
-    transaction_report_service,
     transaction_trend_service,
 )
-from app.utils.dates import month_bounds, shift_month, today_kst
+from app.utils.dates import shift_month, today_kst
 from app.utils.money import whole_won
 
 COVERAGE_LABELS = {
@@ -72,10 +71,12 @@ def _won(amount: Decimal) -> str:
 
 
 def insured_key(policy: InsurancePolicy) -> str:
-    """같은 사람의 계약끼리 묶는 키 — 부부는 user id, 그 밖(자녀 등)은 입력한 이름."""
+    """같은 사람의 계약끼리 묶는 키 — 부부는 user id, 그 밖(자녀 등)은 입력한 이름.
+    이름이 비어 있으면 누구인지 모르므로 계약마다 따로 본다(서로 다른 사람의 실손을 중복으로 오탐하지 않게)."""
     if policy.insured_user_id is not None:
         return str(policy.insured_user_id)
-    return f"name:{(policy.insured_name or '').strip()}"
+    name = (policy.insured_name or "").strip()
+    return f"name:{name}" if name else f"policy:{policy.id}"
 
 
 def insured_label(policy: InsurancePolicy, user_names: dict[uuid.UUID, str]) -> str:
@@ -467,23 +468,17 @@ def unregistered_premium_finding(
 
 
 def _insurance_category_monthly_avg(db: Session, today: date, months: int = 12) -> Decimal:
-    """보험료 카테고리의 직전 months개월(이번 달 제외) 월 평균 지출 — 연납·비정기 납입이 섞이므로 12개월로 본다."""
-    category_ids = [
+    """보험료 카테고리의 직전 months개월(이번 달 제외) 월 평균 지출 — 연납·비정기 납입이 섞이므로 12개월로 본다.
+    지출 기록이 있는 달로만 나눈다(쓰기 시작한 지 3개월이면 3으로)."""
+    category_ids = {
         c.id for c in db.query(Category).all() if spending_review_service.is_insurance_category(c.name, c.benchmark_group)
-    ]
+    }
     if not category_ids:
         return Decimal("0")
-    start = shift_month(today, -months)
-    end = month_bounds(shift_month(today, -1))[1]
-    total = sum(
-        (
-            row["amount"]
-            for row in transaction_report_service.category_breakdown(db, start, end, "expense")
-            if row["category_id"] in category_ids
-        ),
-        Decimal("0"),
+    averages = transaction_trend_service.trailing_average_by_category(
+        db, today, months=months, type_="expense", active_months_only=True
     )
-    return whole_won(total / months)
+    return sum((avg for cat_id, avg in averages.items() if cat_id in category_ids), Decimal("0"))
 
 
 def build_insurance_review(
@@ -497,7 +492,9 @@ def build_insurance_review(
     total_monthly = sum((p.monthly_premium for p in policies), Decimal("0"))
     savings_monthly = sum((p.monthly_premium for p in policies if p.policy_type == "savings"), Decimal("0"))
     protection_monthly = total_monthly - savings_monthly
-    avg_income = transaction_trend_service.trailing_average_by_section(db, today, months=3)["income"]
+    avg_income = transaction_trend_service.trailing_average_by_section(db, today, months=3, active_months_only=True)[
+        "income"
+    ]
 
     findings: list[InsuranceFinding] = []
     ratio = insurance_ratio_finding(protection_monthly, avg_income, thresholds["benchmark_insurance_warn_pct"])

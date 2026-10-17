@@ -19,14 +19,14 @@ def list_policies(db: Session = Depends(get_db), _: User = Depends(get_current_u
 
 @router.post("", response_model=InsurancePolicyOut, status_code=status.HTTP_201_CREATED)
 def create_policy(payload: InsurancePolicyIn, db: Session = Depends(get_db), _: User = Depends(get_current_user)):
-    return insurance_service.create_policy(db, payload.model_dump())
+    return insurance_service.create_policy(db, payload.to_fields())
 
 
 @router.put("/{policy_id}", response_model=InsurancePolicyOut)
 def update_policy(
     policy_id: int, payload: InsurancePolicyIn, db: Session = Depends(get_db), _: User = Depends(get_current_user)
 ):
-    policy = insurance_service.update_policy(db, policy_id, payload.model_dump())
+    policy = insurance_service.update_policy(db, policy_id, payload.to_fields())
     if policy is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, _NOT_FOUND)
     return policy

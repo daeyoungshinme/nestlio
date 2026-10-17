@@ -67,10 +67,12 @@ export const QUERY_KEYS = {
   netWorthAll: ["net-worth"] as const,
   netWorthGrowlioUnlinked: ["net-worth", "growlio-unlinked"] as const,
   recurring: ["recurring"] as const,
-  /** 절감 점검 — 거래·계획·반복거래·보험 계약에서 계산하므로 그쪽이 바뀌면 savingsReviewAll을 무효화한다. */
+  /** 절감 점검 — dashboardAll 하위. 거래·계획·예산·반복거래·카테고리·사용자 이름·코칭 임계값을 모두 읽는데,
+   * 그 변경들은 이미 dashboardAll을 무효화하므로 자동으로 함께 갱신된다(monthlyRetrospective와 같은 이유).
+   * 보험 계약·적정 기준은 대시보드와 무관하니 그쪽 저장만 savingsReviewAll을 직접 무효화한다. */
   savingsReview: (yearMonth: string | undefined, owner?: string) =>
-    ["savings-review", yearMonth ?? "default", owner ?? "all"] as const,
-  savingsReviewAll: ["savings-review"] as const,
+    ["dashboard", "savings-review", yearMonth ?? "default", owner ?? "all"] as const,
+  savingsReviewAll: ["dashboard", "savings-review"] as const,
   insurancePolicies: ["insurance-policies"] as const,
   notifications: ["notifications"] as const,
 };

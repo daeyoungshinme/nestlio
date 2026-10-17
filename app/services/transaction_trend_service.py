@@ -78,6 +78,11 @@ def _category_breakdown_by_month(db: Session, month_starts: list[date], type_: s
     return {ym: sorted(bucket.values(), key=lambda r: r["amount"], reverse=True) for ym, bucket in by_month.items()}
 
 
+def _active_count(per_month, has_data) -> int:
+    """데이터가 있는 달 수(최소 1 — 전부 비면 합계도 0이라 나눠도 0)."""
+    return max(sum(1 for m in per_month if has_data(m)), 1)
+
+
 def monthly_trend(db: Session, months: int = 6, anchor: date | None = None) -> list[dict]:
     """Income/expense totals for the trailing `months` calendar months, oldest first."""
     anchor = anchor or today_kst()
@@ -91,21 +96,29 @@ def _monthly_rows(db: Session, month_starts: list[date]) -> list[dict]:
     return [{"year_month": ym, **totals_by_month[ym]} for ym in (year_month_str(m) for m in month_starts)]
 
 
-def trailing_average_by_category(db: Session, anchor: date, months: int = 3, type_: str = "expense") -> dict[int, Decimal]:
-    """Average per-category spend over the `months` immediately before anchor's month (excludes anchor's month)."""
+def trailing_average_by_category(
+    db: Session, anchor: date, months: int = 3, type_: str = "expense", *, active_months_only: bool = False
+) -> dict[int, Decimal]:
+    """Average per-category spend over the `months` immediately before anchor's month (excludes anchor's month).
+    active_months_only: 나누는 달 수를 type_ 거래가 하나라도 있는 달로 한정한다 — 기록 시작 전 달을 0원으로
+    넣어 평균이 희석되지 않게(절감 점검)."""
     month_starts = [shift_month(anchor, -offset) for offset in range(1, months + 1)]
     breakdown_by_month = _category_breakdown_by_month(db, month_starts, type_)
     totals: dict[int, Decimal] = {}
     for rows in breakdown_by_month.values():
         for row in rows:
             totals[row["category_id"]] = totals.get(row["category_id"], Decimal("0")) + row["amount"]
-    return {cat_id: whole_won(total / months) for cat_id, total in totals.items()}
+    divisor = _active_count(breakdown_by_month.values(), bool) if active_months_only else months
+    return {cat_id: whole_won(total / divisor) for cat_id, total in totals.items()}
 
 
-def trailing_average_by_section(db: Session, anchor: date, months: int = 3) -> dict[str, Decimal]:
+def trailing_average_by_section(
+    db: Session, anchor: date, months: int = 3, *, active_months_only: bool = False
+) -> dict[str, Decimal]:
     """Average income/fixed/variable/irregular totals over the `months` immediately before
     anchor's month (excludes anchor's month) — section-level counterpart to
-    trailing_average_by_category, used to suggest next month's cashflow plan amounts."""
+    trailing_average_by_category, used to suggest next month's cashflow plan amounts.
+    active_months_only: 수입·지출이 하나라도 있는 달만 센다(trailing_average_by_category와 같은 이유)."""
     month_starts = [shift_month(anchor, -offset) for offset in range(1, months + 1)]
     totals_by_month = _monthly_totals_map(db, month_starts)
     sections = ("income", "fixed", "variable", "irregular")
@@ -113,7 +126,10 @@ def trailing_average_by_section(db: Session, anchor: date, months: int = 3) -> d
     for totals in totals_by_month.values():
         for section in sections:
             sums[section] += totals[section]
-    return {section: whole_won(total / months) for section, total in sums.items()}
+    divisor = (
+        _active_count(totals_by_month.values(), lambda t: t["income"] or t["expense"]) if active_months_only else months
+    )
+    return {section: whole_won(total / divisor) for section, total in sums.items()}
 
 
 def category_monthly_trend(

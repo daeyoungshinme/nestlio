@@ -40,6 +40,17 @@ describe("query key groups", () => {
   });
 });
 
+// 절감 점검은 계획·예산·반복거래·카테고리·이름·임계값을 읽는다 — 그 변경들이 무효화하는 dashboardAll 하위에
+// 있어야 /review가 옛 결과를 보여주지 않는다(예전 ["savings-review"]는 거래·보험 저장에서만 갱신됐다).
+describe("savings review cache", () => {
+  it("sits under the dashboard prefix", () => {
+    for (const key of [QUERY_KEYS.savingsReviewAll, QUERY_KEYS.savingsReview("2026-10", "shared")]) {
+      expect(key.slice(0, QUERY_KEYS.dashboardAll.length)).toEqual([...QUERY_KEYS.dashboardAll]);
+    }
+    expect(QUERY_KEYS.savingsReview("2026-10").slice(0, 2)).toEqual([...QUERY_KEYS.savingsReviewAll]);
+  });
+});
+
 describe("persisted cache config", () => {
   it("keeps queries in memory at least as long as they are persisted", () => {
     expect(DEFAULT_GC_TIME).toBeGreaterThanOrEqual(PERSIST_MAX_AGE);
