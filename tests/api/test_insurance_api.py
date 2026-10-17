@@ -86,3 +86,40 @@ def test_legacy_rider_coverage_falls_back_to_other(client, seeded_db):
 
     [out] = client.get("/api/v1/insurance-policies").json()
     assert out["riders"][0]["coverage"] == "other"
+
+
+def test_rider_update_keeps_fields_not_sent(client, seeded_db):
+    """프론트가 보내지 않는 end_date를 다른 필드 수정 때 지우지 않는다(기존 특약은 보낸 필드만 갱신)."""
+    from datetime import date
+
+    from app.models.insurance_rider import InsuranceRider
+
+    rider = {"name": "암진단", "coverage": "cancer", "premium": "40000", "end_date": "2040-05-01"}
+    body = client.post("/api/v1/insurance-policies", json={**BODY, "riders": [rider]}).json()
+    rider_id = body["riders"][0]["id"]
+
+    put = client.put(
+        f"/api/v1/insurance-policies/{body['id']}",
+        json={**BODY, "riders": [{"id": rider_id, "name": "암진단", "coverage": "cancer", "premium": "45000"}]},
+    )
+
+    assert put.status_code == 200
+    [out] = put.json()["riders"]
+    assert out["end_date"] == "2040-05-01"
+    assert Decimal(out["premium"]) == Decimal("45000")
+    assert seeded_db["db"].get(InsuranceRider, rider_id).end_date == date(2040, 5, 1)
+
+
+def test_legacy_payment_frequency_falls_back_to_monthly(client, seeded_db):
+    db = seeded_db["db"]
+    db.add(
+        InsurancePolicy(
+            name="옛 계약", policy_type="other", premium_amount=10000, payment_frequency="quarterly",
+            is_renewable=False, coverages=[], is_active=True, sort_order=0,
+        )
+    )
+    db.commit()
+
+    [policy] = client.get("/api/v1/insurance-policies").json()
+    assert policy["payment_frequency"] == "monthly"
+    assert Decimal(policy["monthly_premium"]) == Decimal("10000")

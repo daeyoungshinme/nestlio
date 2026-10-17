@@ -66,11 +66,12 @@ export default function SavingsReviewPage() {
         {(data) => (
           <div className="space-y-4">
             <div className="card">
-              <p className="text-xs text-gray-500 dark:text-gray-400">{formatYearMonth(data.year_month)} 기준 절감 여력</p>
+              <p className="text-xs text-gray-500 dark:text-gray-400">월 절감 여력</p>
               <p className="mt-1 text-2xl font-bold text-gray-900 dark:text-gray-50">월 {formatKrw(data.total_estimated_monthly_saving)}</p>
               <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                소비 {formatKrw(data.spending.total_estimated_monthly_saving)} · 보험{" "}
-                {formatKrw(data.insurance.total_estimated_monthly_saving)}
+                {/* 소비는 고른 달 기준, 보험은 고른 달과 무관하게 지금 유지 중인 계약 기준이다. */}
+                소비({formatYearMonth(data.year_month)}) {formatKrw(data.spending.total_estimated_monthly_saving)} · 보험(현재
+                계약) {formatKrw(data.insurance.total_estimated_monthly_saving)}
                 {ownerParam ? ` (소비는 ${ownerTab} 몫만)` : ""}
               </p>
             </div>

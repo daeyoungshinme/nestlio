@@ -8,7 +8,7 @@ from app.errors import NotFoundError
 from app.models.insurance_policy import InsurancePolicy
 from app.models.insurance_rider import InsuranceRider
 from app.models.recurring_expense import RecurringExpense
-from app.models.user import User
+from app.services import user_service
 
 
 class InsuredUserNotFoundError(NotFoundError):
@@ -28,9 +28,19 @@ def list_policies(db: Session, active_only: bool = True) -> list[InsurancePolicy
     return query.order_by(InsurancePolicy.sort_order, InsurancePolicy.name).all()
 
 
-def _validate_refs(db: Session, insured_user_id: uuid.UUID | None, recurring_expense_id: int | None) -> None:
+def _validate_refs(
+    db: Session,
+    insured_user_id: uuid.UUID | None,
+    recurring_expense_id: int | None,
+    current_insured_user_id: uuid.UUID | None = None,
+) -> None:
     # SQLite 테스트는 FK를 강제하지 않고 Postgres는 IntegrityError(500)를 내므로 서비스에서 404로 막는다.
-    if insured_user_id is not None and db.get(User, insured_user_id) is None:
+    # 제거된 배우자는 새 피보험자로 지정할 수 없다. 이미 그 사람으로 저장된 계약은 다른 필드를 고칠 수 있게 둔다.
+    if (
+        insured_user_id is not None
+        and insured_user_id != current_insured_user_id
+        and user_service.get_active_user(db, insured_user_id) is None
+    ):
         raise InsuredUserNotFoundError()
     if recurring_expense_id is not None and db.get(RecurringExpense, recurring_expense_id) is None:
         raise LinkedRecurringNotFoundError()
@@ -91,7 +101,9 @@ def update_policy(db: Session, policy_id: int, fields: dict) -> InsurancePolicy 
     policy = db.get(InsurancePolicy, policy_id)
     if policy is None:
         return None
-    _validate_refs(db, fields.get("insured_user_id"), fields.get("recurring_expense_id"))
+    _validate_refs(
+        db, fields.get("insured_user_id"), fields.get("recurring_expense_id"), policy.insured_user_id
+    )
     _apply(policy, fields)
     db.commit()
     db.refresh(policy)

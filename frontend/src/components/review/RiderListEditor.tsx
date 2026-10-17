@@ -16,6 +16,8 @@ export interface RiderDraft {
   coverage_amount: string;
   premium: string;
   is_renewable: boolean;
+  /** 입력 UI는 없지만 저장 때 그대로 돌려보내 서버 값을 지우지 않는다. */
+  end_date: string | null;
 }
 
 let nextKey = 0;
@@ -30,6 +32,7 @@ export function riderDraftFrom(rider: InsuranceRiderOut): RiderDraft {
     coverage_amount: rider.coverage_amount ?? "",
     premium: rider.premium,
     is_renewable: rider.is_renewable,
+    end_date: rider.end_date,
   };
 }
 
@@ -41,6 +44,7 @@ export function riderPayload(draft: RiderDraft): InsuranceRiderIn {
     coverage_amount: draft.coverage_amount === "" ? null : draft.coverage_amount,
     premium: draft.premium === "" ? "0" : draft.premium,
     is_renewable: draft.is_renewable,
+    end_date: draft.end_date,
   };
 }
 
@@ -60,7 +64,7 @@ export default function RiderListEditor({ riders, onChange, policyPremium, frequ
   const add = () =>
     onChange([
       ...riders,
-      { key: newKey(), id: null, name: "", coverage: "cancer", coverage_amount: "", premium: "", is_renewable: false },
+      { key: newKey(), id: null, name: "", coverage: "cancer", coverage_amount: "", premium: "", is_renewable: false, end_date: null },
     ]);
   const remove = (key: string) => onChange(riders.filter((r) => r.key !== key));
 

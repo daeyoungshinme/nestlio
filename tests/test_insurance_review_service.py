@@ -356,3 +356,31 @@ def test_coverage_overlap_leaves_indemnity_types_to_duplicate_rule():
     [finding] = coverage_overlap_findings([a, b], NAMES)
     assert "암진단 2건" in finding.title
     assert "일상배상" not in finding.title
+
+
+def test_unnamed_non_spouse_policies_are_not_grouped_as_one_person():
+    a = _policy(1, "indemnity", insured=None, insured_name="  ")
+    b = _policy(2, "indemnity", insured=None, insured_name=None)
+    assert indemnity_duplicate_findings([a, b], NAMES) == []
+    named = [_policy(3, "indemnity", insured=None, insured_name="아이"), _policy(4, "indemnity", insured=None, insured_name="아이 ")]
+    assert [f.rule_code for f in indemnity_duplicate_findings(named, NAMES)] == ["indemnity_duplicate"]
+
+
+def test_short_history_is_not_diluted(seeded_db):
+    """기록한 지 3개월이면 12개월이 아니라 3개월로 나눈다 — 보험 카테고리 평균·소득 모두."""
+    from app.models.category import Category
+
+    db, user, salary = seeded_db["db"], seeded_db["user"], seeded_db["salary"]
+    insurance_cat = Category(name="보험료", type="fixed", color="#8b5cf6")
+    db.add(insurance_cat)
+    db.commit()
+    for month in (8, 9):  # 소득은 3개월 창 중 2개월만, 보험료 지출은 12개월 창 중 2개월만
+        transaction_service.create_transaction(db, user.id, salary.id, "income", D("2000000"), date(2026, month, 1))
+        transaction_service.create_transaction(db, user.id, insurance_cat.id, "expense", D("90000"), date(2026, month, 25))
+    _create(db, name="실손", insured_user_id=user.id, premium_amount=D("40000"))
+
+    review = insurance_review_service.build_insurance_review(db, today=TODAY)
+
+    assert review["summary"]["avg_monthly_income"] == D("2000000")
+    # 등록 4만 vs 실제 9만 → 미등록 경고(12로 나눴다면 1.5만이라 안 떴다)
+    assert "unregistered_premium" in [f["rule_code"] for f in review["findings"]]

@@ -30,12 +30,20 @@ RiderCoverage = Literal[Coverage, "other"]
 MAX_RIDERS_PER_POLICY = 40
 
 _POLICY_TYPES = frozenset(get_args(PolicyType))
+_PAYMENT_FREQUENCIES = frozenset(get_args(PaymentFrequency))
 _COVERAGES = frozenset(get_args(Coverage))
 
 
 def _unknown_policy_type_to_other(v: object) -> object:
     if isinstance(v, str) and v not in _POLICY_TYPES:
         return "other"
+    return v
+
+
+def _unknown_frequency_to_monthly(v: object) -> object:
+    # 모델의 monthly_premium도 연납이 아닌 값은 월납으로 계산한다 — 출력도 같은 기준으로 맞춘다.
+    if isinstance(v, str) and v not in _PAYMENT_FREQUENCIES:
+        return "monthly"
     return v
 
 
@@ -54,6 +62,7 @@ def _drop_unknown_coverages(v: object) -> object:
 # 출력 전용 폴백(schemas/transaction.py PaymentMethodOut 패턴) — 컬럼은 자유텍스트/JSON이라 나중에 값을 줄여도
 # 기존 행 때문에 응답 직렬화가 500으로 터지지 않게 한다. 입력은 순수 Literal로 엄격하게.
 PolicyTypeOut = Annotated[PolicyType, BeforeValidator(_unknown_policy_type_to_other)]
+PaymentFrequencyOut = Annotated[PaymentFrequency, BeforeValidator(_unknown_frequency_to_monthly)]
 CoveragesOut = Annotated[list[Coverage], BeforeValidator(_drop_unknown_coverages)]
 RiderCoverageOut = Annotated[RiderCoverage, BeforeValidator(_unknown_coverage_to_other)]
 
@@ -93,7 +102,7 @@ class InsurancePolicyOut(BaseModel):
     insured_user_id: uuid.UUID | None
     insured_name: str | None
     premium_amount: Decimal
-    payment_frequency: PaymentFrequency
+    payment_frequency: PaymentFrequencyOut
     monthly_premium: Decimal
     is_renewable: bool
     next_renewal_date: date | None
@@ -129,3 +138,12 @@ class InsurancePolicyIn(BaseModel):
     riders: list[InsuranceRiderIn] | None = Field(default=None, max_length=MAX_RIDERS_PER_POLICY)
     recurring_expense_id: int | None = None
     memo: bounded_str(200) | None = None
+
+    def to_fields(self) -> dict:
+        """서비스로 넘길 필드. 계약 필드는 전체 교체지만, 기존 특약(id 있음)은 보낸 필드만 갱신한다 —
+        입력 UI가 없는 end_date 같은 필드를 기본값(None)으로 지우지 않게."""
+        fields = self.model_dump(exclude={"riders"})
+        fields["riders"] = (
+            None if self.riders is None else [r.model_dump(exclude_unset=r.id is not None) for r in self.riders]
+        )
+        return fields

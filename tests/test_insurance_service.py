@@ -118,3 +118,21 @@ def test_riders_none_keeps_existing_and_foreign_id_rejected(seeded_db):
 
     with pytest.raises(insurance_service.RiderNotFoundError):
         insurance_service.update_policy(db, policy.id, _fields(riders=[_rider("x", "other", None, "0", id=999)]))
+
+
+def test_removed_spouse_cannot_become_insured_but_existing_policy_stays_editable(seeded_db):
+    from app.models.user import User
+    from app.utils.dates import now_kst
+
+    db = seeded_db["db"]
+    spouse = User(email="spouse2@example.com", display_name="Spouse 2")
+    db.add(spouse)
+    db.commit()
+    policy = insurance_service.create_policy(db, _fields(insured_user_id=spouse.id))
+    spouse.removed_at = now_kst()
+    db.commit()
+
+    with pytest.raises(insurance_service.InsuredUserNotFoundError):
+        insurance_service.create_policy(db, _fields(insured_user_id=spouse.id))
+    updated = insurance_service.update_policy(db, policy.id, _fields(insured_user_id=spouse.id, memo="그대로"))
+    assert updated.memo == "그대로"
