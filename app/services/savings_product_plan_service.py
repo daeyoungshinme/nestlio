@@ -9,7 +9,7 @@ from app.models.savings_product_annual_plan import SavingsProductAnnualPlan
 from app.models.savings_product_annual_plan_monthly_target import SavingsProductAnnualPlanMonthlyTarget
 from app.models.transaction import Transaction
 from app.services import plan_targets, savings_product_service
-from app.utils.dates import month_bounds, parse_year_month, shift_month, year_bounds, year_month_of
+from app.utils.dates import month_bounds, parse_year_month, shift_month, span_bounds, year_bounds, year_month_of
 from app.utils.money import whole_won
 from app.utils.plan_status import pct_of
 
@@ -180,7 +180,7 @@ def plan_totals_for_months(db: Session, year_months: list[str]) -> dict[str, tup
         for year in sorted({int(ym[:4]) for ym in year_months})
     }
     month_starts = [parse_year_month(ym) for ym in year_months]
-    actuals_by_month = _actuals_by_month_between(db, month_bounds(min(month_starts))[0], month_bounds(max(month_starts))[1])
+    actuals_by_month = _actuals_by_month_between(db, *span_bounds(month_starts))
     result = {}
     for ym in year_months:
         targets = targets_by_year[int(ym[:4])]

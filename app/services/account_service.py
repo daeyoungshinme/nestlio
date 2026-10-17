@@ -180,10 +180,16 @@ def current_balance(db: Session, account: Account) -> Decimal:
         .group_by(Transaction.type)
         .all()
     )
-    totals = {tx_type: amount or Decimal("0") for tx_type, amount in rows}
-    income = totals.get("income", Decimal("0"))
-    expense = totals.get("expense", Decimal("0"))
-    return Decimal(account.initial_balance) + Decimal(income) - Decimal(expense)
+    return _balance(account, {tx_type: amount or Decimal("0") for tx_type, amount in rows})
+
+
+def _balance(account: Account, totals_by_type: dict[str, Decimal]) -> Decimal:
+    """현재 잔액 = 초기잔액 + 입금(income) - 출금(expense)."""
+    return (
+        Decimal(account.initial_balance)
+        + totals_by_type.get("income", Decimal("0"))
+        - totals_by_type.get("expense", Decimal("0"))
+    )
 
 
 def balances_for(db: Session, account_ids: list[int]) -> dict[int, Decimal]:
@@ -202,14 +208,7 @@ def balances_for(db: Session, account_ids: list[int]) -> dict[int, Decimal]:
     for account_id, tx_type, amount in rows:
         totals.setdefault(account_id, {})[tx_type] = amount or Decimal("0")
 
-    return {
-        account.id: (
-            Decimal(account.initial_balance)
-            + totals.get(account.id, {}).get("income", Decimal("0"))
-            - totals.get(account.id, {}).get("expense", Decimal("0"))
-        )
-        for account in accounts
-    }
+    return {account.id: _balance(account, totals.get(account.id, {})) for account in accounts}
 
 
 def list_with_balances(db: Session) -> list[dict]:

@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 from app.models.financial_goal import FinancialGoal
 from app.models.transaction import Transaction
 from app.services import account_service, net_worth_service, savings_product_plan_service
-from app.utils.dates import month_bounds, months_between, parse_year_month, shift_month, year_month_str
+from app.utils.dates import month_bounds, months_between, parse_year_month, shift_month, span_bounds, year_month_str
 from app.utils.money import whole_won
 
 
@@ -131,8 +131,7 @@ def _linked_transaction_rows(db: Session, goals: list[FinancialGoal], year_month
             Transaction.savings_product_id,
         )
         .filter(
-            Transaction.transaction_date >= min(month_starts),
-            Transaction.transaction_date <= month_bounds(max(month_starts))[1],
+            Transaction.transaction_date.between(*span_bounds(month_starts)),
             or_(*link_filters),
         )
         .all()

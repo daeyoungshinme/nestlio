@@ -5,6 +5,7 @@ from decimal import Decimal
 from sqlalchemy import func
 from sqlalchemy.orm import Session, selectinload
 
+from app.constants.sections import EXPENSE_SECTIONS, SECTIONS
 from app.errors import ConflictError, InvalidInputError
 from app.models.annual_plan_item import AnnualPlanItem
 from app.models.annual_plan_item_monthly_target import AnnualPlanItemMonthlyTarget
@@ -19,8 +20,6 @@ from app.services import (
 from app.utils.dates import year_bounds, year_month_of
 from app.utils.money import whole_won
 from app.utils.plan_status import pct_of
-
-SECTIONS = ("income", "fixed", "variable", "irregular")
 
 
 def list_items(db: Session, year: int, section: str | None = None) -> list[AnnualPlanItem]:
@@ -216,7 +215,7 @@ def summary_for_year(
         for section in SECTIONS
     }
     expense_total = sum(
-        (sections[section]["annual_target"] for section in ("fixed", "variable", "irregular")), Decimal("0")
+        (sections[section]["annual_target"] for section in EXPENSE_SECTIONS), Decimal("0")
     )
     available = sections["income"]["annual_target"] - expense_total
     return {**sections, "expense_total": expense_total, "available": available}

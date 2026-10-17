@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 from app.models.category import Category
 from app.models.transaction import Transaction
 from app.models.user import User
-from app.utils.dates import month_bounds, shift_month
+from app.utils.dates import recent_month_starts, span_bounds
 from app.utils.money import whole_won
 
 
@@ -79,7 +79,12 @@ def period_totals(
     if q and q.strip():
         like = f"%{q.strip()}%"
         query = query.filter(or_(Transaction.description.ilike(like), Category.name.ilike(like)))
-    rows = query.group_by(Transaction.type, Category.type).all()
+    return totals_from_rows(query.group_by(Transaction.type, Category.type).all())
+
+
+def totals_from_rows(rows) -> dict:
+    """(거래 type, 카테고리 type, 금액) 행들 → period_totals 모양의 합계. 지출은 카테고리 type(고정/변동/비정기)
+    섹션에도 더하고, savings = 수입 - 지출. 기간 합계(period_totals)와 월별 배치(transaction_trend_service)가 공유한다."""
     totals = empty_totals()
     for tx_type, cat_type, amount in rows:
         amount = amount or Decimal("0")
@@ -260,11 +265,10 @@ def _trailing_average_by_owner_batch(
 ) -> dict[uuid.UUID | Literal["shared"], dict[int, Decimal]]:
     """trailing_average_by_category_by_owner()를 모든 owner·달에 대해 쿼리 1개로 배치 조회한
     버전 — owner별로 반복 호출하지 않는다(대시보드는 매 요청마다 이 계산을 필요로 한다)."""
-    month_starts = [shift_month(anchor, -offset) for offset in range(1, months + 1)]
+    month_starts = recent_month_starts(anchor, months, include_anchor=False)
     if not month_starts:
         return {}
-    range_start = min(month_starts)
-    range_end = month_bounds(max(month_starts))[1]
+    range_start, range_end = span_bounds(month_starts)
     rows = (
         db.query(Transaction.owner_user_id, Transaction.category_id, Transaction.amount)
         .filter(

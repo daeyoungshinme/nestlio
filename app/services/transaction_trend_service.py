@@ -7,10 +7,11 @@ from decimal import Decimal
 
 from sqlalchemy.orm import Session
 
+from app.constants.sections import SECTIONS
 from app.models.category import Category
 from app.models.transaction import Transaction
 from app.services import transaction_report_service
-from app.utils.dates import month_bounds, shift_month, today_kst, year_bounds, year_month_str
+from app.utils.dates import recent_month_starts, span_bounds, today_kst, year_bounds, year_month_str
 from app.utils.money import whole_won
 
 
@@ -20,8 +21,7 @@ def _monthly_totals_map(db: Session, month_starts: list[date]) -> dict[str, dict
     result = {year_month_str(m): transaction_report_service.empty_totals() for m in month_starts}
     if not month_starts:
         return result
-    range_start = min(month_starts)
-    range_end = month_bounds(max(month_starts))[1]
+    range_start, range_end = span_bounds(month_starts)
     rows = (
         db.query(Transaction.transaction_date, Transaction.type, Category.type, Transaction.amount)
         .join(Category, Transaction.category_id == Category.id)
@@ -30,17 +30,12 @@ def _monthly_totals_map(db: Session, month_starts: list[date]) -> dict[str, dict
         )
         .all()
     )
-    for tx_date, tx_type, cat_type, amount in rows:
-        totals = result.get(year_month_str(tx_date))
-        if totals is None:  # month not requested (can't happen for contiguous callers, but keep it safe)
-            continue
-        amount = amount or Decimal("0")
-        totals[tx_type] = totals.get(tx_type, Decimal("0")) + amount
-        if tx_type == "expense":
-            totals[cat_type] = totals.get(cat_type, Decimal("0")) + amount
-    for totals in result.values():
-        totals["savings"] = totals["income"] - totals["expense"]
-    return result
+    rows_by_month: dict[str, list] = {ym: [] for ym in result}
+    for tx_date, *row in rows:
+        bucket = rows_by_month.get(year_month_str(tx_date))
+        if bucket is not None:  # month not requested (can't happen for contiguous callers, but keep it safe)
+            bucket.append(row)
+    return {ym: transaction_report_service.totals_from_rows(month_rows) for ym, month_rows in rows_by_month.items()}
 
 
 def _category_breakdown_by_month(db: Session, month_starts: list[date], type_: str) -> dict[str, list[dict]]:
@@ -48,8 +43,7 @@ def _category_breakdown_by_month(db: Session, month_starts: list[date], type_: s
     by_month: dict[str, dict[int, dict]] = {year_month_str(m): {} for m in month_starts}
     if not month_starts:
         return by_month
-    range_start = min(month_starts)
-    range_end = month_bounds(max(month_starts))[1]
+    range_start, range_end = span_bounds(month_starts)
     rows = (
         db.query(
             Transaction.transaction_date,
@@ -86,7 +80,7 @@ def _active_count(per_month, has_data) -> int:
 def monthly_trend(db: Session, months: int = 6, anchor: date | None = None) -> list[dict]:
     """Income/expense totals for the trailing `months` calendar months, oldest first."""
     anchor = anchor or today_kst()
-    month_starts = [shift_month(anchor, -offset) for offset in range(months - 1, -1, -1)]
+    month_starts = recent_month_starts(anchor, months)
     return _monthly_rows(db, month_starts)
 
 
@@ -102,7 +96,7 @@ def trailing_average_by_category(
     """Average per-category spend over the `months` immediately before anchor's month (excludes anchor's month).
     active_months_only: 나누는 달 수를 type_ 거래가 하나라도 있는 달로 한정한다 — 기록 시작 전 달을 0원으로
     넣어 평균이 희석되지 않게(절감 점검)."""
-    month_starts = [shift_month(anchor, -offset) for offset in range(1, months + 1)]
+    month_starts = recent_month_starts(anchor, months, include_anchor=False)
     breakdown_by_month = _category_breakdown_by_month(db, month_starts, type_)
     totals: dict[int, Decimal] = {}
     for rows in breakdown_by_month.values():
@@ -119,12 +113,11 @@ def trailing_average_by_section(
     anchor's month (excludes anchor's month) — section-level counterpart to
     trailing_average_by_category, used to suggest next month's cashflow plan amounts.
     active_months_only: 수입·지출이 하나라도 있는 달만 센다(trailing_average_by_category와 같은 이유)."""
-    month_starts = [shift_month(anchor, -offset) for offset in range(1, months + 1)]
+    month_starts = recent_month_starts(anchor, months, include_anchor=False)
     totals_by_month = _monthly_totals_map(db, month_starts)
-    sections = ("income", "fixed", "variable", "irregular")
-    sums = {section: Decimal("0") for section in sections}
+    sums = {section: Decimal("0") for section in SECTIONS}
     for totals in totals_by_month.values():
-        for section in sections:
+        for section in SECTIONS:
             sums[section] += totals[section]
     divisor = (
         _active_count(totals_by_month.values(), lambda t: t["income"] or t["expense"]) if active_months_only else months
@@ -139,7 +132,7 @@ def category_monthly_trend(
     multi-line trend chart. Only the top `top_n` categories (by total spend across the
     window) get their own series; everything else is folded into a '기타' series."""
     anchor = anchor or today_kst()
-    month_starts = [shift_month(anchor, -offset) for offset in range(months - 1, -1, -1)]
+    month_starts = recent_month_starts(anchor, months)
     month_keys = [year_month_str(m) for m in month_starts]
     breakdown_by_month = _category_breakdown_by_month(db, month_starts, type_)
     monthly_breakdowns: list[list[dict]] = [breakdown_by_month[ym] for ym in month_keys]

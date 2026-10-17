@@ -5,7 +5,7 @@ now_kst()/today_kst()는 벽시계를 읽는 함수라 "시간 결정론" 컨벤
 두 헬퍼의 상호 일관성을 확인한다. 이게 서버 TZ가 UTC여도 "naive == KST" 컨벤션이
 유지되는지를 지키는 가드다.
 """
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 
 from app.utils.dates import now_kst, today_kst
 
@@ -41,3 +41,18 @@ def test_model_timestamp_columns_default_to_kst_in_python():
             if column.onupdate is not None and not column.onupdate.is_callable:
                 missing.append(f"{table.name}.{column.name} onupdate")
     assert not missing
+
+
+def test_recent_month_starts_oldest_first_with_or_without_anchor():
+    from app.utils.dates import recent_month_starts
+
+    anchor = date(2026, 2, 14)
+    assert recent_month_starts(anchor, 3) == [date(2025, 12, 1), date(2026, 1, 1), date(2026, 2, 1)]
+    assert recent_month_starts(anchor, 2, include_anchor=False) == [date(2025, 12, 1), date(2026, 1, 1)]
+    assert recent_month_starts(anchor, 0) == []
+
+
+def test_span_bounds_covers_first_to_last_month_end():
+    from app.utils.dates import span_bounds
+
+    assert span_bounds([date(2026, 3, 1), date(2026, 1, 1)]) == (date(2026, 1, 1), date(2026, 3, 31))
