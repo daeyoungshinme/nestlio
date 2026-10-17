@@ -6,7 +6,7 @@ from sqlalchemy import Boolean, Date, ForeignKey, Integer, Numeric, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
-from app.utils.money import whole_won
+from app.utils.money import monthly_equivalent
 
 if TYPE_CHECKING:
     from app.models.insurance_policy import InsurancePolicy
@@ -36,6 +36,4 @@ class InsuranceRider(Base):
     @property
     def monthly_premium(self) -> Decimal:
         """월 환산 특약 보험료 — 계약이 연납이면 12로 나눠 원 단위 반올림."""
-        if self.policy is not None and self.policy.payment_frequency == "yearly":
-            return whole_won(self.premium / 12)
-        return self.premium
+        return monthly_equivalent(self.premium, self.policy.payment_frequency if self.policy is not None else "monthly")

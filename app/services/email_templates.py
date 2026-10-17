@@ -9,6 +9,7 @@ from decimal import Decimal
 
 from app.services import transaction_report_service
 from app.services.coaching_engine import Insight
+from app.utils.money import format_won
 
 _FONT = "-apple-system, BlinkMacSystemFont, 'Segoe UI', 'Malgun Gothic', 'Apple SD Gothic Neo', sans-serif"
 
@@ -30,9 +31,6 @@ _SEVERITY_LABELS = {"critical": "위험", "warning": "주의", "info": "참고"}
 _SEVERITY_COLORS = {"critical": "#B91C1C", "warning": "#B45309", "info": "#1D4ED8"}
 _SEVERITY_TINTS = {"critical": "#FEF2F2", "warning": "#FFFBEB", "info": "#EFF6FF"}
 
-
-def _won(amount: Decimal | int) -> str:
-    return f"{amount:,.0f}원"
 
 
 def _shell(preheader: str, header_title: str, header_subtitle: str, body_html: str) -> str:
@@ -88,7 +86,7 @@ def _stat_row(income: Decimal, expense: Decimal, savings: Decimal) -> str:
     def _tile(label: str, amount: Decimal, color: str) -> str:
         return f"""<td width="33%" valign="top" style="padding:14px 10px; text-align:center; background-color:#F9FAFB; border-radius:10px;">
 <div style="font-size:12px; color:{_MUTED}; font-weight:600;">{label}</div>
-<div style="font-size:17px; font-weight:700; color:{color}; margin-top:4px; word-break:break-all;">{_won(amount)}</div>
+<div style="font-size:17px; font-weight:700; color:{color}; margin-top:4px; word-break:break-all;">{format_won(amount)}</div>
 </td>"""
 
     return f"""<table role="presentation" width="100%" cellpadding="0" cellspacing="0">
@@ -126,7 +124,7 @@ def _type_breakdown_bar(fixed: Decimal, variable: Decimal, irregular: Decimal) -
             f'<span style="display:inline-block; margin-right:16px; font-size:12px; color:{_MUTED};">'
             f'<span style="display:inline-block; width:8px; height:8px; border-radius:2px; '
             f'background-color:{_TYPE_COLORS[key]}; margin-right:5px;"></span>'
-            f"{_TYPE_LABELS[key]} {_won(amount)} ({pct}%)</span>"
+            f"{_TYPE_LABELS[key]} {format_won(amount)} ({pct}%)</span>"
         )
 
     return f"""<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-radius:6px; overflow:hidden; margin-top:2px;">
@@ -152,7 +150,7 @@ def _category_bars(breakdown: list[dict]) -> str:
 <span style="display:inline-block; width:8px; height:8px; border-radius:50%; background-color:{color}; margin-right:7px;"></span>
 {row['name']}
 </td>
-<td align="right" style="font-size:13px; font-weight:600; color:{_TEXT}; white-space:nowrap;">{_won(row['amount'])}</td>
+<td align="right" style="font-size:13px; font-weight:600; color:{_TEXT}; white-space:nowrap;">{format_won(row['amount'])}</td>
 </tr>
 </table>
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top:5px;">
@@ -191,7 +189,7 @@ def _contribution_section(owner_totals: list[dict] | None) -> str:
         color = _SUCCESS if is_leader else _TEXT
         rows.append(f"""<tr>
 <td style="padding:6px 0; font-size:13px; color:{_TEXT};">{o['display_name']}{crown}</td>
-<td align="right" style="padding:6px 0; font-size:13px; font-weight:700; color:{color};">{_won(o['savings'])}</td>
+<td align="right" style="padding:6px 0; font-size:13px; font-weight:700; color:{color};">{format_won(o['savings'])}</td>
 </tr>""")
     return (
         _section_title("부부 저축 기여도")
@@ -242,7 +240,7 @@ def build_weekly_summary_html(
 ) -> str:
     body = _summary_body(totals, breakdown, owner_totals, streak)
     subtitle = f"{start.isoformat()} ~ {end.isoformat()}"
-    return _shell(f"이번 주 지출 {_won(totals['expense'])}", "주간 가계부 요약", subtitle, body)
+    return _shell(f"이번 주 지출 {format_won(totals['expense'])}", "주간 가계부 요약", subtitle, body)
 
 
 def build_monthly_summary_html(
@@ -258,7 +256,7 @@ def build_monthly_summary_html(
     if insights:
         body += _section_title("자산증식 코칭") + _insight_cards(insights)
     subtitle = f"{start.isoformat()} ~ {end.isoformat()}"
-    return _shell(f"이번 달 지출 {_won(totals['expense'])}", "월간 가계부 요약", subtitle, body)
+    return _shell(f"이번 달 지출 {format_won(totals['expense'])}", "월간 가계부 요약", subtitle, body)
 
 
 # ---- 텍스트 본문 ----

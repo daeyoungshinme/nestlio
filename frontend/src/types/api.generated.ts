@@ -3864,6 +3864,8 @@ export interface components {
             coaching_thresholds: components["schemas"]["CoachingThresholdsOut"];
             notification_prefs: components["schemas"]["NotificationPrefsOut"];
             insurance_targets: components["schemas"]["InsuranceTargetsOut"];
+            /** Insurance Over Coverage Tolerance Pct */
+            insurance_over_coverage_tolerance_pct: number;
             /** Couple Photo Url */
             couple_photo_url?: string | null;
         };

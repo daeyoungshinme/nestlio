@@ -9,7 +9,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.database import Base
 from app.models.insurance_rider import InsuranceRider
 from app.utils.dates import now_kst
-from app.utils.money import whole_won
+from app.utils.money import monthly_equivalent
 
 
 class InsurancePolicy(Base):
@@ -61,6 +61,4 @@ class InsurancePolicy(Base):
     @property
     def monthly_premium(self) -> Decimal:
         """월 환산 보험료 — 연납은 12로 나눠 원 단위 반올림."""
-        if self.payment_frequency == "yearly":
-            return whole_won(self.premium_amount / 12)
-        return self.premium_amount
+        return monthly_equivalent(self.premium_amount, self.payment_frequency)

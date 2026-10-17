@@ -32,12 +32,13 @@ from sqlalchemy.orm import Session
 
 from app.config import settings
 from app.constants.benchmark_groups import BENCHMARK_GROUPS
+from app.constants.severity import severity_rank
 from app.models.category import Category
 from app.models.recurring_expense import RecurringExpense
 from app.models.transaction import Transaction
 from app.services import budget_service, coaching_engine, coaching_settings_service, transaction_report_service
 from app.utils.dates import month_bounds, parse_year_month, shift_month, today_kst, year_month_str
-from app.utils.money import monthly_equivalent, whole_won
+from app.utils.money import format_won, monthly_equivalent, whole_won
 
 CATEGORY_LEVEL_RULES = ("trend_up", "benchmark_excess", "chronic_overrun", "small_frequent")
 ITEM_LEVEL_RULES = ("subscription", "unregistered_recurring")
@@ -98,9 +99,6 @@ def is_cuttable_category(meta: CategoryMeta) -> bool:
     return not is_insurance_category(meta.name, meta.benchmark_group)
 
 
-def _won(amount: Decimal) -> str:
-    return f"{amount:,.0f}원"
-
 
 # --- 카테고리 단위 규칙 ------------------------------------------------------------------------
 
@@ -127,7 +125,7 @@ def trend_up_opportunities(
                 rule_code="trend_up",
                 severity="warning",
                 title=f"{cat.name} 지출이 평소보다 {change_pct:.0f}% 늘었어요",
-                detail=f"직전 {months}개월 평균 {_won(avg)} → 이번 {_won(amount)}. 평소 수준으로 돌아오면 월 {_won(amount - avg)}을 아낄 수 있어요.",
+                detail=f"직전 {months}개월 평균 {format_won(avg)} → 이번 {format_won(amount)}. 평소 수준으로 돌아오면 월 {format_won(amount - avg)}을 아낄 수 있어요.",
                 current_monthly_amount=amount,
                 estimated_monthly_saving=whole_won(amount - avg),
                 category_ids=frozenset({cat_id}),
@@ -168,7 +166,7 @@ def benchmark_excess_opportunities(
                 rule_code="benchmark_excess",
                 severity="warning",
                 title=f"{label} 지출이 소득의 {pct:.0f}%예요 (가이드라인 {guideline_pct:.0f}%)",
-                detail=f"월 평균 {_won(amount)} 중 가이드라인을 넘는 {_won(excess)}이 줄일 여지예요.",
+                detail=f"월 평균 {format_won(amount)} 중 가이드라인을 넘는 {format_won(excess)}이 줄일 여지예요.",
                 current_monthly_amount=amount,
                 estimated_monthly_saving=excess,
                 category_ids=frozenset(group_categories[group]),
@@ -203,7 +201,7 @@ def chronic_overrun_opportunities(
                     rule_code="chronic_overrun",
                     severity="critical",
                     title=f"{cat.name} 지출이 {len(monthly)}개월 연속 예산을 넘었어요",
-                    detail=f"매달 평균 {_won(avg_over)}씩 초과했어요. 지출을 줄이거나, 현실적인 예산으로 다시 잡아 보세요.",
+                    detail=f"매달 평균 {format_won(avg_over)}씩 초과했어요. 지출을 줄이거나, 현실적인 예산으로 다시 잡아 보세요.",
                     current_monthly_amount=monthly[-1][1].get(cat_id, Decimal("0")),
                     estimated_monthly_saving=avg_over,
                     category_ids=frozenset({cat_id}),
@@ -235,7 +233,7 @@ def small_frequent_opportunities(
                 rule_code="small_frequent",
                 severity="info",
                 title=f"{meta[cat_id].name}에서 소액 결제가 {count}번 있었어요",
-                detail=f"{_won(max_amount)} 이하 결제 합계 {_won(total)}. {cut_pct:.0f}%만 줄여도 월 {_won(saving)}이에요.",
+                detail=f"{format_won(max_amount)} 이하 결제 합계 {format_won(total)}. {cut_pct:.0f}%만 줄여도 월 {format_won(saving)}이에요.",
                 current_monthly_amount=total,
                 estimated_monthly_saving=saving,
                 category_ids=frozenset({cat_id}),
@@ -264,7 +262,7 @@ def subscription_opportunities(
                 rule_code="subscription",
                 severity="info",
                 title=f"정기결제 점검: {rec.name}",
-                detail=f"{cat.name} · 월 {_won(monthly)}. 요즘도 잘 쓰고 있는지 둘이 한 번 확인해 보세요.",
+                detail=f"{cat.name} · 월 {format_won(monthly)}. 요즘도 잘 쓰고 있는지 둘이 한 번 확인해 보세요.",
                 current_monthly_amount=monthly,
                 estimated_monthly_saving=monthly,
                 category_ids=frozenset({rec.category_id}),
@@ -323,7 +321,7 @@ def unregistered_recurring_opportunities(
                 rule_code="unregistered_recurring",
                 severity="info",
                 title=f"매달 나가는 결제 같아요: {name}",
-                detail=f"최근 {len(months)}개월 중 {len(by_month)}개월, 월 {_won(monthly)}. 반복거래로 등록하고 계속 필요한지 확인해 보세요.",
+                detail=f"최근 {len(months)}개월 중 {len(by_month)}개월, 월 {format_won(monthly)}. 반복거래로 등록하고 계속 필요한지 확인해 보세요.",
                 current_monthly_amount=monthly,
                 estimated_monthly_saving=monthly,
                 category_ids=frozenset({cat_id}),
@@ -338,10 +336,9 @@ def unregistered_recurring_opportunities(
 def merge_opportunities(candidates: list[SavingOpportunity]) -> tuple[list[SavingOpportunity], Decimal]:
     """(정렬된 결과, 총 절감 추정). 카테고리 단위 규칙끼리는 카테고리가 겹치면 큰 것 하나만 남기고 나머지 제목을
     related로 붙인다. 항목 단위 규칙은 모두 남기되, 총액에선 겹치는 카테고리 단위 기회와 max로 합친다."""
-    _rank = {"critical": 0, "warning": 1, "info": 2}
     category_level = sorted(
         (c for c in candidates if c.rule_code in CATEGORY_LEVEL_RULES),
-        key=lambda c: (-c.estimated_monthly_saving, _rank.get(c.severity, 3)),
+        key=lambda c: (-c.estimated_monthly_saving, severity_rank(c.severity)),
     )
     kept: list[SavingOpportunity] = []
     for cand in category_level:
@@ -361,14 +358,14 @@ def merge_opportunities(candidates: list[SavingOpportunity]) -> tuple[list[Savin
         total += max(k.estimated_monthly_saving, item_sum)
     total += sum((item.estimated_monthly_saving for i, item in enumerate(items) if i not in absorbed), Decimal("0"))
 
-    merged = sorted(kept + items, key=lambda c: (-c.estimated_monthly_saving, _rank.get(c.severity, 3)))
+    merged = sorted(kept + items, key=lambda c: (-c.estimated_monthly_saving, severity_rank(c.severity)))
     return merged, total
 
 
 # --- DB-aware 래퍼 ----------------------------------------------------------------------------
 
 
-def _category_meta(db: Session) -> dict[int, CategoryMeta]:
+def _category_meta(categories: list[Category]) -> dict[int, CategoryMeta]:
     return {
         c.id: CategoryMeta(
             id=c.id,
@@ -379,7 +376,7 @@ def _category_meta(db: Session) -> dict[int, CategoryMeta]:
             is_savings=bool(c.is_savings),
             benchmark_group=c.benchmark_group,
         )
-        for c in db.query(Category).all()
+        for c in categories
     }
 
 
@@ -431,6 +428,7 @@ def build_spending_review(
     owner: uuid.UUID | Literal["shared"] | None = None,
     today: date | None = None,
     thresholds: dict[str, float] | None = None,
+    categories: list[Category] | None = None,
 ) -> dict:
     """기준월 소비 절감 점검. owner를 주면 거래 기반 규칙만 그 배우자(또는 "shared"=공통) 몫으로 좁힌다 —
     소득(벤치마크 분모)은 가구 전체 그대로, 예산·반복거래는 가구 단위라 owner 필터 시 만성 초과·정기결제 규칙은 건너뛴다."""
@@ -441,7 +439,7 @@ def build_spending_review(
     history_months = [year_month_str(shift_month(anchor, -o)) for o in range(lookback, 0, -1)]
     window_start = shift_month(anchor, -lookback)
     all_rows = _tx_rows(db, window_start, month_bounds(anchor)[1])
-    meta = _category_meta(db)
+    meta = _category_meta(categories if categories is not None else db.query(Category).all())
     thresholds = thresholds if thresholds is not None else coaching_settings_service.get_thresholds(db)
 
     # 기록이 시작되기 전 달까지 0원으로 평균에 넣으면 평균이 희석된다 — 거래가 하나라도 있는 달만 센다(가구 기준).
@@ -497,11 +495,9 @@ def build_spending_review(
     )
 
     if owner is None:
-        overrun_months = [shift_month(anchor, -o) for o in range(settings.chronic_overrun_months - 1, -1, -1)]
-        monthly = [
-            (budget_service.get_budgets_for_month(db, year_month_str(m)), _sum_by_category(by_month.get(year_month_str(m), [])))
-            for m in overrun_months
-        ]
+        overrun_months = [year_month_str(shift_month(anchor, -o)) for o in range(settings.chronic_overrun_months - 1, -1, -1)]
+        budgets = budget_service.get_budgets_for_months(db, overrun_months)
+        monthly = [(budgets[m], _sum_by_category(by_month.get(m, []))) for m in overrun_months]
         candidates += chronic_overrun_opportunities(monthly, meta)
         candidates += subscription_opportunities(recurrings, meta)
 

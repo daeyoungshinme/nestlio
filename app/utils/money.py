@@ -17,3 +17,8 @@ def monthly_equivalent(amount: Decimal, frequency: str, occurrences_per_month: i
     if frequency == "yearly":
         return whole_won(amount / 12)
     return whole_won(amount * max(occurrences_per_month, 1))
+
+
+def format_won(amount: Decimal | int) -> str:
+    """메일·점검 문구용 "1,234원" — 원 단위로 반올림해 표시한다."""
+    return f"{amount:,.0f}원"

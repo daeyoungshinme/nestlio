@@ -324,7 +324,7 @@ def test_renewable_rider_share_boundary(renewable_premium, flagged):
 def test_rider_premium_mismatch_and_top_riders():
     policy = _with_riders(1, [("A", "cancer", "1", "70000", False), ("B", "stroke", "1", "40000", True)], premium="100000")
     assert [f.rule_code for f in rider_premium_mismatch_findings([policy])] == ["rider_premium_mismatch"]
-    assert [r["rider_name"] for r in top_riders([policy])] == ["A", "B"]
+    assert [r["rider_name"] for r in top_riders([policy], 5)] == ["A", "B"]
 
 
 def test_build_review_total_adds_duplicates_and_over_coverage(seeded_db):
@@ -384,3 +384,55 @@ def test_short_history_is_not_diluted(seeded_db):
     assert review["summary"]["avg_monthly_income"] == D("2000000")
     # 등록 4만 vs 실제 9만 → 미등록 경고(12로 나눴다면 1.5만이라 안 떴다)
     assert "unregistered_premium" in [f["rule_code"] for f in review["findings"]]
+
+
+def test_zero_target_is_no_target_without_findings():
+    policy = _with_riders(1, [("사망", "death", "50000000", "20000", False)])
+    findings, table = coverage_amount_findings([policy], NAMES, TARGETS, 20)  # TARGETS["death"] == 0
+    assert [row["status"] for row in table if row["coverage"] == "death"] == ["no_target"]
+    assert findings == []
+
+
+def test_yearly_policy_rider_monthly_premium():
+    policy = _with_riders(1, [("암", "cancer", "30000000", "120000", False)], premium="240000", payment_frequency="yearly")
+    assert policy.monthly_premium == D("20000")
+    assert policy.riders[0].monthly_premium == D("10000")
+
+
+def test_build_total_takes_ratio_when_larger_than_duplicates(seeded_db):
+    db, user, salary = seeded_db["db"], seeded_db["user"], seeded_db["salary"]
+    for month in (7, 8, 9):
+        transaction_service.create_transaction(db, user.id, salary.id, "income", D("1000000"), date(2026, month, 1))
+    _create(db, name="실손A", insured_user_id=user.id, premium_amount=D("100000"))
+    _create(db, name="실손B", insured_user_id=user.id, premium_amount=D("30000"))
+
+    review = insurance_review_service.build_insurance_review(db, today=TODAY)
+
+    # 소득 100만의 8% = 8만 → 초과 5만 > 실손 중복 3만 — 큰 쪽만 센다.
+    assert {f["rule_code"] for f in review["findings"]} >= {"insurance_ratio", "indemnity_duplicate"}
+    assert review["total_estimated_monthly_saving"] == D("50000")
+
+
+def test_build_uses_household_saved_targets(seeded_db):
+    from app.services import insurance_target_service
+
+    db, user = seeded_db["db"], seeded_db["user"]
+    rider = {"name": "암", "coverage": "cancer", "coverage_amount": D("30000000"), "premium": D("30000")}
+    _create(db, name="암보험", policy_type="diagnosis", insured_user_id=user.id, riders=[rider])
+
+    assert "over_coverage" not in [f["rule_code"] for f in insurance_review_service.build_insurance_review(db, today=TODAY)["findings"]]
+    insurance_target_service.set_targets(db, {"cancer": D("10000000")}, user.id)
+    review = insurance_review_service.build_insurance_review(db, today=TODAY)
+
+    assert "over_coverage" in [f["rule_code"] for f in review["findings"]]
+    cancer = next(r for r in review["summary"]["coverage_table"] if r["coverage"] == "cancer")
+    assert cancer["target_amount"] == D("10000000")
+
+
+def test_coverage_labels_cover_every_coverage_tag():
+    from typing import get_args
+
+    from app.schemas.insurance import Coverage
+    from app.services.insurance_review_service import COVERAGE_LABELS
+
+    assert set(COVERAGE_LABELS) == set(get_args(Coverage))

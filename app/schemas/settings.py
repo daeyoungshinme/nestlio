@@ -96,6 +96,8 @@ class SettingsOut(BaseModel):
     coaching_thresholds: CoachingThresholdsOut
     notification_prefs: NotificationPrefsOut
     insurance_targets: InsuranceTargetsOut
+    # 보장 합계가 적정 기준보다 이 %를 넘게 많으면 감액 후보(설정 화면 안내 문구용, env 설정값).
+    insurance_over_coverage_tolerance_pct: float
     couple_photo_url: str | None = None
 
 

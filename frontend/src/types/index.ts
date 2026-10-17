@@ -426,6 +426,7 @@ export interface SettingsOut {
   notification_prefs: NotificationPrefsOut;
   couple_photo_url: string | null;
   insurance_targets: InsuranceTargetsOut;
+  insurance_over_coverage_tolerance_pct: number;
 }
 
 /** 정액 보장별 적정 가입금액(원, 입원일당은 1일 금액). "0"이면 기준 없음. */

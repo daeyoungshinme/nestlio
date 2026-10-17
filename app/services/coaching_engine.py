@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 
 from app.config import settings
 from app.constants.benchmark_groups import BENCHMARK_GROUPS, COMPARABLE_BENCHMARK_GROUPS
+from app.constants.severity import severity_rank
 from app.models.financial_goal import FinancialGoal
 from app.services import (
     budget_service,
@@ -327,6 +328,5 @@ def compute_insights(
         if ef_insight:
             insights.append(ef_insight)
 
-    severity_rank = {"critical": 0, "warning": 1, "info": 2}
-    insights.sort(key=lambda i: severity_rank.get(i.severity, 3))
+    insights.sort(key=lambda i: severity_rank(i.severity))
     return insights

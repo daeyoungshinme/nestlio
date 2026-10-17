@@ -48,7 +48,7 @@
 | 저축상품 | `savings_product_service`(CRUD, `list_products`, `get_emergency_fund_balance`) · `savings_product_plan_service`(연간계획·실적, `PLAN_PRODUCT_TYPES`) · `savings_product_growlio_service`(growlio 동기화) | 상품 목록은 항상 `list_products(db)` 재사용 |
 | 목표 | `goal_service`(CRUD, 챌린지 상태 동기화, 자금원 연동, growlio 조회) · `goal_progress_service`(진행률·ETA·`to_out`, 커밋 없음. 목표 여러 개는 `list_out`/`current_amounts`로 — 목표마다 `to_out`/`compute_current_amount`를 돌리면 N+1) | `goal_service` → `goal_progress_service` 단방향 |
 | 알림 | `notification_service`(발송·판정) · `notification_inbox_service`(목록·읽음·반응·목표 응원) · `notification_log_service`(dedup) | 앞 둘은 서로 import하지 않음 |
-| 코칭 | `coaching_engine`(규칙 기반 `Insight`, `compute_insights`) · `savings_coaching_service`(여유자금 배분, 비상금, 저축 페이스·연속 달성) · `spending_review_service`(절감 점검: 규칙별 월 절감 추정 `SavingOpportunity`, 중복 합산 방지 `merge_opportunities`) | `coaching_engine` → `savings_coaching_service` 단방향. `spending_review_service` → `coaching_engine`(벤치마크 임계값) 단방향. `insurance_review_service`(보험 계약 점검, 해지 권고 안 함) → `insurance_service`·`spending_review_service`. 보험은 소비 점검 벤치마크에서 빠지므로 `dashboard_service.build_savings_review`가 두 총액을 그냥 더한다 |
+| 코칭 | `coaching_engine`(규칙 기반 `Insight`, `compute_insights`) · `savings_coaching_service`(여유자금 배분, 비상금, 저축 페이스·연속 달성) · `spending_review_service`(절감 점검: 규칙별 월 절감 추정 `SavingOpportunity`, 중복 합산 방지 `merge_opportunities`) | `coaching_engine` → `savings_coaching_service` 단방향. `spending_review_service` → `coaching_engine`(벤치마크 임계값) 단방향. `insurance_review_service`(보험 계약 점검, 해지 권고 안 함) → `insurance_service`·`insurance_target_service`(적정 가입금액 기준)·`spending_review_service`. 보험은 소비 점검 벤치마크에서 빠지므로 `dashboard_service.build_savings_review`가 두 총액을 그냥 더한다 |
 
 - `transaction_import_service`: 파싱/생성 로직은 `import_rows(db, rows, user_id)` 하나에 있고 `import_csv`는 CSV 문자열을 `rows`로 나눠 위임하는 얇은 래퍼다 — 매칭/skip 로직은 `import_rows`만 고친다. CSV 헤더·라벨을 바꿀 때는 `CSV_HEADER`/`CSV_TYPE_LABELS`/`CSV_TYPE_BY_LABEL`을 함께 갱신한다.
 - **누가 기록했나 vs 누가 썼나**: `Transaction.user_id`는 입력한 사람, `Transaction.owner_user_id`는 실제 소비 주체(공통 지출은 `NULL`)다. 배우자가 대신 입력하는 경우가 있어 "부부별 지출" 표시는 `*_by_owner` 계열 집계를 쓴다. 새 집계 함수는 어느 축이 필요한지 먼저 정한다.
@@ -57,6 +57,7 @@
 
 - DB 쓰기 없음. 대부분 순수 계산 함수(집계값 → `Insight`)라 파라미터화 테스트로 경계값을 촘촘히 검증한다(`tests/test_coaching_engine.py`). 새 룰도 같은 방식으로.
 - 예외: `compute_insights`, `emergency_fund_context`, `compute_surplus_allocation`, `savings_pace_history`는 `db`를 받아 직접 조회까지 하는 DB-aware 래퍼다 — 순수 함수로 착각하지 않는다.
+- 부부가 바꿀 수 있는 설정값(코칭 임계값 `coaching_settings_service`, 보험 적정 기준 `insurance_target_service`)은 `user_setting_service.get_overrides`/`set_overrides`(키 prefix + `settings` 기본값 폴백, 손상 값도 폴백)로 읽고 쓴다 — 새 설정 묶음도 같은 헬퍼로. 심각도 정렬은 `app/constants/severity.severity_rank`, 문구의 금액 표기는 `app/utils/money.format_won`.
 - 임계값은 하드코딩하지 않고 `settings`에서. 예산 경고/위험 %는 가구가 바꿀 수 있으므로 예산 상태를 계산하는 곳(계획 화면, 예산 알림 메일)은 `coaching_settings_service.budget_thresholds(db)`를 꺼내 `budget_vs_actual` 등에 넘긴다 — 생략하면 env 기본값이 쓰여 화면과 알림 판정이 어긋난다.
 - **"얼마 저축할지"의 원본은 저축·투자 상품의 월 계획**(`savings_product_plan_service.planned_by_product_for_month` — `SavingsProductAnnualPlan` 그리드, 없으면 `monthly_saving_amount`). `savings_pace_basis`가 (실적, 목표)를 고른다: 그 달 상품 계획이 있으면 계획 대비 실제 납입액(저축상품 연결 거래), 없는 가구만 목표들의 `monthly_saving_amount` 합 대비 수입−지출로 폴백. 목표의 월 계획액도 같은 원본(`goal_progress_service.planned_monthly_for_goal`)이고, 목표 저장은 연동 상품의 계획액을 건드리지 않는다.
 

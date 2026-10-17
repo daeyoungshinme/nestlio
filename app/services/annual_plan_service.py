@@ -17,7 +17,7 @@ from app.services import (
     transaction_trend_service,
 )
 from app.utils.dates import year_bounds, year_month_of
-from app.utils.money import whole_won
+from app.utils.money import monthly_equivalent
 from app.utils.plan_status import pct_of
 
 SECTIONS = ("income", "fixed", "variable", "irregular")
@@ -290,7 +290,7 @@ def _recurring_monthly_amounts(recurring, year: int) -> tuple[dict[str, Decimal]
         due = recurring.next_due_date or recurring.start_date
         return {year_month_of(year, due.month): recurring.amount}, False
     if recurring.frequency == "weekly":
-        monthly = whole_won(recurring.amount * 52 / 12)
+        monthly = monthly_equivalent(recurring.amount, "weekly")
         return dict.fromkeys(months, monthly), False
     times = len(recurring.days_of_month or []) or 1
     return dict.fromkeys(months, recurring.amount * times), times == 1
