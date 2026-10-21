@@ -12,7 +12,7 @@ npm run dev                 # Vite 5273(VITE_DEV_PORT로 변경), /api/* → 889
 npm run build               # tsc -b && vite build → dist/
 npm run typecheck           # tsc -b --noEmit — 루트 tsconfig.json은 references만 있어 -b 없이 돌리면 0개 파일을 검사하고 통과한다
 npm run lint                # oxlint --deny-warnings — 경고 1건도 CI 실패
-npm run test                # vitest run (test:watch = 워치)
+npm run test                # vitest run (test:watch = 워치, test:coverage = 커버리지 리포트 — 게이트 없음)
 npm run generate:api-types  # 백엔드 스키마 → src/types/api.generated.ts (아래)
 npm run generate:icons      # public/favicon.svg → PNG/ICO
 ```
