@@ -8,7 +8,7 @@ from app.services import goal_progress_service, goal_service, loan_service, savi
 def test_goal_create_update_delete(seeded_db):
     db = seeded_db["db"]
 
-    goal = goal_service.create_goal(db, 1, "내집마련", 40, Decimal("500000000"), Decimal("1500000"))
+    goal = goal_service.create_goal(db, priority=1, name="내집마련", target_age=40, required_amount=Decimal("500000000"), monthly_saving_amount=Decimal("1500000"))
     assert goal.id is not None
 
     updated = goal_service.update_goal(db, goal.id, 1, "내집마련", 42, Decimal("550000000"), Decimal("1600000"))
@@ -36,15 +36,15 @@ def test_goal_progress_pct(seeded_db):
         )
 
     goal = goal_service.create_goal(
-        db, 1, "내집마련", 40, Decimal("500000000"), Decimal("1500000"), Decimal("125000000")
+        db, priority=1, name="내집마련", target_age=40, required_amount=Decimal("500000000"), monthly_saving_amount=Decimal("1500000"), current_amount=Decimal("125000000")
     )
     assert progress_pct(goal) == Decimal("25")
 
-    no_target = goal_service.create_goal(db, 2, "무제한목표", None, Decimal("0"), Decimal("0"), Decimal("100"))
+    no_target = goal_service.create_goal(db, priority=2, name="무제한목표", target_age=None, required_amount=Decimal("0"), monthly_saving_amount=Decimal("0"), current_amount=Decimal("100"))
     assert progress_pct(no_target) == Decimal("0")
 
     overfunded = goal_service.create_goal(
-        db, 3, "초과달성", None, Decimal("1000000"), Decimal("0"), Decimal("2000000")
+        db, priority=3, name="초과달성", target_age=None, required_amount=Decimal("1000000"), monthly_saving_amount=Decimal("0"), current_amount=Decimal("2000000")
     )
     assert progress_pct(overfunded) == Decimal("100")
 
