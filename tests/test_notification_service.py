@@ -15,6 +15,7 @@ from app.services import (
 )
 from app.services.gmail_service import GmailSendError
 from app.services.google_auth import GoogleAuthError
+from tests.factories import make_challenge
 
 
 @patch("app.services.notification_service.is_connected", return_value=True)
@@ -111,7 +112,7 @@ def test_threshold_alert_fires_once_per_status_per_month(mock_send, mock_connect
     cashflow_plan_service.upsert_item(
         db, None, food.type, None, food.name, Decimal("100000"), 0, ym, user.id, category_id=food.id
     )
-    transaction_service.create_transaction(db, user.id, food.id, "expense", Decimal("95000"), date(2026, 7, 10))
+    transaction_service.create_transaction(db, user_id=user.id, category_id=food.id, type_="expense", amount=Decimal("95000"), transaction_date=date(2026, 7, 10))
 
     sent_first = notification_service.check_and_alert_budget_threshold(db, food.id, ym)
     sent_again = notification_service.check_and_alert_budget_threshold(db, food.id, ym)
@@ -121,7 +122,7 @@ def test_threshold_alert_fires_once_per_status_per_month(mock_send, mock_connect
     assert mock_send.call_count == 1
 
     # crossing into 'critical' should fire a *new* alert (different status = different dedupe key)
-    transaction_service.create_transaction(db, user.id, food.id, "expense", Decimal("10000"), date(2026, 7, 15))
+    transaction_service.create_transaction(db, user_id=user.id, category_id=food.id, type_="expense", amount=Decimal("10000"), transaction_date=date(2026, 7, 15))
     sent_critical = notification_service.check_and_alert_budget_threshold(db, food.id, ym)
 
     assert sent_critical is True
@@ -138,7 +139,7 @@ def test_threshold_alert_logs_even_when_google_not_connected(mock_send, mock_con
     cashflow_plan_service.upsert_item(
         db, None, food.type, None, food.name, Decimal("100000"), 0, ym, user.id, category_id=food.id
     )
-    transaction_service.create_transaction(db, user.id, food.id, "expense", Decimal("95000"), date(2026, 7, 10))
+    transaction_service.create_transaction(db, user_id=user.id, category_id=food.id, type_="expense", amount=Decimal("95000"), transaction_date=date(2026, 7, 10))
 
     sent = notification_service.check_and_alert_budget_threshold(db, food.id, ym)
 
@@ -160,7 +161,7 @@ def test_threshold_alert_uses_household_thresholds(mock_send, mock_connected, se
     cashflow_plan_service.upsert_item(
         db, None, food.type, None, food.name, Decimal("100000"), 0, ym, user.id, category_id=food.id
     )
-    transaction_service.create_transaction(db, user.id, food.id, "expense", Decimal("95000"), date(2026, 7, 10))
+    transaction_service.create_transaction(db, user_id=user.id, category_id=food.id, type_="expense", amount=Decimal("95000"), transaction_date=date(2026, 7, 10))
     coaching_settings_service.set_thresholds(db, {"budget_warn_pct": 97.0}, user.id)
 
     assert notification_service.check_and_alert_budget_threshold(db, food.id, ym) is False
@@ -174,7 +175,7 @@ def test_threshold_alert_uses_household_thresholds(mock_send, mock_connected, se
 @patch("app.services.notification_service.gmail_service.send_email")
 def test_goal_milestone_fires_once_per_milestone(mock_send, mock_connected, seeded_db):
     db = seeded_db["db"]
-    goal = goal_service.create_goal(db, 1, "내집마련", 40, Decimal("1000000"), Decimal("100000"), Decimal("250000"))  # 25%
+    goal = goal_service.create_goal(db, priority=1, name="내집마련", target_age=40, required_amount=Decimal("1000000"), monthly_saving_amount=Decimal("100000"), current_amount=Decimal("250000"))  # 25%
 
     sent_first = notification_service.check_and_celebrate_goal_milestone(db, goal.id)
     sent_again = notification_service.check_and_celebrate_goal_milestone(db, goal.id)  # still 25% - already celebrated
@@ -194,7 +195,7 @@ def test_goal_milestone_fires_once_per_milestone(mock_send, mock_connected, seed
 @patch("app.services.notification_service.gmail_service.send_email")
 def test_goal_milestone_skips_when_no_milestone_reached(mock_send, seeded_db):
     db = seeded_db["db"]
-    goal = goal_service.create_goal(db, 1, "내집마련", 40, Decimal("1000000"), Decimal("100000"), Decimal("100000"))  # 10%
+    goal = goal_service.create_goal(db, priority=1, name="내집마련", target_age=40, required_amount=Decimal("1000000"), monthly_saving_amount=Decimal("100000"), current_amount=Decimal("100000"))  # 10%
 
     sent = notification_service.check_and_celebrate_goal_milestone(db, goal.id)
 
@@ -206,7 +207,7 @@ def test_goal_milestone_skips_when_no_milestone_reached(mock_send, seeded_db):
 @patch("app.services.notification_service.gmail_service.send_email")
 def test_goal_milestone_jumping_past_multiple_milestones_sends_only_highest(mock_send, mock_connected, seeded_db):
     db = seeded_db["db"]
-    goal = goal_service.create_goal(db, 1, "내집마련", 40, Decimal("1000000"), Decimal("100000"), Decimal("1000000"))  # 100%
+    goal = goal_service.create_goal(db, priority=1, name="내집마련", target_age=40, required_amount=Decimal("1000000"), monthly_saving_amount=Decimal("100000"), current_amount=Decimal("1000000"))  # 100%
 
     sent = notification_service.check_and_celebrate_goal_milestone(db, goal.id)
 
@@ -219,7 +220,7 @@ def test_goal_milestone_jumping_past_multiple_milestones_sends_only_highest(mock
 @patch("app.services.notification_service.gmail_service.send_email")
 def test_goal_milestone_logs_even_when_google_not_connected(mock_send, mock_connected, seeded_db):
     db, user = seeded_db["db"], seeded_db["user"]
-    goal = goal_service.create_goal(db, 1, "내집마련", 40, Decimal("1000000"), Decimal("100000"), Decimal("250000"))  # 25%
+    goal = goal_service.create_goal(db, priority=1, name="내집마련", target_age=40, required_amount=Decimal("1000000"), monthly_saving_amount=Decimal("100000"), current_amount=Decimal("250000"))  # 25%
 
     sent = notification_service.check_and_celebrate_goal_milestone(db, goal.id)
 
@@ -231,8 +232,8 @@ def test_goal_milestone_logs_even_when_google_not_connected(mock_send, mock_conn
 
 def test_check_all_goal_milestones_counts_only_newly_celebrated(seeded_db):
     db = seeded_db["db"]
-    goal_service.create_goal(db, 1, "목표1", 40, Decimal("1000000"), Decimal("100000"), Decimal("300000"))  # 30%
-    goal_service.create_goal(db, 2, "목표2", 40, Decimal("1000000"), Decimal("100000"), Decimal("0"))  # 0%
+    goal_service.create_goal(db, priority=1, name="목표1", target_age=40, required_amount=Decimal("1000000"), monthly_saving_amount=Decimal("100000"), current_amount=Decimal("300000"))  # 30%
+    goal_service.create_goal(db, priority=2, name="목표2", target_age=40, required_amount=Decimal("1000000"), monthly_saving_amount=Decimal("100000"), current_amount=Decimal("0"))  # 0%
 
     with patch("app.services.notification_service.gmail_service.send_email"):
         sent = notification_service.check_all_goal_milestones(db)
@@ -247,7 +248,7 @@ def test_check_all_goal_milestones_counts_only_newly_celebrated(seeded_db):
 def test_goal_milestone_skipped_when_pref_disabled(mock_send, mock_connected, seeded_db):
     db, user = seeded_db["db"], seeded_db["user"]
     notification_settings_service.set_prefs(db, {"goal_milestone": False}, user.id)
-    goal = goal_service.create_goal(db, 1, "내집마련", 40, Decimal("1000000"), Decimal("100000"), Decimal("1000000"))
+    goal = goal_service.create_goal(db, priority=1, name="내집마련", target_age=40, required_amount=Decimal("1000000"), monthly_saving_amount=Decimal("100000"), current_amount=Decimal("1000000"))
 
     sent = notification_service.check_and_celebrate_goal_milestone(db, goal.id)
 
@@ -272,7 +273,7 @@ def test_threshold_alert_skips_categories_without_budget(mock_send, seeded_db):
     db, user, food = seeded_db["db"], seeded_db["user"], seeded_db["food"]
     from app.services import transaction_service
 
-    transaction_service.create_transaction(db, user.id, food.id, "expense", Decimal("999999"), date(2026, 7, 10))
+    transaction_service.create_transaction(db, user_id=user.id, category_id=food.id, type_="expense", amount=Decimal("999999"), transaction_date=date(2026, 7, 10))
 
     sent = notification_service.check_and_alert_budget_threshold(db, food.id, "2026-07")
 
@@ -280,27 +281,11 @@ def test_threshold_alert_skips_categories_without_budget(mock_send, seeded_db):
     mock_send.assert_not_called()
 
 
-def _create_challenge(db, user, target=Decimal("300000"), current=Decimal("0")):
-    return goal_service.create_goal(
-        db,
-        1,
-        "외식비 줄이기",
-        None,
-        target,
-        Decimal("0"),
-        current,
-        target_date=date(2026, 8, 31),
-        kind="challenge",
-        start_date=date(2026, 8, 1),
-        created_by_id=user.id,
-    )
-
-
 @patch("app.services.notification_service.is_connected", return_value=True)
 @patch("app.services.notification_service.gmail_service.send_email")
 def test_challenge_success_celebration_fires_once(mock_send, mock_connected, seeded_db):
     db, user = seeded_db["db"], seeded_db["user"]
-    challenge = _create_challenge(db, user, current=Decimal("300000"))  # 100%, already succeeded on create
+    challenge = make_challenge(db, user, current=Decimal("300000"))  # 100%, already succeeded on create
 
     sent_first = notification_service.check_and_celebrate_goal_milestone(db, challenge.id)
     sent_again = notification_service.check_and_celebrate_goal_milestone(db, challenge.id)
@@ -315,7 +300,7 @@ def test_challenge_success_celebration_fires_once(mock_send, mock_connected, see
 @patch("app.services.notification_service.gmail_service.send_email")
 def test_challenge_success_logs_even_when_google_not_connected(mock_send, mock_connected, seeded_db):
     db, user = seeded_db["db"], seeded_db["user"]
-    challenge = _create_challenge(db, user, current=Decimal("300000"))
+    challenge = make_challenge(db, user, current=Decimal("300000"))
 
     sent = notification_service.check_and_celebrate_goal_milestone(db, challenge.id)
 
@@ -328,7 +313,7 @@ def test_challenge_success_logs_even_when_google_not_connected(mock_send, mock_c
 @patch("app.services.notification_service.gmail_service.send_email")
 def test_challenge_success_celebration_skips_while_active(mock_send, seeded_db):
     db, user = seeded_db["db"], seeded_db["user"]
-    challenge = _create_challenge(db, user, current=Decimal("150000"))  # 50%, still active
+    challenge = make_challenge(db, user, current=Decimal("150000"))  # 50%, still active
 
     sent = notification_service.check_and_celebrate_goal_milestone(db, challenge.id)
 
@@ -340,14 +325,14 @@ def test_savings_streak_counts_consecutive_months_meeting_goal_pace(seeded_db):
     db, user, food = seeded_db["db"], seeded_db["user"], seeded_db["food"]
     from app.services import transaction_service
 
-    goal_service.create_goal(db, 1, "비상금", None, Decimal("1000000"), Decimal("100000"))
+    goal_service.create_goal(db, priority=1, name="비상금", target_age=None, required_amount=Decimal("1000000"), monthly_saving_amount=Decimal("100000"))
     # 최근 2개월(6/7월)은 저축액(400,000)이 목표(100,000)를 넘지만, 그 이전 달(5월)은 못 미친다.
     for month, income, expense in [(5, 200000, 190000), (6, 500000, 100000), (7, 500000, 100000)]:
         transaction_service.create_transaction(
-            db, user.id, food.id, "income", Decimal(income), date(2026, month, 1)
+            db, user_id=user.id, category_id=food.id, type_="income", amount=Decimal(income), transaction_date=date(2026, month, 1)
         )
         transaction_service.create_transaction(
-            db, user.id, food.id, "expense", Decimal(expense), date(2026, month, 15)
+            db, user_id=user.id, category_id=food.id, type_="expense", amount=Decimal(expense), transaction_date=date(2026, month, 15)
         )
 
     streak = notification_service._savings_streak(db, date(2026, 7, 31))
@@ -422,7 +407,7 @@ def test_mark_all_read(mock_send, seeded_db):
 def test_add_reaction_and_list_notifications_includes_it(mock_connected, mock_send, seeded_db):
     db, user = seeded_db["db"], seeded_db["user"]
     spouse = _second_user(db)
-    goal = goal_service.create_goal(db, 1, "내집마련", 40, Decimal("1000000"), Decimal("100000"), Decimal("250000"))  # 25%
+    goal = goal_service.create_goal(db, priority=1, name="내집마련", target_age=40, required_amount=Decimal("1000000"), monthly_saving_amount=Decimal("100000"), current_amount=Decimal("250000"))  # 25%
     notification_service.check_and_celebrate_goal_milestone(db, goal.id)
     [log] = notification_inbox_service.list_notifications(db, user.id)
     assert log["reactions"] == []
@@ -508,7 +493,7 @@ def test_savings_pace_reminder_sends_once_near_month_end_when_plan_not_met(_conn
     db, user = seeded_db["db"], seeded_db["user"]
     cat, product = _plan_product(db)
     transaction_service.create_transaction(
-        db, user.id, cat.id, "expense", Decimal("200000"), date(2026, 9, 5), savings_product_id=product.id
+        db, user_id=user.id, category_id=cat.id, type_="expense", amount=Decimal("200000"), transaction_date=date(2026, 9, 5), savings_product_id=product.id
     )
 
     assert notification_service.check_savings_pace_reminder(db, today=date(2026, 9, 20)) is False  # 아직 이르다
@@ -523,7 +508,7 @@ def test_savings_pace_reminder_skips_when_plan_already_met(_conn, seeded_db):
     db, user = seeded_db["db"], seeded_db["user"]
     cat, product = _plan_product(db)
     transaction_service.create_transaction(
-        db, user.id, cat.id, "expense", Decimal("500000"), date(2026, 9, 5), savings_product_id=product.id
+        db, user_id=user.id, category_id=cat.id, type_="expense", amount=Decimal("500000"), transaction_date=date(2026, 9, 5), savings_product_id=product.id
     )
     assert notification_service.check_savings_pace_reminder(db, today=date(2026, 9, 28)) is False
 

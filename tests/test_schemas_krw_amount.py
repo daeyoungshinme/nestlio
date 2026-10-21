@@ -146,10 +146,6 @@ def _leaves(tp, meta):
 _STR_BOUND = re.compile(r"max_length=\d|pattern='")
 _DECIMAL_BOUND = re.compile(r"\blt=")
 
-# 저장되지 않는 입력(시트 URL 등)이라 길이 상한이 필요 없는 필드.
-_UNSTORED_STR_FIELDS = {("SheetImportIn", "sheet_url"), ("SheetImportIn", "spreadsheet_id"), ("SheetImportIn", "sheet_name")}
-
-
 def test_every_input_decimal_and_str_field_is_bounded():
     """새 *In 스키마에 Decimal/str 필드를 추가할 때 KrwAmount·bounded_str 등을 잊지 않도록 하는 가드.
     Literal·패턴(YearMonth)으로 이미 값이 좁혀진 필드는 통과시킨다."""
@@ -158,7 +154,7 @@ def test_every_input_decimal_and_str_field_is_bounded():
         for fname, field in cls.model_fields.items():
             for base, meta in _leaves(field.annotation, list(field.metadata)):
                 bounds = repr(meta)
-                if base is str and not _STR_BOUND.search(bounds) and (cls.__name__, fname) not in _UNSTORED_STR_FIELDS:
+                if base is str and not _STR_BOUND.search(bounds):
                     unbounded.append(f"{cls.__name__}.{fname}")
                 if base is Decimal and not _DECIMAL_BOUND.search(bounds):
                     unbounded.append(f"{cls.__name__}.{fname}")

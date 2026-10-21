@@ -52,6 +52,7 @@ def _send_staged_pushes(
 
 def create_transaction(
     db: Session,
+    *,
     user_id: uuid.UUID,
     category_id: int,
     type_: str,
