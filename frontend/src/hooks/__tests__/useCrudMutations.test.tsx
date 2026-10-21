@@ -3,12 +3,16 @@ import { renderHook, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { useCrudMutations } from "@/hooks/useCrudMutations";
+import { createMutationCache } from "@/utils/queryClient";
 import { toast } from "@/utils/toast";
 
 vi.mock("@/utils/toast", () => ({ toast: vi.fn() }));
 
 function setup(api: Parameters<typeof useCrudMutations<{ name: string }, { name: string }, { id: number }>>[0]["api"]) {
-  const client = new QueryClient({ defaultOptions: { mutations: { retry: false } } });
+  const client = new QueryClient({
+    mutationCache: createMutationCache(),
+    defaultOptions: { mutations: { retry: false } },
+  });
   const spy = vi.spyOn(client, "invalidateQueries");
   const wrapper = ({ children }: { children: ReactNode }) => (
     <QueryClientProvider client={client}>{children}</QueryClientProvider>
@@ -43,7 +47,7 @@ describe("useCrudMutations", () => {
     expect(onCreateSuccess).toHaveBeenCalledWith({ id: 7 });
   });
 
-  it("실패하면 무효화·콜백 없이 에러 토스트만", async () => {
+  it("실패하면 무효화·콜백 없이 에러 토스트만(전역 MutationCache)", async () => {
     const { result, spy, onRemoveSuccess } = setup({
       remove: vi.fn(async () => {
         throw new Error("삭제 실패");

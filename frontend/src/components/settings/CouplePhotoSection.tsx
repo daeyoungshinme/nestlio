@@ -1,7 +1,7 @@
 import { useId, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import Button from "@/components/common/Button";
-import { SettingsSectionCard, onMutationError } from "@/components/settings/shared";
+import { SettingsSectionCard } from "@/components/settings/shared";
 import { deleteCouplePhoto, uploadCouplePhoto } from "@/api/settings";
 import { QUERY_KEYS } from "@/constants/queryKeys";
 import { TOUCH_TARGET_MIN_MOBILE_ONLY } from "@/constants/uiSizes";
@@ -25,7 +25,6 @@ export default function CouplePhotoSection({ photoUrl }: { photoUrl: string | nu
       setCouplePhotoFile(null);
       toast("부부 사진이 저장되었습니다.", "success");
     },
-    onError: onMutationError,
   });
 
   const deletePhotoMutation = useMutation({
@@ -34,7 +33,6 @@ export default function CouplePhotoSection({ photoUrl }: { photoUrl: string | nu
       invalidate();
       toast("부부 사진을 삭제했습니다.", "success");
     },
-    onError: onMutationError,
   });
 
   return (

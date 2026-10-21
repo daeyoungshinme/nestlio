@@ -3,7 +3,6 @@ import type { QueryKey } from "@tanstack/react-query";
 import { createRecurring, deactivateRecurring, reactivateRecurring, updateRecurring } from "@/api/recurring";
 import { QUERY_KEYS } from "@/constants/queryKeys";
 import { useCrudMutations } from "@/hooks/useCrudMutations";
-import { extractErrorMessage } from "@/utils/error";
 import { toast } from "@/utils/toast";
 import type { RecurringCreateIn, RecurringOut, RecurringUpdateIn } from "@/types";
 
@@ -57,7 +56,6 @@ export function useRecurringMutations({
       if (messages?.reactivate) toast(messages.reactivate, "success");
       onReactivateSuccess?.(item);
     },
-    onError: (err) => toast(extractErrorMessage(err), "error"),
   });
 
   return { createMutation, updateMutation, removeMutation, reactivateMutation };

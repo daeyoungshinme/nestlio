@@ -19,7 +19,6 @@ import { monthsToGoalWithExtra } from "@/utils/goalAcceleration";
 import { computeCardStatus, daysUntil } from "@/utils/goalStatus";
 import { progressStatusBadgeClass, progressStatusLabel } from "@/utils/colors";
 import { formatDate, formatKrw, formatKrwCompact, formatPercent, formatYearMonth } from "@/utils/format";
-import { extractErrorMessage } from "@/utils/error";
 import { toast } from "@/utils/toast";
 import { CHEER_EMOJIS } from "@/utils/cheers";
 import type { FinancialGoalOut, NotificationOut, NotifType } from "@/types";
@@ -71,7 +70,6 @@ function GoalDetail({ goal }: { goal: FinancialGoalOut }) {
       void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.notifications });
       toast("응원을 보냈어요! 배우자의 알림함에 전해져요.", "success");
     },
-    onError: (err) => toast(extractErrorMessage(err), "error"),
   });
 
   const isChallenge = goal.kind === "challenge";

@@ -11,7 +11,6 @@ import FundingSourceChecklist from "@/components/financialPlan/FundingSourceChec
 import GoalMonthlyTargetEditor from "@/components/financialPlan/GoalMonthlyTargetEditor";
 import { fetchGrowlioGoalSettings } from "@/api/goals";
 import { fetchNetWorth } from "@/api/netWorth";
-import { fetchSavingsProductsPlan } from "@/api/savingsProducts";
 import { FORM_LABEL, FORM_SECTION_LABEL, TEXTAREA_SM } from "@/constants/inputStyles";
 import { isGrowlioLinkedInvestment } from "@/constants/growlio";
 import { STALE_TIME } from "@/constants/queryConfig";
@@ -39,6 +38,7 @@ import type {
 } from "@/types";
 import { amountToneClass, formErrorTextClass } from "@/utils/colors";
 import { sumAmounts } from "@/utils/amount";
+import { useSavingsProductsPlan } from "@/hooks/usePlanQueries";
 
 const GOAL_KIND_TABS = ["순자산", "장기 목표", "챌린지"] as const;
 type GoalKindTab = (typeof GOAL_KIND_TABS)[number];
@@ -127,12 +127,7 @@ export default function GoalFormModal({
   // 그 합계를 보여주고, 수정은 계획 탭으로 안내한다 — 여기 입력한 값은 연동 목표에선 쓰이지 않기 때문.
   const hasLinkedProducts = draft.savings_product_ids.length > 0;
   const thisMonth = yearMonthOfDate(openedAt);
-  const { data: productPlan } = useQuery({
-    queryKey: QUERY_KEYS.savingsProductsPlan(thisMonth),
-    queryFn: () => fetchSavingsProductsPlan(thisMonth),
-    staleTime: STALE_TIME.SHORT,
-    enabled: !isChallenge && hasLinkedProducts,
-  });
+  const { data: productPlan } = useSavingsProductsPlan(thisMonth, { enabled: !isChallenge && hasLinkedProducts });
   const { data: netWorthData } = useQuery({
     queryKey: QUERY_KEYS.netWorth(),
     queryFn: () => fetchNetWorth(),

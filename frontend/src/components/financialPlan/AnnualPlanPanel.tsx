@@ -19,9 +19,9 @@ import { deleteAnnualPlanItem, fetchAnnualPlan, upsertAnnualPlanItem } from "@/a
 import { fetchSavingsProductsAnnualPlan } from "@/api/savingsProducts";
 import { useCategories, useUsers } from "@/hooks/useReferenceData";
 import { SECTIONS, SAVINGS_INVESTMENT_LABEL } from "@/constants/planSections";
-import { QUERY_KEYS } from "@/constants/queryKeys";
+import { PLAN_RELATED_KEYS, QUERY_KEYS } from "@/constants/queryKeys";
+import { invalidateKeys } from "@/utils/queryClient";
 import { pctOf } from "@/utils/format";
-import { extractErrorMessage } from "@/utils/error";
 import { worseStatus } from "@/utils/colors";
 import { currentYear } from "@/utils/date";
 import { toast } from "@/utils/toast";
@@ -64,12 +64,7 @@ export default function AnnualPlanPanel() {
   const { data: users } = useUsers();
   const { data: categories } = useCategories();
 
-  const invalidate = () => {
-    void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.annualPlan(year) });
-    void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.dashboardAll });
-    // "이번 달 계획"은 연간계획의 한 달 단면이라 연간계획을 저장하면 모든 달 화면이 바뀐다 — 월과 무관하게 전부 무효화한다.
-    void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.cashflowPlanAll });
-  };
+  const invalidate = () => invalidateKeys(queryClient, PLAN_RELATED_KEYS);
 
   const upsertMutation = useMutation({
     mutationFn: upsertAnnualPlanItem,
@@ -78,7 +73,6 @@ export default function AnnualPlanPanel() {
       setItemModal(null);
       toast("저장했습니다.", "success");
     },
-    onError: (err) => toast(extractErrorMessage(err), "error"),
   });
 
   const deleteMutation = useMutation({
@@ -88,7 +82,6 @@ export default function AnnualPlanPanel() {
       setDeleteTarget(null);
       toast("삭제했습니다.", "success");
     },
-    onError: (err) => toast(extractErrorMessage(err), "error"),
   });
 
   // 구 연간리포트 딥링크(/reports/yearly → ?section=분석)로 들어오면 데이터가 그려진 뒤 실적 분석으로 스크롤한다.
