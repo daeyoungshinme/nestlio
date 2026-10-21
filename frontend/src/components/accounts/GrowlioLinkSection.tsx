@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { QueryKey } from "@tanstack/react-query";
+import { invalidateKeys } from "@/utils/queryClient";
 import { Link2, Unlink } from "lucide-react";
 import Button from "@/components/common/Button";
 import { setGrowlioLink } from "@/api/savingsProducts";
@@ -34,7 +35,7 @@ export default function GrowlioLinkSection<T>({
   getRowId,
   getRowLabel,
   getRowAmount,
-  invalidateKeys,
+  invalidateKeys: keys,
   onLinked,
 }: Props<T>) {
   const [pickerOpen, setPickerOpen] = useState(false);
@@ -51,13 +52,12 @@ export default function GrowlioLinkSection<T>({
     mutationFn: ({ accountId, autoSync }: { accountId: string | null; autoSync: boolean }) =>
       setGrowlioLink(productId, { growlio_account_id: accountId, auto_sync_enabled: autoSync }),
     onSuccess: () => {
-      invalidateKeys.forEach((key) => void queryClient.invalidateQueries({ queryKey: key }));
+      invalidateKeys(queryClient, keys);
       toast("growlio 연동을 저장했습니다.", "success");
       // 이 모달의 product prop은 열렸을 때의 스냅샷이라 연동 상태 변경이 즉시 반영되지 않으므로
       // 모달을 닫아 목록의 최신 상태(뱃지/동기화 버튼)를 보여준다.
       onLinked();
     },
-    onError: (err) => toast(extractErrorMessage(err), "error"),
   });
 
   return (

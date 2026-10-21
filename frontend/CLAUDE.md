@@ -46,6 +46,7 @@ npm run generate:icons      # public/favicon.svg → PNG/ICO
 - **label 연결**: `FormInput`은 알아서 한다. 직접 쓰는 `<label>` + `<select>`/`<textarea>`는 `useId()`로 `htmlFor`/`id`를 건다(정적 id 금지). 칩 묶음은 `role="group"` + `aria-labelledby`.
 - **입력 스타일**: `constants/inputStyles.ts`의 `INPUT_SM`/`INPUT_MD`/`LABEL_SM`/`LABEL_MD`를 재사용한다.
 - **쿼리 키**: `constants/queryKeys.ts`의 `QUERY_KEYS`만 쓴다(배열 리터럴 금지 — 무효화 누락 방지).
+- **무효화·에러 토스트**: 여러 키는 `utils/queryClient.ts`의 `invalidateKeys(qc, keys)`로, 묶음은 `*_RELATED_KEYS`(`ASSET`·`CATEGORY`·`USER`·`TRANSACTION`·`PLAN`)를 쓴다. 뮤테이션 실패 토스트는 전역 `createMutationCache`가 띄우므로 `onError: (err) => toast(extractErrorMessage(err), "error")` 같은 같은-문구 핸들러는 두지 않는다(문구가 다르거나 부수효과가 있을 때만). `staleTime`은 전역 기본값이 `STALE_TIME.SHORT`라 다를 때만 적는다. 계획 쿼리는 `hooks/usePlanQueries`.
 - **참조 데이터**: 계좌·카테고리·저축상품·유저는 `hooks/useReferenceData.ts`의 `useAccounts`/`useCategories`/`useSavingsProducts`/`useUsers`/`useMe`로만 조회한다.
 - **영속 쿼리 캐시**: `main.tsx`의 `PersistQueryClientProvider`가 `PERSIST_QUERY_KEYS`(`constants/queryConfig.ts`) 응답을 localStorage에 24시간 보관해 재방문 시 즉시 그린다. 이 키들의 **응답 형태를 호환되지 않게 바꾸면**(필드 이름·타입 변경, 필수 필드 추가) `main.tsx`의 `buster`를 올린다 — 안 올리면 구 캐시가 최대 24시간 렌더돼 깨진다(필드 삭제만이면 보통 불필요). `DEFAULT_GC_TIME`은 `PERSIST_MAX_AGE` 이상으로 둔다.
 - **다크모드**: `<html>`의 `.dark` 클래스(`darkMode: "class"`), `stores/themeStore.ts` — 저장값이 없으면 `prefers-color-scheme`.
@@ -85,7 +86,7 @@ npm run generate:icons      # public/favicon.svg → PNG/ICO
 ### 계획 화면 (`/plan`)과 목표
 
 - 두 뷰 모두 `PlanBalanceSummary` → `PlanSectionAccordion`(수입/고정/변동/비정기/저축·투자 섹션, 펼치면 편집 패널) 골격. `CashflowPlanTab`이 `view: "monthly" | "annual"`로 그리고, 연간은 `AnnualPlanPanel`(항목이 없으면 `PlanYearStartWizard`, 맨 아래 `YearlyReportSection` "실적 분석").
-- **이번 달 뷰는 연간계획의 한 달 단면이다** — `CashflowPlanItemOut.id`가 연간 항목 id이고, 금액 수정은 연간계획의 그 달 값을, 삭제는 그 달 금액만 바꾼다(`deleteCashflowPlanItem({id, yearMonth})`). 저장 후 `cashflowPlanAll`·`annualPlanAll`을 **함께** 무효화한다. 항목 행(`CashflowPlanItemRow`/`AnnualPlanItemRow`)은 이름 영역을 누르면 바로 수정 폼, 연간 월별 입력(`AnnualPlanMonthlyGrid`)은 2열(sm 3열) 격자 + "매달 같은 금액"/"총액 균등분배" 프리셋. 백엔드 모델은 [app/services/CLAUDE.md](../app/services/CLAUDE.md)의 "계획 원본은 연간계획 하나".
+- **이번 달 뷰는 연간계획의 한 달 단면이다** — `CashflowPlanItemOut.id`가 연간 항목 id이고, 금액 수정은 연간계획의 그 달 값을, 삭제는 그 달 금액만 바꾼다(`deleteCashflowPlanItem({id, yearMonth})`). 저장 후 `PLAN_RELATED_KEYS`(`cashflowPlanAll`·`annualPlanAll`·`dashboardAll`)를 **함께** 무효화한다. 항목 행(`CashflowPlanItemRow`/`AnnualPlanItemRow`)은 이름 영역을 누르면 바로 수정 폼, 연간 월별 입력(`AnnualPlanMonthlyGrid`)은 2열(sm 3열) 격자 + "매달 같은 금액"/"총액 균등분배" 프리셋. 백엔드 모델은 [app/services/CLAUDE.md](../app/services/CLAUDE.md)의 "계획 원본은 연간계획 하나".
 - 카테고리별 예산은 이번 달 뷰의 고정/변동/비정기 패널 안에 있고, 예산 대비 실적은 `GET /cashflow-plan`·`GET /annual-plan` 응답의 `category_budgets`로 온다(`/budgets` 라우터는 없다).
 - 저축·투자 섹션은 `SavingsInvestmentPlanPanel`(상품별 월 계획 대비 실적). 상품 계획액은 `SavingsProductAnnualPlan` 그리드가 있으면 그것, 없으면 `monthly_saving_amount`. 목표에 연동된 상품의 계획도 여기서 편집한다 — 연동 목표의 월 저축액은 상품 계획 합이라 목표 폼은 읽기 전용으로 보여준다. 상품 추가·수정 폼은 자산 탭과 공유하는 `accounts/SavingsProductFormModal.tsx`(`monthly_saving_amount`는 신규 등록에만). 계획 화면에는 growlio 동기화 버튼을 두지 않는다(자산 탭으로 일원화).
 - 목표 vs 계획 분리 기준: 계획은 가구 전체의 **달력월** 기준, 목표는 각자의 목표일 기준이다. 또 흡수/분리를 고민할 때는 "같은 달력월 기준으로 계획 대비 실적을 비교하는가"로 판단한다.
