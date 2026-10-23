@@ -20,7 +20,7 @@ const CATEGORIES: { key: AssetCategory; label: string }[] = [
 
 // growlio 대시보드 "전체 자산" 도넛(AssetAllocationChart) 컬럼 크기를 기준으로 시작했으나,
 // 왼쪽 순자산 금액/산식 영역을 더 넓게 내주기 위해 도넛+범례 컬럼 폭을 추가로 축소했다.
-const CHART_COLUMN_CLASS = "shrink-0 self-start w-[156px] sm:w-[180px] lg:w-[198px] xl:w-[210px]";
+const CHART_COLUMN_CLASS = "shrink-0 self-center sm:self-start w-[156px] sm:w-[180px] lg:w-[198px] xl:w-[210px]";
 // 도넛이 박스 안 여백에 파묻히지 않도록, 높이를 링 지름에 맞춰 최소화하고(outerRadius를 90%로
 // 올려 지름은 이전과 거의 동일하게 유지) 위쪽에 붙어 보이게 한다.
 const CHART_BOX_CLASS = "w-full h-[144px] sm:h-[164px] lg:h-[176px]";

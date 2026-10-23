@@ -38,6 +38,8 @@ import { toast } from "@/utils/toast";
 import type { BudgetRowOut, CashflowPlanItemOut, CashflowSection } from "@/types";
 import type { CashflowPlanItemFormValues } from "@/components/financialPlan/CashflowPlanItemForm";
 import type { CashflowPlanSplitFormValues } from "@/components/financialPlan/CashflowPlanSplitForm";
+import AccountActionsMenu from "@/components/common/AccountActionsMenu";
+import CollapsibleHint from "@/components/common/CollapsibleHint";
 
 interface ModalState {
   section: CashflowSection;
@@ -292,15 +294,30 @@ export default function CashflowPlanTab({ view }: { view: "monthly" | "annual" }
     <div ref={swipeRef} className="space-y-4">
       <div className="flex items-center justify-between flex-wrap gap-3">
         <MonthPicker yearMonth={yearMonth} onChange={setYearMonth} />
-        <Button
-          variant="secondary"
-          size="sm"
-          icon={<Copy size={14} />}
-          loading={copyMutation.isPending}
-          onClick={() => copyMutation.mutate()}
-        >
-          전월 계획 복사
-        </Button>
+        {/* 계획이 빈 달에만 버튼으로 크게 — 이미 채운 달엔 가끔 쓰는 기능이라 ⋯ 메뉴로 접는다(빠진 항목만 채운다). */}
+        {data.items.length === 0 ? (
+          <Button
+            variant="secondary"
+            size="sm"
+            icon={<Copy size={14} />}
+            loading={copyMutation.isPending}
+            onClick={() => copyMutation.mutate()}
+          >
+            전월 계획 복사
+          </Button>
+        ) : (
+          <AccountActionsMenu
+            ariaLabel="이번 달 계획 작업"
+            items={[
+              {
+                icon: <Copy size={16} />,
+                label: "전월 계획에서 빠진 항목 복사",
+                onClick: () => copyMutation.mutate(),
+                disabled: copyMutation.isPending,
+              },
+            ]}
+          />
+        )}
       </div>
 
       <PlanBalanceSummary
@@ -312,14 +329,14 @@ export default function CashflowPlanTab({ view }: { view: "monthly" | "annual" }
 
       <PlanSectionAccordion sections={sections} />
 
-      <p className="text-xs text-gray-400 dark:text-gray-500">
-        이번 달 계획은 연간계획의 이번 달 금액이에요. 여기서 바꾼 금액은 이번 달에만 적용되고, 달마다 다른 금액은
-        연간 탭에서 한 번에 채울 수 있어요. 실제 수입·지출은{" "}
+      <CollapsibleHint summary="이번 달 계획은 연간계획의 이번 달 금액이에요.">
+        여기서 바꾼 금액은 이번 달에만 적용되고, 달마다 다른 금액은 연간 탭에서 한 번에 채울 수 있어요. 실제
+        수입·지출은{" "}
         <Link to={ROUTES.transactions} className="font-semibold underline hover:no-underline">
           가계부
         </Link>
         에서 확인해요.
-      </p>
+      </CollapsibleHint>
 
       {modal && (
         <Modal

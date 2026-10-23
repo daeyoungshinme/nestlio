@@ -27,6 +27,7 @@ import { currentYear } from "@/utils/date";
 import { toast } from "@/utils/toast";
 import type { AnnualPlanItemOut, CashflowSection } from "@/types";
 import type { AnnualPlanItemFormValues } from "@/components/financialPlan/AnnualPlanItemForm";
+import CollapsibleHint from "@/components/common/CollapsibleHint";
 
 
 interface ItemModalState {
@@ -211,14 +212,14 @@ export default function AnnualPlanPanel() {
 
       <PlanSectionAccordion sections={sections} />
 
-      <p className="text-xs text-gray-400 dark:text-gray-500">
-        섹션마다 올해 지금까지의 목표 대비 실적이에요. 여기서 입력한 월별 금액이 곧 "이번 달" 계획이고, 이번 달
-        화면에서 조정한 금액도 여기에 그대로 반영돼요. 개별 재무목표 진행은{" "}
+      <CollapsibleHint summary="섹션마다 올해 지금까지의 목표 대비 실적이에요.">
+        여기서 입력한 월별 금액이 곧 "이번 달" 계획이고, 이번 달 화면에서 조정한 금액도 여기에 그대로 반영돼요. 개별
+        재무목표 진행은{" "}
         <Link to={ROUTES.goals} className="font-semibold underline hover:no-underline">
           목표 탭
         </Link>
         에서 확인해요.
-      </p>
+      </CollapsibleHint>
 
       <section ref={analysisRef} className="space-y-4 scroll-mt-16">
         <h2 className="text-base font-bold text-gray-900 dark:text-gray-50">{year}년 실적 분석</h2>
