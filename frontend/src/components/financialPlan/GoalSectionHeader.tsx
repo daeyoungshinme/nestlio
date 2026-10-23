@@ -2,7 +2,7 @@ import type { ReactNode } from "react";
 
 interface Props {
   title: string;
-  description?: string;
+  description?: ReactNode;
   action?: ReactNode;
 }
 
@@ -13,7 +13,7 @@ export default function GoalSectionHeader({ title, description, action }: Props)
     <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
       <div className="min-w-0">
         <h2 className="text-base font-bold text-gray-900 dark:text-gray-50">{title}</h2>
-        {description && <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{description}</p>}
+        {description && <div className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{description}</div>}
       </div>
       {action && <div className="shrink-0">{action}</div>}
     </div>

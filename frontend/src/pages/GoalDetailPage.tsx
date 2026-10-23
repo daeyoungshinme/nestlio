@@ -19,6 +19,8 @@ import { monthsToGoalWithExtra } from "@/utils/goalAcceleration";
 import { computeCardStatus, daysUntil } from "@/utils/goalStatus";
 import { progressStatusBadgeClass, progressStatusLabel } from "@/utils/colors";
 import { formatDate, formatKrw, formatKrwCompact, formatPercent, formatYearMonth } from "@/utils/format";
+import { currentYearMonth } from "@/utils/date";
+import { TOUCH_TARGET_MIN_HEIGHT } from "@/constants/uiSizes";
 import { extractErrorMessage } from "@/utils/error";
 import { toast } from "@/utils/toast";
 import { CHEER_EMOJIS } from "@/utils/cheers";
@@ -30,6 +32,22 @@ const SCENARIO_MAX = 1_000_000;
 
 /** 목표 하나의 상세 — 목표 카드에 다 담기 어려웠던 "어떻게 하면 더 빨리?"와 "서로 응원"을 모았다:
  * 진행 요약, 월 추가 저축 시나리오, 월별 달성 기록, 연동 자금원, 응원 보내기와 이 목표의 축하·응원 기록. */
+/** 응원·월별 기록 목록을 접었을 때 보이는 수. */
+const DETAIL_LIST_LIMIT = 6;
+
+function ShowAllToggle({ expanded, total, onToggle }: { expanded: boolean; total: number; onToggle: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onToggle}
+      aria-expanded={expanded}
+      className={`${TOUCH_TARGET_MIN_HEIGHT} w-full text-sm font-medium text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200`}
+    >
+      {expanded ? "접기" : `전체 보기 (${total}개)`}
+    </button>
+  );
+}
+
 export default function GoalDetailPage() {
   const { id } = useParams();
   const goalId = Number(id);
@@ -60,6 +78,8 @@ export default function GoalDetailPage() {
 function GoalDetail({ goal }: { goal: FinancialGoalOut }) {
   const [extraMonthly, setExtraMonthly] = useState(0);
   const [cheerMessage, setCheerMessage] = useState("");
+  const [showAllCheers, setShowAllCheers] = useState(false);
+  const [showAllMonths, setShowAllMonths] = useState(false);
   const queryClient = useQueryClient();
   const { data: savingsProducts } = useSavingsProducts();
   const { data: notifications } = useNotifications();
@@ -81,6 +101,15 @@ function GoalDetail({ goal }: { goal: FinancialGoalOut }) {
   const goalNotifications: NotificationOut[] = (notifications?.items ?? []).filter(
     (n) => GOAL_NOTIF_TYPES.has(n.notif_type) && n.related_id === goal.id,
   );
+  const shownNotifications = showAllCheers ? goalNotifications : goalNotifications.slice(0, DETAIL_LIST_LIMIT);
+  // 월별 기록은 이번 달까지 중 최근 DETAIL_LIST_LIMIT개(아직 시작 전이면 처음 몇 달) — 3년 목표면 36행이다.
+  const thisMonth = currentYearMonth();
+  const pastMonths = goal.monthly_targets.filter((mt) => mt.year_month <= thisMonth);
+  const shownMonths = showAllMonths
+    ? goal.monthly_targets
+    : pastMonths.length > 0
+      ? pastMonths.slice(-DETAIL_LIST_LIMIT)
+      : goal.monthly_targets.slice(0, DETAIL_LIST_LIMIT);
 
   return (
     <div className="space-y-4">
@@ -215,9 +244,9 @@ function GoalDetail({ goal }: { goal: FinancialGoalOut }) {
         </div>
         {goalNotifications.length > 0 && (
           <ul className="space-y-2 pt-2 border-t border-gray-100 dark:border-gray-800">
-            {goalNotifications.map((n) => (
+            {shownNotifications.map((n) => (
               <li key={n.id} className="text-sm text-gray-700 dark:text-gray-300">
-                <span className="text-xs text-gray-400 dark:text-gray-500 mr-1.5">{formatDate(n.sent_at.slice(0, 10))}</span>
+                <span className="text-xs text-gray-500 dark:text-gray-400 mr-1.5">{formatDate(n.sent_at.slice(0, 10))}</span>
                 {n.detail?.split("\n")[0]}
                 {n.notif_type !== "goal_cheer" && n.reactions.length > 0 && (
                   <span className="ml-1.5 text-xs text-gray-500 dark:text-gray-400">
@@ -228,24 +257,38 @@ function GoalDetail({ goal }: { goal: FinancialGoalOut }) {
             ))}
           </ul>
         )}
+        {goalNotifications.length > DETAIL_LIST_LIMIT && (
+          <ShowAllToggle
+            expanded={showAllCheers}
+            total={goalNotifications.length}
+            onToggle={() => setShowAllCheers((v) => !v)}
+          />
+        )}
       </div>
 
       {goal.monthly_targets.length > 0 && (
         <div className="card space-y-2">
           <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300">월별 달성 기록</h2>
           <div className="divide-y divide-gray-100 dark:divide-gray-800">
-            {goal.monthly_targets.map((mt) => (
+            {shownMonths.map((mt) => (
               <div key={mt.year_month} className="flex items-center justify-between gap-2 py-2 text-sm">
                 <span className="text-gray-700 dark:text-gray-300">
                   {mt.is_achieved ? "✅ " : ""}
                   {formatYearMonth(mt.year_month)}
                 </span>
-                <span className="text-gray-500 dark:text-gray-400">
-                  {formatKrw(mt.achieved_amount)} / {formatKrw(mt.target_amount)}
+                <span className="tabular-nums text-gray-500 dark:text-gray-400">
+                  {formatKrwCompact(Number(mt.achieved_amount))} / {formatKrwCompact(Number(mt.target_amount))}
                 </span>
               </div>
             ))}
           </div>
+          {shownMonths.length < goal.monthly_targets.length || showAllMonths ? (
+            <ShowAllToggle
+              expanded={showAllMonths}
+              total={goal.monthly_targets.length}
+              onToggle={() => setShowAllMonths((v) => !v)}
+            />
+          ) : null}
         </div>
       )}
 
