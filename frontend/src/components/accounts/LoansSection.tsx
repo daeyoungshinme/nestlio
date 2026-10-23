@@ -6,6 +6,7 @@ import Button from "@/components/common/Button";
 import AssetRow from "@/components/accounts/AssetRow";
 import ConfirmModal from "@/components/common/ConfirmModal";
 import EmptyState from "@/components/common/EmptyState";
+import AmountInput from "@/components/common/AmountInput";
 import FormInput from "@/components/common/FormInput";
 import Modal from "@/components/common/Modal";
 import OwnerSelect from "@/components/common/OwnerSelect";
@@ -17,7 +18,7 @@ import { INPUT_SM, LABEL_SM } from "@/constants/inputStyles";
 import { useCrudMutations } from "@/hooks/useCrudMutations";
 import { useLoans } from "@/hooks/useReferenceData";
 import { accountsSectionLink } from "@/constants/routes";
-import { amountInputPreview, formatKrw, formatSyncedAt, resolveOwnerLabel, toAmountInputValue } from "@/utils/format";
+import { formatKrw, formatSyncedAt, resolveOwnerLabel, toAmountInputValue } from "@/utils/format";
 import type { LoanOut, RepaymentMethod, UserOut } from "@/types";
 import { sumAmounts } from "@/utils/amount";
 
@@ -248,23 +249,17 @@ function LoanFormModal({
           required
         />
         <div className="grid grid-cols-2 gap-3">
-          <FormInput
+          <AmountInput
             label="대출잔액"
-            type="number"
-            inputMode="decimal"
             value={draft.balance}
-            onChange={(e) => setDraft((d) => ({ ...d, balance: e.target.value }))}
+            onChange={(value) => setDraft((d) => ({ ...d, balance: value }))}
             className="w-full"
-            preview={amountInputPreview(draft.balance)}
           />
-          <FormInput
+          <AmountInput
             label="월납입금액"
-            type="number"
-            inputMode="decimal"
             value={draft.monthly_payment}
-            onChange={(e) => setDraft((d) => ({ ...d, monthly_payment: e.target.value }))}
+            onChange={(value) => setDraft((d) => ({ ...d, monthly_payment: value }))}
             className="w-full"
-            preview={amountInputPreview(draft.monthly_payment)}
           />
         </div>
         <div className="grid grid-cols-2 gap-3">

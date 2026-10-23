@@ -4,6 +4,7 @@ import { RefreshCw } from "lucide-react";
 import Button from "@/components/common/Button";
 import AssetRow from "@/components/accounts/AssetRow";
 import AssetSectionShell from "@/components/accounts/AssetSectionShell";
+import AmountInput from "@/components/common/AmountInput";
 import FormInput from "@/components/common/FormInput";
 import GrowlioImportModal from "@/components/common/GrowlioImportModal";
 import GrowlioLinkSection from "@/components/accounts/GrowlioLinkSection";
@@ -22,7 +23,6 @@ import { ASSET_RELATED_KEYS, QUERY_KEYS } from "@/constants/queryKeys";
 import { useAssetSection } from "@/hooks/useAssetSection";
 import { useGoals, useSavingsProducts } from "@/hooks/useReferenceData";
 import {
-  amountInputPreview,
   formatKrw,
   formatPercent,
   formatSyncedAt,
@@ -308,23 +308,17 @@ function RealEstateFormModal({
           className="w-full"
           required
         />
-        <FormInput
+        <AmountInput
           label="현재 시세"
-          type="number"
-          inputMode="decimal"
           value={draft.current_balance}
-          onChange={(e) => setDraft((d) => ({ ...d, current_balance: e.target.value }))}
+          onChange={(value) => setDraft((d) => ({ ...d, current_balance: value }))}
           className="w-full"
-          preview={amountInputPreview(draft.current_balance)}
         />
-        <FormInput
+        <AmountInput
           label="매입가 (선택)"
-          type="number"
-          inputMode="decimal"
           value={draft.principal_amount}
-          onChange={(e) => setDraft((d) => ({ ...d, principal_amount: e.target.value }))}
+          onChange={(value) => setDraft((d) => ({ ...d, principal_amount: value }))}
           className="w-full"
-          preview={amountInputPreview(draft.principal_amount)}
         />
         <OwnerSelect
           value={draft.owner_user_id}

@@ -1,3 +1,4 @@
+import { amountInputProps } from "@/components/common/AmountInput";
 import Button from "@/components/common/Button";
 import { FORM_LABEL, INPUT_SM } from "@/constants/inputStyles";
 import { useMonthlyTargetGrid } from "@/hooks/useMonthlyTargetGrid";
@@ -55,10 +56,8 @@ export default function GoalMonthlyTargetEditor({
             <div key={ym} className="flex items-center gap-2 px-3 py-2">
               <span className="text-sm text-gray-900 dark:text-gray-50 w-16 shrink-0">{ym}</span>
               <input
-                type="number"
-                inputMode="decimal"
-                value={amount}
-                onChange={(e) => setAmount(ym, e.target.value)}
+                {...amountInputProps(amount, (value) => setAmount(ym, value))}
+                aria-label={`${ym} 목표금액`}
                 className={`flex-1 min-w-0 ${INPUT_SM}`}
               />
               <span className="text-xs text-gray-400 dark:text-gray-500 shrink-0 w-24 text-right">

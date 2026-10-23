@@ -2,10 +2,10 @@ import { useId, useState } from "react";
 import type { FormEvent } from "react";
 import AnnualPlanMonthlyGrid from "@/components/financialPlan/AnnualPlanMonthlyGrid";
 import Button from "@/components/common/Button";
-import FormInput from "@/components/common/FormInput";
+import AmountInput from "@/components/common/AmountInput";
 import { INPUT_SM, LABEL_SM } from "@/constants/inputStyles";
 import { buildYearMonthRange, syncTargetsToPeriod } from "@/utils/monthRange";
-import { amountInputPreview, formatMonthOnly } from "@/utils/format";
+import { formatMonthOnly } from "@/utils/format";
 import type { SavingsProductAnnualPlanMonthlyTargetIn } from "@/types";
 
 export interface SavingsProductAnnualPlanFormValues {
@@ -92,14 +92,11 @@ export default function SavingsProductAnnualPlanForm({
           </select>
         </div>
       </div>
-      <FormInput
+      <AmountInput
         label="균등분배할 총액"
-        type="number"
-        inputMode="decimal"
         value={totalDraft}
-        onChange={(e) => setTotalDraft(e.target.value)}
+        onChange={(value) => setTotalDraft(value)}
         hint="이 금액을 적용 기간의 달에 고르게 나눠 채워요. 지금까지 입력된 실제 합계는 아래 '월별 목표금액 합계'를 보세요."
-        preview={amountInputPreview(totalDraft)}
       />
       <AnnualPlanMonthlyGrid
         startMonth={startMonth}
