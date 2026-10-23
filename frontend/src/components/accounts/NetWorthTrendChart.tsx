@@ -1,8 +1,8 @@
 import { useId, useMemo } from "react";
 import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import EmptyState from "@/components/common/EmptyState";
-import { formatKrw, formatKrwCompact, formatYearMonth } from "@/utils/format";
-import { netWorthTrendChartColor } from "@/utils/colors";
+import { formatKrw, formatKrwAxis, formatYearMonth } from "@/utils/format";
+import { chartTooltipStyle, netWorthTrendChartColor } from "@/utils/colors";
 import { useThemeStore } from "@/stores/themeStore";
 import type { NetWorthSnapshotOut } from "@/types";
 import { TrendingUp } from "lucide-react";
@@ -55,8 +55,8 @@ export default function NetWorthTrendChart({ history }: Props) {
           </defs>
           <CartesianGrid strokeDasharray="3 3" className="stroke-gray-200 dark:stroke-gray-700" />
           <XAxis dataKey="name" tick={{ fontSize: 12 }} interval={tickInterval} />
-          <YAxis tick={{ fontSize: 12 }} tickFormatter={(v) => formatKrwCompact(Number(v))} width={70} />
-          <Tooltip formatter={(v) => formatKrw(Number(v))} />
+          <YAxis tick={{ fontSize: 11 }} tickFormatter={(v) => formatKrwAxis(Number(v))} width={44} />
+          <Tooltip {...chartTooltipStyle(isDark)} formatter={(v) => formatKrw(Number(v))} />
           <Area type="monotone" dataKey="순자산" stroke={lineColor} fill={`url(#${fillId})`} strokeWidth={2} />
         </AreaChart>
       </ResponsiveContainer>

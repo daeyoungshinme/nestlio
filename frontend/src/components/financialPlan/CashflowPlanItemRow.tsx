@@ -14,6 +14,8 @@ interface Props {
    * 항목 행의 카테고리 dot+이름을 생략한다 (기본값 true, "카테고리 미연결" 경고는 그룹 여부와
    * 무관하게 항상 표시). */
   showCategory?: boolean;
+  /** 섹션에 개인 소유 항목이 하나도 없으면(전부 공통) 행마다 "공통"을 찍지 않는다. */
+  showOwner?: boolean;
   onEdit: () => void;
   onDelete: () => void;
   onLinkRecurring: () => void;
@@ -25,6 +27,7 @@ export default function CashflowPlanItemRow({
   sectionKey,
   users,
   showCategory = true,
+  showOwner = true,
   onEdit,
   onDelete,
   onLinkRecurring,
@@ -32,7 +35,8 @@ export default function CashflowPlanItemRow({
 }: Props) {
   const ownerLabel = resolveOwnerLabel(item.owner_user_id, users);
 
-  const canLinkRecurring = (sectionKey === "income" || sectionKey === "fixed") && item.recurring_expense_id === null;
+  const canShowRecurringBadge = sectionKey === "income" || sectionKey === "fixed";
+  const canLinkRecurring = canShowRecurringBadge && item.recurring_expense_id === null;
 
   const menuItems: AccountActionsMenuItem[] = [];
   if (canLinkRecurring) {
@@ -74,32 +78,36 @@ export default function CashflowPlanItemRow({
           )
         ) : (
           sectionKey !== "income" && (
-            <span className={`block mt-0.5 text-xs ${cautionTextClass()}`}>
-              카테고리 미연결 — 실제 지출과 비교되지 않아요
-            </span>
+            <span className={`block mt-0.5 text-xs ${cautionTextClass()}`}>카테고리 미연결</span>
           )
         )}
-        <span className="block text-xs text-gray-500 dark:text-gray-400 mt-0.5">{ownerLabel}</span>
+        {showOwner && <span className="block text-xs text-gray-500 dark:text-gray-400 mt-0.5">{ownerLabel}</span>}
         {sectionKey === "irregular" && installmentProgressLabel(item) && (
           <span className="block text-xs text-gray-500 dark:text-gray-400 mt-0.5">{installmentProgressLabel(item)}</span>
         )}
+        {/* 배지는 금액 옆이 아니라 이름 아래에 — 금액·배지·⋯가 한 줄에 몰려 이름이 잘리던 문제. */}
+        {(item.spans_multiple_months || (canShowRecurringBadge && item.recurring_expense_id !== null)) && (
+          <span className="mt-1 flex flex-wrap gap-1">
+            {item.spans_multiple_months && (
+              <span
+                title="연간계획의 이번 달 금액이에요. 여기서 바꾸면 이번 달에만 적용돼요."
+                className="px-1.5 py-0.5 rounded text-[11px] font-medium whitespace-nowrap bg-primary-50 text-primary-600 dark:bg-primary-950 dark:text-primary-300"
+              >
+                연간계획
+              </span>
+            )}
+            {canShowRecurringBadge && item.recurring_expense_id !== null && (
+              <span
+                className={`px-1.5 py-0.5 rounded text-[11px] font-medium whitespace-nowrap ${recurringLinkBadgeStyle(item.recurring_active ?? false)}`}
+              >
+                {recurringLinkBadgeLabel(item.recurring_active ?? false)}
+              </span>
+            )}
+          </span>
+        )}
       </button>
       <div className="flex items-center gap-1 shrink-0">
-        <span className="text-sm font-semibold text-gray-700 dark:text-gray-300">{formatKrw(item.amount)}</span>
-        {item.spans_multiple_months && (
-          <span
-            title="연간계획의 이번 달 금액이에요. 여기서 바꾸면 이번 달에만 적용돼요."
-            className="px-1.5 py-0.5 rounded text-[11px] font-medium whitespace-nowrap bg-primary-50 text-primary-600 dark:bg-primary-950 dark:text-primary-300">
-            연간계획
-          </span>
-        )}
-        {(sectionKey === "income" || sectionKey === "fixed") && item.recurring_expense_id !== null && (
-          <span
-            className={`px-1.5 py-0.5 rounded text-[11px] font-medium whitespace-nowrap ${recurringLinkBadgeStyle(item.recurring_active ?? false)}`}
-          >
-            {recurringLinkBadgeLabel(item.recurring_active ?? false)}
-          </span>
-        )}
+        <span className="text-sm font-semibold tabular-nums whitespace-nowrap text-gray-700 dark:text-gray-300">{formatKrw(item.amount)}</span>
         <div className="hidden sm:flex items-center gap-1">
           <AccountActionsMenu items={menuItems} ariaLabel={`${item.name} 작업 더 보기`} />
           <RowActionButtons onEdit={onEdit} onDelete={onDelete} />
