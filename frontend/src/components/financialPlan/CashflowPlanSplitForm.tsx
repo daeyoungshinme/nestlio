@@ -2,6 +2,7 @@ import { useState } from "react";
 import type { FormEvent } from "react";
 import Button from "@/components/common/Button";
 import CategoryPicker from "@/components/common/CategoryPicker";
+import AmountInput from "@/components/common/AmountInput";
 import FormInput from "@/components/common/FormInput";
 import { formatKrwPreview } from "@/utils/format";
 import { monthsRemainingInYear } from "@/utils/installment";
@@ -74,12 +75,10 @@ export default function CashflowPlanSplitForm({
         onChange={(e) => setValues((v) => ({ ...v, start_year_month: e.target.value }))}
         required
       />
-      <FormInput
+      <AmountInput
         label="총액"
-        type="number"
-        inputMode="decimal"
         value={values.total_amount}
-        onChange={(e) => setValues((v) => ({ ...v, total_amount: e.target.value }))}
+        onChange={(value) => setValues((v) => ({ ...v, total_amount: value }))}
         required
         preview={perMonth > 0 ? `월 약 ${formatKrwPreview(perMonth)} × ${months}개월` : undefined}
       />
