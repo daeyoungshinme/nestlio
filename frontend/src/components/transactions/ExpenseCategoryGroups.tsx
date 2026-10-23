@@ -7,7 +7,6 @@ interface Props {
   transactionsByCategory: Map<number, TransactionOut[]>;
   totalExpense: string;
   onEdit: (tx: TransactionOut) => void;
-  onDelete: (tx: TransactionOut) => void;
   showUser?: boolean;
   users?: UserOut[];
 }
@@ -17,7 +16,6 @@ export default function ExpenseCategoryGroups({
   transactionsByCategory,
   totalExpense,
   onEdit,
-  onDelete,
   showUser,
   users,
 }: Props) {
@@ -35,7 +33,6 @@ export default function ExpenseCategoryGroups({
     <GroupedTransactionList
       groups={rows}
       onEdit={onEdit}
-      onDelete={onDelete}
       emptyTitle="해당 조건의 내역이 없어요"
       showUser={showUser}
       users={users}

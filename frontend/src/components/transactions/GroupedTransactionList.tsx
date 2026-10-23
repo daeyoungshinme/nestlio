@@ -20,9 +20,9 @@ export interface TransactionGroup {
 interface Props {
   groups: TransactionGroup[];
   onEdit: (tx: TransactionOut) => void;
-  onDelete: (tx: TransactionOut) => void;
   /** Shown when `groups` is empty. Omit to render nothing (e.g. caller already handles the empty state). */
   emptyTitle?: string;
+  emptyAction?: { label: string; onClick: () => void };
   /** Whether to render the colored dot in each group header. Defaults to true. */
   showDot?: boolean;
   /** Passed through to each TransactionListItem. Defaults to true (existing behavior). */
@@ -42,8 +42,8 @@ interface Props {
 export default function GroupedTransactionList({
   groups,
   onEdit,
-  onDelete,
   emptyTitle,
+  emptyAction,
   showDot = true,
   itemShowDate = true,
   itemHideCategoryBadge = true,
@@ -51,7 +51,7 @@ export default function GroupedTransactionList({
   users,
 }: Props) {
   if (groups.length === 0) {
-    return emptyTitle ? <EmptyState title={emptyTitle} compact /> : null;
+    return emptyTitle ? <EmptyState title={emptyTitle} action={emptyAction} compact /> : null;
   }
 
   return (
@@ -82,7 +82,6 @@ export default function GroupedTransactionList({
               key={tx.id}
               tx={tx}
               onEdit={onEdit}
-              onDelete={onDelete}
               showDate={itemShowDate}
               hideCategoryBadge={itemHideCategoryBadge}
               showUser={showUser}

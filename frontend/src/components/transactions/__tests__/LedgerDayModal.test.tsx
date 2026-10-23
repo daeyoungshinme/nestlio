@@ -12,7 +12,6 @@ function renderModal(overrides: Partial<Parameters<typeof LedgerDayModal>[0]> = 
     onClose: vi.fn(),
     onAddTransaction: vi.fn(),
     onEditTransaction: vi.fn(),
-    onDeleteTransaction: vi.fn(),
     onAddEvent: vi.fn(),
     onEditEvent: vi.fn(),
     onDeleteEvent: vi.fn(),

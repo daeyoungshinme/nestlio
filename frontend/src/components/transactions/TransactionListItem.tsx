@@ -1,5 +1,3 @@
-import Badge from "@/components/common/Badge";
-import RowActionButtons from "@/components/common/RowActionButtons";
 import { PAYMENT_METHOD_LABEL } from "@/constants/transactions";
 import { transactionAmountTextColor } from "@/utils/colors";
 import { formatDate, formatKrw } from "@/utils/format";
@@ -8,55 +6,45 @@ import type { TransactionOut, UserOut } from "@/types";
 interface Props {
   tx: TransactionOut;
   onEdit: (tx: TransactionOut) => void;
-  onDelete: (tx: TransactionOut) => void;
   showDate?: boolean;
   showUser?: boolean;
   users?: UserOut[];
   hideCategoryBadge?: boolean;
 }
 
-export default function TransactionListItem({
-  tx,
-  onEdit,
-  onDelete,
-  showDate,
-  showUser,
-  users,
-  hideCategoryBadge,
-}: Props) {
+/** 거래 한 줄 — 행 전체가 수정 버튼이다(삭제는 수정 폼 안). 왼쪽은 메모/부가정보 2줄, 오른쪽은 금액이라
+ * 금액만 세로로 훑어볼 수 있다. 수입/지출은 금액 부호·색으로 이미 구분돼 따로 배지를 두지 않는다. */
+export default function TransactionListItem({ tx, onEdit, showDate, showUser, users, hideCategoryBadge }: Props) {
   const ownerLabel = tx.owner_user_id
     ? (users?.find((u) => u.id === tx.owner_user_id)?.display_name ?? "공통")
     : "공통";
+  const title = tx.description || tx.category.name;
+  const meta = [
+    !hideCategoryBadge && tx.description ? tx.category.name : null,
+    tx.savings_product ? `→ ${tx.savings_product.name}` : null,
+    tx.payment_method ? PAYMENT_METHOD_LABEL[tx.payment_method] : null,
+    showUser ? ownerLabel : null,
+    showDate ? formatDate(tx.transaction_date) : null,
+  ].filter(Boolean);
+
   return (
-    <div className="card flex items-center justify-between gap-3">
-      <div className="min-w-0">
-        <div className="flex items-center gap-2 flex-wrap">
-          <Badge type={tx.type} label={tx.type === "income" ? "수입" : "지출"} />
-          {!hideCategoryBadge && <Badge type={tx.category.type} label={tx.category.name} />}
-          {tx.savings_product && (
-            <span className="text-xs text-gray-400 dark:text-gray-500">→ {tx.savings_product.name}</span>
-          )}
-          {tx.payment_method && (
-            <span className="text-xs text-gray-400 dark:text-gray-500">
-              {PAYMENT_METHOD_LABEL[tx.payment_method]}
-            </span>
-          )}
-          {showUser && (
-            <span className="text-xs text-gray-400 dark:text-gray-500">{ownerLabel}</span>
-          )}
-          {showDate && (
-            <span className="text-xs text-gray-400 dark:text-gray-500">{formatDate(tx.transaction_date)}</span>
-          )}
-        </div>
-        <p className="mt-1 text-sm font-medium text-gray-900 dark:text-gray-50 truncate">
-          {tx.description || tx.category.name}
-        </p>
-        <p className={`text-sm font-bold ${transactionAmountTextColor(tx.type)}`}>
-          {tx.type === "income" ? "+" : "-"}
-          {formatKrw(tx.amount)}
-        </p>
-      </div>
-      <RowActionButtons onEdit={() => onEdit(tx)} onDelete={() => onDelete(tx)} />
-    </div>
+    <button
+      type="button"
+      onClick={() => onEdit(tx)}
+      className="card w-full flex items-center justify-between gap-3 text-left min-h-[56px] hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+    >
+      <span className="min-w-0">
+        <span className="block text-sm font-medium text-gray-900 dark:text-gray-50 truncate">{title}</span>
+        {meta.length > 0 && (
+          <span className="block mt-0.5 text-xs text-gray-500 dark:text-gray-400 truncate">{meta.join(" · ")}</span>
+        )}
+      </span>
+      <span
+        className={`shrink-0 text-base font-semibold tabular-nums whitespace-nowrap ${transactionAmountTextColor(tx.type)}`}
+      >
+        {tx.type === "income" ? "+" : "-"}
+        {formatKrw(tx.amount)}
+      </span>
+    </button>
   );
 }

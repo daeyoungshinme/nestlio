@@ -51,6 +51,8 @@ interface Props {
   layout?: "row" | "stack";
   /** 새 거래 등록 컨텍스트에서만 "자주 쓰는 항목" 불러오기를 노출한다 (수정 폼에서는 숨김). */
   isNew: boolean;
+  /** 수정 폼에서만 — 목록 행에 삭제 버튼을 두지 않고 여기로 모았다(확인 모달은 부모가 띄운다). */
+  onDelete?: () => void;
 }
 
 const today = currentDateIso;
@@ -68,6 +70,7 @@ export default function TransactionForm({
   onSubmit,
   layout = "row",
   isNew,
+  onDelete,
 }: Props) {
   const fieldId = useId();
   const savingsCategory = categories.find((c) => c.is_savings);
@@ -402,8 +405,13 @@ export default function TransactionForm({
       {isStack ? (
         // 모바일 키보드가 열리면 폼이 시트 높이를 넘겨 맨 아래 버튼이 화면 밖으로 밀린다.
         // 시트의 스크롤 영역 바닥에 붙여 두어 키보드를 닫거나 스크롤하지 않고도 바로 누를 수 있게 한다.
-        <div className="sticky bottom-0 w-full -mb-3 pt-3 pb-3 bg-white dark:bg-gray-900">
-          <Button type="submit" loading={submitting} className="w-full">
+        <div className="sticky bottom-0 w-full -mb-3 pt-3 pb-3 bg-white dark:bg-gray-900 flex gap-2">
+          {onDelete && (
+            <Button type="button" variant="danger" onClick={onDelete} disabled={submitting}>
+              삭제
+            </Button>
+          )}
+          <Button type="submit" loading={submitting} className="flex-1 justify-center">
             {submitLabel}
           </Button>
         </div>

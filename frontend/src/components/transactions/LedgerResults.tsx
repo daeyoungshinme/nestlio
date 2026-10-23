@@ -28,7 +28,8 @@ interface Props {
   users?: UserOut[];
   showUser: boolean;
   onEdit: (tx: TransactionOut) => void;
-  onDelete: (tx: TransactionOut) => void;
+  /** 필터·검색이 걸려 있을 때만 — 빈 결과에 "필터 초기화"를 띄운다. */
+  onResetFilters?: () => void;
 }
 
 export default function LedgerResults({
@@ -44,8 +45,9 @@ export default function LedgerResults({
   users,
   showUser,
   onEdit,
-  onDelete,
+  onResetFilters,
 }: Props) {
+  const emptyAction = onResetFilters ? { label: "필터 초기화", onClick: onResetFilters } : undefined;
   const breakdownQuery = useQuery({
     queryKey: QUERY_KEYS.categoryBreakdown({ date_from: dateFrom, date_to: dateTo, type: "expense", user_id: userFilter }),
     queryFn: () =>
@@ -67,12 +69,11 @@ export default function LedgerResults({
 
   if (topFilter === "savings") {
     return filteredTransactions.length === 0 ? (
-      <EmptyState title="해당 조건의 내역이 없어요" compact />
+      <EmptyState title="해당 조건의 내역이 없어요" action={emptyAction} compact />
     ) : (
       <SavingsLinkedTransactionsSection
         transactions={filteredTransactions}
         onEdit={onEdit}
-        onDelete={onDelete}
         showUser={showUser}
         users={users}
       />
@@ -94,7 +95,6 @@ export default function LedgerResults({
               transactionsByCategory={transactionsByCategory}
               totalExpense={totalExpense}
               onEdit={onEdit}
-              onDelete={onDelete}
               showUser={showUser}
               users={users}
             />
@@ -108,9 +108,9 @@ export default function LedgerResults({
     <DailyTransactionGroups
       transactions={filteredTransactions}
       onEdit={onEdit}
-      onDelete={onDelete}
       showUser={showUser}
       users={users}
+      emptyAction={emptyAction}
     />
   );
 }
