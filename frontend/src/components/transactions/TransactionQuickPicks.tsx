@@ -69,6 +69,19 @@ function planChipLabel(item: CashflowPlanItemOut, users: UserOut[]): string {
   return parts.join(" · ");
 }
 
+/** 빠른 입력 "최근" 칩과 거래 폼의 카테고리 칩 정렬이 같은 캐시를 쓴다(요청 1번). */
+export function useRecentQuickItems(uiType: UiType, enabled = true) {
+  const type: TransactionType = uiType === "income" ? "income" : "expense";
+  const isSavings = uiType === "savings";
+  const limit = uiType === "expense" ? 12 : 8;
+  return useQuery({
+    queryKey: QUERY_KEYS.recentTransactions({ type, is_savings: isSavings, limit }),
+    queryFn: () => fetchRecentTransactions({ type, is_savings: isSavings, limit }),
+    staleTime: STALE_TIME.SHORT,
+    enabled,
+  });
+}
+
 interface Props {
   uiType: UiType;
   /** 폼에서 고른 거래 날짜("YYYY-MM-DD") — "계획" 칩은 이 날짜가 속한 달의 현금흐름계획을 보여준다. */
@@ -97,14 +110,7 @@ export default function TransactionQuickPicks({
     storeQuickTab(tab);
   };
 
-  const recentType: TransactionType = uiType === "income" ? "income" : "expense";
-  const recentIsSavings = uiType === "savings";
-  const recentLimit = uiType === "expense" ? 12 : 8;
-  const { data: recentItems } = useQuery({
-    queryKey: QUERY_KEYS.recentTransactions({ type: recentType, is_savings: recentIsSavings, limit: recentLimit }),
-    queryFn: () => fetchRecentTransactions({ type: recentType, is_savings: recentIsSavings, limit: recentLimit }),
-    staleTime: STALE_TIME.SHORT,
-  });
+  const { data: recentItems } = useRecentQuickItems(uiType);
 
   const recentGroups =
     uiType === "expense"
