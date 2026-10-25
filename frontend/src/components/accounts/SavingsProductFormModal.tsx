@@ -1,13 +1,14 @@
 import { useState } from "react";
 import type { FormEvent } from "react";
 import Button from "@/components/common/Button";
+import AmountInput from "@/components/common/AmountInput";
 import FormInput from "@/components/common/FormInput";
 import Modal from "@/components/common/Modal";
 import OwnerSelect from "@/components/common/OwnerSelect";
 import GrowlioLinkSection from "@/components/accounts/GrowlioLinkSection";
 import { fetchGrowlioAccounts } from "@/api/savingsProducts";
 import { ASSET_RELATED_KEYS, QUERY_KEYS } from "@/constants/queryKeys";
-import { amountInputPreview, toAmountInputValue } from "@/utils/format";
+import { toAmountInputValue } from "@/utils/format";
 import { savingsProductTypeLabel } from "@/utils/colors";
 import type { SavingsProductOut, SavingsProductType, UserOut } from "@/types";
 
@@ -113,35 +114,26 @@ export default function SavingsProductFormModal({
           className="w-full"
           required
         />
-        <FormInput
+        <AmountInput
           label="현재 적립된 금액"
-          type="number"
-          inputMode="decimal"
           value={draft.current_balance}
-          onChange={(e) => setDraft((d) => ({ ...d, current_balance: e.target.value }))}
+          onChange={(value) => setDraft((d) => ({ ...d, current_balance: value }))}
           className="w-full"
-          preview={amountInputPreview(draft.current_balance)}
         />
         {!product && (
-          <FormInput
+          <AmountInput
             label="월 저축액"
-            type="number"
-            inputMode="decimal"
             value={draft.monthly_saving_amount}
-            onChange={(e) => setDraft((d) => ({ ...d, monthly_saving_amount: e.target.value }))}
+            onChange={(value) => setDraft((d) => ({ ...d, monthly_saving_amount: value }))}
             className="w-full"
-            preview={amountInputPreview(draft.monthly_saving_amount)}
           />
         )}
         {draft.product_type === "investment" && (
-          <FormInput
+          <AmountInput
             label="투자 원금 (선택)"
-            type="number"
-            inputMode="decimal"
             value={draft.principal_amount}
-            onChange={(e) => setDraft((d) => ({ ...d, principal_amount: e.target.value }))}
+            onChange={(value) => setDraft((d) => ({ ...d, principal_amount: value }))}
             className="w-full"
-            preview={amountInputPreview(draft.principal_amount)}
           />
         )}
         <OwnerSelect

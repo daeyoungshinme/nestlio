@@ -5,6 +5,7 @@ import Button from "@/components/common/Button";
 import AssetRow from "@/components/accounts/AssetRow";
 import AssetSectionShell from "@/components/accounts/AssetSectionShell";
 import CollapsibleGroup from "@/components/common/CollapsibleGroup";
+import AmountInput from "@/components/common/AmountInput";
 import FormInput from "@/components/common/FormInput";
 import GrowlioImportModal from "@/components/common/GrowlioImportModal";
 import Modal from "@/components/common/Modal";
@@ -25,7 +26,7 @@ import {
 import { ASSET_RELATED_KEYS, QUERY_KEYS } from "@/constants/queryKeys";
 import { useAssetSection } from "@/hooks/useAssetSection";
 import { useAccounts } from "@/hooks/useReferenceData";
-import { amountInputPreview, formatKrw, formatSyncedAt, resolveOwnerLabel, toAmountInputValue } from "@/utils/format";
+import { formatKrw, formatSyncedAt, resolveOwnerLabel, toAmountInputValue } from "@/utils/format";
 import type { AccountCreateIn, AccountOut, AccountUpdateIn, AccountWithBalanceOut, UserOut } from "@/types";
 import { sumAmounts } from "@/utils/amount";
 
@@ -297,14 +298,12 @@ function AccountFormModal({
           onChange={(owner_user_id) => setDraft((d) => ({ ...d, owner_user_id }))}
           users={users}
         />
-        <FormInput
+        <AmountInput
           label={amountLabel}
-          type="number"
-          inputMode="decimal"
           value={draft.amount}
-          onChange={(e) => setDraft((d) => ({ ...d, amount: e.target.value }))}
+          onChange={(value) => setDraft((d) => ({ ...d, amount: value }))}
           className="w-full"
-          preview={amountInputPreview(draft.amount)}
+          allowNegative
         />
         <Button type="submit" loading={submitting} className="mt-2">
           {submitLabel}

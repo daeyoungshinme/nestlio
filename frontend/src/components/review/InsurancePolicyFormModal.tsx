@@ -1,6 +1,7 @@
 import { useId, useState } from "react";
 import type { FormEvent } from "react";
 import Button from "@/components/common/Button";
+import AmountInput from "@/components/common/AmountInput";
 import FormInput from "@/components/common/FormInput";
 import Modal from "@/components/common/Modal";
 import CoverageChips from "@/components/review/CoverageChips";
@@ -16,7 +17,6 @@ import { PAYMENT_FREQUENCY_LABEL, POLICY_TYPE_LABEL } from "@/constants/insuranc
 import { INPUT_SM, LABEL_SM } from "@/constants/inputStyles";
 import { TOUCH_TARGET_MIN_HEIGHT } from "@/constants/uiSizes";
 import { useRecurringAll } from "@/hooks/useReferenceData";
-import { amountInputPreview } from "@/utils/format";
 import type { Coverage, InsurancePolicyIn, InsurancePolicyOut, PaymentFrequency, PolicyType, UserOut } from "@/types";
 
 interface Props {
@@ -119,14 +119,11 @@ export default function InsurancePolicyFormModal({ policy, users, submitting, on
           )}
         </div>
         <div className="grid grid-cols-2 gap-3">
-          <FormInput
+          <AmountInput
             label="보험료"
-            type="number"
-            inputMode="decimal"
             value={draft.premium_amount}
-            onChange={(e) => set("premium_amount", e.target.value)}
+            onChange={(value) => set("premium_amount", value)}
             className="w-full"
-            preview={amountInputPreview(draft.premium_amount)}
             required
           />
           <div>

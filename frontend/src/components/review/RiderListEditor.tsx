@@ -1,5 +1,6 @@
 import { useId } from "react";
 import { Plus, Trash2 } from "lucide-react";
+import { amountInputProps } from "@/components/common/AmountInput";
 import Button from "@/components/common/Button";
 import { RIDER_COVERAGE_LABEL } from "@/constants/insurance";
 import { INPUT_SM, LABEL_SM } from "@/constants/inputStyles";
@@ -129,15 +130,9 @@ export default function RiderListEditor({ riders, onChange, policyPremium, frequ
               </label>
               <input
                 id={`${fieldId}-${index}-amount`}
-                type="number"
-                inputMode="decimal"
                 className={`${INPUT_SM} w-full`}
-                value={rider.coverage_amount}
-                onChange={(e) => update(rider.key, { coverage_amount: e.target.value })}
+                {...amountInputProps(rider.coverage_amount, (coverage_amount) => update(rider.key, { coverage_amount }))}
               />
-              {rider.coverage_amount && (
-                <p className="mt-0.5 text-[11px] text-gray-500 dark:text-gray-400">{formatKrw(rider.coverage_amount)}</p>
-              )}
             </div>
             <div>
               <label htmlFor={`${fieldId}-${index}-premium`} className={`block mb-1 ${LABEL_SM}`}>
@@ -145,11 +140,8 @@ export default function RiderListEditor({ riders, onChange, policyPremium, frequ
               </label>
               <input
                 id={`${fieldId}-${index}-premium`}
-                type="number"
-                inputMode="decimal"
                 className={`${INPUT_SM} w-full`}
-                value={rider.premium}
-                onChange={(e) => update(rider.key, { premium: e.target.value })}
+                {...amountInputProps(rider.premium, (premium) => update(rider.key, { premium }))}
               />
             </div>
           </div>

@@ -6,7 +6,7 @@ import Button from "@/components/common/Button";
 import CollapsibleGroup from "@/components/common/CollapsibleGroup";
 import ConfirmModal from "@/components/common/ConfirmModal";
 import EmptyState from "@/components/common/EmptyState";
-import FormInput from "@/components/common/FormInput";
+import AmountInput from "@/components/common/AmountInput";
 import GoalFormModal from "@/components/financialPlan/GoalFormModal";
 import { EMPTY_GOAL_DRAFT, draftFromGoal, toPayload, type Draft } from "@/components/financialPlan/goalDraft";
 import GoalProgressCard from "@/components/financialPlan/GoalProgressCard";
@@ -24,7 +24,7 @@ import { goalDetailLink, planViewLink } from "@/constants/routes";
 import { progressStatusBadgeClass, progressStatusLabel } from "@/utils/colors";
 import { computeCardStatus, daysUntil, isGoalAchieved } from "@/utils/goalStatus";
 import { GOAL_SORT_LABELS, pinNetWorthFirst, sortGoals, type GoalSortLabel } from "@/utils/goalSort";
-import { amountInputPreview, formatDate, formatKrw, formatYearMonth, toAmountInputValue } from "@/utils/format";
+import { formatDate, formatKrw, formatYearMonth, toAmountInputValue } from "@/utils/format";
 import { toast } from "@/utils/toast";
 import type { FinancialGoalOut, FinancialGoalUpdateIn, GoalKind } from "@/types";
 import { sumAmounts } from "@/utils/amount";
@@ -259,14 +259,11 @@ export default function GoalsTab() {
         footer={
           showProgressUpdateWidget ? (
             <div className="flex items-start flex-wrap gap-2 pt-1">
-              <FormInput
+              <AmountInput
                 label="진행 금액 갱신"
-                type="number"
-                inputMode="decimal"
                 value={progressDraftValue}
-                onChange={(e) => setProgressDraft((d) => ({ ...d, [goal.id]: e.target.value }))}
+                onChange={(value) => setProgressDraft((d) => ({ ...d, [goal.id]: value }))}
                 className="w-full sm:w-40"
-                preview={amountInputPreview(progressDraftValue)}
               />
               <Button
                 size="sm"
@@ -284,14 +281,11 @@ export default function GoalsTab() {
             </p>
           ) : activeMonth && draftKey !== null ? (
             <div className="flex items-start flex-wrap gap-2 pt-1">
-              <FormInput
+              <AmountInput
                 label={`${activeMonth.year_month} 저축액 입력`}
-                type="number"
-                inputMode="decimal"
                 value={monthlyDraftValue}
-                onChange={(e) => setMonthlyTargetDraft((d) => ({ ...d, [draftKey]: e.target.value }))}
+                onChange={(value) => setMonthlyTargetDraft((d) => ({ ...d, [draftKey]: value }))}
                 className="w-full sm:w-40"
-                preview={amountInputPreview(monthlyDraftValue)}
               />
               <Button
                 size="sm"

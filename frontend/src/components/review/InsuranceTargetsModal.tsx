@@ -2,14 +2,14 @@ import { useState } from "react";
 import type { FormEvent } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import Button from "@/components/common/Button";
-import FormInput from "@/components/common/FormInput";
+import AmountInput from "@/components/common/AmountInput";
 import Modal from "@/components/common/Modal";
 import QueryBoundary from "@/components/common/QueryBoundary";
 import { setInsuranceTargets } from "@/api/settings";
 import { COVERAGE_LABEL, TARGETED_COVERAGES } from "@/constants/insurance";
 import { QUERY_KEYS } from "@/constants/queryKeys";
 import { useSettings } from "@/hooks/useReferenceData";
-import { amountInputPreview, toAmountInputValue } from "@/utils/format";
+import { toAmountInputValue } from "@/utils/format";
 import { toast } from "@/utils/toast";
 import type { InsuranceTargetsIn, InsuranceTargetsOut } from "@/types";
 
@@ -71,15 +71,12 @@ function TargetsForm({
         기본값은 통상적인 가이드일 뿐이니 소득·부양가족·대출에 맞게 바꿔 주세요.
       </p>
       {TARGETED_COVERAGES.map((key) => (
-        <FormInput
+        <AmountInput
           key={key}
           label={key === "hospitalization" ? `${COVERAGE_LABEL[key]} (1일)` : COVERAGE_LABEL[key]}
-          type="number"
-          inputMode="decimal"
           value={draft[key]}
-          onChange={(e) => setDraft((d) => ({ ...d, [key]: e.target.value }))}
+          onChange={(value) => setDraft((d) => ({ ...d, [key]: value }))}
           className="w-full"
-          preview={amountInputPreview(draft[key])}
         />
       ))}
       <Button type="submit" loading={mutation.isPending} className="mt-2">

@@ -3,9 +3,10 @@ import type { FormEvent } from "react";
 import { Link } from "react-router-dom";
 import Button from "@/components/common/Button";
 import CategoryPicker from "@/components/common/CategoryPicker";
+import AmountInput from "@/components/common/AmountInput";
 import FormInput from "@/components/common/FormInput";
 import OwnerSelect from "@/components/common/OwnerSelect";
-import { amountInputPreview, formatKrw, toAmountInputValue } from "@/utils/format";
+import { formatKrw, toAmountInputValue } from "@/utils/format";
 import type { CashflowSection, CategoryOut, UserOut } from "@/types";
 import { recurringManageLink } from "@/constants/routes";
 import { cautionTextClass } from "@/utils/colors";
@@ -113,15 +114,12 @@ export default function CashflowPlanItemForm({
         onChange={(owner) => setValues((v) => ({ ...v, owner_user_id: owner }))}
         users={users}
       />
-      <FormInput
+      <AmountInput
         label="금액"
-        type="number"
-        inputMode="decimal"
         value={values.amount}
-        onChange={(e) => setValues((v) => ({ ...v, amount: e.target.value }))}
+        onChange={(value) => setValues((v) => ({ ...v, amount: value }))}
         required
         disabled={isRecurringLinked}
-        preview={amountInputPreview(values.amount)}
       />
       <Button type="submit" loading={submitting} className="w-full justify-center">
         {submitLabel}

@@ -1,5 +1,6 @@
 import { useId, useState } from "react";
 import { Copy } from "lucide-react";
+import { amountInputProps } from "@/components/common/AmountInput";
 import Button from "@/components/common/Button";
 import { FORM_LABEL, INPUT_SM } from "@/constants/inputStyles";
 import { TOUCH_TARGET_MIN_MOBILE_ONLY } from "@/constants/uiSizes";
@@ -52,11 +53,8 @@ export default function AnnualPlanMonthlyGrid({ startMonth, endMonth, targets, o
           </label>
           <input
             id={`${fieldId}-same`}
-            type="number"
-            inputMode="decimal"
-            value={sameAmount}
-            onChange={(e) => setSameAmount(e.target.value)}
-            placeholder="예: 300000"
+            {...amountInputProps(sameAmount, setSameAmount)}
+            placeholder="예: 300,000"
             className={`w-full ${INPUT_SM}`}
           />
         </div>
@@ -99,10 +97,7 @@ export default function AnnualPlanMonthlyGrid({ startMonth, endMonth, targets, o
               </div>
               <input
                 id={inputId}
-                type="number"
-                inputMode="decimal"
-                value={amount}
-                onChange={(e) => setAmount(ym, e.target.value)}
+                {...amountInputProps(amount, (value) => setAmount(ym, value))}
                 className={`w-full ${INPUT_SM}`}
               />
               <p className="mt-0.5 min-h-[16px] text-[11px] text-gray-400 dark:text-gray-500 text-right">

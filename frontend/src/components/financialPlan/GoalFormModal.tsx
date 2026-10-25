@@ -4,6 +4,7 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import { Download } from "lucide-react";
 import Button from "@/components/common/Button";
+import AmountInput from "@/components/common/AmountInput";
 import FormInput from "@/components/common/FormInput";
 import Modal from "@/components/common/Modal";
 import Tabs from "@/components/common/Tabs";
@@ -19,7 +20,7 @@ import { planViewLink } from "@/constants/routes";
 import { monthsBetween, syncTargetsToPeriod } from "@/utils/monthRange";
 import { currentDateIso, yearMonthOfDate } from "@/utils/date";
 import { extractErrorMessage } from "@/utils/error";
-import { amountInputPreview, formatKrw, toAmountInputValue } from "@/utils/format";
+import { formatKrw, toAmountInputValue } from "@/utils/format";
 import { toast } from "@/utils/toast";
 import {
   emptyChallengeDraft,
@@ -242,14 +243,11 @@ export default function GoalFormModal({
             className="w-full"
             required
           />
-          <FormInput
+          <AmountInput
             label="목표 순자산"
-            type="number"
-            inputMode="decimal"
             value={draft.required_amount}
-            onChange={(e) => setDraft((d) => ({ ...d, required_amount: e.target.value }))}
+            onChange={(value) => setDraft((d) => ({ ...d, required_amount: value }))}
             className="w-full"
-            preview={amountInputPreview(draft.required_amount)}
           />
           <FormInput
             label="목표일 (두 분이 함께 정한 날짜)"
@@ -302,14 +300,11 @@ export default function GoalFormModal({
               rows={2}
             />
           </div>
-          <FormInput
+          <AmountInput
             label="목표 금액"
-            type="number"
-            inputMode="decimal"
             value={draft.required_amount}
-            onChange={(e) => setDraft((d) => ({ ...d, required_amount: e.target.value }))}
+            onChange={(value) => setDraft((d) => ({ ...d, required_amount: value }))}
             className="w-full"
-            preview={amountInputPreview(draft.required_amount)}
           />
           <div className="grid grid-cols-2 gap-3">
             <FormInput
@@ -329,14 +324,11 @@ export default function GoalFormModal({
             />
           </div>
           {existingGoal && (
-            <FormInput
+            <AmountInput
               label="진행 금액"
-              type="number"
-              inputMode="decimal"
               value={draft.current_amount}
-              onChange={(e) => setDraft((d) => ({ ...d, current_amount: e.target.value }))}
+              onChange={(value) => setDraft((d) => ({ ...d, current_amount: value }))}
               className="w-full"
-              preview={amountInputPreview(draft.current_amount)}
             />
           )}
           <Button type="submit" loading={submitting} className="mt-2">
@@ -459,14 +451,11 @@ export default function GoalFormModal({
             className="w-full"
           />
         )}
-        <FormInput
+        <AmountInput
           label="필요금액"
-          type="number"
-          inputMode="decimal"
           value={draft.required_amount}
-          onChange={(e) => setDraft((d) => ({ ...d, required_amount: e.target.value }))}
+          onChange={(value) => setDraft((d) => ({ ...d, required_amount: value }))}
           className="w-full"
-          preview={amountInputPreview(draft.required_amount)}
         />
           </>
         )}
@@ -527,14 +516,11 @@ export default function GoalFormModal({
             매달 저축액을 입력해 채워가세요.
           </div>
         ) : (
-          <FormInput
+          <AmountInput
             label="현재 저축액"
-            type="number"
-            inputMode="decimal"
             value={draft.current_amount}
-            onChange={(e) => setDraft((d) => ({ ...d, current_amount: e.target.value }))}
+            onChange={(value) => setDraft((d) => ({ ...d, current_amount: value }))}
             className="w-full"
-            preview={amountInputPreview(draft.current_amount)}
           />
         )}
         {draft.target_date !== "" && (
@@ -597,14 +583,11 @@ export default function GoalFormModal({
             </p>
           </div>
         ) : (
-          <FormInput
+          <AmountInput
             label="월 저축금액"
-            type="number"
-            inputMode="decimal"
             value={draft.monthly_saving_amount}
-            onChange={(e) => setDraft((d) => ({ ...d, monthly_saving_amount: e.target.value }))}
+            onChange={(value) => setDraft((d) => ({ ...d, monthly_saving_amount: value }))}
             className="w-full"
-            preview={amountInputPreview(draft.monthly_saving_amount)}
           />
         )}
         <FormInput
