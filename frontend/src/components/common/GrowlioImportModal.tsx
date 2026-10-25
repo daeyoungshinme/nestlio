@@ -2,6 +2,7 @@ import { useState } from "react";
 import type { ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { QueryKey } from "@tanstack/react-query";
+import { invalidateKeys } from "@/utils/queryClient";
 import Button from "@/components/common/Button";
 import Modal from "@/components/common/Modal";
 import StatusBadge from "@/components/common/StatusBadge";
@@ -45,7 +46,7 @@ export default function GrowlioImportModal<TRow, TResult>({
   existingGrowlioAccountIds,
   importRows,
   buildSuccessMessage,
-  invalidateKeys,
+  invalidateKeys: keys,
   onClose,
 }: Props<TRow, TResult>) {
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -82,13 +83,10 @@ export default function GrowlioImportModal<TRow, TResult>({
   const importMutation = useMutation({
     mutationFn: () => importRows({ growlio_account_ids: [...selected] }),
     onSuccess: (results) => {
-      for (const key of invalidateKeys) {
-        void queryClient.invalidateQueries({ queryKey: key });
-      }
+      invalidateKeys(queryClient, keys);
       toast(buildSuccessMessage(results), "success");
       onClose();
     },
-    onError: (err) => toast(extractErrorMessage(err), "error"),
   });
 
   return (

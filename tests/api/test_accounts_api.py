@@ -45,10 +45,10 @@ def test_update_account_with_existing_transactions_sets_displayed_balance_exactl
     )
     account_id = create_resp.json()["id"]
     transaction_service.create_transaction(
-        db, user.id, food.id, "income", Decimal("50000"), date(2026, 7, 1), account_id=account_id
+        db, user_id=user.id, category_id=food.id, type_="income", amount=Decimal("50000"), transaction_date=date(2026, 7, 1), account_id=account_id
     )
     transaction_service.create_transaction(
-        db, user.id, food.id, "expense", Decimal("20000"), date(2026, 7, 2), account_id=account_id
+        db, user_id=user.id, category_id=food.id, type_="expense", amount=Decimal("20000"), transaction_date=date(2026, 7, 2), account_id=account_id
     )
     # this account's initial_balance(100000) + net transactions(50000-20000) = 130000,
     # so a naive overwrite of initial_balance would make the displayed balance drift from
@@ -137,7 +137,7 @@ def test_sync_account_updates_displayed_balance_and_last_synced_at(client, seede
         if r["account"]["growlio_account_id"] == "growlio-acc-1"
     )
     transaction_service.create_transaction(
-        db, user.id, food.id, "expense", Decimal("20000"), date(2026, 7, 2), account_id=imported_id
+        db, user_id=user.id, category_id=food.id, type_="expense", amount=Decimal("20000"), transaction_date=date(2026, 7, 2), account_id=imported_id
     )
     # displayed balance before sync: 1500000 - 20000 = 1480000
 

@@ -377,12 +377,12 @@ def test_savings_streak_stops_at_month_without_target():
 def test_compute_insights_end_to_end(seeded_db):
     db, user, food, rent = seeded_db["db"], seeded_db["user"], seeded_db["food"], seeded_db["rent"]
     ym = "2026-07"
-    transaction_service.create_transaction(db, user.id, rent.id, "income", Decimal("3000000"), date(2026, 7, 1))
-    transaction_service.create_transaction(db, user.id, rent.id, "expense", Decimal("1600000"), date(2026, 7, 2))  # 53% fixed
+    transaction_service.create_transaction(db, user_id=user.id, category_id=rent.id, type_="income", amount=Decimal("3000000"), transaction_date=date(2026, 7, 1))
+    transaction_service.create_transaction(db, user_id=user.id, category_id=rent.id, type_="expense", amount=Decimal("1600000"), transaction_date=date(2026, 7, 2))  # 53% fixed
     cashflow_plan_service.upsert_item(
         db, None, food.type, None, food.name, Decimal("100000"), 0, ym, user.id, category_id=food.id
     )
-    transaction_service.create_transaction(db, user.id, food.id, "expense", Decimal("100000"), date(2026, 7, 10))
+    transaction_service.create_transaction(db, user_id=user.id, category_id=food.id, type_="expense", amount=Decimal("100000"), transaction_date=date(2026, 7, 10))
 
     insights = coaching_engine.compute_insights(db, ym)
 
@@ -397,12 +397,12 @@ def test_compute_insights_end_to_end(seeded_db):
 def test_compute_insights_uses_precomputed_totals_breakdown_goals_when_given(seeded_db):
     db, user, food, rent = seeded_db["db"], seeded_db["user"], seeded_db["food"], seeded_db["rent"]
     ym = "2026-07"
-    transaction_service.create_transaction(db, user.id, rent.id, "income", Decimal("3000000"), date(2026, 7, 1))
-    transaction_service.create_transaction(db, user.id, rent.id, "expense", Decimal("1600000"), date(2026, 7, 2))
+    transaction_service.create_transaction(db, user_id=user.id, category_id=rent.id, type_="income", amount=Decimal("3000000"), transaction_date=date(2026, 7, 1))
+    transaction_service.create_transaction(db, user_id=user.id, category_id=rent.id, type_="expense", amount=Decimal("1600000"), transaction_date=date(2026, 7, 2))
     cashflow_plan_service.upsert_item(
         db, None, food.type, None, food.name, Decimal("100000"), 0, ym, user.id, category_id=food.id
     )
-    transaction_service.create_transaction(db, user.id, food.id, "expense", Decimal("100000"), date(2026, 7, 10))
+    transaction_service.create_transaction(db, user_id=user.id, category_id=food.id, type_="expense", amount=Decimal("100000"), transaction_date=date(2026, 7, 10))
     start, end = date(2026, 7, 1), date(2026, 7, 31)
     totals = transaction_report_service.period_totals(db, start, end)
     breakdown = transaction_report_service.category_breakdown(db, start, end, "expense")
@@ -424,9 +424,9 @@ def test_compute_insights_uses_precomputed_totals_breakdown_goals_when_given(see
 
 def test_compute_insights_includes_goal_pace_when_goals_exist(seeded_db):
     db, user, food, rent = seeded_db["db"], seeded_db["user"], seeded_db["food"], seeded_db["rent"]
-    goal_service.create_goal(db, 1, "내집마련", 40, Decimal("100000000"), Decimal("1000000"))
-    transaction_service.create_transaction(db, user.id, rent.id, "income", Decimal("2000000"), date(2026, 7, 1))
-    transaction_service.create_transaction(db, user.id, food.id, "expense", Decimal("1800000"), date(2026, 7, 2))
+    goal_service.create_goal(db, priority=1, name="내집마련", target_age=40, required_amount=Decimal("100000000"), monthly_saving_amount=Decimal("1000000"))
+    transaction_service.create_transaction(db, user_id=user.id, category_id=rent.id, type_="income", amount=Decimal("2000000"), transaction_date=date(2026, 7, 1))
+    transaction_service.create_transaction(db, user_id=user.id, category_id=food.id, type_="expense", amount=Decimal("1800000"), transaction_date=date(2026, 7, 2))
 
     insights = coaching_engine.compute_insights(db, "2026-07")
 
@@ -444,9 +444,9 @@ def test_compute_insights_goal_pace_compares_savings_plan_with_deposits(seeded_d
     db.commit()
     product = savings_product_service.create_product(db, "적금", Decimal("0"), Decimal("1000000"))
     # 수입−지출은 넉넉하지만(2,000,000) 적금 납입은 계획(1,000,000)의 30%뿐
-    transaction_service.create_transaction(db, user.id, rent.id, "income", Decimal("2000000"), date(2026, 7, 1))
+    transaction_service.create_transaction(db, user_id=user.id, category_id=rent.id, type_="income", amount=Decimal("2000000"), transaction_date=date(2026, 7, 1))
     transaction_service.create_transaction(
-        db, user.id, savings_cat.id, "expense", Decimal("300000"), date(2026, 7, 3), savings_product_id=product.id
+        db, user_id=user.id, category_id=savings_cat.id, type_="expense", amount=Decimal("300000"), transaction_date=date(2026, 7, 3), savings_product_id=product.id
     )
 
     [pace] = [i for i in coaching_engine.compute_insights(db, "2026-07") if i.rule_code == "goal_pace"]
@@ -457,8 +457,8 @@ def test_compute_insights_goal_pace_compares_savings_plan_with_deposits(seeded_d
 
 def test_compute_insights_includes_savings_execution_when_snapshots_exist(seeded_db):
     db, user, food, rent = seeded_db["db"], seeded_db["user"], seeded_db["food"], seeded_db["rent"]
-    transaction_service.create_transaction(db, user.id, rent.id, "income", Decimal("2000000"), date(2026, 7, 1))
-    transaction_service.create_transaction(db, user.id, food.id, "expense", Decimal("1000000"), date(2026, 7, 2))
+    transaction_service.create_transaction(db, user_id=user.id, category_id=rent.id, type_="income", amount=Decimal("2000000"), transaction_date=date(2026, 7, 1))
+    transaction_service.create_transaction(db, user_id=user.id, category_id=food.id, type_="expense", amount=Decimal("1000000"), transaction_date=date(2026, 7, 2))
     # surplus = 1,000,000; only 300,000 actually moved into savings this month
     product = savings_product_service.create_product(db, "적금", Decimal("0"), Decimal("300000"))
     net_worth_service.record_snapshot(db, today=date(2026, 6, 30))
@@ -473,8 +473,8 @@ def test_compute_insights_includes_savings_execution_when_snapshots_exist(seeded
 
 def test_compute_insights_skips_savings_execution_without_two_snapshots(seeded_db):
     db, user, food, rent = seeded_db["db"], seeded_db["user"], seeded_db["food"], seeded_db["rent"]
-    transaction_service.create_transaction(db, user.id, rent.id, "income", Decimal("2000000"), date(2026, 7, 1))
-    transaction_service.create_transaction(db, user.id, food.id, "expense", Decimal("1000000"), date(2026, 7, 2))
+    transaction_service.create_transaction(db, user_id=user.id, category_id=rent.id, type_="income", amount=Decimal("2000000"), transaction_date=date(2026, 7, 1))
+    transaction_service.create_transaction(db, user_id=user.id, category_id=food.id, type_="expense", amount=Decimal("1000000"), transaction_date=date(2026, 7, 2))
 
     insights = coaching_engine.compute_insights(db, "2026-07")
 
@@ -483,7 +483,7 @@ def test_compute_insights_skips_savings_execution_without_two_snapshots(seeded_d
 
 def test_compute_insights_includes_emergency_fund_when_balance_set(seeded_db):
     db, user, rent = seeded_db["db"], seeded_db["user"], seeded_db["rent"]
-    transaction_service.create_transaction(db, user.id, rent.id, "expense", Decimal("1000000"), date(2026, 6, 1))
+    transaction_service.create_transaction(db, user_id=user.id, category_id=rent.id, type_="expense", amount=Decimal("1000000"), transaction_date=date(2026, 6, 1))
     savings_product_service.create_product(
         db, "비상금", Decimal("2000000"), Decimal("0"), product_type="emergency_fund"
     )
@@ -502,7 +502,7 @@ def test_emergency_fund_context_treats_zero_balance_as_empty_fund_not_missing(se
                           monthly_saving_amount=Decimal("0")))
     db.commit()
     # 3개월 중 한 달만 고정지출 → 평균 100000/3 = 33333.33… → 원 단위로 반올림
-    transaction_service.create_transaction(db, user.id, rent.id, "expense", Decimal("100000"), date(2026, 7, 1))
+    transaction_service.create_transaction(db, user_id=user.id, category_id=rent.id, type_="expense", amount=Decimal("100000"), transaction_date=date(2026, 7, 1))
 
     balance, avg_fixed = savings_coaching_service.emergency_fund_context(db, date(2026, 7, 1))
 

@@ -16,8 +16,8 @@ from app.services.growlio_client import GrowlioNotConfiguredError
 
 def test_export_csv_round_trips_through_import(seeded_db):
     db, user, food = seeded_db["db"], seeded_db["user"], seeded_db["food"]
-    transaction_service.create_transaction(db, user.id, food.id, "expense", Decimal("12000"), date(2026, 7, 5), description="점심")
-    transaction_service.create_transaction(db, user.id, food.id, "income", Decimal("3000000"), date(2026, 7, 1), description="월급")
+    transaction_service.create_transaction(db, user_id=user.id, category_id=food.id, type_="expense", amount=Decimal("12000"), transaction_date=date(2026, 7, 5), description="점심")
+    transaction_service.create_transaction(db, user_id=user.id, category_id=food.id, type_="income", amount=Decimal("3000000"), transaction_date=date(2026, 7, 1), description="월급")
 
     transactions = transaction_service.list_transactions(db, date(2026, 7, 1), date(2026, 7, 31))
     csv_text = transaction_import_service.export_csv(transactions)
@@ -110,13 +110,13 @@ def test_account_balance_reflects_initial_balance_plus_transactions(seeded_db):
     account = account_service.create_account(db, "현금", "cash", Decimal("100000"))
 
     transaction_service.create_transaction(
-        db, user.id, food.id, "income", Decimal("50000"), date(2026, 7, 1), account_id=account.id
+        db, user_id=user.id, category_id=food.id, type_="income", amount=Decimal("50000"), transaction_date=date(2026, 7, 1), account_id=account.id
     )
     transaction_service.create_transaction(
-        db, user.id, food.id, "expense", Decimal("20000"), date(2026, 7, 2), account_id=account.id
+        db, user_id=user.id, category_id=food.id, type_="expense", amount=Decimal("20000"), transaction_date=date(2026, 7, 2), account_id=account.id
     )
     # a transaction on a *different* account (or no account) must not affect this balance
-    transaction_service.create_transaction(db, user.id, food.id, "expense", Decimal("999999"), date(2026, 7, 3))
+    transaction_service.create_transaction(db, user_id=user.id, category_id=food.id, type_="expense", amount=Decimal("999999"), transaction_date=date(2026, 7, 3))
 
     balance = account_service.current_balance(db, account)
 
@@ -135,8 +135,8 @@ def test_deactivated_account_excluded_from_active_listing(seeded_db):
 
 def test_yearly_monthly_breakdown_covers_all_twelve_months_in_order(seeded_db):
     db, user, rent = seeded_db["db"], seeded_db["user"], seeded_db["rent"]
-    transaction_service.create_transaction(db, user.id, rent.id, "expense", Decimal("800000"), date(2026, 3, 1))
-    transaction_service.create_transaction(db, user.id, rent.id, "expense", Decimal("800000"), date(2026, 11, 1))
+    transaction_service.create_transaction(db, user_id=user.id, category_id=rent.id, type_="expense", amount=Decimal("800000"), transaction_date=date(2026, 3, 1))
+    transaction_service.create_transaction(db, user_id=user.id, category_id=rent.id, type_="expense", amount=Decimal("800000"), transaction_date=date(2026, 11, 1))
 
     monthly = transaction_trend_service.yearly_monthly_breakdown(db, 2026)
 
@@ -222,9 +222,9 @@ def test_deactivate_account_clears_growlio_link(seeded_db):
 
 def test_yearly_totals_excludes_other_years(seeded_db):
     db, user, rent = seeded_db["db"], seeded_db["user"], seeded_db["rent"]
-    transaction_service.create_transaction(db, user.id, rent.id, "expense", Decimal("800000"), date(2026, 6, 1))
-    transaction_service.create_transaction(db, user.id, rent.id, "expense", Decimal("500000"), date(2025, 12, 31))
-    transaction_service.create_transaction(db, user.id, rent.id, "expense", Decimal("500000"), date(2027, 1, 1))
+    transaction_service.create_transaction(db, user_id=user.id, category_id=rent.id, type_="expense", amount=Decimal("800000"), transaction_date=date(2026, 6, 1))
+    transaction_service.create_transaction(db, user_id=user.id, category_id=rent.id, type_="expense", amount=Decimal("500000"), transaction_date=date(2025, 12, 31))
+    transaction_service.create_transaction(db, user_id=user.id, category_id=rent.id, type_="expense", amount=Decimal("500000"), transaction_date=date(2027, 1, 1))
 
     totals = transaction_trend_service.yearly_totals(db, 2026)
 

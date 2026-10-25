@@ -5,19 +5,9 @@ import pytest
 
 from app.errors import InvalidInputError
 from app.models.category import Category
-from app.services import annual_plan_service, cashflow_plan_service, recurring_service, transaction_service
+from app.services import annual_plan_service, cashflow_plan_service, recurring_service
 from app.utils.dates import year_month_str
-
-
-def _add_tx(db, user, category, type_, amount, tx_date):
-    return transaction_service.create_transaction(
-        db,
-        user_id=user.id,
-        category_id=category.id,
-        type_=type_,
-        amount=Decimal(amount),
-        transaction_date=tx_date,
-    )
+from tests.factories import make_transaction
 
 
 def _income_category(db):
@@ -159,9 +149,9 @@ def test_compute_summary_irregular_actual_when_present(seeded_db):
 
 def test_suggested_totals_is_trailing_average_by_section(seeded_db):
     db, user, food = seeded_db["db"], seeded_db["user"], seeded_db["food"]
-    _add_tx(db, user, food, "expense", "200000", date(2026, 4, 20))
-    _add_tx(db, user, food, "expense", "100000", date(2026, 5, 20))
-    _add_tx(db, user, food, "expense", "300000", date(2026, 6, 20))
+    make_transaction(db, user, food, "200000", date(2026, 4, 20), type_="expense")
+    make_transaction(db, user, food, "100000", date(2026, 5, 20), type_="expense")
+    make_transaction(db, user, food, "300000", date(2026, 6, 20), type_="expense")
 
     suggested = cashflow_plan_service.suggested_totals(db, "2026-07")
 
@@ -191,10 +181,10 @@ def test_actuals_for_month_matches_category_type(seeded_db):
     )
     income_cat = _income_category(db)
     ym = year_month_str(date(2026, 7, 15))
-    _add_tx(db, user, income_cat, "income", "5000000", date(2026, 7, 5))
-    _add_tx(db, user, food, "expense", "300000", date(2026, 7, 10))
-    _add_tx(db, user, rent, "expense", "800000", date(2026, 7, 1))
-    _add_tx(db, user, events, "expense", "150000", date(2026, 7, 12))
+    make_transaction(db, user, income_cat, "5000000", date(2026, 7, 5), type_="income")
+    make_transaction(db, user, food, "300000", date(2026, 7, 10), type_="expense")
+    make_transaction(db, user, rent, "800000", date(2026, 7, 1), type_="expense")
+    make_transaction(db, user, events, "150000", date(2026, 7, 12), type_="expense")
 
     actuals = cashflow_plan_service.actuals_for_month(db, ym)
 
@@ -208,7 +198,7 @@ def test_section_summary_status_fixed_over_budget_is_critical(seeded_db):
     db, user, rent = seeded_db["db"], seeded_db["user"], seeded_db["rent"]
     ym = "2026-07"
     cashflow_plan_service.upsert_item(db, None, "fixed", None, "주거비", Decimal("500000"), 0, ym, user.id)
-    _add_tx(db, user, rent, "expense", "500000", date(2026, 7, 1))
+    make_transaction(db, user, rent, "500000", date(2026, 7, 1), type_="expense")
 
     summary = cashflow_plan_service.compute_summary(
         cashflow_plan_service.list_items(db, ym), {"fixed": Decimal("500000")}
