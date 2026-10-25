@@ -16,8 +16,6 @@ import { pageTitleFor } from "@/constants/nav";
 import { ROUTES } from "@/constants/routes";
 import { TOUCH_TARGET_COMPACT_MOBILE_ONLY, TOUCH_TARGET_MIN } from "@/constants/uiSizes";
 import { formatDate } from "@/utils/format";
-import { extractErrorMessage } from "@/utils/error";
-import { toast } from "@/utils/toast";
 import type { NotificationOut, NotifType } from "@/types";
 // 축하·저축 알림에만 응원 반응을 남길 수 있다 — 예산 경고 등은 축하할 대상이 아니라 반응 UI를 노출하지 않는다.
 import { CHEER_EMOJIS, REACTABLE_NOTIF_TYPES } from "@/utils/cheers";
@@ -55,19 +53,16 @@ export default function Header() {
   const readMutation = useMutation({
     mutationFn: markNotificationRead,
     onSuccess: () => void invalidate(),
-    onError: (err) => toast(extractErrorMessage(err), "error"),
   });
 
   const readAllMutation = useMutation({
     mutationFn: markAllNotificationsRead,
     onSuccess: () => void invalidate(),
-    onError: (err) => toast(extractErrorMessage(err), "error"),
   });
 
   const reactMutation = useMutation({
     mutationFn: reactToNotification,
     onSuccess: () => void invalidate(),
-    onError: (err) => toast(extractErrorMessage(err), "error"),
   });
 
   const unreadCount = data?.unread_count ?? 0;

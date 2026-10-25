@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import Button from "@/components/common/Button";
 import FormInput from "@/components/common/FormInput";
-import { SettingsSectionCard, ToggleRow, onMutationError } from "@/components/settings/shared";
+import { SettingsSectionCard, ToggleRow } from "@/components/settings/shared";
 import { updateMe, updateUser } from "@/api/users";
 import { useMe, useSpouse } from "@/hooks/useReferenceData";
 import { USER_RELATED_KEYS } from "@/constants/queryKeys";
@@ -29,7 +29,6 @@ export default function AccountSection() {
       setDisplayNameEdit(null);
       toast("표시 이름을 저장했습니다.", "success");
     },
-    onError: onMutationError,
   });
 
   const updateSpouseDisplayNameMutation = useMutation({
@@ -39,7 +38,6 @@ export default function AccountSection() {
       setSpouseDisplayNameEdit(null);
       toast("배우자 표시 이름을 저장했습니다.", "success");
     },
-    onError: onMutationError,
   });
 
   return (

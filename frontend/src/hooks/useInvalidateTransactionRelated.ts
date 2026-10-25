@@ -1,34 +1,15 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { createTransaction } from "@/api/transactions";
-import { QUERY_KEYS } from "@/constants/queryKeys";
-import { extractErrorMessage } from "@/utils/error";
-import { toast } from "@/utils/toast";
+import { TRANSACTION_RELATED_KEYS } from "@/constants/queryKeys";
+import { invalidateKeys } from "@/utils/queryClient";
 import type { TransactionOut } from "@/types";
 
 /** Invalidates every cache a transaction create/update/delete/import can affect
- * (transactions list, dashboard, category breakdown, savings products, net worth,
- * account balances and linked-goal progress, which the backend derives from transactions,
- * the yearly report/trend/retrospective views, and the cashflow/annual plan responses
- * whose summary.actual·category_budgets are derived from transactions). Shared by every transaction create/update/delete entry
+ * (TRANSACTION_RELATED_KEYS). Shared by every transaction create/update/delete entry
  * point (list, day modal, import) so they don't drift. */
 export function useInvalidateTransactionRelated() {
   const queryClient = useQueryClient();
-  return () => {
-    void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.transactionsAll });
-    void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.dashboardAll });
-    void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.categoryBreakdownAll });
-    void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.savingsProducts });
-    void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.netWorthAll });
-    void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.dashboardBootstrap });
-    void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.cashflowPlanAll });
-    void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.annualPlanAll });
-    void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.accounts });
-    void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.financialGoals });
-    void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.recentTransactionsAll });
-    void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.yearlyReportAll });
-    void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.categoryTrendAll });
-    void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.monthlyRetrospective });
-  };
+  return () => invalidateKeys(queryClient, TRANSACTION_RELATED_KEYS);
 }
 
 /** 거래 추가 mutation — 대시보드 빠른 추가, 거래내역 페이지, 현금흐름계획 "가계부에 추가"가 공유한다.
@@ -42,6 +23,5 @@ export function useCreateTransaction(onCreated: (created: TransactionOut) => voi
       invalidateAll();
       onCreated(created);
     },
-    onError: (err) => toast(extractErrorMessage(err), "error"),
   });
 }

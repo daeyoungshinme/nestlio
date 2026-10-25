@@ -97,6 +97,7 @@ def _apply_challenge_completion(db: Session, goal: FinancialGoal, now: datetime 
 
 def create_goal(
     db: Session,
+    *,
     priority: int,
     name: str,
     target_age: int | None,

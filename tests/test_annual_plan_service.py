@@ -315,7 +315,7 @@ def test_section_summary_annual_pct_uses_full_year_target_unlike_pct(seeded_db):
         "2026-12",
         monthly_targets=_monthly(jan="500000", mar="9500000"),
     )
-    transaction_service.create_transaction(db, user.id, salary.id, "income", Decimal("2000000"), date(2026, 1, 15))
+    transaction_service.create_transaction(db, user_id=user.id, category_id=salary.id, type_="income", amount=Decimal("2000000"), transaction_date=date(2026, 1, 15))
 
     summary = annual_plan_service.section_summary(db, 2026, "income", today=date(2026, 1, 31), breakdown=_breakdown(db, 2026))
 
@@ -341,10 +341,10 @@ def test_section_summary_income_actual_from_transactions(seeded_db):
         "2026-12",
         monthly_targets=_monthly(jan="3000000", feb="3000000"),
     )
-    transaction_service.create_transaction(db, user.id, salary.id, "income", Decimal("3000000"), date(2026, 1, 15))
-    transaction_service.create_transaction(db, user.id, salary.id, "income", Decimal("3000000"), date(2026, 2, 15))
+    transaction_service.create_transaction(db, user_id=user.id, category_id=salary.id, type_="income", amount=Decimal("3000000"), transaction_date=date(2026, 1, 15))
+    transaction_service.create_transaction(db, user_id=user.id, category_id=salary.id, type_="income", amount=Decimal("3000000"), transaction_date=date(2026, 2, 15))
     # 아직 오지 않은 3월 거래 — today가 2월이므로 집계에 포함되면 안 된다
-    transaction_service.create_transaction(db, user.id, salary.id, "income", Decimal("9000000"), date(2026, 3, 1))
+    transaction_service.create_transaction(db, user_id=user.id, category_id=salary.id, type_="income", amount=Decimal("9000000"), transaction_date=date(2026, 3, 1))
 
     summary = annual_plan_service.section_summary(db, 2026, "income", today=date(2026, 2, 28), breakdown=_breakdown(db, 2026))
 
@@ -360,7 +360,7 @@ def test_section_summary_expense_over_target_is_critical(seeded_db):
     annual_plan_service.upsert_item(
         db, None, 2026, "variable", None, "식비", food.id, 0, user.id, "2026-01", "2026-12", monthly_targets=_monthly(jan="100000")
     )
-    transaction_service.create_transaction(db, user.id, food.id, "expense", Decimal("200000"), date(2026, 1, 10))
+    transaction_service.create_transaction(db, user_id=user.id, category_id=food.id, type_="expense", amount=Decimal("200000"), transaction_date=date(2026, 1, 10))
 
     summary = annual_plan_service.section_summary(db, 2026, "variable", today=date(2026, 1, 31), breakdown=_breakdown(db, 2026))
 
@@ -437,7 +437,7 @@ def test_category_budget_vs_actual_sums_item_targets_by_category(seeded_db):
     annual_plan_service.upsert_item(
         db, None, 2026, "variable", None, "식비2", food.id, 0, user.id, "2026-01", "2026-12", monthly_targets=_monthly(jan="200000")
     )
-    transaction_service.create_transaction(db, user.id, food.id, "expense", Decimal("400000"), date(2026, 1, 10))
+    transaction_service.create_transaction(db, user_id=user.id, category_id=food.id, type_="expense", amount=Decimal("400000"), transaction_date=date(2026, 1, 10))
 
     rows = annual_plan_service.category_budget_vs_actual(db, 2026)
 
@@ -457,7 +457,7 @@ def test_category_budget_vs_actual_over_budget_is_critical(seeded_db):
     annual_plan_service.upsert_item(
         db, None, 2026, "variable", None, "식비", food.id, 0, user.id, "2026-01", "2026-12", monthly_targets=_monthly(jan="100000")
     )
-    transaction_service.create_transaction(db, user.id, food.id, "expense", Decimal("200000"), date(2026, 1, 10))
+    transaction_service.create_transaction(db, user_id=user.id, category_id=food.id, type_="expense", amount=Decimal("200000"), transaction_date=date(2026, 1, 10))
 
     rows = annual_plan_service.category_budget_vs_actual(db, 2026)
 
@@ -475,7 +475,7 @@ def test_category_budget_status_matches_monthly_under_household_threshold_overri
         db, None, 2026, "variable", None, "식비", food.id, 0, user.id, "2026-01", "2026-12", monthly_targets=_monthly(jan="100000")
     )
     # 실적 80000 → pct 80%. env 기본값(warn 90)이면 ok, 가구가 warn=70으로 낮추면 warn.
-    transaction_service.create_transaction(db, user.id, food.id, "expense", Decimal("80000"), date(2026, 1, 10))
+    transaction_service.create_transaction(db, user_id=user.id, category_id=food.id, type_="expense", amount=Decimal("80000"), transaction_date=date(2026, 1, 10))
     coaching_settings_service.set_thresholds(db, {"budget_warn_pct": 70.0, "budget_critical_pct": 100.0}, user.id)
     thresholds = coaching_settings_service.get_thresholds(db)
     warn, crit = thresholds["budget_warn_pct"], thresholds["budget_critical_pct"]
@@ -539,7 +539,7 @@ def test_seed_year_from_recurring_links_monthly_items_and_skips_savings(seeded_d
 def test_seed_year_from_recent_average_uses_trailing_three_months(seeded_db):
     db, user, food = seeded_db["db"], seeded_db["user"], seeded_db["food"]
     for month, amount in ((9, "300000"), (10, "330000"), (11, "360000")):
-        transaction_service.create_transaction(db, user.id, food.id, "expense", Decimal(amount), date(2026, month, 5))
+        transaction_service.create_transaction(db, user_id=user.id, category_id=food.id, type_="expense", amount=Decimal(amount), transaction_date=date(2026, month, 5))
 
     created = annual_plan_service.seed_year(db, 2027, "recent_average", user.id, date(2026, 12, 20))
 

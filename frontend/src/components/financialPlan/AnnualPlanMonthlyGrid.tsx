@@ -2,7 +2,7 @@ import { useId, useState } from "react";
 import { Copy } from "lucide-react";
 import Button from "@/components/common/Button";
 import { FORM_LABEL, INPUT_SM } from "@/constants/inputStyles";
-import { TOUCH_TARGET_COMPACT_MOBILE_ONLY } from "@/constants/uiSizes";
+import { TOUCH_TARGET_MIN_MOBILE_ONLY } from "@/constants/uiSizes";
 import { useMonthlyTargetGrid } from "@/hooks/useMonthlyTargetGrid";
 import { amountInputPreview, formatKrw, formatKrwCompact, formatMonthOnly } from "@/utils/format";
 import type { AnnualPlanItemMonthlyTargetIn } from "@/types";
@@ -92,7 +92,7 @@ export default function AnnualPlanMonthlyGrid({ startMonth, endMonth, targets, o
                   disabled={Number(amount) <= 0}
                   aria-label={`${formatMonthOnly(ym)} 금액을 이후 달에 적용`}
                   title="이 금액을 이후 달에 적용"
-                  className={`${TOUCH_TARGET_COMPACT_MOBILE_ONLY} shrink-0 -mr-1 text-gray-400 hover:text-primary-600 rounded-lg transition-colors disabled:opacity-30 disabled:hover:text-gray-400`}
+                  className={`${TOUCH_TARGET_MIN_MOBILE_ONLY} -my-2 -mr-2 shrink-0 text-gray-500 hover:text-primary-600 rounded-lg transition-colors disabled:opacity-30 disabled:hover:text-gray-400`}
                 >
                   <Copy size={13} aria-hidden="true" />
                 </button>

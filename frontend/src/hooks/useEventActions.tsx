@@ -7,7 +7,6 @@ import EventForm, { emptyEventFormValues, eventToFormValues } from "@/components
 import { completeEvent, createEvent, deleteEvent, updateEvent } from "@/api/events";
 import { useCrudMutations } from "@/hooks/useCrudMutations";
 import { QUERY_KEYS } from "@/constants/queryKeys";
-import { extractErrorMessage } from "@/utils/error";
 import { toast } from "@/utils/toast";
 import type { EventOut, UserOut } from "@/types";
 
@@ -57,13 +56,11 @@ export function useEventActions({
       setDeleteTarget(null);
       toast("일정을 삭제했습니다.", "success");
     },
-    onError: (err) => toast(extractErrorMessage(err), "error"),
   });
 
   const completeMutation = useMutation({
     mutationFn: ({ id, completed }: { id: number; completed: boolean }) => completeEvent(id, completed),
     onSuccess: invalidateEvents,
-    onError: (err) => toast(extractErrorMessage(err), "error"),
   });
 
   const renderForm = (target: "new" | EventOut, dateHint: string) => (

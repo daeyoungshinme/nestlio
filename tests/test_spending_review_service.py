@@ -20,6 +20,7 @@ from app.services.spending_review_service import (
     unregistered_recurring_opportunities,
 )
 from app.utils.money import monthly_equivalent
+from tests.factories import make_transaction
 
 D = Decimal
 FOOD = CategoryMeta(1, "식비", "variable", benchmark_group="food")
@@ -225,17 +226,13 @@ def test_merge_items_counted_with_max_against_category_rule():
 # --- build_spending_review (DB) ---------------------------------------------------------------
 
 
-def _expense(db, user, cat, amount, d, **kw):
-    return transaction_service.create_transaction(db, user.id, cat.id, "expense", D(amount), d, **kw)
-
-
 def test_build_spending_review_defaults_to_last_month_and_flags_trend(seeded_db):
     db, user, food, salary = seeded_db["db"], seeded_db["user"], seeded_db["food"], seeded_db["salary"]
     for month in (4, 5, 6, 7, 8):
-        _expense(db, user, food, "100000", date(2026, month, 10))
-        transaction_service.create_transaction(db, user.id, salary.id, "income", D("3000000"), date(2026, month, 1))
-    _expense(db, user, food, "180000", date(2026, 9, 10))
-    _expense(db, user, food, "999999", date(2026, 10, 3))  # 진행 중인 달은 기본 기준월이 아니다
+        make_transaction(db, user, food, "100000", date(2026, month, 10))
+        transaction_service.create_transaction(db, user_id=user.id, category_id=salary.id, type_="income", amount=D("3000000"), transaction_date=date(2026, month, 1))
+    make_transaction(db, user, food, "180000", date(2026, 9, 10))
+    make_transaction(db, user, food, "999999", date(2026, 10, 3))  # 진행 중인 달은 기본 기준월이 아니다
 
     review = spending_review_service.build_spending_review(db, today=date(2026, 10, 15))
 
@@ -270,7 +267,7 @@ def test_build_spending_review_chronic_overrun_uses_plan_budget(seeded_db):
         cashflow_plan_service.upsert_item(
             db, None, "variable", None, "외식", D("100000"), 0, ym, user.id, category_id=food.id
         )
-        _expense(db, user, food, "130000", date(2026, month, 10))
+        make_transaction(db, user, food, "130000", date(2026, month, 10))
 
     review = spending_review_service.build_spending_review(db, "2026-09", today=date(2026, 10, 15))
 
@@ -287,8 +284,8 @@ def test_build_excludes_insurance_from_benchmark_excess(seeded_db):
     db.add(insurance)
     db.commit()
     for month in (7, 8, 9):
-        transaction_service.create_transaction(db, user.id, salary.id, "income", D("1000000"), date(2026, month, 1))
-        _expense(db, user, insurance, "500000", date(2026, month, 5))
+        transaction_service.create_transaction(db, user_id=user.id, category_id=salary.id, type_="income", amount=D("1000000"), transaction_date=date(2026, month, 1))
+        make_transaction(db, user, insurance, "500000", date(2026, month, 5))
 
     review = spending_review_service.build_spending_review(db, "2026-09", today=date(2026, 10, 15))
 
@@ -304,9 +301,9 @@ def test_build_flags_small_frequent_and_unregistered_recurring(seeded_db):
     db.add_all([cafe, subs])
     db.commit()
     for day in range(1, 9):  # 8회 × 5,000원
-        _expense(db, user, cafe, "5000", date(2026, 9, day))
+        make_transaction(db, user, cafe, "5000", date(2026, 9, day))
     for month in (7, 8, 9):
-        _expense(db, user, subs, "10900", date(2026, month, 20), description="유튜브 프리미엄")
+        make_transaction(db, user, subs, "10900", date(2026, month, 20), description="유튜브 프리미엄")
 
     review = spending_review_service.build_spending_review(db, "2026-09", today=date(2026, 10, 15))
 
