@@ -1,4 +1,4 @@
-import { formatKrw } from "@/utils/format";
+import { formatKrw, formatKrwCompact } from "@/utils/format";
 import { amountToneClass } from "@/utils/colors";
 
 interface Props {
@@ -25,15 +25,16 @@ export default function PlanBalanceSummary({ income, expense, savingsPlanned, pe
         {formatKrw(available)}
       </p>
       <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-        수입 {formatKrw(income)} · 지출 {formatKrw(expense)}
+        수입 {formatKrwCompact(income)} · 지출 {formatKrwCompact(expense)}
       </p>
       {savingsPlanned !== null && unallocated !== null && (
         <p
           className={`mt-2 text-sm font-medium ${amountToneClass(unallocated < 0 ? "negative" : "positive")}`}
         >
-          저축·투자 계획 {formatKrw(savingsPlanned)}
-          {unallocated > 0 && ` · ${formatKrw(unallocated)}은 아직 배정 전이에요`}
-          {unallocated < 0 && ` · 저축 가능액보다 ${formatKrw(-unallocated)} 많아요`}
+          {/* 보조 숫자는 축약 — 전체 금액 3개가 한 문장에 들어가 360px에서 2~3줄로 감겼다. */}
+          저축·투자 계획 {formatKrwCompact(savingsPlanned)}
+          {unallocated > 0 && ` · ${formatKrwCompact(unallocated)} 미배정`}
+          {unallocated < 0 && ` · ${formatKrwCompact(-unallocated)} 초과`}
         </p>
       )}
     </div>

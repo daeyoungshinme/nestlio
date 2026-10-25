@@ -10,12 +10,14 @@ interface Props {
    * 항목 행의 카테고리 dot+이름을 생략한다 (기본값 true, "카테고리 미연결" 경고는 그룹 여부와
    * 무관하게 항상 표시). */
   showCategory?: boolean;
+  /** 섹션에 개인 소유 항목이 하나도 없으면(전부 공통) 행마다 "공통"을 찍지 않는다. */
+  showOwner?: boolean;
   onEdit: () => void;
   onDelete: () => void;
 }
 
 /** CashflowPlanItemRow의 연간 버전 — 할부/반복거래 연동 배지는 연간 항목에 해당 개념이 없어 뺐다. */
-export default function AnnualPlanItemRow({ item, users, showCategory = true, onEdit, onDelete }: Props) {
+export default function AnnualPlanItemRow({ item, users, showCategory = true, showOwner = true, onEdit, onDelete }: Props) {
   const ownerLabel = resolveOwnerLabel(item.owner_user_id, users);
 
   return (
@@ -40,15 +42,13 @@ export default function AnnualPlanItemRow({ item, users, showCategory = true, on
           )
         ) : (
           item.section !== "income" && (
-            <span className={`block mt-0.5 text-xs ${cautionTextClass()}`}>
-              카테고리 미연결 — 카테고리별 연간 실적과 비교되지 않아요
-            </span>
+            <span className={`block mt-0.5 text-xs ${cautionTextClass()}`}>카테고리 미연결</span>
           )
         )}
-        <span className="block text-xs text-gray-500 dark:text-gray-400 mt-0.5">{ownerLabel}</span>
+        {showOwner && <span className="block text-xs text-gray-500 dark:text-gray-400 mt-0.5">{ownerLabel}</span>}
       </button>
       <div className="flex items-center gap-1 shrink-0">
-        <span className="text-sm font-semibold text-gray-700 dark:text-gray-300">{formatKrw(item.annual_target)}</span>
+        <span className="text-sm font-semibold tabular-nums whitespace-nowrap text-gray-700 dark:text-gray-300">{formatKrw(item.annual_target)}</span>
         <div className="hidden sm:flex items-center gap-1">
           <RowActionButtons onEdit={onEdit} onDelete={onDelete} />
         </div>
