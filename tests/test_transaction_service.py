@@ -22,9 +22,9 @@ from app.services import (
 def test_period_totals_splits_fixed_and_variable(seeded_db):
     db, user, food, rent = seeded_db["db"], seeded_db["user"], seeded_db["food"], seeded_db["rent"]
 
-    transaction_service.create_transaction(db, user.id, rent.id, "expense", Decimal("800000"), date(2026, 7, 1))
-    transaction_service.create_transaction(db, user.id, food.id, "expense", Decimal("50000"), date(2026, 7, 10))
-    transaction_service.create_transaction(db, user.id, food.id, "income", Decimal("3000000"), date(2026, 7, 25))
+    transaction_service.create_transaction(db, user_id=user.id, category_id=rent.id, type_="expense", amount=Decimal("800000"), transaction_date=date(2026, 7, 1))
+    transaction_service.create_transaction(db, user_id=user.id, category_id=food.id, type_="expense", amount=Decimal("50000"), transaction_date=date(2026, 7, 10))
+    transaction_service.create_transaction(db, user_id=user.id, category_id=food.id, type_="income", amount=Decimal("3000000"), transaction_date=date(2026, 7, 25))
 
     totals = transaction_report_service.period_totals(db, date(2026, 7, 1), date(2026, 7, 31))
 
@@ -39,8 +39,8 @@ def test_period_totals_splits_fixed_and_variable(seeded_db):
 def test_period_totals_splits_irregular_separately(seeded_db):
     db, user, rent, events = seeded_db["db"], seeded_db["user"], seeded_db["rent"], seeded_db["events"]
 
-    transaction_service.create_transaction(db, user.id, rent.id, "expense", Decimal("800000"), date(2026, 7, 1))
-    transaction_service.create_transaction(db, user.id, events.id, "expense", Decimal("150000"), date(2026, 7, 12))
+    transaction_service.create_transaction(db, user_id=user.id, category_id=rent.id, type_="expense", amount=Decimal("800000"), transaction_date=date(2026, 7, 1))
+    transaction_service.create_transaction(db, user_id=user.id, category_id=events.id, type_="expense", amount=Decimal("150000"), transaction_date=date(2026, 7, 12))
 
     totals = transaction_report_service.period_totals(db, date(2026, 7, 1), date(2026, 7, 31))
 
@@ -53,9 +53,9 @@ def test_period_totals_splits_irregular_separately(seeded_db):
 def test_period_totals_excludes_out_of_range_transactions(seeded_db):
     db, user, food = seeded_db["db"], seeded_db["user"], seeded_db["food"]
 
-    transaction_service.create_transaction(db, user.id, food.id, "expense", Decimal("10000"), date(2026, 6, 30))
-    transaction_service.create_transaction(db, user.id, food.id, "expense", Decimal("20000"), date(2026, 7, 15))
-    transaction_service.create_transaction(db, user.id, food.id, "expense", Decimal("30000"), date(2026, 8, 1))
+    transaction_service.create_transaction(db, user_id=user.id, category_id=food.id, type_="expense", amount=Decimal("10000"), transaction_date=date(2026, 6, 30))
+    transaction_service.create_transaction(db, user_id=user.id, category_id=food.id, type_="expense", amount=Decimal("20000"), transaction_date=date(2026, 7, 15))
+    transaction_service.create_transaction(db, user_id=user.id, category_id=food.id, type_="expense", amount=Decimal("30000"), transaction_date=date(2026, 8, 1))
 
     totals = transaction_report_service.period_totals(db, date(2026, 7, 1), date(2026, 7, 31))
 
@@ -64,7 +64,7 @@ def test_period_totals_excludes_out_of_range_transactions(seeded_db):
 
 def test_monthly_trend_orders_oldest_first(seeded_db):
     db, user, food = seeded_db["db"], seeded_db["user"], seeded_db["food"]
-    transaction_service.create_transaction(db, user.id, food.id, "expense", Decimal("10000"), date(2026, 7, 15))
+    transaction_service.create_transaction(db, user_id=user.id, category_id=food.id, type_="expense", amount=Decimal("10000"), transaction_date=date(2026, 7, 15))
 
     trend = transaction_trend_service.monthly_trend(db, months=3, anchor=date(2026, 7, 20))
 
@@ -75,8 +75,8 @@ def test_monthly_trend_orders_oldest_first(seeded_db):
 
 def test_category_monthly_trend_orders_oldest_first_and_fills_gaps(seeded_db):
     db, user, food, rent = seeded_db["db"], seeded_db["user"], seeded_db["food"], seeded_db["rent"]
-    transaction_service.create_transaction(db, user.id, food.id, "expense", Decimal("50000"), date(2026, 6, 10))
-    transaction_service.create_transaction(db, user.id, rent.id, "expense", Decimal("800000"), date(2026, 7, 1))
+    transaction_service.create_transaction(db, user_id=user.id, category_id=food.id, type_="expense", amount=Decimal("50000"), transaction_date=date(2026, 6, 10))
+    transaction_service.create_transaction(db, user_id=user.id, category_id=rent.id, type_="expense", amount=Decimal("800000"), transaction_date=date(2026, 7, 1))
 
     trend = transaction_trend_service.category_monthly_trend(db, months=3, anchor=date(2026, 7, 20))
 
@@ -94,9 +94,9 @@ def test_category_monthly_trend_folds_extra_categories_into_other(seeded_db):
         seeded_db["rent"],
         seeded_db["events"],
     )
-    transaction_service.create_transaction(db, user.id, food.id, "expense", Decimal("300000"), date(2026, 7, 1))
-    transaction_service.create_transaction(db, user.id, rent.id, "expense", Decimal("200000"), date(2026, 7, 1))
-    transaction_service.create_transaction(db, user.id, events.id, "expense", Decimal("100000"), date(2026, 7, 1))
+    transaction_service.create_transaction(db, user_id=user.id, category_id=food.id, type_="expense", amount=Decimal("300000"), transaction_date=date(2026, 7, 1))
+    transaction_service.create_transaction(db, user_id=user.id, category_id=rent.id, type_="expense", amount=Decimal("200000"), transaction_date=date(2026, 7, 1))
+    transaction_service.create_transaction(db, user_id=user.id, category_id=events.id, type_="expense", amount=Decimal("100000"), transaction_date=date(2026, 7, 1))
 
     trend = transaction_trend_service.category_monthly_trend(db, months=1, anchor=date(2026, 7, 1), top_n=2)
 
@@ -128,11 +128,11 @@ def test_create_transaction_with_savings_product_link_increments_balance(seeded_
 
     transaction_service.create_transaction(
         db,
-        user.id,
-        savings_category.id,
-        "expense",
-        Decimal("50000"),
-        date(2026, 7, 1),
+        user_id=user.id,
+        category_id=savings_category.id,
+        type_="expense",
+        amount=Decimal("50000"),
+        transaction_date=date(2026, 7, 1),
         savings_product_id=product.id,
     )
 
@@ -146,7 +146,7 @@ def test_create_transaction_savings_link_rejects_non_savings_category(seeded_db)
 
     with pytest.raises(transaction_service.InvalidSavingsLinkError):
         transaction_service.create_transaction(
-            db, user.id, food.id, "expense", Decimal("10000"), date(2026, 7, 1), savings_product_id=product.id
+            db, user_id=user.id, category_id=food.id, type_="expense", amount=Decimal("10000"), transaction_date=date(2026, 7, 1), savings_product_id=product.id
         )
 
 
@@ -157,11 +157,11 @@ def test_create_transaction_savings_link_rejects_income_type(seeded_db):
     with pytest.raises(transaction_service.InvalidSavingsLinkError):
         transaction_service.create_transaction(
             db,
-            user.id,
-            savings_category.id,
-            "income",
-            Decimal("10000"),
-            date(2026, 7, 1),
+            user_id=user.id,
+            category_id=savings_category.id,
+            type_="income",
+            amount=Decimal("10000"),
+            transaction_date=date(2026, 7, 1),
             savings_product_id=product.id,
         )
 
@@ -171,11 +171,11 @@ def test_update_transaction_savings_link_amount_change_adjusts_balance(seeded_db
     savings_category, product = _add_savings_category_and_product(db)
     tx = transaction_service.create_transaction(
         db,
-        user.id,
-        savings_category.id,
-        "expense",
-        Decimal("50000"),
-        date(2026, 7, 1),
+        user_id=user.id,
+        category_id=savings_category.id,
+        type_="expense",
+        amount=Decimal("50000"),
+        transaction_date=date(2026, 7, 1),
         savings_product_id=product.id,
     )
 
@@ -201,11 +201,11 @@ def test_update_transaction_removing_savings_link_reverts_balance(seeded_db):
     savings_category, product = _add_savings_category_and_product(db)
     tx = transaction_service.create_transaction(
         db,
-        user.id,
-        savings_category.id,
-        "expense",
-        Decimal("50000"),
-        date(2026, 7, 1),
+        user_id=user.id,
+        category_id=savings_category.id,
+        type_="expense",
+        amount=Decimal("50000"),
+        transaction_date=date(2026, 7, 1),
         savings_product_id=product.id,
     )
 
@@ -231,11 +231,11 @@ def test_delete_transaction_with_savings_link_reverts_balance(seeded_db):
     savings_category, product = _add_savings_category_and_product(db)
     tx = transaction_service.create_transaction(
         db,
-        user.id,
-        savings_category.id,
-        "expense",
-        Decimal("50000"),
-        date(2026, 7, 1),
+        user_id=user.id,
+        category_id=savings_category.id,
+        type_="expense",
+        amount=Decimal("50000"),
+        transaction_date=date(2026, 7, 1),
         savings_product_id=product.id,
     )
 
@@ -248,14 +248,14 @@ def test_delete_transaction_with_savings_link_reverts_balance(seeded_db):
 def test_period_totals_excludes_savings_linked_transactions(seeded_db):
     db, user, food = seeded_db["db"], seeded_db["user"], seeded_db["food"]
     savings_category, product = _add_savings_category_and_product(db)
-    transaction_service.create_transaction(db, user.id, food.id, "expense", Decimal("50000"), date(2026, 7, 10))
+    transaction_service.create_transaction(db, user_id=user.id, category_id=food.id, type_="expense", amount=Decimal("50000"), transaction_date=date(2026, 7, 10))
     transaction_service.create_transaction(
         db,
-        user.id,
-        savings_category.id,
-        "expense",
-        Decimal("300000"),
-        date(2026, 7, 1),
+        user_id=user.id,
+        category_id=savings_category.id,
+        type_="expense",
+        amount=Decimal("300000"),
+        transaction_date=date(2026, 7, 1),
         savings_product_id=product.id,
     )
 
@@ -270,11 +270,11 @@ def test_category_breakdown_excludes_savings_linked_transactions(seeded_db):
     savings_category, product = _add_savings_category_and_product(db)
     transaction_service.create_transaction(
         db,
-        user.id,
-        savings_category.id,
-        "expense",
-        Decimal("300000"),
-        date(2026, 7, 1),
+        user_id=user.id,
+        category_id=savings_category.id,
+        type_="expense",
+        amount=Decimal("300000"),
+        transaction_date=date(2026, 7, 1),
         savings_product_id=product.id,
     )
 
@@ -290,8 +290,8 @@ def test_category_breakdown_filters_by_user(seeded_db):
     db.commit()
     db.refresh(spouse2)
 
-    transaction_service.create_transaction(db, user.id, food.id, "expense", Decimal("50000"), date(2026, 7, 5))
-    transaction_service.create_transaction(db, spouse2.id, rent.id, "expense", Decimal("800000"), date(2026, 7, 1))
+    transaction_service.create_transaction(db, user_id=user.id, category_id=food.id, type_="expense", amount=Decimal("50000"), transaction_date=date(2026, 7, 5))
+    transaction_service.create_transaction(db, user_id=spouse2.id, category_id=rent.id, type_="expense", amount=Decimal("800000"), transaction_date=date(2026, 7, 1))
 
     breakdown = transaction_report_service.category_breakdown(db, date(2026, 7, 1), date(2026, 7, 31), "expense", user.id)
 
@@ -310,13 +310,13 @@ def test_totals_by_owner_splits_per_spouse_and_shared(seeded_db):
     # recorded by user, but owned by spouse2 - totals_by_owner must follow owner_user_id, not
     # who recorded it (that's Transaction.user_id, the wrong axis for this).
     transaction_service.create_transaction(
-        db, user.id, food.id, "expense", Decimal("30000"), date(2026, 7, 6), owner_user_id=spouse2.id
+        db, user_id=user.id, category_id=food.id, type_="expense", amount=Decimal("30000"), transaction_date=date(2026, 7, 6), owner_user_id=spouse2.id
     )
     transaction_service.create_transaction(
-        db, user.id, rent.id, "income", Decimal("2000000"), date(2026, 7, 1), owner_user_id=user.id
+        db, user_id=user.id, category_id=rent.id, type_="income", amount=Decimal("2000000"), transaction_date=date(2026, 7, 1), owner_user_id=user.id
     )
     # no owner_user_id -> shared ("공통")
-    transaction_service.create_transaction(db, user.id, food.id, "expense", Decimal("100000"), date(2026, 7, 10))
+    transaction_service.create_transaction(db, user_id=user.id, category_id=food.id, type_="expense", amount=Decimal("100000"), transaction_date=date(2026, 7, 10))
 
     by_owner = transaction_report_service.totals_by_owner(db, date(2026, 7, 1), date(2026, 7, 31))
 
@@ -346,11 +346,11 @@ def test_totals_by_owner_tracks_savings_investment_separately_from_expense(seede
     savings_category, product = _add_savings_category_and_product(db)
     transaction_service.create_transaction(
         db,
-        user.id,
-        savings_category.id,
-        "expense",
-        Decimal("300000"),
-        date(2026, 7, 1),
+        user_id=user.id,
+        category_id=savings_category.id,
+        type_="expense",
+        amount=Decimal("300000"),
+        transaction_date=date(2026, 7, 1),
         savings_product_id=product.id,
         owner_user_id=user.id,
     )
@@ -371,12 +371,12 @@ def test_category_breakdown_by_owner_splits_per_spouse_and_shared(seeded_db):
     db.refresh(spouse2)
 
     transaction_service.create_transaction(
-        db, user.id, food.id, "expense", Decimal("30000"), date(2026, 7, 6), owner_user_id=spouse2.id
+        db, user_id=user.id, category_id=food.id, type_="expense", amount=Decimal("30000"), transaction_date=date(2026, 7, 6), owner_user_id=spouse2.id
     )
     transaction_service.create_transaction(
-        db, user.id, rent.id, "expense", Decimal("800000"), date(2026, 7, 1), owner_user_id=user.id
+        db, user_id=user.id, category_id=rent.id, type_="expense", amount=Decimal("800000"), transaction_date=date(2026, 7, 1), owner_user_id=user.id
     )
-    transaction_service.create_transaction(db, user.id, food.id, "expense", Decimal("100000"), date(2026, 7, 10))
+    transaction_service.create_transaction(db, user_id=user.id, category_id=food.id, type_="expense", amount=Decimal("100000"), transaction_date=date(2026, 7, 10))
 
     spouse2_breakdown = transaction_report_service.category_breakdown_by_owner(
         db, date(2026, 7, 1), date(2026, 7, 31), "expense", spouse2.id
@@ -443,15 +443,15 @@ def test_owner_spending_detail_batches_across_owners(seeded_db):
     # spouse2: 최근 3개월(4~6월) 식비 평균 10,000원, 이번 달(7월)은 40,000원 -> 초과 하이라이트
     for month in (4, 5, 6):
         transaction_service.create_transaction(
-            db, user.id, food.id, "expense", Decimal("10000"), date(2026, month, 5), owner_user_id=spouse2.id
+            db, user_id=user.id, category_id=food.id, type_="expense", amount=Decimal("10000"), transaction_date=date(2026, month, 5), owner_user_id=spouse2.id
         )
     transaction_service.create_transaction(
-        db, user.id, food.id, "expense", Decimal("40000"), date(2026, 7, 10), owner_user_id=spouse2.id
+        db, user_id=user.id, category_id=food.id, type_="expense", amount=Decimal("40000"), transaction_date=date(2026, 7, 10), owner_user_id=spouse2.id
     )
     # spouse1(user): 매달 동일 금액 -> 평균과 같아 하이라이트 없음
     for month in (4, 5, 6, 7):
         transaction_service.create_transaction(
-            db, user.id, food.id, "expense", Decimal("20000"), date(2026, month, 15), owner_user_id=user.id
+            db, user_id=user.id, category_id=food.id, type_="expense", amount=Decimal("20000"), transaction_date=date(2026, month, 15), owner_user_id=user.id
         )
 
     owner_totals = transaction_report_service.totals_by_owner(db, date(2026, 7, 1), date(2026, 7, 31))
@@ -484,10 +484,10 @@ def test_top_overspend_categories_only_returns_categories_above_average():
 def test_frequent_unique_transactions_dedupes_same_combo_keeping_latest(seeded_db):
     db, user, food = seeded_db["db"], seeded_db["user"], seeded_db["food"]
     transaction_service.create_transaction(
-        db, user.id, food.id, "expense", Decimal("4500"), date(2026, 7, 1), description="커피"
+        db, user_id=user.id, category_id=food.id, type_="expense", amount=Decimal("4500"), transaction_date=date(2026, 7, 1), description="커피"
     )
     latest = transaction_service.create_transaction(
-        db, user.id, food.id, "expense", Decimal("4500"), date(2026, 7, 10), description="커피"
+        db, user_id=user.id, category_id=food.id, type_="expense", amount=Decimal("4500"), transaction_date=date(2026, 7, 10), description="커피"
     )
 
     recent = transaction_service.frequent_unique_transactions(db, "expense", today=date(2026, 7, 15))
@@ -499,15 +499,15 @@ def test_frequent_unique_transactions_dedupes_same_combo_keeping_latest(seeded_d
 def test_frequent_unique_transactions_filters_by_type_and_is_savings(seeded_db):
     db, user, food = seeded_db["db"], seeded_db["user"], seeded_db["food"]
     savings_category, product = _add_savings_category_and_product(db)
-    transaction_service.create_transaction(db, user.id, food.id, "expense", Decimal("10000"), date(2026, 7, 1))
-    transaction_service.create_transaction(db, user.id, food.id, "income", Decimal("3000000"), date(2026, 7, 2))
+    transaction_service.create_transaction(db, user_id=user.id, category_id=food.id, type_="expense", amount=Decimal("10000"), transaction_date=date(2026, 7, 1))
+    transaction_service.create_transaction(db, user_id=user.id, category_id=food.id, type_="income", amount=Decimal("3000000"), transaction_date=date(2026, 7, 2))
     transaction_service.create_transaction(
         db,
-        user.id,
-        savings_category.id,
-        "expense",
-        Decimal("300000"),
-        date(2026, 7, 3),
+        user_id=user.id,
+        category_id=savings_category.id,
+        type_="expense",
+        amount=Decimal("300000"),
+        transaction_date=date(2026, 7, 3),
         savings_product_id=product.id,
     )
 
@@ -525,7 +525,7 @@ def test_frequent_unique_transactions_respects_limit_and_recency_tiebreak(seeded
     db, user, food = seeded_db["db"], seeded_db["user"], seeded_db["food"]
     for day, amount in enumerate([1000, 2000, 3000], start=1):
         transaction_service.create_transaction(
-            db, user.id, food.id, "expense", Decimal(amount), date(2026, 7, day), description=f"item-{amount}"
+            db, user_id=user.id, category_id=food.id, type_="expense", amount=Decimal(amount), transaction_date=date(2026, 7, day), description=f"item-{amount}"
         )
 
     recent = transaction_service.frequent_unique_transactions(db, "expense", today=date(2026, 7, 15), limit=2)
@@ -539,10 +539,10 @@ def test_frequent_unique_transactions_ranks_by_registration_count_over_recency(s
     db, user, food = seeded_db["db"], seeded_db["user"], seeded_db["food"]
     for day in (1, 5, 10):
         transaction_service.create_transaction(
-            db, user.id, food.id, "expense", Decimal("4500"), date(2026, 7, day), description="커피"
+            db, user_id=user.id, category_id=food.id, type_="expense", amount=Decimal("4500"), transaction_date=date(2026, 7, day), description="커피"
         )
     transaction_service.create_transaction(
-        db, user.id, food.id, "expense", Decimal("9000"), date(2026, 7, 12), description="장보기"
+        db, user_id=user.id, category_id=food.id, type_="expense", amount=Decimal("9000"), transaction_date=date(2026, 7, 12), description="장보기"
     )
 
     ranked = transaction_service.frequent_unique_transactions(db, "expense", today=date(2026, 7, 15))
@@ -553,7 +553,7 @@ def test_frequent_unique_transactions_ranks_by_registration_count_over_recency(s
 def test_frequent_unique_transactions_ignores_entries_outside_since_days_window(seeded_db):
     db, user, food = seeded_db["db"], seeded_db["user"], seeded_db["food"]
     transaction_service.create_transaction(
-        db, user.id, food.id, "expense", Decimal("4500"), date(2026, 1, 1), description="옛날 커피"
+        db, user_id=user.id, category_id=food.id, type_="expense", amount=Decimal("4500"), transaction_date=date(2026, 1, 1), description="옛날 커피"
     )
 
     ranked = transaction_service.frequent_unique_transactions(
@@ -571,11 +571,11 @@ def test_trailing_average_by_section_averages_months_before_anchor(seeded_db):
         seeded_db["food"],
         seeded_db["rent"],
     )
-    transaction_service.create_transaction(db, user.id, salary.id, "income", Decimal("3000000"), date(2026, 5, 15))
-    transaction_service.create_transaction(db, user.id, food.id, "expense", Decimal("100000"), date(2026, 5, 20))
-    transaction_service.create_transaction(db, user.id, rent.id, "expense", Decimal("800000"), date(2026, 6, 1))
+    transaction_service.create_transaction(db, user_id=user.id, category_id=salary.id, type_="income", amount=Decimal("3000000"), transaction_date=date(2026, 5, 15))
+    transaction_service.create_transaction(db, user_id=user.id, category_id=food.id, type_="expense", amount=Decimal("100000"), transaction_date=date(2026, 5, 20))
+    transaction_service.create_transaction(db, user_id=user.id, category_id=rent.id, type_="expense", amount=Decimal("800000"), transaction_date=date(2026, 6, 1))
     # anchor 월(7월) 거래는 평균 계산에서 제외돼야 한다
-    transaction_service.create_transaction(db, user.id, salary.id, "income", Decimal("9000000"), date(2026, 7, 1))
+    transaction_service.create_transaction(db, user_id=user.id, category_id=salary.id, type_="income", amount=Decimal("9000000"), transaction_date=date(2026, 7, 1))
 
     avg = transaction_trend_service.trailing_average_by_section(db, anchor=date(2026, 7, 15), months=2)
 
@@ -592,11 +592,11 @@ def test_create_transaction_pushes_deposit_to_linked_growlio_account(seeded_db):
     with patch.object(growlio_client, "push_transaction") as mock_push:
         tx = transaction_service.create_transaction(
             db,
-            user.id,
-            savings_category.id,
-            "expense",
-            Decimal("50000"),
-            date(2026, 7, 1),
+            user_id=user.id,
+            category_id=savings_category.id,
+            type_="expense",
+            amount=Decimal("50000"),
+            transaction_date=date(2026, 7, 1),
             savings_product_id=product.id,
             bearer_token="token-abc",
         )
@@ -612,11 +612,11 @@ def test_create_transaction_without_bearer_token_skips_growlio_push(seeded_db):
     with patch.object(growlio_client, "push_transaction") as mock_push:
         transaction_service.create_transaction(
             db,
-            user.id,
-            savings_category.id,
-            "expense",
-            Decimal("50000"),
-            date(2026, 7, 1),
+            user_id=user.id,
+            category_id=savings_category.id,
+            type_="expense",
+            amount=Decimal("50000"),
+            transaction_date=date(2026, 7, 1),
             savings_product_id=product.id,
         )
 
@@ -630,11 +630,11 @@ def test_create_transaction_savings_product_without_growlio_link_skips_push(seed
     with patch.object(growlio_client, "push_transaction") as mock_push:
         transaction_service.create_transaction(
             db,
-            user.id,
-            savings_category.id,
-            "expense",
-            Decimal("50000"),
-            date(2026, 7, 1),
+            user_id=user.id,
+            category_id=savings_category.id,
+            type_="expense",
+            amount=Decimal("50000"),
+            transaction_date=date(2026, 7, 1),
             savings_product_id=product.id,
             bearer_token="token-abc",
         )
@@ -651,11 +651,11 @@ def test_create_transaction_growlio_push_failure_does_not_raise_and_flags_tx(see
     ):
         tx = transaction_service.create_transaction(
             db,
-            user.id,
-            savings_category.id,
-            "expense",
-            Decimal("50000"),
-            date(2026, 7, 1),
+            user_id=user.id,
+            category_id=savings_category.id,
+            type_="expense",
+            amount=Decimal("50000"),
+            transaction_date=date(2026, 7, 1),
             savings_product_id=product.id,
             bearer_token="token-abc",
         )
@@ -671,11 +671,11 @@ def test_update_transaction_pushes_withdrawal_then_deposit_symmetrically(seeded_
     with patch.object(growlio_client, "push_transaction"):
         tx = transaction_service.create_transaction(
             db,
-            user.id,
-            savings_category.id,
-            "expense",
-            Decimal("50000"),
-            date(2026, 7, 1),
+            user_id=user.id,
+            category_id=savings_category.id,
+            type_="expense",
+            amount=Decimal("50000"),
+            transaction_date=date(2026, 7, 1),
             savings_product_id=product.id,
             bearer_token="token-abc",
         )
@@ -706,7 +706,7 @@ def test_update_transaction_memo_only_edit_skips_balance_and_growlio(seeded_db):
     savings_category, product = _add_savings_category_and_product(db, growlio_account_id="growlio-acct-1")
     with patch.object(growlio_client, "push_transaction"):
         tx = transaction_service.create_transaction(
-            db, user.id, savings_category.id, "expense", Decimal("50000"), date(2026, 7, 1),
+            db, user_id=user.id, category_id=savings_category.id, type_="expense", amount=Decimal("50000"), transaction_date=date(2026, 7, 1),
             savings_product_id=product.id, bearer_token="token-abc",
         )
     db.refresh(product)
@@ -732,11 +732,11 @@ def test_delete_transaction_pushes_withdrawal(seeded_db):
     with patch.object(growlio_client, "push_transaction"):
         tx = transaction_service.create_transaction(
             db,
-            user.id,
-            savings_category.id,
-            "expense",
-            Decimal("50000"),
-            date(2026, 7, 1),
+            user_id=user.id,
+            category_id=savings_category.id,
+            type_="expense",
+            amount=Decimal("50000"),
+            transaction_date=date(2026, 7, 1),
             savings_product_id=product.id,
             bearer_token="token-abc",
         )
@@ -750,7 +750,7 @@ def test_delete_transaction_pushes_withdrawal(seeded_db):
 def test_trailing_averages_are_whole_won(seeded_db):
     """평균이 33333.333…으로 나가면 Numeric(12,2)에 33333.33으로 저장돼 제안값과 영원히 달라진다."""
     db, user, food = seeded_db["db"], seeded_db["user"], seeded_db["food"]
-    transaction_service.create_transaction(db, user.id, food.id, "expense", Decimal("100000"), date(2026, 6, 10))
+    transaction_service.create_transaction(db, user_id=user.id, category_id=food.id, type_="expense", amount=Decimal("100000"), transaction_date=date(2026, 6, 10))
 
     by_category = transaction_trend_service.trailing_average_by_category(db, date(2026, 7, 15), months=3)
     by_section = transaction_trend_service.trailing_average_by_section(db, date(2026, 7, 15), months=3)
@@ -767,7 +767,7 @@ def test_create_transaction_rolls_back_with_balance_adjustment_failure(seeded_db
     with patch.object(transaction_service.savings_product_service, "adjust_balance", side_effect=RuntimeError("boom")):
         with pytest.raises(RuntimeError):
             transaction_service.create_transaction(
-                db, user.id, savings_category.id, "expense", Decimal("50000"), date(2026, 7, 1),
+                db, user_id=user.id, category_id=savings_category.id, type_="expense", amount=Decimal("50000"), transaction_date=date(2026, 7, 1),
                 savings_product_id=product.id,
             )
     db.rollback()
@@ -782,7 +782,7 @@ def test_delete_transaction_pushes_growlio_only_after_commit(seeded_db):
     savings_category, product = _add_savings_category_and_product(db, growlio_account_id="growlio-acct-1")
     with patch.object(growlio_client, "push_transaction"):
         tx = transaction_service.create_transaction(
-            db, user.id, savings_category.id, "expense", Decimal("50000"), date(2026, 7, 1),
+            db, user_id=user.id, category_id=savings_category.id, type_="expense", amount=Decimal("50000"), transaction_date=date(2026, 7, 1),
             savings_product_id=product.id, bearer_token="tok",
         )
     tx_id = tx.id
@@ -805,7 +805,7 @@ def test_create_transaction_queue_row_survives_crash_right_after_commit(seeded_d
     with patch.object(growlio_push_service, "send_staged", side_effect=RuntimeError("process died")):
         with pytest.raises(RuntimeError):
             transaction_service.create_transaction(
-                db, user.id, savings_category.id, "expense", Decimal("50000"), date(2026, 7, 1),
+                db, user_id=user.id, category_id=savings_category.id, type_="expense", amount=Decimal("50000"), transaction_date=date(2026, 7, 1),
                 savings_product_id=product.id, bearer_token="tok",
             )
     db.rollback()
@@ -826,7 +826,7 @@ def test_create_transaction_commit_failure_leaves_neither_transaction_nor_queue_
     ) as mock_push:
         with pytest.raises(RuntimeError):
             transaction_service.create_transaction(
-                db, user.id, savings_category.id, "expense", Decimal("50000"), date(2026, 7, 1),
+                db, user_id=user.id, category_id=savings_category.id, type_="expense", amount=Decimal("50000"), transaction_date=date(2026, 7, 1),
                 savings_product_id=product.id, bearer_token="tok",
             )
     db.rollback()
@@ -840,7 +840,7 @@ def test_update_transaction_stages_withdrawal_and_deposit_in_same_commit(seeded_
     db, user = seeded_db["db"], seeded_db["user"]
     savings_category, product = _add_savings_category_and_product(db, growlio_account_id="growlio-acct-1")
     tx = transaction_service.create_transaction(
-        db, user.id, savings_category.id, "expense", Decimal("50000"), date(2026, 7, 1),
+        db, user_id=user.id, category_id=savings_category.id, type_="expense", amount=Decimal("50000"), transaction_date=date(2026, 7, 1),
         savings_product_id=product.id,
     )
 
@@ -862,7 +862,7 @@ def test_delete_transaction_queue_row_survives_crash_right_after_commit(seeded_d
     db, user = seeded_db["db"], seeded_db["user"]
     savings_category, product = _add_savings_category_and_product(db, growlio_account_id="growlio-acct-1")
     tx = transaction_service.create_transaction(
-        db, user.id, savings_category.id, "expense", Decimal("50000"), date(2026, 7, 1),
+        db, user_id=user.id, category_id=savings_category.id, type_="expense", amount=Decimal("50000"), transaction_date=date(2026, 7, 1),
         savings_product_id=product.id,
     )
     tx_id = tx.id
@@ -882,7 +882,7 @@ def test_bulk_delete_commit_failure_leaves_no_withdrawal_rows(seeded_db):
     savings_category, product = _add_savings_category_and_product(db, growlio_account_id="growlio-acct-1")
     ids = [
         transaction_service.create_transaction(
-            db, user.id, savings_category.id, "expense", Decimal("10000"), date(2026, 7, day),
+            db, user_id=user.id, category_id=savings_category.id, type_="expense", amount=Decimal("10000"), transaction_date=date(2026, 7, day),
             savings_product_id=product.id,
         ).id
         for day in (1, 2)
@@ -898,7 +898,7 @@ def test_bulk_delete_commit_failure_leaves_no_withdrawal_rows(seeded_db):
 
 def test_period_snapshot_bundles_totals_owner_and_category(seeded_db):
     db, user, food = seeded_db["db"], seeded_db["user"], seeded_db["food"]
-    transaction_service.create_transaction(db, user.id, food.id, "expense", Decimal("12000"), date(2026, 7, 3), "점심")
+    transaction_service.create_transaction(db, user_id=user.id, category_id=food.id, type_="expense", amount=Decimal("12000"), transaction_date=date(2026, 7, 3), description="점심")
 
     snapshot = transaction_report_service.period_snapshot(db, date(2026, 7, 1), date(2026, 7, 31))
 

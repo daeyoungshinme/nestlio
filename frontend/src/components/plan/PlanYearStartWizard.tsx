@@ -2,8 +2,8 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { CalendarRange, History, Repeat } from "lucide-react";
 import type { ReactNode } from "react";
 import { seedAnnualPlan } from "@/api/annualPlan";
-import { QUERY_KEYS } from "@/constants/queryKeys";
-import { extractErrorMessage } from "@/utils/error";
+import { PLAN_RELATED_KEYS } from "@/constants/queryKeys";
+import { invalidateKeys } from "@/utils/queryClient";
 import { toast } from "@/utils/toast";
 import type { AnnualPlanSeedIn } from "@/types";
 
@@ -36,12 +36,9 @@ export default function PlanYearStartWizard({ year }: { year: number }) {
   const seedMutation = useMutation({
     mutationFn: (source: AnnualPlanSeedIn["source"]) => seedAnnualPlan({ year, source }),
     onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.annualPlanAll });
-      void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.cashflowPlanAll });
-      void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.dashboardAll });
+      invalidateKeys(queryClient, PLAN_RELATED_KEYS);
       toast(`${year}년 계획 초안을 만들었어요. 항목별로 금액을 조정해 보세요.`, "success");
     },
-    onError: (err) => toast(extractErrorMessage(err), "error"),
   });
 
   return (

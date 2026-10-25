@@ -118,7 +118,7 @@ api.interceptors.response.use(
       }
     }
     // 5xx는 여기서 전역 토스트하지 않는다 — 쿼리는 QueryBoundary가 화면 안에서, 뮤테이션은 각자의
-    // onError(없으면 main.tsx의 MutationCache 폴백)가 한 번씩 알린다. 여기서도 띄우면 저장 실패마다
+    // onError(없으면 utils/queryClient.ts의 createMutationCache 폴백)가 한 번씩 알린다. 여기서도 띄우면 저장 실패마다
     // 토스트가 2개, 재시도(retry: 1)·주기 refetch(알림 60초 폴링)마다 반복 토스트가 뜬다.
 
     return Promise.reject(error);

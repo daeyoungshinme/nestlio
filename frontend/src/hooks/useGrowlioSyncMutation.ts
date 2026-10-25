@@ -1,6 +1,6 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { ASSET_RELATED_KEYS } from "@/constants/queryKeys";
-import { extractErrorMessage } from "@/utils/error";
+import { invalidateKeys } from "@/utils/queryClient";
 import { toast } from "@/utils/toast";
 
 /** 자산 섹션(계좌/저축·투자/부동산)의 행 단위 "growlio 동기화" 버튼 mutation. 동기화는 잔액을 바꾸므로
@@ -11,9 +11,8 @@ export function useGrowlioSyncMutation<T>(syncFn: (id: number) => Promise<T>, su
   return useMutation({
     mutationFn: syncFn,
     onSuccess: () => {
-      ASSET_RELATED_KEYS.forEach((key) => void queryClient.invalidateQueries({ queryKey: key }));
+      invalidateKeys(queryClient, ASSET_RELATED_KEYS);
       toast(successMessage, "success");
     },
-    onError: (err) => toast(extractErrorMessage(err), "error"),
   });
 }

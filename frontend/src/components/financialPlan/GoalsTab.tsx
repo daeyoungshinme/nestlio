@@ -24,7 +24,6 @@ import { goalDetailLink, planViewLink } from "@/constants/routes";
 import { progressStatusBadgeClass, progressStatusLabel } from "@/utils/colors";
 import { computeCardStatus, daysUntil, isGoalAchieved } from "@/utils/goalStatus";
 import { GOAL_SORT_LABELS, pinNetWorthFirst, sortGoals, type GoalSortLabel } from "@/utils/goalSort";
-import { extractErrorMessage } from "@/utils/error";
 import { formatDate, formatKrw, formatKrwCompact, formatYearMonth, toAmountInputValue } from "@/utils/format";
 import { toast } from "@/utils/toast";
 import type { FinancialGoalOut, FinancialGoalUpdateIn, GoalKind } from "@/types";
@@ -93,7 +92,6 @@ export default function GoalsTab() {
         toast("진행 금액을 저장했습니다.", "success");
       }
     },
-    onError: (err) => toast(extractErrorMessage(err), "error"),
   });
 
   // 장기목표 카드의 월별 행 인라인 "이번 달 저축액 입력" 저장 전용 — progressMutation과 같은
@@ -111,7 +109,6 @@ export default function GoalsTab() {
       });
       toast("이번 달 저축액을 저장했습니다.", "success");
     },
-    onError: (err) => toast(extractErrorMessage(err), "error"),
   });
 
   return (

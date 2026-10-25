@@ -122,3 +122,32 @@ export const USER_RELATED_KEYS: QueryKey[] = [
   QUERY_KEYS.dashboardBootstrap,
   QUERY_KEYS.monthlyRetrospective,
 ];
+
+/** 거래 추가/수정/삭제/가져오기가 바꾸는 캐시 묶음 — 거래 목록, 대시보드, 카테고리 분해, 저축·투자 상품,
+ * 순자산, 계좌 잔액·연결 목표 진행률(백엔드가 거래에서 파생), 연간 리포트·추이·월간 회고, 그리고
+ * summary.actual·category_budgets를 거래에서 계산하는 현금흐름/연간 계획 응답. */
+export const TRANSACTION_RELATED_KEYS: QueryKey[] = [
+  QUERY_KEYS.transactionsAll,
+  QUERY_KEYS.dashboardAll,
+  QUERY_KEYS.categoryBreakdownAll,
+  QUERY_KEYS.savingsProducts,
+  QUERY_KEYS.netWorthAll,
+  QUERY_KEYS.dashboardBootstrap,
+  QUERY_KEYS.cashflowPlanAll,
+  QUERY_KEYS.annualPlanAll,
+  QUERY_KEYS.accounts,
+  QUERY_KEYS.financialGoals,
+  QUERY_KEYS.recentTransactionsAll,
+  QUERY_KEYS.yearlyReportAll,
+  QUERY_KEYS.categoryTrendAll,
+  QUERY_KEYS.monthlyRetrospective,
+];
+
+/** 현금흐름(이번 달)·연간 계획을 저장하면 함께 무효화하는 묶음. 이번 달 계획은 연간계획의 한 달 단면이고
+ * 항목 이름·카테고리는 모든 달 공통이라 월과 무관하게 두 계획 쿼리를 전부 무효화한다. 대시보드 코칭과
+ * 절감 점검(savingsReview — dashboardAll 하위)도 계획을 읽는다. */
+export const PLAN_RELATED_KEYS: QueryKey[] = [
+  QUERY_KEYS.cashflowPlanAll,
+  QUERY_KEYS.annualPlanAll,
+  QUERY_KEYS.dashboardAll,
+];
