@@ -55,9 +55,8 @@ export default function InsuranceReviewSection({ data }: { data: InsuranceReview
   return (
     <div className="space-y-4">
       <p className={`rounded-lg px-3 py-2 text-xs leading-relaxed ${cautionCalloutClass()} ${cautionCalloutTextClass()}`}>
-        정보 제공용 점검이에요. 보험은 해지하면 나이·병력 때문에 다시 가입하기 어렵거나 보장 공백이 생길 수 있으니, 해지 전에
-        재가입 가능 여부와 면책기간을 꼭 확인하세요. 특약만 해지·감액하는 건 보험사마다 가능 여부가 다르니 해약환급금과 함께
-        먼저 물어보세요.
+        정보 제공용 점검이에요. 해지하면 다시 가입하기 어렵거나 보장 공백이 생길 수 있으니, 해지·특약 감액 전에 재가입 가능
+        여부·면책기간·해약환급금을 보험사에 먼저 확인하세요.
       </p>
 
       {summary.policies_count > 0 && (
@@ -68,7 +67,10 @@ export default function InsuranceReviewSection({ data }: { data: InsuranceReview
             ...(Number(summary.savings_monthly_premium) > 0
               ? [{ label: "저축성", value: formatKrw(summary.savings_monthly_premium) }]
               : []),
-            ...summary.by_insured.map((p) => ({ label: `${p.label} (${p.count}건)`, value: formatKrw(p.monthly_premium) })),
+            // 피보험자가 한 명이면 그 금액이 월 보험료 합계와 같아 반복이다.
+            ...(summary.by_insured.length > 1
+              ? summary.by_insured.map((p) => ({ label: `${p.label} (${p.count}건)`, value: formatKrw(p.monthly_premium) }))
+              : []),
           ]}
         />
       )}
@@ -195,14 +197,25 @@ function PolicyRow({
       name={policy.name}
       linked={false}
       meta={
-        <p className="text-xs text-gray-500 dark:text-gray-400">
-          {POLICY_TYPE_LABEL[policy.policy_type]} · {insuredLabel(policy, users)}
-          {policy.is_renewable ? " · 갱신형" : ""}
-          {policy.riders.length > 0
-            ? ` · 특약 ${policy.riders.length}개${renewableRiders > 0 ? `(갱신형 ${renewableRiders})` : ""}`
-            : ""}
-          {coverages ? ` · ${coverages}` : ""}
-        </p>
+        // 한 줄에 다 이어 붙이면 360px에서 3~4줄로 감겨 — 계약 정보 / 특약·보장 두 줄로 나눈다.
+        <>
+          <p className="text-xs text-gray-500 dark:text-gray-400">
+            {POLICY_TYPE_LABEL[policy.policy_type]} · {insuredLabel(policy, users)}
+            {policy.is_renewable ? " · 갱신형" : ""}
+          </p>
+          {(policy.riders.length > 0 || coverages) && (
+            <p className="text-xs text-gray-500 dark:text-gray-400">
+              {[
+                policy.riders.length > 0
+                  ? `특약 ${policy.riders.length}개${renewableRiders > 0 ? `(갱신형 ${renewableRiders})` : ""}`
+                  : null,
+                coverages || null,
+              ]
+                .filter(Boolean)
+                .join(" · ")}
+            </p>
+          )}
+        </>
       }
       amount={
         <>

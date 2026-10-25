@@ -23,7 +23,6 @@ interface Props {
   onClose: () => void;
   onAddTransaction: () => void;
   onEditTransaction: (tx: TransactionOut) => void;
-  onDeleteTransaction: (tx: TransactionOut) => void;
   onAddEvent: () => void;
   onEditEvent: (event: EventOut) => void;
   onDeleteEvent: (event: EventOut) => void;
@@ -47,7 +46,6 @@ export default function LedgerDayModal({
   onClose,
   onAddTransaction,
   onEditTransaction,
-  onDeleteTransaction,
   onAddEvent,
   onEditEvent,
   onDeleteEvent,
@@ -90,7 +88,6 @@ export default function LedgerDayModal({
                   key={tx.id}
                   tx={tx}
                   onEdit={onEditTransaction}
-                  onDelete={onDeleteTransaction}
                   showUser={showUser}
                   users={users}
                 />

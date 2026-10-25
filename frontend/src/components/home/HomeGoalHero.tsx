@@ -104,7 +104,8 @@ export default function HomeGoalHero({
   return (
     <div className="card">
       {header}
-      <Link to={ROUTES.goals} className="block rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800/40 transition-colors">
+      {/* 카드도 "응원 보내기"와 같은 목표 상세로 — 목록으로 갔다가 다시 고르는 한 단계를 없앤다. */}
+      <Link to={goalDetailLink(goal.id)} className="block rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800/40 transition-colors">
         <GoalProgressCard
           className="!p-0 !border-0 !shadow-none !bg-transparent"
           title={goal.name}
@@ -112,7 +113,7 @@ export default function HomeGoalHero({
           pct={Number(goal.progress_pct)}
           primaryDetail={
             <>
-              {formatKrw(goal.current_amount)} / {formatKrw(goal.required_amount)}
+              {formatKrwCompact(Number(goal.current_amount))} / {formatKrwCompact(Number(goal.required_amount))}
               {goal.eta_year_month && ` · 예상 달성 ${goal.eta_year_month.replace("-", "년 ")}월`}
             </>
           }
@@ -129,7 +130,8 @@ export default function HomeGoalHero({
           }
           footer={
             savingsTrend.some((row) => row.savings !== 0) ? (
-              <div className="pt-4 border-t border-gray-100 dark:border-gray-800">
+              // 모바일에선 숨긴다 — 홈 첫 화면 높이를 줄이고, 같은 추세는 계획 › 실적 분석에 있다.
+              <div className="hidden sm:block pt-4 border-t border-gray-100 dark:border-gray-800">
                 <p className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">
                   최근 {savingsTrend.length}개월 저축 추이
                 </p>

@@ -42,7 +42,8 @@ export default function Toaster() {
   return (
     <div
       style={TOAST_BOTTOM_STYLE}
-      className={`fixed bottom-[var(--toast-bottom-mobile)] right-3 lg:bottom-5 lg:right-5 ${Z_TOASTER} flex flex-col gap-2 pointer-events-none`}
+      // 모바일에선 오른쪽 아래 FAB(right-4 + 56px)를 비켜 그 왼쪽까지만 쓴다 — "취소" 토스트가 6초간 +버튼을 가리지 않게.
+      className={`fixed bottom-[var(--toast-bottom-mobile)] left-3 right-[5.25rem] items-end lg:left-auto lg:bottom-5 lg:right-5 ${Z_TOASTER} flex flex-col gap-2 pointer-events-none`}
     >
       {toasts.map((t) => (
         <div

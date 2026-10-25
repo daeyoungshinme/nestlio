@@ -6,6 +6,7 @@ import { RIDER_COVERAGE_LABEL } from "@/constants/insurance";
 import { INPUT_SM, LABEL_SM } from "@/constants/inputStyles";
 import { TOUCH_TARGET_MIN, TOUCH_TARGET_MIN_HEIGHT } from "@/constants/uiSizes";
 import { sumAmounts } from "@/utils/amount";
+import { dangerActionClass } from "@/utils/colors";
 import { formatKrw } from "@/utils/format";
 import type { InsuranceRiderIn, InsuranceRiderOut, RiderCoverage } from "@/types";
 
@@ -105,7 +106,7 @@ export default function RiderListEditor({ riders, onChange, policyPremium, frequ
               type="button"
               onClick={() => remove(rider.key)}
               aria-label={`특약 ${index + 1} 삭제`}
-              className={`${TOUCH_TARGET_MIN} rounded-md text-gray-400 hover:text-gray-700 dark:hover:text-gray-200`}
+              className={`${TOUCH_TARGET_MIN} rounded-md text-gray-500 dark:text-gray-400 ${dangerActionClass("hover")}`}
             >
               <Trash2 size={16} />
             </button>

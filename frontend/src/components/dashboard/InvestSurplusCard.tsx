@@ -64,9 +64,6 @@ export default function InvestSurplusCard({
           <p className="text-2xl font-bold text-gray-900 dark:text-gray-50">
             {formatKrw(surplusAllocation.investable_portion)}
           </p>
-          <p className="text-xs text-gray-500 dark:text-gray-400">
-            지출을 통제해서 남긴 돈이에요. growlio 포트폴리오에 담아 굴려보세요.
-          </p>
           <div className="space-y-2 pt-1">
             {targets.map((product) => (
               <div key={product.id} className="flex flex-wrap items-center gap-2">
@@ -77,7 +74,8 @@ export default function InvestSurplusCard({
                     className={`inline-flex items-center gap-1.5 px-3 py-1.5 ${TOUCH_TARGET_MIN_HEIGHT} rounded-lg text-xs font-semibold text-white bg-primary-600 hover:bg-primary-700 transition-colors`}
                   >
                     <PlusCircle size={12} />
-                    {product.name}에 {formatKrw(surplusAllocation.investable_portion)} 저축 기록
+                    {/* 금액은 바로 위 큰 숫자와 같아 버튼에선 뺀다(360px에서 두 줄로 감기던 원인). */}
+                    {product.name}에 저축 기록
                   </button>
                 )}
                 <a

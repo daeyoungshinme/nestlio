@@ -2,7 +2,7 @@ import { memo } from "react";
 import type { ReactNode } from "react";
 import { CalendarDays, Receipt, Repeat } from "lucide-react";
 import { transactionAmountTextColor, transactionTypeBadgeStyle } from "@/utils/colors";
-import { formatKrw, formatKrwCompact } from "@/utils/format";
+import { formatKrw, formatKrwAxis, formatKrwCompact } from "@/utils/format";
 import { LEDGER_DAY_CELL_MIN_HEIGHT } from "@/constants/uiSizes";
 import type { EventOut, RecurringOut, TransactionOut } from "@/types";
 import { sumAmounts } from "@/utils/amount";
@@ -124,14 +124,15 @@ function LedgerDayCell({
         {transactions.length > 0 &&
           (net !== 0 ? (
             <span
-              className={`text-[11px] font-semibold truncate w-full ${transactionAmountTextColor(net > 0 ? "income" : "expense")}`}
+              className={`text-[11px] font-semibold tabular-nums tracking-tight truncate w-full ${transactionAmountTextColor(net > 0 ? "income" : "expense")}`}
               title={`수입 ${formatKrw(income)} · 지출 ${formatKrw(expense)}`}
             >
+              {/* 셀 폭이 ~36px라 "원"을 뺀 축 표기("-123만")로 줄인다. */}
               {net > 0 ? "+" : "-"}
-              {formatKrwCompact(Math.abs(net))}
+              {formatKrwAxis(Math.abs(net))}
             </span>
           ) : (
-            <span className="text-[11px] font-medium text-gray-400 dark:text-gray-500">거래 {transactions.length}</span>
+            <span className="text-[11px] font-medium text-gray-500 dark:text-gray-400">거래 {transactions.length}</span>
           ))}
         {hasSchedule && (
           <span

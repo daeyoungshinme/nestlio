@@ -20,6 +20,10 @@ const INSIGHT_LINKS: Partial<Record<string, { to: string; label: string }>> = {
 
 const VISIBLE_COUNT = 2;
 
+/** 홈에서 바로 위 카드가 이미 보여주는 신호라 코칭에선 뺀다 — budget_overrun은 "이번 달 흐름" 막대(계획 대비 %),
+ * savings_execution은 그 아래 여유자금 카드("아직 저축·투자로 옮기지 않은 돈")와 같은 내용이다. */
+const HOME_DUPLICATE_RULES = new Set(["budget_overrun", "savings_execution"]);
+
 interface Item {
   key: string;
   message: string;
@@ -40,12 +44,12 @@ export default function CoachingInsights({
 }) {
   const [expanded, setExpanded] = useState(false);
   const insightItems: Item[] = insights
-    .filter((i) => i.rule_code !== "goal_pace")
+    .filter((i) => i.rule_code !== "goal_pace" && !HOME_DUPLICATE_RULES.has(i.rule_code))
     .filter((i) => !(ownerOverspend.length > 0 && i.rule_code === "variable_spend_trend"))
     .map((i) => ({ key: `${i.rule_code}-${i.message}`, message: i.message, severity: i.severity, link: INSIGHT_LINKS[i.rule_code] }));
   const overspendItems: Item[] = ownerOverspend.map((h) => ({
     key: `overspend-${h.owner_user_id ?? "shared"}-${h.category_name}`,
-    message: `${h.display_name} · ${h.category_name} 지출이 최근 3개월 평균보다 ${formatKrw(h.delta)} 늘었어요 — 여기부터 줄이면 저축 여력이 생겨요`,
+    message: `${h.display_name} · ${h.category_name} 지출이 최근 3개월 평균보다 ${formatKrw(h.delta)} 늘었어요`,
     severity: "warning",
     link: { to: ROUTES.transactions, label: "가계부 보기" },
   }));
@@ -65,12 +69,17 @@ export default function CoachingInsights({
         return (
           <div
             key={key}
-            className={`border rounded-lg px-4 py-3 text-sm flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-3 ${insightSeverityStyle(severity)}`}
+            className={`border rounded-lg px-4 py-2 text-sm flex items-center justify-between gap-3 ${insightSeverityStyle(severity)}`}
           >
-            <span>{message}</span>
+            <span className="min-w-0">{message}</span>
+            {/* 링크를 문구 아래 줄이 아니라 오른쪽에 붙여 항목 높이를 줄인다(라벨은 "보기"로 짧게). */}
             {link && (
-              <Link to={link.to} className="shrink-0 text-xs font-semibold underline hover:no-underline min-h-[44px] flex items-center">
-                {link.label}
+              <Link
+                to={link.to}
+                aria-label={link.label}
+                className="shrink-0 text-xs font-semibold underline hover:no-underline min-h-[44px] flex items-center"
+              >
+                보기
               </Link>
             )}
           </div>

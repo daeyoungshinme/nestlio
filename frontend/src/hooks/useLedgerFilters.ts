@@ -76,6 +76,14 @@ export function useLedgerFilters(items: TransactionOut[]) {
   }, [items, topFilter, expenseTypeFilter, userFilter]);
 
   const showExpenseGroups = topFilter === "expense" && categoryFilter === "all";
+  const isFiltered =
+    topFilter !== "all" || categoryFilter !== "all" || expenseTypeFilter !== "all" || userFilter !== "all";
+  const resetFilters = () => {
+    setTopFilter("all");
+    setCategoryFilter("all");
+    setExpenseTypeFilter("all");
+    setUserFilter("all");
+  };
 
   return {
     topFilter,
@@ -90,5 +98,7 @@ export function useLedgerFilters(items: TransactionOut[]) {
     transactionsByCategory,
     categoryOptions,
     showExpenseGroups,
+    isFiltered,
+    resetFilters,
   };
 }

@@ -7,6 +7,7 @@ import Tabs from "@/components/common/Tabs";
 import LedgerScheduleList from "@/components/transactions/LedgerScheduleList";
 import { useEventActions } from "@/hooks/useEventActions";
 import ConfirmModal from "@/components/common/ConfirmModal";
+import InlineStatsBar from "@/components/common/InlineStatsBar";
 import Modal from "@/components/common/Modal";
 import MonthPicker from "@/components/common/MonthPicker";
 import QueryBoundary from "@/components/common/QueryBoundary";
@@ -28,7 +29,7 @@ import { useConsumeSearchParam } from "@/hooks/useConsumeSearchParam";
 import { useRecurringDeepLink } from "@/hooks/useRecurringDeepLink";
 import { useAccounts, useCategories, useMe, useSavingsProducts, useUsers } from "@/hooks/useReferenceData";
 import { currentDateIso, currentYearMonth, shiftYearMonth } from "@/utils/date";
-import { formatKrw } from "@/utils/format";
+import { formatKrwCompact } from "@/utils/format";
 import { toast } from "@/utils/toast";
 import type { EventOut, TransactionOut } from "@/types";
 
@@ -122,6 +123,9 @@ export default function TransactionsPage() {
     onSuccess: () => {
       invalidateAll();
       setDeleteTarget(null);
+      // 삭제는 수정 폼 안에서만 시작하므로 그 폼도 닫는다(시트는 그날 목록으로 돌아간다).
+      setFormTarget(null);
+      setDayPanel(null);
       toast("내역을 삭제했습니다.", "success");
     },
   });
@@ -156,6 +160,7 @@ export default function TransactionsPage() {
       currentUserId={me?.id}
       layout="stack"
       isNew={target === "new"}
+      onDelete={target === "new" ? undefined : () => setDeleteTarget(target)}
       submitLabel={target === "new" ? "추가" : "저장"}
       submitting={isSaving}
       initialValues={
@@ -215,12 +220,14 @@ export default function TransactionsPage() {
         </div>
 
         {month.totals && (
-          <div className="flex justify-end">
-            <p className="text-sm text-gray-500 dark:text-gray-400">
-              합계: 수입 {formatKrw(month.totals.income)} · 지출 {formatKrw(month.totals.expense)} · 저축{" "}
-              {formatKrw(month.savingsTotal)}
-            </p>
-          </div>
+          <InlineStatsBar
+            columns={3}
+            items={[
+              { label: "수입", value: formatKrwCompact(Number(month.totals.income)), tone: "positive" },
+              { label: "지출", value: formatKrwCompact(Number(month.totals.expense)), tone: "negative" },
+              { label: "저축", value: formatKrwCompact(Number(month.savingsTotal)) },
+            ]}
+          />
         )}
 
         <div ref={calendarRef}>
@@ -274,7 +281,14 @@ export default function TransactionsPage() {
               users={users}
               showUser={showUser}
               onEdit={setFormTarget}
-              onDelete={setDeleteTarget}
+              onResetFilters={
+                filters.isFiltered || searchInput
+                  ? () => {
+                      filters.resetFilters();
+                      setSearchInput("");
+                    }
+                  : undefined
+              }
             />
           </>
         )}
@@ -297,7 +311,6 @@ export default function TransactionsPage() {
             onClose={closeDay}
             onAddTransaction={() => setDayPanel({ kind: "tx", target: "new" })}
             onEditTransaction={(tx) => setDayPanel({ kind: "tx", target: tx })}
-            onDeleteTransaction={setDeleteTarget}
             onAddEvent={() => setDayPanel({ kind: "event", target: "new" })}
             onEditEvent={(event) => setDayPanel({ kind: "event", target: event })}
             onDeleteEvent={eventActions.openDelete}

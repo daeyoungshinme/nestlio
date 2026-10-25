@@ -9,13 +9,14 @@ import { acceptInvite, fetchInviteByToken } from "@/api/invites";
 import { INPUT_SM } from "@/constants/inputStyles";
 import { QUERY_KEYS } from "@/constants/queryKeys";
 import { extractErrorMessage, getHttpStatus } from "@/utils/error";
+import Button from "@/components/common/Button";
 import { ROUTES } from "@/constants/routes";
 import { errorMessageTextClass } from "@/utils/colors";
 
 function AuthCard({ children }: { children: React.ReactNode }) {
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-950 px-4">
-      <div className="w-full max-w-sm bg-white dark:bg-gray-900 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 p-8">
+    <div className="min-h-[100dvh] flex items-center justify-center bg-gray-50 dark:bg-gray-950 px-4">
+      <div className="w-full max-w-sm bg-white dark:bg-gray-900 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 p-6 sm:p-8">
         <div className="flex items-center gap-2 mb-6 justify-center">
           <PiggyBank className="text-primary-600 dark:text-primary-400" size={28} />
           <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-50">Nestlio</h1>
@@ -202,6 +203,7 @@ export default function InviteAcceptPage() {
           <input
             id={`${fieldId}-display-name`}
             type="text"
+            autoComplete="nickname"
             value={displayName}
             maxLength={100}
             onChange={(e) => setDisplayName(e.target.value)}
@@ -220,6 +222,7 @@ export default function InviteAcceptPage() {
           <input
             id={`${fieldId}-password`}
             type="password"
+            autoComplete={alreadyRegistered ? "current-password" : "new-password"}
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             required
@@ -238,6 +241,7 @@ export default function InviteAcceptPage() {
             <input
               id={`${fieldId}-password-confirm`}
               type="password"
+              autoComplete="new-password"
               value={passwordConfirm}
               onChange={(e) => setPasswordConfirm(e.target.value)}
               required
@@ -247,13 +251,9 @@ export default function InviteAcceptPage() {
           </div>
         )}
         {error && <p className={`text-sm ${errorMessageTextClass()}`}>{error}</p>}
-        <button
-          type="submit"
-          disabled={submitting}
-          className="w-full bg-primary-600 text-white rounded-lg py-2 text-sm font-medium hover:bg-primary-700 disabled:opacity-50 transition-colors"
-        >
-          {submitting ? "처리 중..." : alreadyRegistered ? "로그인하고 초대 수락" : "가입하기"}
-        </button>
+        <Button type="submit" loading={submitting} className="w-full justify-center">
+          {alreadyRegistered ? "로그인하고 초대 수락" : "가입하기"}
+        </Button>
       </form>
 
       <p className="text-center text-sm text-gray-500 dark:text-gray-400 mt-4">
