@@ -4,7 +4,6 @@ import { ChevronDown, Crown } from "lucide-react";
 import SkeletonCard from "@/components/common/SkeletonCard";
 import { fetchMonthlyRetrospective } from "@/api/dashboard";
 import { QUERY_KEYS } from "@/constants/queryKeys";
-import { STALE_TIME } from "@/constants/queryConfig";
 import { coupleContribution } from "@/utils/contribution";
 import { formatKrw, formatYearMonth } from "@/utils/format";
 
@@ -13,7 +12,6 @@ function MonthlyRetrospectiveCard() {
   const { data, isLoading, isError } = useQuery({
     queryKey: QUERY_KEYS.monthlyRetrospective,
     queryFn: fetchMonthlyRetrospective,
-    staleTime: STALE_TIME.SHORT,
   });
 
   // 지난달 회고는 보조 위젯이라, 불러오지 못하면 대시보드에 에러를 띄우기보다 조용히 숨긴다.

@@ -14,8 +14,8 @@ from app.services import transaction_service
 def test_bulk_delete_is_all_or_nothing_when_commit_fails(client, seeded_db):
     # 행마다 커밋하던 시절엔 중간 실패 시 앞쪽 일부만 지워진 채 남았다 — 한 번의 커밋으로 묶였는지 확인.
     db, user, food = seeded_db["db"], seeded_db["user"], seeded_db["food"]
-    tx1 = transaction_service.create_transaction(db, user.id, food.id, "expense", Decimal("1000"), date(2026, 7, 1))
-    tx2 = transaction_service.create_transaction(db, user.id, food.id, "expense", Decimal("2000"), date(2026, 7, 2))
+    tx1 = transaction_service.create_transaction(db, user_id=user.id, category_id=food.id, type_="expense", amount=Decimal("1000"), transaction_date=date(2026, 7, 1))
+    tx2 = transaction_service.create_transaction(db, user_id=user.id, category_id=food.id, type_="expense", amount=Decimal("2000"), transaction_date=date(2026, 7, 2))
     ids = [tx1.id, tx2.id]
 
     with patch.object(db, "commit", side_effect=RuntimeError("db down")), pytest.raises(RuntimeError):

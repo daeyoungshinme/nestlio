@@ -1,5 +1,4 @@
 import { useMemo, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
 import { ArrowRight, ExternalLink, RefreshCw } from "lucide-react";
 import { Link } from "react-router-dom";
 import AssetRow from "@/components/accounts/AssetRow";
@@ -22,8 +21,7 @@ import {
 import { ASSET_RELATED_KEYS, QUERY_KEYS } from "@/constants/queryKeys";
 import { useAssetSection } from "@/hooks/useAssetSection";
 import { useGoals, useSavingsProducts } from "@/hooks/useReferenceData";
-import { fetchSavingsProductsPlan } from "@/api/savingsProducts";
-import { STALE_TIME } from "@/constants/queryConfig";
+import { useSavingsProductsPlan } from "@/hooks/usePlanQueries";
 import { currentYearMonth } from "@/utils/date";
 import { planViewLink } from "@/constants/routes";
 import {
@@ -66,11 +64,7 @@ export default function SavingsProductsSection({ users }: Props) {
   // "월 N원"은 상품의 폴백 필드(monthly_saving_amount)가 아니라 이번 달 실제 계획액(계획 탭의 월별 그리드가 있으면
   // 그 값)을 보여준다 — 계획 탭·목표 화면과 같은 숫자여야 한다(savings_product_plan_service.planned_by_product_for_month).
   const [thisMonth] = useState(currentYearMonth);
-  const { data: productPlan } = useQuery({
-    queryKey: QUERY_KEYS.savingsProductsPlan(thisMonth),
-    queryFn: () => fetchSavingsProductsPlan(thisMonth),
-    staleTime: STALE_TIME.SHORT,
-  });
+  const { data: productPlan } = useSavingsProductsPlan(thisMonth);
   const plannedById = useMemo(
     () => new Map((productPlan?.items ?? []).map((item) => [item.id, item.planned])),
     [productPlan],

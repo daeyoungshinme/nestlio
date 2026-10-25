@@ -8,7 +8,6 @@ import { fetchEvents } from "@/api/events";
 import { useEventActions } from "@/hooks/useEventActions";
 import { QUERY_KEYS } from "@/constants/queryKeys";
 import { ROUTES } from "@/constants/routes";
-import { STALE_TIME } from "@/constants/queryConfig";
 import { TOUCH_TARGET_MIN, TOUCH_TARGET_MIN_HEIGHT } from "@/constants/uiSizes";
 import { occurrenceDate, shiftDateIso } from "@/utils/date";
 import { formatDate, formatKrw } from "@/utils/format";
@@ -32,7 +31,6 @@ export default function TodayScheduleCard({ day, users }: Props) {
   const { data, isError, refetch } = useQuery({
     queryKey: QUERY_KEYS.events(day, rangeEnd),
     queryFn: () => fetchEvents(day, rangeEnd),
-    staleTime: STALE_TIME.SHORT,
   });
 
   // 추가 폼·완료 토글은 가계부의 일정 보기와 같은 훅을 쓴다(토스트·무효화 규칙 공유).

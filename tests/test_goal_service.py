@@ -14,12 +14,13 @@ from app.services import (
     transaction_service,
 )
 from app.services.growlio_client import GrowlioNotConfiguredError
+from tests.factories import make_challenge
 
 
 def test_create_goal_uses_manual_current_amount_when_unlinked(seeded_db):
     db = seeded_db["db"]
     goal = goal_service.create_goal(
-        db, 1, "내집마련", 40, Decimal("100000000"), Decimal("500000"), Decimal("1000000")
+        db, priority=1, name="내집마련", target_age=40, required_amount=Decimal("100000000"), monthly_saving_amount=Decimal("500000"), current_amount=Decimal("1000000")
     )
     assert goal_progress_service.compute_current_amount(db, goal) == Decimal("1000000")
     assert goal_progress_service.funding_source_breakdown(db, goal) == []
@@ -30,11 +31,11 @@ def test_linked_goal_current_amount_follows_product_balance(seeded_db):
     product = savings_product_service.create_product(db, "청약통장", Decimal("3000000"), Decimal("100000"))
     goal = goal_service.create_goal(
         db,
-        1,
-        "내집마련",
-        40,
-        Decimal("100000000"),
-        Decimal("500000"),
+        priority=1,
+        name="내집마련",
+        target_age=40,
+        required_amount=Decimal("100000000"),
+        monthly_saving_amount=Decimal("500000"),
         current_amount=Decimal("999"),  # 연동 상태에서는 무시되고 상품 잔액이 쓰인다
         funding_sources=[{"type": "savings_product", "id": product.id}],
     )
@@ -52,11 +53,11 @@ def test_goal_linked_to_multiple_products_sums_their_balances(seeded_db):
     product_b = savings_product_service.create_product(db, "아내 적금", Decimal("1500000"), Decimal("100000"))
     goal = goal_service.create_goal(
         db,
-        1,
-        "여행자금",
-        None,
-        Decimal("5000000"),
-        Decimal("200000"),
+        priority=1,
+        name="여행자금",
+        target_age=None,
+        required_amount=Decimal("5000000"),
+        monthly_saving_amount=Decimal("200000"),
         funding_sources=[
             {"type": "savings_product", "id": product_a.id},
             {"type": "savings_product", "id": product_b.id},
@@ -73,11 +74,11 @@ def test_unlinking_goal_falls_back_to_manual_amount(seeded_db):
     product = savings_product_service.create_product(db, "적금", Decimal("2000000"), Decimal("100000"))
     goal = goal_service.create_goal(
         db,
-        1,
-        "여행자금",
-        None,
-        Decimal("5000000"),
-        Decimal("200000"),
+        priority=1,
+        name="여행자금",
+        target_age=None,
+        required_amount=Decimal("5000000"),
+        monthly_saving_amount=Decimal("200000"),
         funding_sources=[{"type": "savings_product", "id": product.id}],
     )
     assert goal_progress_service.compute_current_amount(db, goal) == Decimal("2000000")
@@ -107,11 +108,11 @@ def test_linking_savings_product_keeps_product_monthly_plan(seeded_db):
     product = savings_product_service.create_product(db, "적금", Decimal("0"), Decimal("50000"))
     goal = goal_service.create_goal(
         db,
-        1,
-        "여행자금",
-        None,
-        Decimal("5000000"),
-        Decimal("200000"),
+        priority=1,
+        name="여행자금",
+        target_age=None,
+        required_amount=Decimal("5000000"),
+        monthly_saving_amount=Decimal("200000"),
         funding_sources=[{"type": "savings_product", "id": product.id}],
     )
     goal_service.update_goal(
@@ -134,21 +135,21 @@ def test_linking_savings_product_already_linked_to_another_goal_raises(seeded_db
     product = savings_product_service.create_product(db, "적금", Decimal("0"), Decimal("50000"))
     goal_service.create_goal(
         db,
-        1,
-        "여행자금",
-        None,
-        Decimal("5000000"),
-        Decimal("200000"),
+        priority=1,
+        name="여행자금",
+        target_age=None,
+        required_amount=Decimal("5000000"),
+        monthly_saving_amount=Decimal("200000"),
         funding_sources=[{"type": "savings_product", "id": product.id}],
     )
     with pytest.raises(goal_service.DuplicateFundingSourceProductError):
         goal_service.create_goal(
             db,
-            1,
-            "내집마련",
-            40,
-            Decimal("100000000"),
-            Decimal("500000"),
+            priority=1,
+            name="내집마련",
+            target_age=40,
+            required_amount=Decimal("100000000"),
+            monthly_saving_amount=Decimal("500000"),
             funding_sources=[{"type": "savings_product", "id": product.id}],
         )
 
@@ -158,11 +159,11 @@ def test_linked_account_balance_is_added(seeded_db):
     account = account_service.create_account(db, "생활비 통장", "bank", Decimal("1000000"))
     goal = goal_service.create_goal(
         db,
-        1,
-        "여행자금",
-        None,
-        Decimal("5000000"),
-        Decimal("200000"),
+        priority=1,
+        name="여행자금",
+        target_age=None,
+        required_amount=Decimal("5000000"),
+        monthly_saving_amount=Decimal("200000"),
         funding_sources=[{"type": "account", "id": account.id}],
     )
     assert goal_progress_service.compute_current_amount(db, goal) == Decimal("1000000")
@@ -176,11 +177,11 @@ def test_linked_loan_balance_is_subtracted(seeded_db):
     )
     goal = goal_service.create_goal(
         db,
-        1,
-        "내집마련",
-        40,
-        Decimal("100000000"),
-        Decimal("500000"),
+        priority=1,
+        name="내집마련",
+        target_age=40,
+        required_amount=Decimal("100000000"),
+        monthly_saving_amount=Decimal("500000"),
         funding_sources=[
             {"type": "savings_product", "id": savings.id},
             {"type": "loan", "id": loan.id},
@@ -202,11 +203,11 @@ def test_mixed_funding_sources_match_net_worth_scope(seeded_db):
 
     goal = goal_service.create_goal(
         db,
-        1,
-        "순자산 목표",
-        None,
-        Decimal("100000000"),
-        Decimal("0"),
+        priority=1,
+        name="순자산 목표",
+        target_age=None,
+        required_amount=Decimal("100000000"),
+        monthly_saving_amount=Decimal("0"),
         funding_sources=[
             {"type": "account", "id": account.id},
             {"type": "savings_product", "id": savings.id},
@@ -249,11 +250,11 @@ def test_to_out_includes_derived_fields_when_target_date_set(seeded_db):
     db = seeded_db["db"]
     goal = goal_service.create_goal(
         db,
-        1,
-        "여행자금",
-        None,
-        Decimal("1200000"),
-        Decimal("0"),
+        priority=1,
+        name="여행자금",
+        target_age=None,
+        required_amount=Decimal("1200000"),
+        monthly_saving_amount=Decimal("0"),
         current_amount=Decimal("0"),
         target_date=date(2026, 7, 1),
     )
@@ -265,7 +266,7 @@ def test_to_out_includes_derived_fields_when_target_date_set(seeded_db):
 
 def test_to_out_derived_fields_are_none_without_target_date(seeded_db):
     db = seeded_db["db"]
-    goal = goal_service.create_goal(db, 1, "여행자금", None, Decimal("1200000"), Decimal("0"))
+    goal = goal_service.create_goal(db, priority=1, name="여행자금", target_age=None, required_amount=Decimal("1200000"), monthly_saving_amount=Decimal("0"))
     out = goal_progress_service.to_out(db, goal, today=date(2026, 1, 1))
     assert out["target_date"] is None
     assert out["months_remaining"] is None
@@ -306,7 +307,7 @@ def test_ahead_behind_positive_when_eta_before_target():
 def test_to_out_includes_eta_fields(seeded_db):
     db = seeded_db["db"]
     goal = goal_service.create_goal(
-        db, 1, "여행자금", None, Decimal("1000000"), Decimal("100000"),
+        db, priority=1, name="여행자금", target_age=None, required_amount=Decimal("1000000"), monthly_saving_amount=Decimal("100000"),
         current_amount=Decimal("750000"), target_date=date(2026, 7, 1),
     )
     out = goal_progress_service.to_out(db, goal, today=date(2026, 1, 1))
@@ -339,28 +340,9 @@ def test_fetch_growlio_goal_settings_propagates_not_configured_error():
 NOW = datetime(2026, 8, 3, 12, 0, 0)
 
 
-def _create_challenge(
-    db, user, target=Decimal("300000"), start=date(2026, 8, 1), end=date(2026, 8, 31), current=Decimal("0")
-):
-    return goal_service.create_goal(
-        db,
-        1,
-        "외식비 줄이기",
-        None,
-        target,
-        Decimal("0"),
-        current,
-        target_date=end,
-        kind="challenge",
-        description="이번 달 외식비 30만원 이하로",
-        start_date=start,
-        created_by_id=user.id,
-    )
-
-
 def test_create_challenge_defaults_to_active(seeded_db):
     db, user = seeded_db["db"], seeded_db["user"]
-    challenge = _create_challenge(db, user)
+    challenge = make_challenge(db, user)
 
     assert challenge.kind == "challenge"
     assert challenge.status == "active"
@@ -370,13 +352,13 @@ def test_create_challenge_defaults_to_active(seeded_db):
 
 def test_regular_goal_has_no_effective_status(seeded_db):
     db = seeded_db["db"]
-    goal = goal_service.create_goal(db, 1, "내집마련", 40, Decimal("100000000"), Decimal("500000"))
+    goal = goal_service.create_goal(db, priority=1, name="내집마련", target_age=40, required_amount=Decimal("100000000"), monthly_saving_amount=Decimal("500000"))
     assert goal_progress_service.effective_status(goal, today=date(2026, 8, 15)) is None
 
 
 def test_update_challenge_progress_below_target_stays_active(seeded_db):
     db, user = seeded_db["db"], seeded_db["user"]
-    challenge = _create_challenge(db, user, target=Decimal("300000"))
+    challenge = make_challenge(db, user, target=Decimal("300000"))
 
     updated = goal_service.update_goal(
         db, challenge.id, 1, challenge.name, None, Decimal("300000"), Decimal("0"),
@@ -391,7 +373,7 @@ def test_update_challenge_progress_below_target_stays_active(seeded_db):
 
 def test_update_challenge_progress_reaching_target_succeeds(seeded_db):
     db, user = seeded_db["db"], seeded_db["user"]
-    challenge = _create_challenge(db, user, target=Decimal("300000"))
+    challenge = make_challenge(db, user, target=Decimal("300000"))
 
     updated = goal_service.update_goal(
         db, challenge.id, 1, challenge.name, None, Decimal("300000"), Decimal("0"),
@@ -405,19 +387,19 @@ def test_update_challenge_progress_reaching_target_succeeds(seeded_db):
 
 def test_challenge_effective_status_active_within_period(seeded_db):
     db, user = seeded_db["db"], seeded_db["user"]
-    challenge = _create_challenge(db, user, start=date(2026, 8, 1), end=date(2026, 8, 31))
+    challenge = make_challenge(db, user, start=date(2026, 8, 1), end=date(2026, 8, 31))
     assert goal_progress_service.effective_status(challenge, today=date(2026, 8, 15)) == "active"
 
 
 def test_challenge_effective_status_expired_after_end_date(seeded_db):
     db, user = seeded_db["db"], seeded_db["user"]
-    challenge = _create_challenge(db, user, start=date(2026, 8, 1), end=date(2026, 8, 31))
+    challenge = make_challenge(db, user, start=date(2026, 8, 1), end=date(2026, 8, 31))
     assert goal_progress_service.effective_status(challenge, today=date(2026, 9, 1)) == "expired"
 
 
 def test_challenge_effective_status_succeeded_ignores_end_date(seeded_db):
     db, user = seeded_db["db"], seeded_db["user"]
-    challenge = _create_challenge(db, user, target=Decimal("100000"), start=date(2026, 8, 1), end=date(2026, 8, 31))
+    challenge = make_challenge(db, user, target=Decimal("100000"), start=date(2026, 8, 1), end=date(2026, 8, 31))
     goal_service.update_goal(
         db, challenge.id, 1, challenge.name, None, Decimal("100000"), Decimal("0"),
         current_amount=Decimal("100000"), target_date=challenge.target_date,
@@ -428,7 +410,7 @@ def test_challenge_effective_status_succeeded_ignores_end_date(seeded_db):
 
 def test_delete_challenge(seeded_db):
     db, user = seeded_db["db"], seeded_db["user"]
-    challenge = _create_challenge(db, user)
+    challenge = make_challenge(db, user)
 
     goal_service.delete_goal(db, challenge.id)
 
@@ -441,7 +423,7 @@ def test_challenge_with_linked_funding_source_succeeds_when_balance_reaches_targ
     db, user = seeded_db["db"], seeded_db["user"]
     product = savings_product_service.create_product(db, "챌린지 적금", Decimal("0"), Decimal("100000"))
     challenge = goal_service.create_goal(
-        db, 1, "외식비 줄이기", None, Decimal("300000"), Decimal("0"),
+        db, priority=1, name="외식비 줄이기", target_age=None, required_amount=Decimal("300000"), monthly_saving_amount=Decimal("0"),
         current_amount=Decimal("0"),  # 연동 상태에서는 무시됨
         funding_sources=[{"type": "savings_product", "id": product.id}],
         target_date=date(2026, 8, 31), kind="challenge",
@@ -468,7 +450,7 @@ def test_sync_challenge_statuses_transitions_challenge_without_save_event(seeded
     db, user = seeded_db["db"], seeded_db["user"]
     product = savings_product_service.create_product(db, "챌린지 적금", Decimal("0"), Decimal("100000"))
     challenge = goal_service.create_goal(
-        db, 1, "외식비 줄이기", None, Decimal("300000"), Decimal("0"),
+        db, priority=1, name="외식비 줄이기", target_age=None, required_amount=Decimal("300000"), monthly_saving_amount=Decimal("0"),
         funding_sources=[{"type": "savings_product", "id": product.id}],
         target_date=date(2026, 8, 31), kind="challenge",
         start_date=date(2026, 8, 1), created_by_id=user.id, now=NOW,
@@ -487,7 +469,7 @@ def test_sync_challenge_statuses_transitions_challenge_without_save_event(seeded
 
 def test_sync_challenge_statuses_ignores_challenge_below_target(seeded_db):
     db, user = seeded_db["db"], seeded_db["user"]
-    _create_challenge(db, user, target=Decimal("300000"), current=Decimal("100000"))
+    make_challenge(db, user, target=Decimal("300000"), current=Decimal("100000"))
     assert goal_service.sync_challenge_statuses(db, now=NOW) == []
 
 
@@ -497,11 +479,11 @@ def test_sync_challenge_statuses_ignores_challenge_below_target(seeded_db):
 def _create_unlinked_goal_with_monthly_targets(db, monthly_targets):
     return goal_service.create_goal(
         db,
-        1,
-        "여행자금",
-        None,
-        Decimal("300000"),
-        Decimal("0"),
+        priority=1,
+        name="여행자금",
+        target_age=None,
+        required_amount=Decimal("300000"),
+        monthly_saving_amount=Decimal("0"),
         target_date=date(2026, 11, 30),
         monthly_targets=monthly_targets,
     )
@@ -574,11 +556,11 @@ def test_unlinked_goal_current_amount_uses_monthly_targets_when_plan_exists(seed
     db = seeded_db["db"]
     goal = goal_service.create_goal(
         db,
-        1,
-        "여행자금",
-        None,
-        Decimal("300000"),
-        Decimal("0"),
+        priority=1,
+        name="여행자금",
+        target_age=None,
+        required_amount=Decimal("300000"),
+        monthly_saving_amount=Decimal("0"),
         target_date=date(2026, 10, 31),
         monthly_targets=[
             {"year_month": "2026-09", "target_amount": Decimal("150000")},
@@ -599,7 +581,7 @@ def test_unlinked_goal_without_monthly_targets_still_uses_manual_amount(seeded_d
     manual_current_amount를 쓴다 — 회귀 방지."""
     db = seeded_db["db"]
     goal = goal_service.create_goal(
-        db, 1, "내집마련", 40, Decimal("100000000"), Decimal("500000"), current_amount=Decimal("1000000")
+        db, priority=1, name="내집마련", target_age=40, required_amount=Decimal("100000000"), monthly_saving_amount=Decimal("500000"), current_amount=Decimal("1000000")
     )
     assert goal.monthly_targets == []
     assert goal_progress_service.compute_current_amount(db, goal) == Decimal("1000000")
@@ -610,23 +592,23 @@ def test_compute_linked_monthly_achieved_sums_account_transactions_by_income_exp
     account = account_service.create_account(db, "입출금통장", "checking", Decimal("0"))
     goal = goal_service.create_goal(
         db,
-        1,
-        "비상금",
-        None,
-        Decimal("1000000"),
-        Decimal("0"),
+        priority=1,
+        name="비상금",
+        target_age=None,
+        required_amount=Decimal("1000000"),
+        monthly_saving_amount=Decimal("0"),
         target_date=date(2026, 9, 30),
         funding_sources=[{"type": "account", "id": account.id}],
         monthly_targets=[{"year_month": "2026-09", "target_amount": Decimal("500000")}],
     )
     transaction_service.create_transaction(
-        db, user.id, salary.id, "income", Decimal("300000"), date(2026, 9, 5), account_id=account.id
+        db, user_id=user.id, category_id=salary.id, type_="income", amount=Decimal("300000"), transaction_date=date(2026, 9, 5), account_id=account.id
     )
     transaction_service.create_transaction(
-        db, user.id, food.id, "expense", Decimal("50000"), date(2026, 9, 10), account_id=account.id
+        db, user_id=user.id, category_id=food.id, type_="expense", amount=Decimal("50000"), transaction_date=date(2026, 9, 10), account_id=account.id
     )
     # 이 계좌와 무관한 거래(다른 카테고리, account_id 없음)는 집계에서 제외된다.
-    transaction_service.create_transaction(db, user.id, food.id, "expense", Decimal("999999"), date(2026, 9, 15))
+    transaction_service.create_transaction(db, user_id=user.id, category_id=food.id, type_="expense", amount=Decimal("999999"), transaction_date=date(2026, 9, 15))
 
     result = goal_progress_service.compute_linked_monthly_achieved(db, goal, ["2026-09"])
     assert result == {"2026-09": Decimal("250000")}
@@ -644,22 +626,22 @@ def test_compute_linked_monthly_achieved_savings_product_deposits_always_add(see
     product = savings_product_service.create_product(db, "청약통장", Decimal("0"), Decimal("100000"))
     goal = goal_service.create_goal(
         db,
-        1,
-        "내집마련",
-        None,
-        Decimal("1000000"),
-        Decimal("0"),
+        priority=1,
+        name="내집마련",
+        target_age=None,
+        required_amount=Decimal("1000000"),
+        monthly_saving_amount=Decimal("0"),
         target_date=date(2026, 9, 30),
         funding_sources=[{"type": "savings_product", "id": product.id}],
         monthly_targets=[{"year_month": "2026-09", "target_amount": Decimal("100000")}],
     )
     transaction_service.create_transaction(
         db,
-        user.id,
-        savings_category.id,
-        "expense",
-        Decimal("100000"),
-        date(2026, 9, 5),
+        user_id=user.id,
+        category_id=savings_category.id,
+        type_="expense",
+        amount=Decimal("100000"),
+        transaction_date=date(2026, 9, 5),
         savings_product_id=product.id,
     )
 
@@ -672,17 +654,17 @@ def test_to_out_marks_linked_goal_monthly_targets_as_auto_computed(seeded_db):
     account = account_service.create_account(db, "입출금통장", "checking", Decimal("0"))
     goal = goal_service.create_goal(
         db,
-        1,
-        "비상금",
-        None,
-        Decimal("1000000"),
-        Decimal("0"),
+        priority=1,
+        name="비상금",
+        target_age=None,
+        required_amount=Decimal("1000000"),
+        monthly_saving_amount=Decimal("0"),
         target_date=date(2026, 9, 30),
         funding_sources=[{"type": "account", "id": account.id}],
         monthly_targets=[{"year_month": "2026-09", "target_amount": Decimal("500000")}],
     )
     transaction_service.create_transaction(
-        db, user.id, salary.id, "income", Decimal("300000"), date(2026, 9, 5), account_id=account.id
+        db, user_id=user.id, category_id=salary.id, type_="income", amount=Decimal("300000"), transaction_date=date(2026, 9, 5), account_id=account.id
     )
     db.refresh(goal)
 
@@ -705,7 +687,7 @@ def test_linked_goal_monthly_plan_follows_savings_product_plan(seeded_db):
     db = seeded_db["db"]
     product = savings_product_service.create_product(db, "적금", Decimal("0"), Decimal("100000"))
     goal = goal_service.create_goal(
-        db, 1, "여행", None, Decimal("1200000"), Decimal("100000"),
+        db, priority=1, name="여행", target_age=None, required_amount=Decimal("1200000"), monthly_saving_amount=Decimal("100000"),
         funding_sources=[{"type": "savings_product", "id": product.id}],
     )
     savings_product_plan_service.upsert_annual_plan(
@@ -723,7 +705,7 @@ def test_linked_goal_monthly_plan_follows_savings_product_plan(seeded_db):
 
 def test_unlinked_goal_monthly_plan_is_its_own_amount(seeded_db):
     db = seeded_db["db"]
-    goal = goal_service.create_goal(db, 1, "비상금", None, Decimal("1000000"), Decimal("250000"))
+    goal = goal_service.create_goal(db, priority=1, name="비상금", target_age=None, required_amount=Decimal("1000000"), monthly_saving_amount=Decimal("250000"))
     out = goal_progress_service.to_out(db, goal, date(2026, 7, 10))
     assert out["planned_monthly_amount"] == Decimal("250000")
 
@@ -753,7 +735,7 @@ def test_compute_eta_with_return(current, required, monthly, annual_pct, expecte
 def test_to_out_includes_eta_with_return_when_expected_return_set(seeded_db):
     db = seeded_db["db"]
     goal = goal_service.create_goal(
-        db, 1, "노후", None, Decimal("12000000"), Decimal("100000"), Decimal("10000000"),
+        db, priority=1, name="노후", target_age=None, required_amount=Decimal("12000000"), monthly_saving_amount=Decimal("100000"), current_amount=Decimal("10000000"),
         expected_annual_return_pct=Decimal("12"),
     )
     out = goal_progress_service.to_out(db, goal, date(2026, 7, 10))
@@ -771,11 +753,11 @@ def test_net_worth_goal_tracks_household_net_worth_and_ignores_links(seeded_db):
     loan_service.create_loan(db, "전세대출", Decimal("1000000"), Decimal("0"), None, None, None, None)
     goal = goal_service.create_goal(
         db,
-        1,
-        "순자산 5억",
-        None,
-        Decimal("500000000"),
-        Decimal("0"),
+        priority=1,
+        name="순자산 5억",
+        target_age=None,
+        required_amount=Decimal("500000000"),
+        monthly_saving_amount=Decimal("0"),
         current_amount=Decimal("999"),
         funding_sources=[{"type": "savings_product", "id": product.id}],
         kind="net_worth",
@@ -794,7 +776,7 @@ def test_net_worth_goal_monthly_plan_is_sum_of_all_product_plans(seeded_db):
     db = seeded_db["db"]
     savings_product_service.create_product(db, "적금", Decimal("0"), Decimal("300000"))
     savings_product_service.create_product(db, "ETF", Decimal("0"), Decimal("500000"), product_type="investment")
-    goal = goal_service.create_goal(db, 1, "순자산", None, Decimal("100000000"), Decimal("0"), kind="net_worth")
+    goal = goal_service.create_goal(db, priority=1, name="순자산", target_age=None, required_amount=Decimal("100000000"), monthly_saving_amount=Decimal("0"), kind="net_worth")
 
     out = goal_progress_service.to_out(db, goal, date(2026, 10, 8))
 
@@ -803,15 +785,15 @@ def test_net_worth_goal_monthly_plan_is_sum_of_all_product_plans(seeded_db):
 
 def test_only_one_net_worth_goal_allowed(seeded_db):
     db = seeded_db["db"]
-    goal_service.create_goal(db, 1, "순자산", None, Decimal("100000000"), Decimal("0"), kind="net_worth")
+    goal_service.create_goal(db, priority=1, name="순자산", target_age=None, required_amount=Decimal("100000000"), monthly_saving_amount=Decimal("0"), kind="net_worth")
     with pytest.raises(goal_service.NetWorthGoalExistsError):
-        goal_service.create_goal(db, 1, "또 순자산", None, Decimal("200000000"), Decimal("0"), kind="net_worth")
+        goal_service.create_goal(db, priority=1, name="또 순자산", target_age=None, required_amount=Decimal("200000000"), monthly_saving_amount=Decimal("0"), kind="net_worth")
 
 
 def test_updating_net_worth_goal_keeps_it_unlinked(seeded_db):
     db = seeded_db["db"]
     product = savings_product_service.create_product(db, "적금", Decimal("0"), Decimal("0"))
-    goal = goal_service.create_goal(db, 1, "순자산", None, Decimal("100000000"), Decimal("0"), kind="net_worth")
+    goal = goal_service.create_goal(db, priority=1, name="순자산", target_age=None, required_amount=Decimal("100000000"), monthly_saving_amount=Decimal("0"), kind="net_worth")
 
     updated = goal_service.update_goal(
         db,
@@ -833,17 +815,17 @@ def test_goals_monthly_total_counts_only_unlinked_long_term_goals(seeded_db):
 
     db = seeded_db["db"]
     product = savings_product_service.create_product(db, "적금", Decimal("0"), Decimal("0"))
-    unlinked = goal_service.create_goal(db, 1, "여행", None, Decimal("5000000"), Decimal("200000"))
+    unlinked = goal_service.create_goal(db, priority=1, name="여행", target_age=None, required_amount=Decimal("5000000"), monthly_saving_amount=Decimal("200000"))
     linked = goal_service.create_goal(
         db,
-        1,
-        "내집",
-        None,
-        Decimal("100000000"),
-        Decimal("700000"),  # 상품 연동 목표에 남은 옛 값 — 상품 계획이 원본이라 세지 않는다
+        priority=1,
+        name="내집",
+        target_age=None,
+        required_amount=Decimal("100000000"),
+        monthly_saving_amount=Decimal("700000"),  # 상품 연동 목표에 남은 옛 값 — 상품 계획이 원본이라 세지 않는다
         funding_sources=[{"type": "savings_product", "id": product.id}],
     )
-    challenge = goal_service.create_goal(db, 1, "커피 줄이기", None, Decimal("100000"), Decimal("50000"), kind="challenge")
+    challenge = goal_service.create_goal(db, priority=1, name="커피 줄이기", target_age=None, required_amount=Decimal("100000"), monthly_saving_amount=Decimal("50000"), kind="challenge")
 
     assert goals_monthly_total([unlinked, linked, challenge]) == Decimal("200000")
 
@@ -855,23 +837,23 @@ def _make_linked_goals(db, user, salary, count, start):
         product = savings_product_service.create_product(db, f"적금{i}", Decimal("100000"), Decimal("10000"))
         goal_service.create_goal(
             db,
-            1,
-            f"목표{i}",
-            None,
-            Decimal("1000000"),
-            Decimal("0"),
+            priority=1,
+            name=f"목표{i}",
+            target_age=None,
+            required_amount=Decimal("1000000"),
+            monthly_saving_amount=Decimal("0"),
             target_date=date(2026, 12, 31),
             funding_sources=[{"type": "account", "id": account.id}, {"type": "savings_product", "id": product.id}],
             monthly_targets=[{"year_month": "2026-09", "target_amount": Decimal("100000")}],
         )
         transaction_service.create_transaction(
-            db, user.id, salary.id, "income", Decimal(10000 * (i + 1)), date(2026, 9, 5), account_id=account.id
+            db, user_id=user.id, category_id=salary.id, type_="income", amount=Decimal(10000 * (i + 1)), transaction_date=date(2026, 9, 5), account_id=account.id
         )
 
 
 def test_list_out_query_count_does_not_grow_with_goal_count(seeded_db, count_selects):
     db, user, salary = seeded_db["db"], seeded_db["user"], seeded_db["salary"]
-    goal_service.create_goal(db, 1, "수동목표", None, Decimal("1000000"), Decimal("0"), current_amount=Decimal("5"))
+    goal_service.create_goal(db, priority=1, name="수동목표", target_age=None, required_amount=Decimal("1000000"), monthly_saving_amount=Decimal("0"), current_amount=Decimal("5"))
     _make_linked_goals(db, user, salary, count=1, start=0)
 
     def measure():

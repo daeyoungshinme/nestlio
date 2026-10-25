@@ -379,10 +379,10 @@ def test_actuals_for_month_sums_transactions_linked_to_product(seeded_db):
     product = savings_product_service.create_product(db, "적금", Decimal("0"), Decimal("100000"))
 
     transaction_service.create_transaction(
-        db, user.id, savings_category.id, "expense", Decimal("30000"), date(2026, 7, 5), savings_product_id=product.id
+        db, user_id=user.id, category_id=savings_category.id, type_="expense", amount=Decimal("30000"), transaction_date=date(2026, 7, 5), savings_product_id=product.id
     )
     transaction_service.create_transaction(
-        db, user.id, savings_category.id, "expense", Decimal("20000"), date(2026, 7, 20), savings_product_id=product.id
+        db, user_id=user.id, category_id=savings_category.id, type_="expense", amount=Decimal("20000"), transaction_date=date(2026, 7, 20), savings_product_id=product.id
     )
 
     actuals = savings_product_plan_service.actuals_for_month(db, "2026-07")
@@ -396,10 +396,10 @@ def test_actuals_for_month_excludes_other_months(seeded_db):
     product = savings_product_service.create_product(db, "적금", Decimal("0"), Decimal("100000"))
 
     transaction_service.create_transaction(
-        db, user.id, savings_category.id, "expense", Decimal("30000"), date(2026, 7, 31), savings_product_id=product.id
+        db, user_id=user.id, category_id=savings_category.id, type_="expense", amount=Decimal("30000"), transaction_date=date(2026, 7, 31), savings_product_id=product.id
     )
     transaction_service.create_transaction(
-        db, user.id, savings_category.id, "expense", Decimal("40000"), date(2026, 8, 1), savings_product_id=product.id
+        db, user_id=user.id, category_id=savings_category.id, type_="expense", amount=Decimal("40000"), transaction_date=date(2026, 8, 1), savings_product_id=product.id
     )
 
     actuals = savings_product_plan_service.actuals_for_month(db, "2026-07")
@@ -409,7 +409,7 @@ def test_actuals_for_month_excludes_other_months(seeded_db):
 
 def test_actuals_for_month_excludes_unlinked_transactions(seeded_db):
     db, user, food = seeded_db["db"], seeded_db["user"], seeded_db["food"]
-    transaction_service.create_transaction(db, user.id, food.id, "expense", Decimal("10000"), date(2026, 7, 1))
+    transaction_service.create_transaction(db, user_id=user.id, category_id=food.id, type_="expense", amount=Decimal("10000"), transaction_date=date(2026, 7, 1))
 
     actuals = savings_product_plan_service.actuals_for_month(db, "2026-07")
 
@@ -426,20 +426,20 @@ def test_actuals_for_month_separates_multiple_products(seeded_db):
 
     transaction_service.create_transaction(
         db,
-        user.id,
-        savings_category.id,
-        "expense",
-        Decimal("30000"),
-        date(2026, 7, 1),
+        user_id=user.id,
+        category_id=savings_category.id,
+        type_="expense",
+        amount=Decimal("30000"),
+        transaction_date=date(2026, 7, 1),
         savings_product_id=savings_product.id,
     )
     transaction_service.create_transaction(
         db,
-        user.id,
-        savings_category.id,
-        "expense",
-        Decimal("70000"),
-        date(2026, 7, 2),
+        user_id=user.id,
+        category_id=savings_category.id,
+        type_="expense",
+        amount=Decimal("70000"),
+        transaction_date=date(2026, 7, 2),
         savings_product_id=investment_product.id,
     )
 
@@ -454,7 +454,7 @@ def test_compute_plan_summary_matches_planned_and_actual_per_product(seeded_db):
     savings_category = _add_savings_category(db)
     product = savings_product_service.create_product(db, "적금", Decimal("0"), Decimal("100000"))
     transaction_service.create_transaction(
-        db, user.id, savings_category.id, "expense", Decimal("50000"), date(2026, 7, 1), savings_product_id=product.id
+        db, user_id=user.id, category_id=savings_category.id, type_="expense", amount=Decimal("50000"), transaction_date=date(2026, 7, 1), savings_product_id=product.id
     )
 
     summary = savings_product_plan_service.compute_plan_summary(db, "2026-07")
@@ -472,14 +472,14 @@ def test_trailing_average_actuals_averages_months_before_anchor(seeded_db):
     savings_category = _add_savings_category(db)
     product = savings_product_service.create_product(db, "적금", Decimal("0"), Decimal("100000"))
     transaction_service.create_transaction(
-        db, user.id, savings_category.id, "expense", Decimal("40000"), date(2026, 5, 10), savings_product_id=product.id
+        db, user_id=user.id, category_id=savings_category.id, type_="expense", amount=Decimal("40000"), transaction_date=date(2026, 5, 10), savings_product_id=product.id
     )
     transaction_service.create_transaction(
-        db, user.id, savings_category.id, "expense", Decimal("60000"), date(2026, 6, 10), savings_product_id=product.id
+        db, user_id=user.id, category_id=savings_category.id, type_="expense", amount=Decimal("60000"), transaction_date=date(2026, 6, 10), savings_product_id=product.id
     )
     # anchor 월(7월) 거래는 평균 계산에서 제외돼야 한다
     transaction_service.create_transaction(
-        db, user.id, savings_category.id, "expense", Decimal("999999"), date(2026, 7, 1), savings_product_id=product.id
+        db, user_id=user.id, category_id=savings_category.id, type_="expense", amount=Decimal("999999"), transaction_date=date(2026, 7, 1), savings_product_id=product.id
     )
 
     avg = savings_product_plan_service.trailing_average_actuals(db, "2026-07", months=2)
@@ -492,7 +492,7 @@ def test_compute_plan_summary_includes_suggested_monthly_saving_amount(seeded_db
     savings_category = _add_savings_category(db)
     product = savings_product_service.create_product(db, "적금", Decimal("0"), Decimal("100000"))
     transaction_service.create_transaction(
-        db, user.id, savings_category.id, "expense", Decimal("80000"), date(2026, 6, 10), savings_product_id=product.id
+        db, user_id=user.id, category_id=savings_category.id, type_="expense", amount=Decimal("80000"), transaction_date=date(2026, 6, 10), savings_product_id=product.id
     )
 
     summary = savings_product_plan_service.compute_plan_summary(db, "2026-07")
@@ -520,10 +520,10 @@ def test_actuals_for_year_sums_transactions_within_year(seeded_db):
     product = savings_product_service.create_product(db, "적금", Decimal("0"), Decimal("100000"))
 
     transaction_service.create_transaction(
-        db, user.id, savings_category.id, "expense", Decimal("30000"), date(2026, 1, 5), savings_product_id=product.id
+        db, user_id=user.id, category_id=savings_category.id, type_="expense", amount=Decimal("30000"), transaction_date=date(2026, 1, 5), savings_product_id=product.id
     )
     transaction_service.create_transaction(
-        db, user.id, savings_category.id, "expense", Decimal("20000"), date(2026, 8, 20), savings_product_id=product.id
+        db, user_id=user.id, category_id=savings_category.id, type_="expense", amount=Decimal("20000"), transaction_date=date(2026, 8, 20), savings_product_id=product.id
     )
 
     actuals = savings_product_plan_service.actuals_for_year(db, 2026)
@@ -537,10 +537,10 @@ def test_actuals_for_year_excludes_other_years(seeded_db):
     product = savings_product_service.create_product(db, "적금", Decimal("0"), Decimal("100000"))
 
     transaction_service.create_transaction(
-        db, user.id, savings_category.id, "expense", Decimal("30000"), date(2026, 12, 31), savings_product_id=product.id
+        db, user_id=user.id, category_id=savings_category.id, type_="expense", amount=Decimal("30000"), transaction_date=date(2026, 12, 31), savings_product_id=product.id
     )
     transaction_service.create_transaction(
-        db, user.id, savings_category.id, "expense", Decimal("40000"), date(2027, 1, 1), savings_product_id=product.id
+        db, user_id=user.id, category_id=savings_category.id, type_="expense", amount=Decimal("40000"), transaction_date=date(2027, 1, 1), savings_product_id=product.id
     )
 
     actuals = savings_product_plan_service.actuals_for_year(db, 2026)
@@ -587,7 +587,7 @@ def test_compute_annual_plan_summary_catches_up_after_a_skipped_month(seeded_db)
     product = savings_product_service.create_product(db, "적금", Decimal("0"), Decimal("100000"))
 
     transaction_service.create_transaction(
-        db, user.id, savings_category.id, "expense", Decimal("200000"), date(2026, 2, 10), savings_product_id=product.id
+        db, user_id=user.id, category_id=savings_category.id, type_="expense", amount=Decimal("200000"), transaction_date=date(2026, 2, 10), savings_product_id=product.id
     )
 
     monthly_summary = savings_product_plan_service.compute_plan_summary(db, "2026-01")
@@ -620,7 +620,7 @@ def test_compute_annual_plan_summary_group_annual_pct_uses_full_year_target(seed
         ],
     )
     transaction_service.create_transaction(
-        db, user.id, savings_category.id, "expense", Decimal("400000"), date(2026, 1, 10), savings_product_id=product.id
+        db, user_id=user.id, category_id=savings_category.id, type_="expense", amount=Decimal("400000"), transaction_date=date(2026, 1, 10), savings_product_id=product.id
     )
 
     summary = savings_product_plan_service.compute_annual_plan_summary(db, 2026, as_of=date(2026, 1, 31))
@@ -716,7 +716,7 @@ def test_compute_plan_summary_uses_grid_target_when_configured(seeded_db):
         db, product.id, 2026, "2026-01", "2026-12", [{"year_month": "2026-07", "target_amount": Decimal("300000")}]
     )
     transaction_service.create_transaction(
-        db, user.id, savings_category.id, "expense", Decimal("50000"), date(2026, 7, 1), savings_product_id=product.id
+        db, user_id=user.id, category_id=savings_category.id, type_="expense", amount=Decimal("50000"), transaction_date=date(2026, 7, 1), savings_product_id=product.id
     )
 
     summary = savings_product_plan_service.compute_plan_summary(db, "2026-07")
@@ -815,10 +815,10 @@ def test_plan_totals_for_months_matches_per_month_and_spans_years(seeded_db, cou
         db, product.id, 2026, "2026-01", "2026-12", [{"year_month": "2026-01", "target_amount": Decimal("70000")}]
     )
     transaction_service.create_transaction(
-        db, user.id, savings_category.id, "expense", Decimal("60000"), date(2025, 12, 5), savings_product_id=product.id
+        db, user_id=user.id, category_id=savings_category.id, type_="expense", amount=Decimal("60000"), transaction_date=date(2025, 12, 5), savings_product_id=product.id
     )
     transaction_service.create_transaction(
-        db, user.id, savings_category.id, "expense", Decimal("80000"), date(2026, 1, 20), savings_product_id=product.id
+        db, user_id=user.id, category_id=savings_category.id, type_="expense", amount=Decimal("80000"), transaction_date=date(2026, 1, 20), savings_product_id=product.id
     )
     months = ["2025-11", "2025-12", "2026-01", "2026-02"]
 
