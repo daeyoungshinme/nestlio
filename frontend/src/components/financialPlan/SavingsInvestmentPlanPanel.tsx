@@ -16,16 +16,12 @@ import Tabs from "@/components/common/Tabs";
 import SavingsProductAnnualPlanForm from "@/components/financialPlan/SavingsProductAnnualPlanForm";
 import SectionAchievementBar from "@/components/financialPlan/SectionAchievementBar";
 import SuggestionHint from "@/components/financialPlan/SuggestionHint";
-import {
-  createSavingsProduct,
-  fetchSavingsProductAnnualPlanDetail,
-  fetchSavingsProductsAnnualPlan,
-  fetchSavingsProductsPlan,
-  upsertSavingsProductAnnualPlan,
-} from "@/api/savingsProducts";
+import { createSavingsProduct, fetchSavingsProductAnnualPlanDetail, fetchSavingsProductsAnnualPlan, upsertSavingsProductAnnualPlan } from "@/api/savingsProducts";
 import { useSavingsProducts, useUsers } from "@/hooks/useReferenceData";
+import { useSavingsProductsPlan } from "@/hooks/usePlanQueries";
 import { accountsSectionLink } from "@/constants/routes";
 import { ASSET_RELATED_KEYS, QUERY_KEYS } from "@/constants/queryKeys";
+import { invalidateKeys } from "@/utils/queryClient";
 import { TOUCH_TARGET_MIN_MOBILE_ONLY } from "@/constants/uiSizes";
 import { formatKrw, formatPercent } from "@/utils/format";
 import { yearOf } from "@/utils/date";
@@ -35,7 +31,6 @@ import {
   savingsProductTypeBadgeStyle,
   savingsProductTypeLabel,
 } from "@/utils/colors";
-import { extractErrorMessage } from "@/utils/error";
 import { toast } from "@/utils/toast";
 import type {
   SavingsProductAnnualPlanGroupOut,
@@ -139,7 +134,6 @@ function ProductRow({
       toast("월별 계획을 저장했습니다.", "success");
       setIsPlanModalOpen(false);
     },
-    onError: (err) => toast(extractErrorMessage(err), "error"),
   });
 
   const applySuggestionMutation = useMutation({
@@ -159,7 +153,6 @@ function ProductRow({
       invalidate();
       toast("제안값을 월 계획액에 반영했습니다.", "success");
     },
-    onError: (err) => toast(extractErrorMessage(err), "error"),
   });
 
   const showSuggestion =
@@ -309,11 +302,10 @@ export default function SavingsInvestmentPlanPanel({
   const createMutation = useMutation({
     mutationFn: createSavingsProduct,
     onSuccess: () => {
-      for (const queryKey of ASSET_RELATED_KEYS) void queryClient.invalidateQueries({ queryKey });
+      invalidateKeys(queryClient, ASSET_RELATED_KEYS);
       setShowCreate(false);
       toast("저축/투자 상품을 추가했습니다.", "success");
     },
-    onError: (err) => toast(extractErrorMessage(err), "error"),
   });
 
   const {
@@ -321,11 +313,7 @@ export default function SavingsInvestmentPlanPanel({
     isLoading: isMonthLoading,
     isError: isMonthError,
     refetch: refetchMonth,
-  } = useQuery({
-    queryKey: QUERY_KEYS.savingsProductsPlan(yearMonth),
-    queryFn: () => fetchSavingsProductsPlan(yearMonth),
-    enabled: viewMode === "이번 달",
-  });
+  } = useSavingsProductsPlan(yearMonth, { enabled: viewMode === "이번 달" });
   const {
     data: annualData,
     isLoading: isAnnualLoading,

@@ -14,14 +14,12 @@ import Modal from "@/components/common/Modal";
 import QuickAddFab from "@/components/common/QuickAddFab";
 import TransactionForm from "@/components/transactions/TransactionForm";
 import { fetchDashboard } from "@/api/dashboard";
-import { fetchCashflowPlan } from "@/api/cashflowPlan";
-import { fetchSavingsProductsPlan } from "@/api/savingsProducts";
 import { useAuthStore } from "@/stores/authStore";
 import { useCreateTransaction } from "@/hooks/useInvalidateTransactionRelated";
 import { useNotifications } from "@/hooks/useNotifications";
 import { useAccounts, useCategories, useDashboardBootstrap, useMe } from "@/hooks/useReferenceData";
+import { useCashflowPlan, useSavingsProductsPlan } from "@/hooks/usePlanQueries";
 import { QUERY_KEYS } from "@/constants/queryKeys";
-import { STALE_TIME } from "@/constants/queryConfig";
 import { currentDateIso, toDateIso, yearMonthOfDate } from "@/utils/date";
 import { estimateGoalAcceleration } from "@/utils/goalAcceleration";
 import { extractErrorMessage } from "@/utils/error";
@@ -56,19 +54,10 @@ export default function DashboardPage() {
   const { data, isLoading, isError, error, refetch } = useQuery({
     queryKey: QUERY_KEYS.dashboard(yearMonth),
     queryFn: () => fetchDashboard(yearMonth),
-    staleTime: STALE_TIME.SHORT,
   });
   // 계획 탭과 같은 쿼리 키 — 두 탭을 오가도 캐시를 재사용한다.
-  const { data: planData } = useQuery({
-    queryKey: QUERY_KEYS.cashflowPlan(yearMonth),
-    queryFn: () => fetchCashflowPlan(yearMonth),
-    staleTime: STALE_TIME.SHORT,
-  });
-  const { data: savingsPlanData } = useQuery({
-    queryKey: QUERY_KEYS.savingsProductsPlan(yearMonth),
-    queryFn: () => fetchSavingsProductsPlan(yearMonth),
-    staleTime: STALE_TIME.SHORT,
-  });
+  const { data: planData } = useCashflowPlan(yearMonth);
+  const { data: savingsPlanData } = useSavingsProductsPlan(yearMonth);
   const { data: notifications } = useNotifications();
   const { data: me } = useMe();
   // settings/net-worth/financial-goals/savings-products/users를 한 요청으로 묶어서 가져온다.

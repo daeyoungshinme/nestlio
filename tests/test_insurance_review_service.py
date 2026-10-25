@@ -183,7 +183,7 @@ def _create(db, **overrides):
 def test_build_insurance_review_summary_and_total(seeded_db):
     db, user, salary = seeded_db["db"], seeded_db["user"], seeded_db["salary"]
     for month in (7, 8, 9):
-        transaction_service.create_transaction(db, user.id, salary.id, "income", D("1000000"), date(2026, month, 1))
+        transaction_service.create_transaction(db, user_id=user.id, category_id=salary.id, type_="income", amount=D("1000000"), transaction_date=date(2026, month, 1))
     _create(db, name="실손A", insured_user_id=user.id, premium_amount=D("40000"))
     _create(db, name="실손B", insured_user_id=user.id, premium_amount=D("30000"))
     _create(db, name="연금보험", policy_type="savings", insured_user_id=user.id, premium_amount=D("100000"))
@@ -211,7 +211,7 @@ def test_build_insurance_review_flags_unregistered_from_category_spend(seeded_db
     db.commit()
     for month in range(1, 13):
         ym_date = date(2025 + (month + 9 - 1) // 12, (month + 9 - 1) % 12 + 1, 25)  # 2025-10 ~ 2026-09
-        transaction_service.create_transaction(db, user.id, insurance_cat.id, "expense", D("50000"), ym_date)
+        transaction_service.create_transaction(db, user_id=user.id, category_id=insurance_cat.id, type_="expense", amount=D("50000"), transaction_date=ym_date)
 
     review = insurance_review_service.build_insurance_review(db, today=TODAY)
 
@@ -375,8 +375,8 @@ def test_short_history_is_not_diluted(seeded_db):
     db.add(insurance_cat)
     db.commit()
     for month in (8, 9):  # 소득은 3개월 창 중 2개월만, 보험료 지출은 12개월 창 중 2개월만
-        transaction_service.create_transaction(db, user.id, salary.id, "income", D("2000000"), date(2026, month, 1))
-        transaction_service.create_transaction(db, user.id, insurance_cat.id, "expense", D("90000"), date(2026, month, 25))
+        transaction_service.create_transaction(db, user_id=user.id, category_id=salary.id, type_="income", amount=D("2000000"), transaction_date=date(2026, month, 1))
+        transaction_service.create_transaction(db, user_id=user.id, category_id=insurance_cat.id, type_="expense", amount=D("90000"), transaction_date=date(2026, month, 25))
     _create(db, name="실손", insured_user_id=user.id, premium_amount=D("40000"))
 
     review = insurance_review_service.build_insurance_review(db, today=TODAY)
@@ -402,7 +402,7 @@ def test_yearly_policy_rider_monthly_premium():
 def test_build_total_takes_ratio_when_larger_than_duplicates(seeded_db):
     db, user, salary = seeded_db["db"], seeded_db["user"], seeded_db["salary"]
     for month in (7, 8, 9):
-        transaction_service.create_transaction(db, user.id, salary.id, "income", D("1000000"), date(2026, month, 1))
+        transaction_service.create_transaction(db, user_id=user.id, category_id=salary.id, type_="income", amount=D("1000000"), transaction_date=date(2026, month, 1))
     _create(db, name="실손A", insured_user_id=user.id, premium_amount=D("100000"))
     _create(db, name="실손B", insured_user_id=user.id, premium_amount=D("30000"))
 

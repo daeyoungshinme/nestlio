@@ -125,7 +125,7 @@ def test_split_plan_item_starting_january_covers_full_year(client, seeded_db):
 def test_irregular_section_shows_actual_from_matching_category_transactions(client, seeded_db):
     user, events = seeded_db["user"], seeded_db["events"]
     transaction_service.create_transaction(
-        seeded_db["db"], user.id, events.id, "expense", Decimal("150000"), date(2026, 7, 12)
+        seeded_db["db"], user_id=user.id, category_id=events.id, type_="expense", amount=Decimal("150000"), transaction_date=date(2026, 7, 12)
     )
     client.put(
         "/api/v1/cashflow-plan/items",

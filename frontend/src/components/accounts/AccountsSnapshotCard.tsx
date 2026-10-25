@@ -107,10 +107,11 @@ export default function AccountsSnapshotCard() {
   return (
     <div className="space-y-3">
       <div className="card p-4 sm:p-5 space-y-4">
-        <div className="flex flex-row items-start gap-4">
+        {/* 모바일은 순자산 → 도넛을 위아래로 — 옆으로 두면 왼쪽 열이 ~124px만 남아 산식이 3줄로 감겼다. */}
+        <div className="flex flex-col sm:flex-row sm:items-start gap-4">
           <div className="flex-1 min-w-0 flex flex-col gap-1">
             <div className="flex items-center justify-between gap-2">
-              <p className="text-xs text-gray-400 dark:text-gray-500 font-medium">순자산</p>
+              <p className="text-xs text-gray-500 dark:text-gray-400 font-medium">순자산</p>
               <Button
                 variant="ghost"
                 size="sm"
@@ -121,18 +122,21 @@ export default function AccountsSnapshotCard() {
                 전체 동기화
               </Button>
             </div>
-            <p className={`text-xl sm:text-3xl lg:text-4xl font-bold ${netWorthTextColor(netWorth)}`}>
+            {/* 전체 금액 줄은 축약값과 같은 숫자의 반복이라 title로만 남긴다. */}
+            <p
+              className={`text-2xl sm:text-3xl lg:text-4xl font-bold ${netWorthTextColor(netWorth)}`}
+              title={formatKrw(current.net_worth)}
+            >
               {formatKrwCompact(netWorth)}
             </p>
-            <p className="text-sm text-gray-400 dark:text-gray-500 truncate">{formatKrw(current.net_worth)}</p>
-            <p className="text-xs text-gray-400 dark:text-gray-500">
+            <p className="text-xs text-gray-500 dark:text-gray-400">
               총자산 {formatKrwCompact(totalAssetsTotal)} − 대출 {formatKrwCompact(loansTotal)} = 순자산{" "}
               {formatKrwCompact(netWorth)}
             </p>
           </div>
 
           <Suspense
-            fallback={<div className="shrink-0 self-start w-[156px] sm:w-[180px] lg:w-[198px] xl:w-[210px] h-[144px] sm:h-[164px] lg:h-[176px]" />}
+            fallback={<div className="shrink-0 self-center sm:self-start w-[156px] sm:w-[180px] lg:w-[198px] xl:w-[210px] h-[144px] sm:h-[164px] lg:h-[176px]" />}
           >
             <AssetCompositionDonut
               accounts={accountsTotal}

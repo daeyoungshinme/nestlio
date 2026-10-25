@@ -19,14 +19,15 @@ import { deleteAnnualPlanItem, fetchAnnualPlan, upsertAnnualPlanItem } from "@/a
 import { fetchSavingsProductsAnnualPlan } from "@/api/savingsProducts";
 import { useCategories, useUsers } from "@/hooks/useReferenceData";
 import { SECTIONS, SAVINGS_INVESTMENT_LABEL } from "@/constants/planSections";
-import { QUERY_KEYS } from "@/constants/queryKeys";
+import { PLAN_RELATED_KEYS, QUERY_KEYS } from "@/constants/queryKeys";
+import { invalidateKeys } from "@/utils/queryClient";
 import { pctOf } from "@/utils/format";
-import { extractErrorMessage } from "@/utils/error";
 import { worseStatus } from "@/utils/colors";
 import { currentYear } from "@/utils/date";
 import { toast } from "@/utils/toast";
 import type { AnnualPlanItemOut, CashflowSection } from "@/types";
 import type { AnnualPlanItemFormValues } from "@/components/financialPlan/AnnualPlanItemForm";
+import CollapsibleHint from "@/components/common/CollapsibleHint";
 
 
 interface ItemModalState {
@@ -64,12 +65,7 @@ export default function AnnualPlanPanel() {
   const { data: users } = useUsers();
   const { data: categories } = useCategories();
 
-  const invalidate = () => {
-    void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.annualPlan(year) });
-    void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.dashboardAll });
-    // "이번 달 계획"은 연간계획의 한 달 단면이라 연간계획을 저장하면 모든 달 화면이 바뀐다 — 월과 무관하게 전부 무효화한다.
-    void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.cashflowPlanAll });
-  };
+  const invalidate = () => invalidateKeys(queryClient, PLAN_RELATED_KEYS);
 
   const upsertMutation = useMutation({
     mutationFn: upsertAnnualPlanItem,
@@ -78,7 +74,6 @@ export default function AnnualPlanPanel() {
       setItemModal(null);
       toast("저장했습니다.", "success");
     },
-    onError: (err) => toast(extractErrorMessage(err), "error"),
   });
 
   const deleteMutation = useMutation({
@@ -88,7 +83,6 @@ export default function AnnualPlanPanel() {
       setDeleteTarget(null);
       toast("삭제했습니다.", "success");
     },
-    onError: (err) => toast(extractErrorMessage(err), "error"),
   });
 
   // 구 연간리포트 딥링크(/reports/yearly → ?section=분석)로 들어오면 데이터가 그려진 뒤 실적 분석으로 스크롤한다.
@@ -211,14 +205,14 @@ export default function AnnualPlanPanel() {
 
       <PlanSectionAccordion sections={sections} />
 
-      <p className="text-xs text-gray-400 dark:text-gray-500">
-        섹션마다 올해 지금까지의 목표 대비 실적이에요. 여기서 입력한 월별 금액이 곧 "이번 달" 계획이고, 이번 달
-        화면에서 조정한 금액도 여기에 그대로 반영돼요. 개별 재무목표 진행은{" "}
+      <CollapsibleHint summary="섹션마다 올해 지금까지의 목표 대비 실적이에요.">
+        여기서 입력한 월별 금액이 곧 "이번 달" 계획이고, 이번 달 화면에서 조정한 금액도 여기에 그대로 반영돼요. 개별
+        재무목표 진행은{" "}
         <Link to={ROUTES.goals} className="font-semibold underline hover:no-underline">
           목표 탭
         </Link>
         에서 확인해요.
-      </p>
+      </CollapsibleHint>
 
       <section ref={analysisRef} className="space-y-4 scroll-mt-16">
         <h2 className="text-base font-bold text-gray-900 dark:text-gray-50">{year}년 실적 분석</h2>
