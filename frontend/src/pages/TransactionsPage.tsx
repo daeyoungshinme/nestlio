@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { Repeat } from "lucide-react";
 import { useSearchParams } from "react-router-dom";
@@ -24,11 +24,11 @@ import { useDebouncedValue } from "@/hooks/useDebouncedValue";
 import { useCreateTransaction, useInvalidateTransactionRelated } from "@/hooks/useInvalidateTransactionRelated";
 import { useLedgerFilters } from "@/hooks/useLedgerFilters";
 import { useLedgerMonth } from "@/hooks/useLedgerMonth";
+import { useConsumeSearchParam } from "@/hooks/useConsumeSearchParam";
 import { useRecurringDeepLink } from "@/hooks/useRecurringDeepLink";
 import { useAccounts, useCategories, useMe, useSavingsProducts, useUsers } from "@/hooks/useReferenceData";
 import { currentDateIso, currentYearMonth, shiftYearMonth } from "@/utils/date";
 import { formatKrw } from "@/utils/format";
-import { extractErrorMessage } from "@/utils/error";
 import { toast } from "@/utils/toast";
 import type { EventOut, TransactionOut } from "@/types";
 
@@ -78,21 +78,11 @@ export default function TransactionsPage() {
 
   // ?date=YYYY-MM-DD로 들어오면(옛 일정 경로 리다이렉트 등) 그 달로 이동해 그 날 모달을 열고 파라미터를
   // 지운다. 이미 마운트된 상태에서 파라미터만 바뀌어도 맞는 달의 거래를 보이도록 달도 함께 맞춘다.
-  useEffect(() => {
-    const d = searchParams.get("date");
-    if (!d || !ISO_DATE_RE.test(d)) return;
+  useConsumeSearchParam("date", (d) => {
+    if (!ISO_DATE_RE.test(d)) return;
     setYearMonth(d.slice(0, 7));
     setSelectedDate(d);
-    setSearchParams(
-      (prev) => {
-        const next = new URLSearchParams(prev);
-        next.delete("date");
-        return next;
-      },
-      { replace: true },
-    );
-    // eslint-disable-next-line react/exhaustive-deps -- setSearchParams는 안정적, searchParams만 관찰
-  }, [searchParams]);
+  });
 
   const changeView = (next: LedgerView) =>
     setSearchParams(
@@ -125,7 +115,6 @@ export default function TransactionsPage() {
       setDayPanel(null);
       toast("내역을 수정했습니다.", "success");
     },
-    onError: (err) => toast(extractErrorMessage(err), "error"),
   });
 
   const deleteMutation = useMutation({
@@ -135,7 +124,6 @@ export default function TransactionsPage() {
       setDeleteTarget(null);
       toast("내역을 삭제했습니다.", "success");
     },
-    onError: (err) => toast(extractErrorMessage(err), "error"),
   });
 
   const createMutation = useCreateTransaction((created) => {

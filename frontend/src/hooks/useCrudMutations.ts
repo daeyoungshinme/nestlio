@@ -1,6 +1,6 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import type { QueryKey } from "@tanstack/react-query";
-import { extractErrorMessage } from "@/utils/error";
+import { invalidateKeys } from "@/utils/queryClient";
 import { toast } from "@/utils/toast";
 
 interface CrudApi<TCreate, TUpdate, TItem> {
@@ -26,10 +26,11 @@ interface UseCrudMutationsOptions<TCreate, TUpdate, TItem> {
 }
 
 /** CRUD 리소스 섹션(카테고리/계좌/대출/저축상품/재무목표/챌린지/고정지출)이 반복하던
- * create/update/remove mutation 3종 + invalidate/toast(성공)/toast(에러) 보일러플레이트를 캡슐화한다.
+ * create/update/remove mutation 3종 + invalidate/toast(성공) 보일러플레이트를 캡슐화한다(실패 토스트는
+ * utils/queryClient.ts의 createMutationCache가 띄운다).
  * 폼 닫기 등 컴포넌트별 후처리는 onCreateSuccess/onUpdateSuccess/onRemoveSuccess로 주입한다. */
 export function useCrudMutations<TCreate = never, TUpdate = never, TItem = unknown>({
-  invalidateKeys,
+  invalidateKeys: keys,
   api,
   messages,
   onCreateSuccess,
@@ -38,11 +39,7 @@ export function useCrudMutations<TCreate = never, TUpdate = never, TItem = unkno
 }: UseCrudMutationsOptions<TCreate, TUpdate, TItem>) {
   const queryClient = useQueryClient();
 
-  const invalidate = () => {
-    invalidateKeys.forEach((key) => void queryClient.invalidateQueries({ queryKey: key }));
-  };
-
-  const onError = (err: unknown) => toast(extractErrorMessage(err), "error");
+  const invalidate = () => invalidateKeys(queryClient, keys);
 
   const createMutation = useMutation({
     mutationFn: (payload: TCreate) => {
@@ -54,7 +51,6 @@ export function useCrudMutations<TCreate = never, TUpdate = never, TItem = unkno
       if (messages?.create) toast(messages.create, "success");
       onCreateSuccess?.(item);
     },
-    onError,
   });
 
   const updateMutation = useMutation({
@@ -67,7 +63,6 @@ export function useCrudMutations<TCreate = never, TUpdate = never, TItem = unkno
       if (messages?.update) toast(messages.update, "success");
       onUpdateSuccess?.(item);
     },
-    onError,
   });
 
   const removeMutation = useMutation({
@@ -80,7 +75,6 @@ export function useCrudMutations<TCreate = never, TUpdate = never, TItem = unkno
       if (messages?.remove) toast(messages.remove, "success");
       onRemoveSuccess?.();
     },
-    onError,
   });
 
   return { createMutation, updateMutation, removeMutation, invalidate };

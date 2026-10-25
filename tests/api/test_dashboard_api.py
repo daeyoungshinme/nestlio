@@ -7,7 +7,7 @@ from app.utils.dates import month_bounds, shift_month, today_kst, year_month_str
 def test_dashboard_month_returns_totals_and_insights(client, seeded_db):
     db, user, food = seeded_db["db"], seeded_db["user"], seeded_db["food"]
     today = today_kst()
-    transaction_service.create_transaction(db, user.id, food.id, "income", Decimal("100000"), today)
+    transaction_service.create_transaction(db, user_id=user.id, category_id=food.id, type_="income", amount=Decimal("100000"), transaction_date=today)
 
     resp = client.get("/api/v1/dashboard", params={"year_month": year_month_str(today)})
 
@@ -45,8 +45,8 @@ def test_dashboard_flags_categories_over_guideline_as_coaching_insight(client, s
     food.benchmark_group = "food"
     db.commit()
     today = today_kst()
-    transaction_service.create_transaction(db, user.id, food.id, "income", Decimal("1000000"), today)
-    transaction_service.create_transaction(db, user.id, food.id, "expense", Decimal("200000"), today)
+    transaction_service.create_transaction(db, user_id=user.id, category_id=food.id, type_="income", amount=Decimal("1000000"), transaction_date=today)
+    transaction_service.create_transaction(db, user_id=user.id, category_id=food.id, type_="expense", amount=Decimal("200000"), transaction_date=today)
 
     resp = client.get("/api/v1/dashboard")
 
@@ -71,10 +71,10 @@ def test_dashboard_includes_savings_streak_by_default(client):
 
 def test_dashboard_savings_streak_reflects_consecutive_goal_pace_months(client, seeded_db):
     db, user, food = seeded_db["db"], seeded_db["user"], seeded_db["food"]
-    goal_service.create_goal(db, 1, "여행자금", None, Decimal("10000000"), Decimal("500000"))
+    goal_service.create_goal(db, priority=1, name="여행자금", target_age=None, required_amount=Decimal("10000000"), monthly_saving_amount=Decimal("500000"))
     today = today_kst()
-    transaction_service.create_transaction(db, user.id, food.id, "income", Decimal("2000000"), today)
-    transaction_service.create_transaction(db, user.id, food.id, "expense", Decimal("1000000"), today)
+    transaction_service.create_transaction(db, user_id=user.id, category_id=food.id, type_="income", amount=Decimal("2000000"), transaction_date=today)
+    transaction_service.create_transaction(db, user_id=user.id, category_id=food.id, type_="expense", amount=Decimal("1000000"), transaction_date=today)
 
     resp = client.get("/api/v1/dashboard")
 
@@ -84,7 +84,7 @@ def test_dashboard_savings_streak_reflects_consecutive_goal_pace_months(client, 
 
 def test_dashboard_bootstrap_combines_reference_data(client, seeded_db):
     db, user = seeded_db["db"], seeded_db["user"]
-    goal_service.create_goal(db, 1, "여행자금", None, Decimal("10000000"), Decimal("500000"))
+    goal_service.create_goal(db, priority=1, name="여행자금", target_age=None, required_amount=Decimal("10000000"), monthly_saving_amount=Decimal("500000"))
     client.post(
         "/api/v1/savings-products",
         json={"name": "적금", "current_balance": "1000000", "monthly_saving_amount": "300000"},
@@ -104,8 +104,8 @@ def test_dashboard_bootstrap_combines_reference_data(client, seeded_db):
 def test_monthly_retrospective_summarizes_previous_completed_month(client, seeded_db):
     db, user, food = seeded_db["db"], seeded_db["user"], seeded_db["food"]
     prev_start, _ = month_bounds(shift_month(today_kst(), -1))
-    transaction_service.create_transaction(db, user.id, food.id, "income", Decimal("50000"), prev_start)
-    transaction_service.create_transaction(db, user.id, food.id, "expense", Decimal("20000"), prev_start)
+    transaction_service.create_transaction(db, user_id=user.id, category_id=food.id, type_="income", amount=Decimal("50000"), transaction_date=prev_start)
+    transaction_service.create_transaction(db, user_id=user.id, category_id=food.id, type_="expense", amount=Decimal("20000"), transaction_date=prev_start)
 
     resp = client.get("/api/v1/dashboard/monthly-retrospective")
 

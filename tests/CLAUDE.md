@@ -9,6 +9,7 @@
 
 - `db_session`: 테스트마다 새 in-memory SQLite 엔진(롤백 방식이 아니라 별도 엔진). `schema_translate_map={"household": None}`으로 스키마를 떼고, `poolclass=StaticPool`을 쓴다 — TestClient는 sync 라우터를 워커 스레드에서 돌리는데 기본 풀은 스레드마다 별도 연결(= 빈 DB)을 준다.
 - `seeded_db`: spouse1 유저 1명 + 카테고리 4개(food/variable, rent/fixed, events/irregular, 수입 salary/fixed)를 시드하고 `{db, user, food, rent, events, salary}`를 반환. **대부분의 테스트가 이걸 쓴다.**
+- 거래·챌린지는 `tests/factories.py`(`make_transaction`, `make_challenge`)로 만든다 — 서비스 함수를 거치므로 검증·부수효과가 실제와 같다. `transaction_service.create_transaction`·`goal_service.create_goal`은 `db` 뒤 인자가 keyword-only라 직접 부를 때도 키워드로 넘긴다.
 - SQLite는 `VARCHAR(n)` 길이를 강제하지 않으므로 `conftest.py`의 `before_insert`/`before_update` 리스너가 `String(n)` 초과를 `AssertionError`로 잡는다.
 - **자체 `SessionLocal()`을 여는 코드**(스케줄러 잡, `google_auth`, `refresh_stale_growlio_links` 같은 백그라운드 작업)는 `conftest.py`의 autouse 픽스처가 테스트 DB로 돌린다. 그런 모듈을 새로 만들면 그 픽스처에 추가한다 — 빠지면 로컬 `.env`의 **운영 DB에 붙는다**(TestClient는 `BackgroundTasks`까지 실행한다). 함수 안에서 `from app.database import SessionLocal`로 늦게 import하는 곳은 `app.database.SessionLocal` 패치로 잡힌다.
 

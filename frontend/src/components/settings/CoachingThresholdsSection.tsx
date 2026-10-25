@@ -3,7 +3,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import Button from "@/components/common/Button";
 import CollapsibleGroup from "@/components/common/CollapsibleGroup";
 import FormInput from "@/components/common/FormInput";
-import { SettingsSectionCard, onMutationError } from "@/components/settings/shared";
+import { SettingsSectionCard } from "@/components/settings/shared";
 import { setCoachingThresholds } from "@/api/settings";
 import { QUERY_KEYS } from "@/constants/queryKeys";
 import { COACHING_THRESHOLD_PRESETS } from "@/constants/coachingPresets";
@@ -44,7 +44,6 @@ export default function CoachingThresholdsSection({ thresholds }: { thresholds: 
       setThresholdEdits({});
       toast("코칭 임계값을 저장했습니다.", "success");
     },
-    onError: onMutationError,
   });
 
   return (
