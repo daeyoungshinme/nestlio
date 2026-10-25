@@ -8,6 +8,7 @@ import { fetchEvents } from "@/api/events";
 import { useEventActions } from "@/hooks/useEventActions";
 import { QUERY_KEYS } from "@/constants/queryKeys";
 import { ROUTES } from "@/constants/routes";
+import { TOUCH_TARGET_MIN, TOUCH_TARGET_MIN_HEIGHT } from "@/constants/uiSizes";
 import { occurrenceDate, shiftDateIso } from "@/utils/date";
 import { formatDate, formatKrw } from "@/utils/format";
 import type { UserOut } from "@/types";
@@ -47,14 +48,9 @@ export default function TodayScheduleCard({ day, users }: Props) {
     <div className="card space-y-3">
       <div className="flex items-center justify-between">
         <span className="text-sm font-medium text-gray-700 dark:text-gray-300">오늘 일정</span>
-        <div className="flex items-center gap-3">
-          <Button size="sm" icon={<Plus size={14} />} onClick={() => openCreate(day)}>
-            일정 추가
-          </Button>
-          <Link to={ROUTES.schedule} className="text-xs font-semibold text-primary-600 dark:text-primary-400 hover:underline">
-            전체 일정 보기 →
-          </Link>
-        </div>
+        <Button size="sm" icon={<Plus size={14} />} onClick={() => openCreate(day)}>
+          일정 추가
+        </Button>
       </div>
 
       {isError ? (
@@ -72,14 +68,16 @@ export default function TodayScheduleCard({ day, users }: Props) {
           {events.map((event) => {
             const completed = event.completed_at != null;
             return (
-              <div key={event.id} className="flex items-center gap-2">
-                <input
-                  type="checkbox"
-                  checked={completed}
-                  onChange={() => toggleComplete(event)}
-                  className="h-4 w-4 shrink-0 rounded border-gray-300"
-                  aria-label={`${event.title} 완료 처리`}
-                />
+              <div key={event.id} className="flex items-center gap-1">
+                <label className={`${TOUCH_TARGET_MIN} -ml-3 shrink-0 cursor-pointer`}>
+                  <input
+                    type="checkbox"
+                    checked={completed}
+                    onChange={() => toggleComplete(event)}
+                    className="h-5 w-5 rounded border-gray-300"
+                    aria-label={`${event.title} 완료 처리`}
+                  />
+                </label>
                 <p
                   className={`min-w-0 flex-1 truncate text-sm text-gray-900 dark:text-gray-50 ${completed ? "line-through text-gray-400 dark:text-gray-500" : ""}`}
                 >
@@ -92,11 +90,6 @@ export default function TodayScheduleCard({ day, users }: Props) {
               </div>
             );
           })}
-          {hiddenEventCount > 0 && (
-            <Link to={ROUTES.schedule} className="block text-xs text-gray-500 dark:text-gray-400 hover:underline">
-              오늘 일정 {hiddenEventCount}개 더 보기 →
-            </Link>
-          )}
         </div>
       )}
 
@@ -106,7 +99,7 @@ export default function TodayScheduleCard({ day, users }: Props) {
           {upcomingRecurring.map((r) => (
             <div key={r.id} className="flex items-center justify-between gap-2 text-sm">
               <span className="min-w-0 truncate text-gray-700 dark:text-gray-300">
-                <span className="text-xs text-gray-400 dark:text-gray-500 mr-1.5">{formatDate(r.next_due_date)}</span>
+                <span className="text-xs text-gray-500 dark:text-gray-400 mr-1.5">{formatDate(r.next_due_date)}</span>
                 {r.name}
               </span>
               <span className="shrink-0 font-medium text-gray-900 dark:text-gray-50">
@@ -117,6 +110,14 @@ export default function TodayScheduleCard({ day, users }: Props) {
           ))}
         </div>
       )}
+
+      {/* 헤더의 작은 글자 링크 대신 카드 맨 아래 44px 링크 하나 — "N개 더 보기"도 여기로 합쳤다. */}
+      <Link
+        to={ROUTES.schedule}
+        className={`${TOUCH_TARGET_MIN_HEIGHT} -mb-2 flex items-center justify-center border-t border-gray-100 dark:border-gray-800 text-xs font-semibold text-primary-600 dark:text-primary-400 hover:underline`}
+      >
+        {hiddenEventCount > 0 ? `오늘 일정 ${hiddenEventCount}개 더 · 전체 일정 보기` : "전체 일정 보기"}
+      </Link>
 
       {modals}
     </div>

@@ -70,7 +70,7 @@ npm run generate:icons      # public/favicon.svg → PNG/ICO
 
 | 경로 | 페이지 | 메모 |
 |---|---|---|
-| `/` | `DashboardPage` | 항상 이번 달 기준, 5블록: (월초 1~7일) `MonthlyRetrospectiveCard` → `HomeGoalHero`(대표 목표 — 순자산 목표가 있으면 그것, 함께 모은 돈·저축 리더·응원 보내기) → `MonthFlowCard`(계획 대비 미니 막대 + `InvestSurplusCard embedded`) → `CoachingInsights` → `TodayScheduleCard`. 배우자 응원은 `utils/cheers.ts::latestPartnerCheer` |
+| `/` | `DashboardPage` | 항상 이번 달 기준: (월초 1~7일) `MonthlyRetrospectiveCard` → `HomeGoalHero`(대표 목표 — 순자산 목표가 있으면 그것, 함께 모은 돈·저축 리더·응원 보내기, 카드·응원 모두 목표 상세로, 스파크라인은 sm 이상만) → `MonthFlowCard`(계획 대비 미니 막대 + `InvestSurplusCard embedded`) → `CoachingInsights`(상위 2개, 위 카드와 겹치는 `budget_overrun`·`savings_execution`은 숨김) → `SavingsReviewLinkCard` → `TodayScheduleCard`. 배우자 응원은 `utils/cheers.ts::latestPartnerCheer` |
 | `/transactions` | 가계부 | 월간 캘린더 + `[내역 \| 일정]` 세그먼트(`?view=`). 날짜 클릭 → `LedgerDayModal`(거래·일정 함께). 일정 CRUD는 `hooks/useEventActions.tsx`. 반복 거래 관리는 `RecurringManageSheet`. `?date=YYYY-MM-DD`로 모달 열기 |
 | `/transactions/import` | 거래 데이터 | CSV 내보내기·가져오기. 진입은 설정 바로가기뿐 |
 | `/categories` | 카테고리 관리 | 메뉴에 없음 — 설정 바로가기·계획의 "카테고리별 예산"에서만 진입 |
