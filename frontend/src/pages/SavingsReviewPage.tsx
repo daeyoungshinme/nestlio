@@ -13,7 +13,7 @@ import { QUERY_KEYS } from "@/constants/queryKeys";
 import { SAVINGS_REVIEW_TABS, type SavingsReviewTab } from "@/constants/routes";
 import { useUsers } from "@/hooks/useReferenceData";
 import { currentYearMonth, shiftYearMonth } from "@/utils/date";
-import { formatKrw, formatYearMonth } from "@/utils/format";
+import { formatKrw, formatKrwCompact, formatYearMonth } from "@/utils/format";
 
 const ALL_OWNERS_TAB = "전체";
 const SHARED_OWNER_TAB = "공통";
@@ -58,9 +58,12 @@ export default function SavingsReviewPage() {
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <MonthPicker yearMonth={yearMonth} onChange={setYearMonth} />
-      </div>
+      {/* 보험은 고른 달과 무관하게 지금 계약 기준이라 달 선택은 소비 탭에서만 보인다. */}
+      {activeTab === "소비" && (
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <MonthPicker yearMonth={yearMonth} onChange={setYearMonth} />
+        </div>
+      )}
 
       <QueryBoundary query={reviewQuery} errorMessage="절감 점검을 불러오지 못했어요." loadingFallback={<SkeletonCard rows={4} />}>
         {(data) => (
@@ -70,8 +73,8 @@ export default function SavingsReviewPage() {
               <p className="mt-1 text-2xl font-bold text-gray-900 dark:text-gray-50">월 {formatKrw(data.total_estimated_monthly_saving)}</p>
               <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
                 {/* 소비는 고른 달 기준, 보험은 고른 달과 무관하게 지금 유지 중인 계약 기준이다. */}
-                소비({formatYearMonth(data.year_month)}) {formatKrw(data.spending.total_estimated_monthly_saving)} · 보험(현재
-                계약) {formatKrw(data.insurance.total_estimated_monthly_saving)}
+                소비({formatYearMonth(data.year_month)}) {formatKrwCompact(Number(data.spending.total_estimated_monthly_saving))}{" "}
+                · 보험 {formatKrwCompact(Number(data.insurance.total_estimated_monthly_saving))}
                 {ownerParam ? ` (소비는 ${ownerTab} 몫만)` : ""}
               </p>
             </div>

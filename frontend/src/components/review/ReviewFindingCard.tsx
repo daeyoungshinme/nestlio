@@ -1,7 +1,7 @@
 import { Link } from "react-router-dom";
 import { TOUCH_TARGET_MIN_HEIGHT } from "@/constants/uiSizes";
 import { insightSeverityStyle } from "@/utils/colors";
-import { formatKrw } from "@/utils/format";
+import { formatKrwCompact } from "@/utils/format";
 import type { InsightSeverityLevel } from "@/types";
 
 interface Props {
@@ -20,7 +20,7 @@ export default function ReviewFindingCard({ severity, title, detail, saving, rel
     <div className={`border rounded-lg px-4 py-3 text-sm space-y-1.5 ${insightSeverityStyle(severity)}`}>
       <div className="flex items-start justify-between gap-3">
         <p className="font-semibold">{title}</p>
-        {hasSaving && <p className="shrink-0 font-bold whitespace-nowrap">월 -{formatKrw(saving)}</p>}
+        {hasSaving && <p className="shrink-0 font-bold whitespace-nowrap">월 -{formatKrwCompact(Number(saving))}</p>}
       </div>
       <p className="text-xs leading-relaxed opacity-90">{detail}</p>
       {related.length > 0 && (

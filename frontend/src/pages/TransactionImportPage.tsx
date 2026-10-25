@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useId, useState } from "react";
 import { ArrowLeft } from "lucide-react";
 import { Link } from "react-router-dom";
 import { useMutation } from "@tanstack/react-query";
@@ -15,7 +15,12 @@ import type { ImportResultOut } from "@/types";
 import { ROUTES } from "@/constants/routes";
 import { errorMessageTextClass } from "@/utils/colors";
 
-function ImportResultCard({ result, onUndo }: { result: ImportResultOut; onUndo?: () => void }) {
+/** 건너뛴 행 목록은 이만큼만 — 형식이 틀린 CSV면 수백 줄이 화면을 덮는다. */
+const SKIPPED_ROWS_LIMIT = 20;
+
+export function ImportResultCard({ result, onUndo }: { result: ImportResultOut; onUndo?: () => void }) {
+  const shownSkipped = result.skipped.slice(0, SKIPPED_ROWS_LIMIT);
+  const hiddenSkipped = result.skipped.length - shownSkipped.length;
   return (
     <div className="card space-y-2">
       <p className="text-sm font-medium text-gray-900 dark:text-gray-50">
@@ -23,11 +28,12 @@ function ImportResultCard({ result, onUndo }: { result: ImportResultOut; onUndo?
       </p>
       {result.skipped.length > 0 && (
         <ul className={`text-xs ${errorMessageTextClass()} space-y-1`}>
-          {result.skipped.map((row, i) => (
+          {shownSkipped.map((row, i) => (
             <li key={i}>
               {row.line}행: {row.reason}
             </li>
           ))}
+          {hiddenSkipped > 0 && <li>외 {hiddenSkipped}건</li>}
         </ul>
       )}
       {onUndo && result.created_ids.length > 0 && (
@@ -44,7 +50,9 @@ function ImportResultCard({ result, onUndo }: { result: ImportResultOut; onUndo?
 }
 
 export default function TransactionImportPage() {
+  const fileInputId = useId();
   const [file, setFile] = useState<File | null>(null);
+  const [exportingKind, setExportingKind] = useState<"month" | "year" | null>(null);
   const [result, setResult] = useState<ImportResultOut | null>(null);
   const [error, setError] = useState("");
   const [showUndoConfirm, setShowUndoConfirm] = useState(false);
@@ -85,9 +93,11 @@ export default function TransactionImportPage() {
       fetchTransactionsCsv({ date_from, date_to }),
     onSuccess: (blob, { date_from, date_to }) =>
       triggerBlobDownload(blob, `transactions_${date_from}_${date_to}.csv`),
+    onSettled: () => setExportingKind(null),
   });
 
   const exportRange = (kind: "month" | "year") => {
+    setExportingKind(kind);
     if (kind === "month") {
       exportMutation.mutate(monthBounds(currentYearMonth()));
     } else {
@@ -116,6 +126,7 @@ export default function TransactionImportPage() {
             variant="secondary"
             size="sm"
             disabled={exportMutation.isPending}
+            loading={exportingKind === "month"}
             onClick={() => exportRange("month")}
           >
             이번 달 내보내기
@@ -124,6 +135,7 @@ export default function TransactionImportPage() {
             variant="secondary"
             size="sm"
             disabled={exportMutation.isPending}
+            loading={exportingKind === "year"}
             onClick={() => exportRange("year")}
           >
             올해 전체 내보내기
@@ -134,15 +146,26 @@ export default function TransactionImportPage() {
       <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300 pt-2">거래 가져오기</h2>
 
       <div className="card space-y-3">
-        <p className="text-sm text-gray-500 dark:text-gray-400">
-          날짜, 구분, 카테고리, 금액, 메모 순서의 CSV 파일을 업로드하세요 (내보내기와 동일한 형식).
-        </p>
-        <input
-          type="file"
-          accept=".csv,text/csv"
-          onChange={(e) => setFile(e.target.files?.[0] ?? null)}
-          className="block w-full text-sm text-gray-500 dark:text-gray-400"
-        />
+        <p className="text-sm text-gray-500 dark:text-gray-400">내보내기와 같은 형식의 CSV 파일을 올리세요.</p>
+        {/* 브라우저 기본 파일 입력은 버튼이 작고 화면마다 모양이 달라 label 버튼으로 감싼다(부부 사진과 같은 방식). */}
+        <div className="flex items-center gap-3">
+          <label
+            htmlFor={fileInputId}
+            className={`${TOUCH_TARGET_MIN_HEIGHT} inline-flex items-center px-4 rounded-lg border border-gray-300 dark:border-gray-600 text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 cursor-pointer transition-colors shrink-0`}
+          >
+            파일 선택
+          </label>
+          <input
+            id={fileInputId}
+            type="file"
+            accept=".csv,text/csv"
+            onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+            className="sr-only"
+          />
+          <span className="min-w-0 truncate text-sm text-gray-500 dark:text-gray-400">
+            {file ? file.name : "선택된 파일 없음"}
+          </span>
+        </div>
         <Button
           disabled={!file}
           loading={csvMutation.isPending}
