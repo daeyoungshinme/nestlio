@@ -4,6 +4,8 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import { Download } from "lucide-react";
 import Button from "@/components/common/Button";
+import CollapsibleGroup from "@/components/common/CollapsibleGroup";
+import CollapsibleHint from "@/components/common/CollapsibleHint";
 import AmountInput from "@/components/common/AmountInput";
 import FormInput from "@/components/common/FormInput";
 import Modal from "@/components/common/Modal";
@@ -217,13 +219,13 @@ export default function GoalFormModal({
                 {netWorthData ? formatKrw(netWorthData.current.net_worth) : "불러오는 중…"}
               </span>
             </p>
-            <p className="text-xs text-gray-500 dark:text-gray-400">
-              진행률은 자산 탭의 순자산(계좌·저축·투자·부동산 − 대출, growlio 연동 포함)을 그대로 따라가고, 월 저축액은{" "}
+            <CollapsibleHint summary="진행률은 자산 탭의 순자산을 따라가요.">
+              순자산 = 계좌·저축·투자·부동산 − 대출(growlio 연동 포함). 월 저축액은{" "}
               <Link to={planViewLink("이번 달")} className="font-semibold underline hover:no-underline">
                 계획 탭
               </Link>{" "}
               저축·투자 계획 합계예요.
-            </p>
+            </CollapsibleHint>
           </div>
           <Button
             type="button"
@@ -250,7 +252,7 @@ export default function GoalFormModal({
             className="w-full"
           />
           <FormInput
-            label="목표일 (두 분이 함께 정한 날짜)"
+            label="목표일"
             type="date"
             value={draft.target_date}
             onChange={(e) => setDraft((d) => ({ ...d, target_date: e.target.value }))}
@@ -264,10 +266,8 @@ export default function GoalFormModal({
             value={draft.expected_annual_return_pct}
             onChange={(e) => setDraft((d) => ({ ...d, expected_annual_return_pct: e.target.value }))}
             className="w-full"
+            hint="입력하면 월 복리로 예상 달성월을 계산해요."
           />
-          <p className="text-xs text-gray-400 dark:text-gray-500">
-            입력하면 투자 수익을 월 복리로 반영한 예상 달성월도 함께 보여줘요.
-          </p>
           <Button type="submit" loading={submitting} className="mt-2">
             {submitLabel}
           </Button>
@@ -427,7 +427,7 @@ export default function GoalFormModal({
             className="w-full"
           />
           <FormInput
-            label="목표일 (두 분이 함께 정한 날짜)"
+            label="목표일"
             type="date"
             value={draft.target_date}
             onChange={(e) =>
@@ -443,7 +443,8 @@ export default function GoalFormModal({
         </div>
         {draft.target_date === "" && (
           <FormInput
-            label="필요한 나이 (목표일 대신 나이로 정할 때)"
+            label="목표 나이"
+            hint="목표일 대신 나이로 정할 때"
             type="number"
             inputMode="numeric"
             value={draft.target_age}
@@ -462,8 +463,7 @@ export default function GoalFormModal({
         {step === 1 && (
           <>
           <p className="text-sm text-gray-500 dark:text-gray-400">
-            목표에 쓸 저축·투자 상품이나 계좌를 연결하면 현재 저축액과 이번 달 달성액이 자동으로 계산돼요. 연결하지
-            않아도 목표를 만들 수 있어요.
+            상품·계좌를 연결하면 저축액이 자동 계산돼요. 연결하지 않아도 돼요.
           </p>
           <FundingSourceChecklist
             label="연동할 저축/투자 상품 (복수 선택 가능)"
@@ -474,9 +474,7 @@ export default function GoalFormModal({
             selectedIds={draft.savings_product_ids}
             onToggle={(id) => toggleId("savings_product_ids", id)}
             emptyMessage="연동 가능한 저축/투자 상품이 없어요."
-            hint="연동한 상품들의 잔액이 합산되고, 이 목표의 월 저축액은 그 상품들의 월 계획 합계가 돼요(계획 탭에서
-            상품별로 조정). 부부가 각자 다른 상품으로 함께 모을 때처럼 여러 개를 연동해도 돼요. 다른 목표에 이미
-            연동된 상품은 목록에 나오지 않아요."
+            hint="잔액이 합산되고, 월 저축액은 연동 상품들의 월 계획 합계예요. 다른 목표에 연동된 상품은 안 보여요."
           />
           <FundingSourceChecklist
             label="연동할 계좌 (복수 선택 가능)"
@@ -498,8 +496,7 @@ export default function GoalFormModal({
             selectedIds={draft.loan_ids}
             onToggle={(id) => toggleId("loan_ids", id)}
             emptyMessage="등록된 대출이 없어요."
-            hint="상품·계좌·대출을 연동하면 현재 저축액이 (연동된 상품·계좌 잔액 합) − (연동된 대출 잔액)으로
-            자동 계산돼요. 부부가 각자 다른 상품/계좌로 한 목표를 함께 모을 때 여러 개를 선택하세요."
+            hint="현재 저축액 = 연동 상품·계좌 잔액 − 연동 대출 잔액"
           />
           </>
         )}
@@ -564,9 +561,7 @@ export default function GoalFormModal({
           {monthsRemaining !== null && monthsRemaining <= 0 && (
             <p className={`text-xs ${formErrorTextClass()}`}>목표일(또는 필요한 나이)이 지금보다 이후여야 계산할 수 있어요.</p>
           )}
-          <p className="text-xs text-gray-400 dark:text-gray-500">
-            (필요금액 - 현재 저축액) ÷ 남은 개월 수로 월 저축금액을 제안해요. 저장되지 않고 계산에만 쓰여요.
-          </p>
+          <p className="text-xs text-gray-500 dark:text-gray-400">(필요금액 − 현재 저축액) ÷ 남은 개월 · 저장되지 않아요</p>
         </div>
         {hasLinkedProducts ? (
           <div className="space-y-1">
@@ -590,19 +585,22 @@ export default function GoalFormModal({
             className="w-full"
           />
         )}
-        <FormInput
-          label="기대 연 수익률 % (선택 — 투자로 모을 때)"
-          type="number"
-          inputMode="decimal"
-          step="0.1"
-          value={draft.expected_annual_return_pct}
-          onChange={(e) => setDraft((d) => ({ ...d, expected_annual_return_pct: e.target.value }))}
-          className="w-full"
-        />
-        <p className="text-xs text-gray-400 dark:text-gray-500">
-          입력하면 투자 수익을 월 복리로 반영한 예상 달성월도 함께 보여줘요. growlio 투자목표를 불러오면 목표 수익률이
-          채워져요.
-        </p>
+        {/* 투자로 모을 때만 쓰는 선택 항목이라 접어 둔다(값이 있으면 펼친 채로). */}
+        <CollapsibleGroup
+          header={<span className="text-sm font-medium text-gray-600 dark:text-gray-300">선택 항목 · 기대 수익률</span>}
+          defaultOpen={draft.expected_annual_return_pct !== ""}
+        >
+          <FormInput
+            label="기대 연 수익률 %"
+            type="number"
+            inputMode="decimal"
+            step="0.1"
+            value={draft.expected_annual_return_pct}
+            onChange={(e) => setDraft((d) => ({ ...d, expected_annual_return_pct: e.target.value }))}
+            className="w-full"
+            hint="입력하면 월 복리로 예상 달성월을 계산해요. growlio 투자목표를 불러오면 채워져요."
+          />
+        </CollapsibleGroup>
           </>
         )}
         <div className="flex gap-2 mt-2">

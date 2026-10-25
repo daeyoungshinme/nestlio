@@ -24,10 +24,10 @@ import { goalDetailLink, planViewLink } from "@/constants/routes";
 import { progressStatusBadgeClass, progressStatusLabel } from "@/utils/colors";
 import { computeCardStatus, daysUntil, isGoalAchieved } from "@/utils/goalStatus";
 import { GOAL_SORT_LABELS, pinNetWorthFirst, sortGoals, type GoalSortLabel } from "@/utils/goalSort";
-import { formatDate, formatKrw, formatYearMonth, toAmountInputValue } from "@/utils/format";
+import { formatDate, formatKrw, formatKrwCompact, formatYearMonth, toAmountInputValue } from "@/utils/format";
 import { toast } from "@/utils/toast";
 import type { FinancialGoalOut, FinancialGoalUpdateIn, GoalKind } from "@/types";
-import { sumAmounts } from "@/utils/amount";
+import CollapsibleHint from "@/components/common/CollapsibleHint";
 
 const GOAL_MILESTONES = [25, 50, 75, 100];
 
@@ -50,6 +50,9 @@ export default function GoalsTab() {
   const [sortOption, setSortOption] = useState<GoalSortLabel>("우선순위순");
   const [progressDraft, setProgressDraft] = useState<Record<number, string>>({});
   const [monthlyTargetDraft, setMonthlyTargetDraft] = useState<Record<string, string>>({});
+  /** 모바일에서 카드의 빠른 입력을 펼친 목표 id — 카드마다 입력칸이 늘 떠 있으면 목록이 길어진다. */
+  const [entryOpenIds, setEntryOpenIds] = useState<Set<number>>(() => new Set());
+  const openEntry = (goalId: number) => setEntryOpenIds((prev) => new Set(prev).add(goalId));
 
   const goalsQuery = useGoals();
   const { data: savingsProducts } = useSavingsProducts();
@@ -111,8 +114,6 @@ export default function GoalsTab() {
   return (
     <QueryBoundary query={goalsQuery}>
       {(data) => {
-  const totalRequired = sumAmounts(data, (g) => g.required_amount);
-  const totalMonthly = sumAmounts(data, (g) => g.planned_monthly_amount);
   const isSaving = createMutation.isPending || updateMutation.isPending;
   const priorityOrderedGoals = data.slice().sort((a, b) => a.priority - b.priority);
   // 달성한 목표는 활성 목록에서 분리해 아래 접이식으로 옮긴다 — 완료된 항목이 계속 쌓여
@@ -210,6 +211,49 @@ export default function GoalsTab() {
         }`,
       });
     }
+    // 빠른 입력(진행 금액/이번 달 저축액). 모바일은 "기록" 버튼을 눌러야 펼친다.
+    const renderEntry = () =>
+      showProgressUpdateWidget ? (
+        <div className="flex items-start flex-wrap gap-2 pt-1">
+          <AmountInput
+            label="진행 금액 갱신"
+            value={progressDraftValue}
+            onChange={(value) => setProgressDraft((d) => ({ ...d, [goal.id]: value }))}
+            className="w-full sm:w-40"
+          />
+          <Button
+            size="sm"
+            loading={progressMutation.isPending && progressMutation.variables?.id === goal.id}
+            onClick={() => handleUpdateProgress(goal, progressDraftValue)}
+            className={`${INLINE_BUTTON_OFFSET} ${TOUCH_TARGET_MIN_HEIGHT}`}
+          >
+            저장
+          </Button>
+        </div>
+      ) : activeMonth && isAutoComputed ? (
+        <p className="text-xs text-gray-500 dark:text-gray-400 pt-1">
+          {activeMonth.year_month} 이번 달 자동계산: {formatKrw(activeMonth.achieved_amount)} /{" "}
+          {formatKrw(activeMonth.target_amount)}
+        </p>
+      ) : activeMonth && draftKey !== null ? (
+        <div className="flex items-start flex-wrap gap-2 pt-1">
+          <AmountInput
+            label={`${activeMonth.year_month} 저축액 입력`}
+            value={monthlyDraftValue}
+            onChange={(value) => setMonthlyTargetDraft((d) => ({ ...d, [draftKey]: value }))}
+            className="w-full sm:w-40"
+          />
+          <Button
+            size="sm"
+            loading={monthlyTargetMutation.isPending && monthlyTargetMutation.variables?.goalId === goal.id}
+            onClick={() => handleUpdateMonthlyTarget(goal, activeMonth.year_month, monthlyDraftValue)}
+            className={`${INLINE_BUTTON_OFFSET} ${TOUCH_TARGET_MIN_HEIGHT}`}
+          >
+            저장
+          </Button>
+        </div>
+      ) : undefined;
+
     return (
       <GoalProgressCard
         key={goal.id}
@@ -239,10 +283,10 @@ export default function GoalsTab() {
         pct={Number(goal.progress_pct)}
         primaryDetail={
           <>
-            {goal.funding_sources.length > 0 ? "연동 항목 잔액 합계" : "현재 저축액"}{" "}
-            {formatKrw(goal.current_amount)} / 목표 {formatKrw(goal.required_amount)}
-            {!isChallenge && <> · 월 {formatKrw(goal.planned_monthly_amount)}</>}
-            {hasLoanSource && " (대출 차감 반영)"}
+            {goal.funding_sources.length > 0 ? "연동 잔액" : "저축"}{" "}
+            {formatKrwCompact(Number(goal.current_amount))} / 목표 {formatKrwCompact(Number(goal.required_amount))}
+            {!isChallenge && <> · 월 {formatKrwCompact(Number(goal.planned_monthly_amount))}</>}
+            {hasLoanSource && " (대출 차감)"}
           </>
         }
         pinnedDetail={
@@ -257,49 +301,20 @@ export default function GoalsTab() {
         onEdit={() => setFormTarget(goal)}
         onDelete={() => setDeleteTarget(goal.id)}
         footer={
-          showProgressUpdateWidget ? (
-            <div className="flex items-start flex-wrap gap-2 pt-1">
-              <AmountInput
-                label="진행 금액 갱신"
-                value={progressDraftValue}
-                onChange={(value) => setProgressDraft((d) => ({ ...d, [goal.id]: value }))}
-                className="w-full sm:w-40"
-              />
-              <Button
-                size="sm"
-                loading={progressMutation.isPending && progressMutation.variables?.id === goal.id}
-                onClick={() => handleUpdateProgress(goal, progressDraftValue)}
-                className={`${INLINE_BUTTON_OFFSET} ${TOUCH_TARGET_MIN_HEIGHT}`}
-              >
-                저장
+          (showProgressUpdateWidget || draftKey !== null) && !entryOpenIds.has(goal.id) ? (
+            <>
+              <Button size="sm" variant="secondary" icon={<Plus size={14} />} onClick={() => openEntry(goal.id)} className="sm:hidden">
+                {showProgressUpdateWidget ? "진행 금액 기록" : `${activeMonth!.year_month} 저축액 기록`}
               </Button>
-            </div>
-          ) : activeMonth && isAutoComputed ? (
-            <p className="text-xs text-gray-400 dark:text-gray-500 pt-1">
-              {activeMonth.year_month} 이번 달 자동계산: {formatKrw(activeMonth.achieved_amount)} /{" "}
-              {formatKrw(activeMonth.target_amount)}
-            </p>
-          ) : activeMonth && draftKey !== null ? (
-            <div className="flex items-start flex-wrap gap-2 pt-1">
-              <AmountInput
-                label={`${activeMonth.year_month} 저축액 입력`}
-                value={monthlyDraftValue}
-                onChange={(value) => setMonthlyTargetDraft((d) => ({ ...d, [draftKey]: value }))}
-                className="w-full sm:w-40"
-              />
-              <Button
-                size="sm"
-                loading={monthlyTargetMutation.isPending && monthlyTargetMutation.variables?.goalId === goal.id}
-                onClick={() => handleUpdateMonthlyTarget(goal, activeMonth.year_month, monthlyDraftValue)}
-                className={`${INLINE_BUTTON_OFFSET} ${TOUCH_TARGET_MIN_HEIGHT}`}
-              >
-                저장
-              </Button>
-            </div>
-          ) : undefined
+              <div className="hidden sm:block">{renderEntry()}</div>
+            </>
+          ) : (
+            renderEntry()
+          )
         }
       />
     );
+
   };
 
   const modalInitial =
@@ -319,12 +334,17 @@ export default function GoalsTab() {
         to={planViewLink("연간")}
         className="block text-xs text-gray-500 dark:text-gray-400 hover:text-primary dark:hover:text-primary-400"
       >
-        올해 저축 계획·실적(계획 수입 − 계획 지출 대비 실제 순저축)은 연간 탭에서 확인해요 →
+        올해 저축 계획·실적은 연간 탭에서 →
       </Link>
 
       <GoalSectionHeader
         title="목표"
-        description="전체 목표금액과 목표일을 정하면 월별 계획이 자동으로 나뉘어요. 저축·투자 상품이나 계좌를 연동하면 이번 달 달성 여부까지 거래내역으로 자동 확인돼요. 부부가 짧게 도전하는 챌린지도 목표 추가 시 유형으로 선택할 수 있어요."
+        description={
+          <CollapsibleHint summary="목표금액·목표일을 정하면 월별 계획이 자동으로 나뉘어요.">
+            저축·투자 상품이나 계좌를 연동하면 이번 달 달성 여부까지 거래내역으로 자동 확인돼요. 부부가 짧게 도전하는
+            챌린지도 목표 추가 시 유형으로 선택할 수 있어요.
+          </CollapsibleHint>
+        }
         action={
           <Button size="sm" icon={<Plus size={14} />} onClick={() => setFormTarget("new-goal")}>
             목표 추가
@@ -342,10 +362,7 @@ export default function GoalsTab() {
       ) : (
         <div className="space-y-3">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-            <p className="text-xs text-gray-500 dark:text-gray-400">
-              총 {data.length}개 · 필요금액 합계 {formatKrw(totalRequired)} · 월 저축금액 합계{" "}
-              {formatKrw(totalMonthly)}
-            </p>
+            <p className="text-xs text-gray-500 dark:text-gray-400">총 {data.length}개</p>
             {activeGoals.length > 1 && (
               <Tabs tabs={GOAL_SORT_LABELS} activeTab={sortOption} onChange={setSortOption} variant="pill" />
             )}
