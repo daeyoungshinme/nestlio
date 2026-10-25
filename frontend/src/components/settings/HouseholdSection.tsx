@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Copy, UserMinus, UserPlus, X } from "lucide-react";
+import { Copy, UserMinus, UserPlus } from "lucide-react";
 import Button from "@/components/common/Button";
 import ConfirmModal from "@/components/common/ConfirmModal";
 import FormInput from "@/components/common/FormInput";
@@ -9,7 +9,7 @@ import { cancelInvite, createInvite, fetchInvites } from "@/api/invites";
 import { removeUser } from "@/api/users";
 import { useSpouse, useUsers } from "@/hooks/useReferenceData";
 import { QUERY_KEYS, USER_RELATED_KEYS } from "@/constants/queryKeys";
-import { inviteStatusLabel, inviteStatusTextClass } from "@/utils/colors";
+import { dangerActionClass, inviteStatusLabel, inviteStatusTextClass } from "@/utils/colors";
 import type { InviteStatus } from "@/utils/colors";
 import { toast } from "@/utils/toast";
 import type { InviteOut } from "@/types";
@@ -134,23 +134,24 @@ export default function HouseholdSection() {
                   </div>
                   {status === "pending" && (
                     <div className="flex items-center gap-1 shrink-0">
+                      {/* 아이콘만 있던 복사/취소에 글자를 붙인다 — X만으로는 "취소"인지 "닫기"인지 모호했다. */}
                       <Button
                         variant="ghost"
                         size="sm"
-                        aria-label="초대 링크 복사"
+                        icon={<Copy size={14} />}
                         onClick={() => void copyAcceptUrl(invite.accept_url)}
                       >
-                        <Copy size={14} />
+                        링크 복사
                       </Button>
                       <Button
                         variant="ghost"
                         size="sm"
-                        aria-label="초대 취소"
+                        className={dangerActionClass("hover")}
                         disabled={cancelInviteMutation.isPending && cancelInviteMutation.variables === invite.id}
                         loading={cancelInviteMutation.isPending && cancelInviteMutation.variables === invite.id}
                         onClick={() => cancelInviteMutation.mutate(invite.id)}
                       >
-                        <X size={14} />
+                        초대 취소
                       </Button>
                     </div>
                   )}

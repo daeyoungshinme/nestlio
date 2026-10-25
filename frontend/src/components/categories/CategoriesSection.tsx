@@ -1,5 +1,6 @@
 import { useId, useState } from "react";
 import type { FormEvent } from "react";
+import { Plus } from "lucide-react";
 import Badge from "@/components/common/Badge";
 import Button from "@/components/common/Button";
 import ConfirmModal from "@/components/common/ConfirmModal";
@@ -8,7 +9,7 @@ import FormInput from "@/components/common/FormInput";
 import Modal from "@/components/common/Modal";
 import RowActionButtons from "@/components/common/RowActionButtons";
 import SkeletonCard from "@/components/common/SkeletonCard";
-import { COLOR_INPUT_SM, INLINE_BUTTON_OFFSET, INPUT_SM, LABEL_SM } from "@/constants/inputStyles";
+import { COLOR_INPUT_SM, INPUT_SM, LABEL_SM } from "@/constants/inputStyles";
 import { createCategory, deactivateCategory, updateCategory } from "@/api/categories";
 import { CATEGORY_RELATED_KEYS } from "@/constants/queryKeys";
 import { BENCHMARK_GROUP_LABELS, BENCHMARK_GROUP_ORDER } from "@/constants/benchmarkGroups";
@@ -44,6 +45,7 @@ const emptyForm: FormState = {
 export default function CategoriesSection() {
   const fieldId = useId();
   const [form, setForm] = useState<FormState>(emptyForm);
+  const [showCreate, setShowCreate] = useState(false);
   const [editing, setEditing] = useState<CategoryOut | null>(null);
   const [deactivateTarget, setDeactivateTarget] = useState<CategoryOut | null>(null);
 
@@ -58,7 +60,10 @@ export default function CategoriesSection() {
       update: "카테고리를 수정했습니다.",
       remove: "카테고리를 비활성화했습니다.",
     },
-    onCreateSuccess: () => setForm(emptyForm),
+    onCreateSuccess: () => {
+      setForm(emptyForm);
+      setShowCreate(false);
+    },
     onUpdateSuccess: () => setEditing(null),
     onRemoveSuccess: () => setDeactivateTarget(null),
   });
@@ -95,76 +100,11 @@ export default function CategoriesSection() {
 
   return (
     <div className="space-y-6">
-      <div className="card">
-        <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">새 카테고리 추가</h3>
-        {/* 모바일은 2열 격자(이름·표준 카테고리는 한 줄 전체), sm 이상은 한 줄 인라인 폼. */}
-        <form onSubmit={handleSubmit} className="grid grid-cols-2 gap-3 sm:flex sm:flex-wrap sm:items-start">
-          <div className="col-span-2 sm:flex-1 sm:min-w-[120px]">
-            <FormInput
-              label="이름"
-              value={form.name}
-              maxLength={100}
-              onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
-              required
-            />
-          </div>
-          <div className="sm:flex-1 sm:min-w-[100px]">
-            <label htmlFor={`${fieldId}-0`} className={`block mb-1 font-medium ${LABEL_SM}`}>종류</label>
-            <select
-              id={`${fieldId}-0`}
-              className={`${INPUT_SM} w-full`}
-              value={form.kind}
-              onChange={(e) => setForm((f) => ({ ...f, kind: e.target.value as "income" | "expense" }))}
-            >
-              <option value="expense">지출</option>
-              <option value="income">수입</option>
-            </select>
-          </div>
-          <div className="sm:flex-1 sm:min-w-[110px]">
-            <label htmlFor={`${fieldId}-1`} className={`block mb-1 font-medium ${LABEL_SM}`}>구분</label>
-            <select
-              id={`${fieldId}-1`}
-              className={`${INPUT_SM} w-full`}
-              value={form.type}
-              onChange={(e) => setForm((f) => ({ ...f, type: e.target.value as CategoryType }))}
-            >
-              {TYPE_ORDER.map((type) => (
-                <option key={type} value={type}>
-                  {TYPE_LABEL[type]}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div className="col-span-2 sm:flex-1 sm:min-w-[140px]">
-            <label htmlFor={`${fieldId}-2`} className={`block mb-1 font-medium ${LABEL_SM}`}>표준 카테고리(선택)</label>
-            <select
-              id={`${fieldId}-2`}
-              className={`${INPUT_SM} w-full`}
-              value={form.benchmark_group}
-              onChange={(e) => setForm((f) => ({ ...f, benchmark_group: e.target.value as BenchmarkGroup | "" }))}
-            >
-              <option value="">지정 안 함</option>
-              {BENCHMARK_GROUP_ORDER.map((group) => (
-                <option key={group} value={group}>
-                  {BENCHMARK_GROUP_LABELS[group]}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div className="shrink-0">
-            <label htmlFor={`${fieldId}-3`} className={`block mb-1 font-medium ${LABEL_SM}`}>색상</label>
-            <input
-              id={`${fieldId}-3`}
-              type="color"
-              value={form.color}
-              onChange={(e) => setForm((f) => ({ ...f, color: e.target.value }))}
-              className={COLOR_INPUT_SM}
-            />
-          </div>
-          <Button type="submit" loading={createMutation.isPending} className={`self-end sm:self-auto ${INLINE_BUTTON_OFFSET}`}>
-            추가
-          </Button>
-        </form>
+      {/* 예전엔 6칸짜리 추가 폼이 목록 위에 늘 펼쳐져 있어 모바일에서 목록이 한 화면 아래로 밀렸다. */}
+      <div className="flex justify-end">
+        <Button size="sm" icon={<Plus size={14} />} onClick={() => setShowCreate(true)}>
+          카테고리 추가
+        </Button>
       </div>
 
       {data.length === 0 ? (
@@ -207,6 +147,83 @@ export default function CategoriesSection() {
         </div>
       )}
 
+      {showCreate && (
+        <Modal onClose={() => setShowCreate(false)} title="카테고리 추가">
+          <div className="p-6 overflow-y-auto">
+              <form onSubmit={handleSubmit} className="flex flex-col gap-3">
+                <div>
+                  <FormInput
+                    label="이름"
+                    value={form.name}
+                    maxLength={100}
+                    onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
+                    required
+                  />
+                </div>
+                <div>
+                  <label htmlFor={`${fieldId}-0`} className={`block mb-1 font-medium ${LABEL_SM}`}>종류</label>
+                  <select
+                    id={`${fieldId}-0`}
+                    className={`${INPUT_SM} w-full`}
+                    value={form.kind}
+                    onChange={(e) => setForm((f) => ({ ...f, kind: e.target.value as "income" | "expense" }))}
+                  >
+                    <option value="expense">지출</option>
+                    <option value="income">수입</option>
+                  </select>
+                </div>
+                {/* 고정/변동/비정기 구분은 지출에만 뜻이 있다. */}
+                {form.kind === "expense" && (
+                  <div>
+                    <label htmlFor={`${fieldId}-1`} className={`block mb-1 font-medium ${LABEL_SM}`}>구분</label>
+                    <select
+                      id={`${fieldId}-1`}
+                      className={`${INPUT_SM} w-full`}
+                      value={form.type}
+                      onChange={(e) => setForm((f) => ({ ...f, type: e.target.value as CategoryType }))}
+                    >
+                      {TYPE_ORDER.map((type) => (
+                        <option key={type} value={type}>
+                          {TYPE_LABEL[type]}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+                <div>
+                  <label htmlFor={`${fieldId}-2`} className={`block mb-1 font-medium ${LABEL_SM}`}>표준 카테고리(선택)</label>
+                  <select
+                    id={`${fieldId}-2`}
+                    className={`${INPUT_SM} w-full`}
+                    value={form.benchmark_group}
+                    onChange={(e) => setForm((f) => ({ ...f, benchmark_group: e.target.value as BenchmarkGroup | "" }))}
+                  >
+                    <option value="">지정 안 함</option>
+                    {BENCHMARK_GROUP_ORDER.map((group) => (
+                      <option key={group} value={group}>
+                        {BENCHMARK_GROUP_LABELS[group]}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="shrink-0">
+                  <label htmlFor={`${fieldId}-3`} className={`block mb-1 font-medium ${LABEL_SM}`}>색상</label>
+                  <input
+                    id={`${fieldId}-3`}
+                    type="color"
+                    value={form.color}
+                    onChange={(e) => setForm((f) => ({ ...f, color: e.target.value }))}
+                    className={COLOR_INPUT_SM}
+                  />
+                </div>
+                <Button type="submit" loading={createMutation.isPending} className="mt-2">
+                  추가
+                </Button>
+              </form>
+          </div>
+        </Modal>
+      )}
+
       {editing && (
         <Modal onClose={() => setEditing(null)} title="카테고리 수정">
           <div className="p-6 overflow-y-auto">
@@ -230,21 +247,23 @@ export default function CategoriesSection() {
                   <option value="income">수입</option>
                 </select>
               </div>
-              <div>
-                <label htmlFor={`${fieldId}-5`} className={`block mb-1 font-medium ${LABEL_SM}`}>구분</label>
-                <select
-                  id={`${fieldId}-5`}
-                  className={`${INPUT_SM} w-full`}
-                  value={editing.type}
-                  onChange={(e) => setEditing((c) => (c ? { ...c, type: e.target.value as CategoryType } : c))}
-                >
-                  {TYPE_ORDER.map((type) => (
-                    <option key={type} value={type}>
-                      {TYPE_LABEL[type]}
-                    </option>
-                  ))}
-                </select>
-              </div>
+              {editing.kind === "expense" && (
+                <div>
+                  <label htmlFor={`${fieldId}-5`} className={`block mb-1 font-medium ${LABEL_SM}`}>구분</label>
+                  <select
+                    id={`${fieldId}-5`}
+                    className={`${INPUT_SM} w-full`}
+                    value={editing.type}
+                    onChange={(e) => setEditing((c) => (c ? { ...c, type: e.target.value as CategoryType } : c))}
+                  >
+                    {TYPE_ORDER.map((type) => (
+                      <option key={type} value={type}>
+                        {TYPE_LABEL[type]}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
               <div>
                 <label htmlFor={`${fieldId}-6`} className={`block mb-1 font-medium ${LABEL_SM}`}>표준 카테고리(선택)</label>
                 <select

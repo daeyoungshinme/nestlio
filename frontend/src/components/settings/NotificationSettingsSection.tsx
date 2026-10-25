@@ -1,12 +1,15 @@
 import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { Mail, UserPlus, X } from "lucide-react";
+import { CheckCircle2, Mail, UserPlus, XCircle } from "lucide-react";
 import Button from "@/components/common/Button";
+import CollapsibleGroup from "@/components/common/CollapsibleGroup";
 import FormInput from "@/components/common/FormInput";
-import { SettingsSectionCard, onMutationError } from "@/components/settings/shared";
+import StatusBadge from "@/components/common/StatusBadge";
+import { SettingsSectionCard, ToggleRow, onMutationError } from "@/components/settings/shared";
 import { setNotificationPrefs, setNotifyEmails, testMonthlyEmail, testWeeklyEmail } from "@/api/settings";
 import { QUERY_KEYS } from "@/constants/queryKeys";
 import { MAX_NOTIFY_RECIPIENTS } from "@/constants/settings";
+import { cautionTextClass, connectionStatusBadgeClass, connectionStatusLabel, dangerActionClass } from "@/utils/colors";
 import { toast } from "@/utils/toast";
 import type { NotificationPrefsOut } from "@/types";
 
@@ -32,9 +35,12 @@ const NOTIF_PREF_FIELDS: { key: keyof NotificationPrefsOut; label: string; hint:
 interface Props {
   prefs: NotificationPrefsOut;
   notifyEmails: string[];
+  /** 메일을 보내는 Gmail 계정 연결 여부 — 예전엔 상태 배지 하나뿐인 별도 카드였다. */
+  gmailConnected: boolean;
 }
 
-export default function NotificationSettingsSection({ prefs, notifyEmails }: Props) {
+export default function NotificationSettingsSection({ prefs, notifyEmails, gmailConnected }: Props) {
+  const gmailStatus = gmailConnected ? "connected" : "disconnected";
   const queryClient = useQueryClient();
   const [newNotifyEmail, setNewNotifyEmail] = useState("");
   const invalidateSettings = () => {
@@ -86,26 +92,35 @@ export default function NotificationSettingsSection({ prefs, notifyEmails }: Pro
   const isAddingEmail = notifyEmailsMutation.isPending && !isRemovingEmail;
 
   return (
-    <SettingsSectionCard title="알림">
+    <SettingsSectionCard
+      title="알림"
+      badge={
+        <StatusBadge
+          label={`메일 ${connectionStatusLabel(gmailStatus)}`}
+          toneClassName={connectionStatusBadgeClass(gmailStatus)}
+          icon={gmailConnected ? <CheckCircle2 size={12} aria-hidden="true" /> : <XCircle size={12} aria-hidden="true" />}
+        />
+      }
+    >
+      {!gmailConnected && (
+        // 예전 문구는 사용자에게 scripts/google_auth_setup.py 실행을 안내했다 — 관리자 작업이라 결과만 알린다.
+        <p className={`text-xs ${cautionTextClass()}`}>
+          알림 메일 발송이 멈춰 있어요. 알림은 앱 알림함에서 계속 볼 수 있고, 메일은 관리자가 다시 연결하면 재개돼요.
+        </p>
+      )}
       <div className="space-y-2">
-        <p className="text-xs text-gray-500 dark:text-gray-400">받을 알림 종류 — 모두 이메일로 발송돼요.</p>
+        <p className="text-xs text-gray-500 dark:text-gray-400">
+          켜 둔 알림은 이메일과 앱 알림함으로 와요(배우자 저축 소식은 알림함만).
+        </p>
         <ul className="space-y-1">
           {NOTIF_PREF_FIELDS.map(({ key, label, hint }) => (
-            <li
-              key={key}
-              className="flex items-center justify-between gap-2 text-sm px-3 py-2 rounded-lg bg-gray-50 dark:bg-gray-800"
-            >
-              <label htmlFor={`notif-pref-${key}`} className="min-w-0 cursor-pointer">
-                <p className="text-gray-700 dark:text-gray-300">{label}</p>
-                <p className="text-xs text-gray-400 dark:text-gray-500 truncate">{hint}</p>
-              </label>
-              <input
-                id={`notif-pref-${key}`}
-                type="checkbox"
+            <li key={key}>
+              <ToggleRow
+                label={label}
+                hint={hint}
                 checked={prefs[key]}
                 disabled={key === pendingPrefKey}
-                onChange={() => notificationPrefsMutation.mutate({ ...prefs, [key]: !prefs[key] })}
-                className="h-4 w-4 rounded border-gray-300 shrink-0"
+                onChange={(next) => notificationPrefsMutation.mutate({ ...prefs, [key]: next })}
               />
             </li>
           ))}
@@ -126,7 +141,8 @@ export default function NotificationSettingsSection({ prefs, notifyEmails }: Pro
               <Button
                 variant="ghost"
                 size="sm"
-                aria-label="알림 이메일 삭제"
+                aria-label={`${email} 알림 이메일 삭제`}
+                className={dangerActionClass("hover")}
                 disabled={notifyEmails.length <= 1 || email === pendingRemovedEmail}
                 loading={email === pendingRemovedEmail}
                 onClick={() =>
@@ -136,7 +152,7 @@ export default function NotificationSettingsSection({ prefs, notifyEmails }: Pro
                   )
                 }
               >
-                <X size={14} />
+                삭제
               </Button>
             </li>
           ))}
@@ -167,7 +183,13 @@ export default function NotificationSettingsSection({ prefs, notifyEmails }: Pro
         </div>
       </div>
 
-      <div className="border-t border-gray-100 dark:border-gray-800 pt-3 flex gap-2">
+      {/* 테스트 발송은 연결 확인용이라 평소엔 접어 둔다. */}
+      <div className="border-t border-gray-100 dark:border-gray-800 pt-1">
+        <CollapsibleGroup
+          header={<span className="text-xs font-medium text-gray-500 dark:text-gray-400">요약 메일 테스트 발송</span>}
+          defaultOpen={false}
+        >
+        <div className="flex gap-2">
         <Button
           variant="secondary"
           size="sm"
@@ -186,6 +208,8 @@ export default function NotificationSettingsSection({ prefs, notifyEmails }: Pro
         >
           월간 요약 테스트
         </Button>
+        </div>
+        </CollapsibleGroup>
       </div>
     </SettingsSectionCard>
   );
