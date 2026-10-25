@@ -3,10 +3,11 @@ import type { FormEvent } from "react";
 import { ChevronDown, ChevronUp } from "lucide-react";
 import AmountInput from "@/components/common/AmountInput";
 import Button from "@/components/common/Button";
+import CategoryChipPicker from "@/components/common/CategoryChipPicker";
 import CategoryPicker from "@/components/common/CategoryPicker";
 import FormInput from "@/components/common/FormInput";
 import OwnerSelect from "@/components/common/OwnerSelect";
-import TransactionQuickPicks from "@/components/transactions/TransactionQuickPicks";
+import TransactionQuickPicks, { useRecentQuickItems } from "@/components/transactions/TransactionQuickPicks";
 import type { UiType } from "@/components/transactions/TransactionQuickPicks";
 import { INLINE_BUTTON_OFFSET, INPUT_SM, LABEL_SM } from "@/constants/inputStyles";
 import { PAYMENT_METHOD_OPTIONS } from "@/constants/transactions";
@@ -81,9 +82,8 @@ export default function TransactionForm({
   const [values, setValues] = useState<TransactionFormValues>({
     amount: initialValues?.amount ? toAmountInputValue(initialValues.amount) : "",
     type: initialValues?.type ?? "expense",
-    category_id:
-      initialValues?.category_id ??
-      String(nonSavingsCategories.find((c) => c.kind === (initialValues?.type ?? "expense"))?.id ?? ""),
+    // 신규 입력은 일부러 비워 둔다 — 첫 카테고리를 미리 골라 두면 바꾸지 않고 저장해 오분류된다.
+    category_id: initialValues?.category_id ?? "",
     transaction_date: initialValues?.transaction_date ?? today(),
     description: initialValues?.description ?? "",
     payment_method: initialValues?.payment_method ?? "",
@@ -91,6 +91,11 @@ export default function TransactionForm({
     savings_product_id: initialValues?.savings_product_id ?? "",
     owner_user_id: initialValues?.owner_user_id ?? (isNew ? (currentUserId ?? "") : ""),
   });
+
+  const [showCategoryError, setShowCategoryError] = useState(false);
+  const { data: recentItems } = useRecentQuickItems(uiType, isNew && uiType !== "savings");
+  const recentCategoryIds = (recentItems ?? []).map((tx) => tx.category.id);
+  const kindCategories = nonSavingsCategories.filter((c) => c.kind === values.type);
 
   /** 계좌·소유자 등 부가 필드 접기/펼치기. 이미 값이 있는 상태(수정 모드 포함)로 시작하면 숨겨져 놀라지 않도록 펼친 채로 시작한다. */
   const [showDetails, setShowDetails] = useState(
@@ -110,6 +115,10 @@ export default function TransactionForm({
 
   const handleSubmit = (e: FormEvent) => {
     e.preventDefault();
+    if (uiType !== "savings" && !values.category_id) {
+      setShowCategoryError(true);
+      return;
+    }
     onSubmit(buildPayload(values, uiType === "savings"));
   };
 
@@ -161,7 +170,7 @@ export default function TransactionForm({
               setValues((v) => ({
                 ...v,
                 type: t,
-                category_id: String(nonSavingsCategories.find((c) => c.kind === t)?.id ?? ""),
+                category_id: "",
                 savings_product_id: "",
               }));
             }}
@@ -218,15 +227,14 @@ export default function TransactionForm({
       />
 
       {isStack ? (
-        <div className={`grid gap-3 w-full ${uiType === "savings" ? "grid-cols-1" : "grid-cols-2"}`}>
+        <>
           {uiType !== "savings" && (
-            <CategoryPicker
-              categories={nonSavingsCategories}
-              kind={values.type}
+            <CategoryChipPicker
+              categories={kindCategories}
               value={values.category_id}
               onChange={(category_id) => setValues((v) => ({ ...v, category_id }))}
-              required
-              className="w-full"
+              recentCategoryIds={recentCategoryIds}
+              showRequiredError={showCategoryError}
             />
           )}
           <FormInput
@@ -237,7 +245,7 @@ export default function TransactionForm({
             required
             className="w-full"
           />
-        </div>
+        </>
       ) : (
         <>
           {uiType !== "savings" && (
@@ -246,6 +254,7 @@ export default function TransactionForm({
               kind={values.type}
               value={values.category_id}
               onChange={(category_id) => setValues((v) => ({ ...v, category_id }))}
+              placeholder="선택"
               required
             />
           )}
