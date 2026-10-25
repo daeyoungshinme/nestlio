@@ -4,10 +4,8 @@ import SkeletonCard from "@/components/common/SkeletonCard";
 import AccountSection from "@/components/settings/AccountSection";
 import CoachingThresholdsSection from "@/components/settings/CoachingThresholdsSection";
 import CouplePhotoSection from "@/components/settings/CouplePhotoSection";
-import GoogleConnectionSection from "@/components/settings/GoogleConnectionSection";
 import HouseholdSection from "@/components/settings/HouseholdSection";
 import NotificationSettingsSection from "@/components/settings/NotificationSettingsSection";
-import ShortcutsSection from "@/components/settings/ShortcutsSection";
 import { useLogout } from "@/hooks/useLogout";
 import { useSettings } from "@/hooks/useReferenceData";
 import { dangerActionClass } from "@/utils/colors";
@@ -33,12 +31,15 @@ export default function SettingsPage() {
       >
         {(settings) => (
           <>
+            {/* 자주 쓰는 순서: 계정(+화면) → 가구·초대 → 알림(메일 연결 상태 포함) → 부부 사진 → 고급 */}
             <AccountSection />
-            <CouplePhotoSection photoUrl={settings.couple_photo_url} />
             <HouseholdSection />
-            <ShortcutsSection />
-            <GoogleConnectionSection connected={settings.google_connected} />
-            <NotificationSettingsSection prefs={settings.notification_prefs} notifyEmails={settings.notify_emails} />
+            <NotificationSettingsSection
+              prefs={settings.notification_prefs}
+              notifyEmails={settings.notify_emails}
+              gmailConnected={settings.google_connected}
+            />
+            <CouplePhotoSection photoUrl={settings.couple_photo_url} />
             <CoachingThresholdsSection thresholds={settings.coaching_thresholds} />
           </>
         )}

@@ -1,9 +1,8 @@
 import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { Moon, Sun } from "lucide-react";
 import Button from "@/components/common/Button";
 import FormInput from "@/components/common/FormInput";
-import { SettingsSectionCard } from "@/components/settings/shared";
+import { SettingsSectionCard, ToggleRow } from "@/components/settings/shared";
 import { updateMe, updateUser } from "@/api/users";
 import { useMe, useSpouse } from "@/hooks/useReferenceData";
 import { USER_RELATED_KEYS } from "@/constants/queryKeys";
@@ -49,7 +48,7 @@ export default function AccountSection() {
             label="내 표시 이름"
             value={displayNameEdit ?? meQuery.data?.display_name ?? ""}
             onChange={(e) => setDisplayNameEdit(e.target.value)}
-            hint="남편, 아내처럼 원하는 별칭을 입력할 수 있어요. 목표 항목 구분, 대시보드 배우자별 합계 등에 표시돼요."
+            hint="목표·홈에서 두 분을 구분하는 이름이에요(예: 남편, 아내)."
             maxLength={100}
           />
         </div>
@@ -73,7 +72,7 @@ export default function AccountSection() {
               label="배우자 표시 이름"
               value={spouseDisplayNameEdit ?? spouse.display_name}
               onChange={(e) => setSpouseDisplayNameEdit(e.target.value)}
-              hint="배우자를 대신해 별칭을 정할 수 있어요. 배우자에게도 그대로 보여요."
+              hint="배우자에게도 그대로 보여요."
               maxLength={100}
             />
           </div>
@@ -93,18 +92,9 @@ export default function AccountSection() {
           </Button>
         </div>
       )}
+      {/* 예전 버튼은 "다음 상태"를 라벨로 보여줘 지금 어떤 모드인지 헷갈렸다 — 현재 상태를 보여주는 스위치로. */}
       <div className="border-t border-gray-100 dark:border-gray-800 pt-3">
-        <button
-          type="button"
-          onClick={toggleTheme}
-          aria-label={isDark ? "라이트 모드로 전환" : "다크 모드로 전환"}
-          className="w-full flex items-center justify-between gap-3 px-3 py-2 rounded-lg text-sm font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
-        >
-          <span className="flex items-center gap-3">
-            {isDark ? <Sun size={18} aria-hidden="true" /> : <Moon size={18} aria-hidden="true" />}
-            {isDark ? "라이트 모드" : "다크 모드"}
-          </span>
-        </button>
+        <ToggleRow label="다크 모드" checked={isDark} onChange={() => toggleTheme()} />
       </div>
     </SettingsSectionCard>
   );

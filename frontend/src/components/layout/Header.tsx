@@ -30,7 +30,7 @@ const NOTIF_TYPE_LABEL: Record<NotifType, string> = {
   goal_cheer: "목표 응원",
   savings_pace_reminder: "월말 저축 리마인더",
   partner_saving: "배우자 저축",
-  google_reauth: "구글 연동 만료",
+  google_reauth: "Gmail 연동 만료",
   other: "알림",
 };
 
