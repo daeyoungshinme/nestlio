@@ -2,9 +2,8 @@ import type { ReactNode } from "react";
 import { CalendarDays, Plus, Repeat } from "lucide-react";
 import Button from "@/components/common/Button";
 import EmptyState from "@/components/common/EmptyState";
-import StatusBadge from "@/components/common/StatusBadge";
 import ScheduleEventRow from "@/components/schedule/ScheduleEventRow";
-import { recurringAccentBadgeStyle, recurringAccentIconClass } from "@/utils/colors";
+import { recurringAccentIconClass, transactionAmountTextColor } from "@/utils/colors";
 import { formatKrw } from "@/utils/format";
 import type { EventOut, RecurringOut } from "@/types";
 
@@ -48,14 +47,15 @@ export default function ScheduleEventList({
             <div key={recurring.id} className="card flex items-center justify-between gap-3">
               <div className="min-w-0 flex items-center gap-2">
                 <Repeat size={14} className={`shrink-0 ${recurringAccentIconClass()}`} aria-hidden="true" />
-                <p className="text-sm font-medium text-gray-900 dark:text-gray-50 truncate">{recurring.name}</p>
-                <StatusBadge
-                  label="반복 내역 예정"
-                  toneClassName={recurringAccentBadgeStyle()}
-                  className="shrink-0"
-                />
+                <div className="min-w-0">
+                  <p className="text-sm font-medium text-gray-900 dark:text-gray-50 truncate">{recurring.name}</p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">반복 내역 예정</p>
+                </div>
               </div>
-              <span className="text-sm font-semibold text-gray-700 dark:text-gray-300 shrink-0">
+              <span
+                className={`text-sm font-semibold tabular-nums shrink-0 ${transactionAmountTextColor(recurring.type)}`}
+              >
+                {recurring.type === "income" ? "+" : "-"}
                 {formatKrw(recurring.amount)}
               </span>
             </div>

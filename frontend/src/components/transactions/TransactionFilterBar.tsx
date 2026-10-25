@@ -1,6 +1,7 @@
 import { TOUCH_TARGET_COMPACT_MOBILE_ONLY } from "@/constants/uiSizes";
 import type { CategoryOut } from "@/types";
 import type { ExpenseTypeFilter, TopFilter, UserFilter } from "@/types/ledgerFilters";
+import { useScrollFadeMask } from "@/hooks/useScrollFadeMask";
 
 export type { ExpenseTypeFilter, TopFilter, UserFilter };
 
@@ -44,8 +45,11 @@ function PillGroup<T extends string | number>({
   onChange: (value: T) => void;
   ariaLabel: string;
 }) {
+  const { ref, style } = useScrollFadeMask<HTMLDivElement>();
   return (
     <div
+      ref={ref}
+      style={style}
       role="group"
       aria-label={ariaLabel}
       className="flex flex-nowrap gap-1 overflow-x-auto scrollbar-none bg-gray-100 dark:bg-gray-800 rounded-lg p-1"

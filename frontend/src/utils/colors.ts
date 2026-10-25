@@ -386,10 +386,6 @@ export function recurringAccentIconClass(): string {
   return "text-indigo-500";
 }
 
-export function recurringAccentBadgeStyle(): string {
-  return "bg-indigo-50 dark:bg-indigo-950 text-indigo-600 dark:text-indigo-400";
-}
-
 const COVERAGE_STATUS_BADGE: Record<CoverageStatus, string> = {
   over: "bg-amber-50 dark:bg-amber-950 text-amber-700 dark:text-amber-300",
   ok: "bg-primary-50 dark:bg-primary-950 text-primary-700 dark:text-primary-300",

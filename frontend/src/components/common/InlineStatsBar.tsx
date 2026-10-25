@@ -9,13 +9,15 @@ interface StatItem {
 interface Props {
   items: StatItem[];
   className?: string;
+  /** 모바일 열 수. 3이면 숫자 3개를 한 줄에(가계부 월 합계). */
+  columns?: 2 | 3;
 }
 
 /** 큰 요약 카드 대신 라벨:값을 한 줄로 나열하는 경량 요약 — 항목이 적거나
  * 그룹 헤더 등 다른 곳에 이미 총액이 보여서 큰 카드가 필요 없는 곳에 쓴다. */
-export default function InlineStatsBar({ items, className }: Props) {
+export default function InlineStatsBar({ items, className, columns = 2 }: Props) {
   return (
-    <div className={`grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:gap-2 ${className ?? ""}`}>
+    <div className={`grid ${columns === 3 ? "grid-cols-3" : "grid-cols-2"} gap-2 sm:flex sm:flex-wrap sm:gap-2 ${className ?? ""}`}>
       {items.map((item) => (
         <div
           key={item.label}

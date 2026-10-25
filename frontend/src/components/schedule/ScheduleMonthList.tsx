@@ -14,8 +14,13 @@ interface Props {
   onToggleComplete: (event: EventOut) => void;
 }
 
+/** 한 달 일정이 이 이하면 전부 펼친다. */
+const EXPAND_ALL_MAX_EVENTS = 20;
+/** 그보다 많으면 오늘 이후 가장 가까운 며칠만 펼친다(오늘 이후가 없으면 첫 며칠). */
+const UPCOMING_OPEN_DAYS = 3;
+
 /** 캘린더 아래에 이번 달 일정을 날짜별 접이식 목록으로 보여준다 - 가계부(/transactions)의
- * DailyTransactionGroups와 동일한 패턴이며, 오늘 날짜 그룹만 기본으로 펼쳐 스크롤을 짧게 유지한다. */
+ * DailyTransactionGroups와 동일한 패턴. 일정은 날짜 오름차순이라 "다가오는 며칠"을 펼친다. */
 export default function ScheduleMonthList({ events, onEdit, onDelete, onToggleComplete }: Props) {
   const today = currentDateIso();
 
@@ -27,10 +32,14 @@ export default function ScheduleMonthList({ events, onEdit, onDelete, onToggleCo
       list.push(event);
       byDate.set(date, list);
     }
-    return Array.from(byDate.entries()).map(([date, dayEvents]) => ({
+    const entries = Array.from(byDate.entries());
+    const expandAll = events.length <= EXPAND_ALL_MAX_EVENTS;
+    const firstUpcoming = entries.findIndex(([date]) => date >= today);
+    const openFrom = firstUpcoming === -1 ? 0 : firstUpcoming;
+    return entries.map(([date, dayEvents], index) => ({
       date,
       dayEvents,
-      defaultOpen: date === today,
+      defaultOpen: expandAll || (index >= openFrom && index < openFrom + UPCOMING_OPEN_DAYS),
     }));
   }, [events, today]);
 
