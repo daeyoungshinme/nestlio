@@ -3,6 +3,7 @@ import { useId, useState } from "react";
 import type { FormEvent } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
+import Button from "@/components/common/Button";
 import { useAuthStore } from "@/stores/authStore";
 import { INPUT_SM } from "@/constants/inputStyles";
 import { extractErrorMessage } from "@/utils/error";
@@ -45,8 +46,9 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-950">
-      <div className="w-full max-w-sm bg-white dark:bg-gray-900 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 p-8">
+    // px-4: 360px에서 카드가 화면 가장자리에 붙지 않게. 모바일은 카드 안쪽 여백도 줄인다.
+    <div className="min-h-[100dvh] flex items-center justify-center bg-gray-50 dark:bg-gray-950 px-4">
+      <div className="w-full max-w-sm bg-white dark:bg-gray-900 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 p-6 sm:p-8">
         <div className="flex items-center gap-2 mb-8 justify-center">
           <PiggyBank className="text-primary-600 dark:text-primary-400" size={28} />
           <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-50">Nestlio</h1>
@@ -60,6 +62,7 @@ export default function LoginPage() {
             <input
               id={`${fieldId}-email`}
               type="email"
+              autoComplete="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
@@ -77,6 +80,7 @@ export default function LoginPage() {
             <input
               id={`${fieldId}-password`}
               type="password"
+              autoComplete="current-password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
@@ -85,13 +89,9 @@ export default function LoginPage() {
             />
           </div>
           {error && <p className={`text-sm ${errorMessageTextClass()}`}>{error}</p>}
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full bg-primary-600 text-white rounded-lg py-2 text-sm font-medium hover:bg-primary-700 disabled:opacity-50 transition-colors"
-          >
-            {loading ? "로그인 중..." : "로그인"}
-          </button>
+          <Button type="submit" loading={loading} className="w-full justify-center">
+            로그인
+          </Button>
         </form>
       </div>
     </div>
