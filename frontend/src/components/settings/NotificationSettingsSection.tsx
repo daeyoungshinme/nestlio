@@ -3,7 +3,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Mail, UserPlus, X } from "lucide-react";
 import Button from "@/components/common/Button";
 import FormInput from "@/components/common/FormInput";
-import { SettingsSectionCard, onMutationError } from "@/components/settings/shared";
+import { SettingsSectionCard } from "@/components/settings/shared";
 import { setNotificationPrefs, setNotifyEmails, testMonthlyEmail, testWeeklyEmail } from "@/api/settings";
 import { QUERY_KEYS } from "@/constants/queryKeys";
 import { MAX_NOTIFY_RECIPIENTS } from "@/constants/settings";
@@ -45,13 +45,11 @@ export default function NotificationSettingsSection({ prefs, notifyEmails }: Pro
   const weeklyEmailMutation = useMutation({
     mutationFn: testWeeklyEmail,
     onSuccess: (res) => toast(res.message, res.sent ? "success" : "info"),
-    onError: onMutationError,
   });
 
   const monthlyEmailMutation = useMutation({
     mutationFn: testMonthlyEmail,
     onSuccess: (res) => toast(res.message, res.sent ? "success" : "info"),
-    onError: onMutationError,
   });
 
   const notifyEmailsMutation = useMutation({
@@ -60,7 +58,6 @@ export default function NotificationSettingsSection({ prefs, notifyEmails }: Pro
       invalidateSettings();
       setNewNotifyEmail("");
     },
-    onError: onMutationError,
   });
 
   const notificationPrefsMutation = useMutation({
@@ -69,7 +66,6 @@ export default function NotificationSettingsSection({ prefs, notifyEmails }: Pro
       invalidateSettings();
       toast("알림 설정을 저장했습니다.", "success");
     },
-    onError: onMutationError,
   });
 
   const pendingPrefKey = notificationPrefsMutation.isPending

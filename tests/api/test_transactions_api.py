@@ -1,18 +1,9 @@
 from datetime import date
 from decimal import Decimal
-from unittest.mock import MagicMock, patch
-
-from googleapiclient.errors import HttpError
+from unittest.mock import patch
 
 from app.models.transaction import Transaction
 from app.services import transaction_service
-
-
-def _http_error(status: int) -> HttpError:
-    resp = MagicMock()
-    resp.status = status
-    resp.reason = "boom"
-    return HttpError(resp, b"{}")
 
 
 def test_create_transaction(client, seeded_db):
@@ -81,7 +72,7 @@ def test_create_transaction_without_growlio_link_has_no_warning_header(client, s
 
 def test_update_transaction(client, seeded_db):
     db, user, food, rent = seeded_db["db"], seeded_db["user"], seeded_db["food"], seeded_db["rent"]
-    tx = transaction_service.create_transaction(db, user.id, food.id, "expense", Decimal("10000"), date(2026, 7, 1))
+    tx = transaction_service.create_transaction(db, user_id=user.id, category_id=food.id, type_="expense", amount=Decimal("10000"), transaction_date=date(2026, 7, 1))
 
     resp = client.put(
         f"/api/v1/transactions/{tx.id}",
@@ -99,7 +90,7 @@ def test_update_transaction(client, seeded_db):
 
 def test_update_transaction_checks_budget_threshold_for_edited_category_and_month(client, seeded_db):
     db, user, food, rent = seeded_db["db"], seeded_db["user"], seeded_db["food"], seeded_db["rent"]
-    tx = transaction_service.create_transaction(db, user.id, food.id, "expense", Decimal("10000"), date(2026, 7, 1))
+    tx = transaction_service.create_transaction(db, user_id=user.id, category_id=food.id, type_="expense", amount=Decimal("10000"), transaction_date=date(2026, 7, 1))
 
     with patch("app.services.notification_service.check_and_alert_budget_threshold") as alert:
         resp = client.put(
@@ -113,7 +104,7 @@ def test_update_transaction_checks_budget_threshold_for_edited_category_and_mont
 
 def test_update_transaction_to_income_skips_budget_threshold(client, seeded_db):
     db, user, food, salary = seeded_db["db"], seeded_db["user"], seeded_db["food"], seeded_db["salary"]
-    tx = transaction_service.create_transaction(db, user.id, food.id, "expense", Decimal("10000"), date(2026, 7, 1))
+    tx = transaction_service.create_transaction(db, user_id=user.id, category_id=food.id, type_="expense", amount=Decimal("10000"), transaction_date=date(2026, 7, 1))
 
     with patch("app.services.notification_service.check_and_alert_budget_threshold") as alert:
         resp = client.put(
@@ -135,7 +126,7 @@ def test_update_unknown_transaction_returns_404(client):
 
 def test_delete_transaction(client, seeded_db):
     db, user, food = seeded_db["db"], seeded_db["user"], seeded_db["food"]
-    tx = transaction_service.create_transaction(db, user.id, food.id, "expense", Decimal("5000"), date(2026, 7, 1))
+    tx = transaction_service.create_transaction(db, user_id=user.id, category_id=food.id, type_="expense", amount=Decimal("5000"), transaction_date=date(2026, 7, 1))
 
     resp = client.delete(f"/api/v1/transactions/{tx.id}")
     assert resp.status_code == 204
@@ -144,8 +135,8 @@ def test_delete_transaction(client, seeded_db):
 
 def test_list_transactions_filters_by_date_range(client, seeded_db):
     db, user, food = seeded_db["db"], seeded_db["user"], seeded_db["food"]
-    transaction_service.create_transaction(db, user.id, food.id, "expense", Decimal("1000"), date(2026, 7, 15))
-    transaction_service.create_transaction(db, user.id, food.id, "expense", Decimal("2000"), date(2026, 8, 1))
+    transaction_service.create_transaction(db, user_id=user.id, category_id=food.id, type_="expense", amount=Decimal("1000"), transaction_date=date(2026, 7, 15))
+    transaction_service.create_transaction(db, user_id=user.id, category_id=food.id, type_="expense", amount=Decimal("2000"), transaction_date=date(2026, 8, 1))
 
     resp = client.get("/api/v1/transactions", params={"date_from": "2026-07-01", "date_to": "2026-07-31"})
 
@@ -157,8 +148,8 @@ def test_list_transactions_filters_by_date_range(client, seeded_db):
 
 def test_bulk_delete_transactions(client, seeded_db):
     db, user, food = seeded_db["db"], seeded_db["user"], seeded_db["food"]
-    tx1 = transaction_service.create_transaction(db, user.id, food.id, "expense", Decimal("1000"), date(2026, 7, 1))
-    tx2 = transaction_service.create_transaction(db, user.id, food.id, "expense", Decimal("2000"), date(2026, 7, 2))
+    tx1 = transaction_service.create_transaction(db, user_id=user.id, category_id=food.id, type_="expense", amount=Decimal("1000"), transaction_date=date(2026, 7, 1))
+    tx2 = transaction_service.create_transaction(db, user_id=user.id, category_id=food.id, type_="expense", amount=Decimal("2000"), transaction_date=date(2026, 7, 2))
 
     resp = client.post("/api/v1/transactions/bulk-delete", json={"ids": [tx1.id, tx2.id, 999999]})
 
@@ -173,10 +164,10 @@ def test_bulk_delete_transactions(client, seeded_db):
 def test_list_transactions_filters_by_search_query(client, seeded_db):
     db, user, food, rent = seeded_db["db"], seeded_db["user"], seeded_db["food"], seeded_db["rent"]
     transaction_service.create_transaction(
-        db, user.id, food.id, "expense", Decimal("10000"), date(2026, 7, 5), description="스타벅스 커피"
+        db, user_id=user.id, category_id=food.id, type_="expense", amount=Decimal("10000"), transaction_date=date(2026, 7, 5), description="스타벅스 커피"
     )
     transaction_service.create_transaction(
-        db, user.id, rent.id, "expense", Decimal("800000"), date(2026, 7, 1), description="월세"
+        db, user_id=user.id, category_id=rent.id, type_="expense", amount=Decimal("800000"), transaction_date=date(2026, 7, 1), description="월세"
     )
 
     resp = client.get(
@@ -192,8 +183,8 @@ def test_list_transactions_filters_by_search_query(client, seeded_db):
 
 def test_list_transactions_search_query_matches_category_name(client, seeded_db):
     db, user, food, rent = seeded_db["db"], seeded_db["user"], seeded_db["food"], seeded_db["rent"]
-    transaction_service.create_transaction(db, user.id, food.id, "expense", Decimal("10000"), date(2026, 7, 5))
-    transaction_service.create_transaction(db, user.id, rent.id, "expense", Decimal("800000"), date(2026, 7, 1))
+    transaction_service.create_transaction(db, user_id=user.id, category_id=food.id, type_="expense", amount=Decimal("10000"), transaction_date=date(2026, 7, 5))
+    transaction_service.create_transaction(db, user_id=user.id, category_id=rent.id, type_="expense", amount=Decimal("800000"), transaction_date=date(2026, 7, 1))
 
     resp = client.get(
         "/api/v1/transactions",
@@ -238,10 +229,10 @@ def test_import_csv_over_size_limit_returns_413(client, monkeypatch):
 
 def test_category_breakdown(client, seeded_db):
     db, user, food, rent = seeded_db["db"], seeded_db["user"], seeded_db["food"], seeded_db["rent"]
-    transaction_service.create_transaction(db, user.id, food.id, "expense", Decimal("10000"), date(2026, 7, 5))
-    transaction_service.create_transaction(db, user.id, food.id, "expense", Decimal("5000"), date(2026, 7, 6))
-    transaction_service.create_transaction(db, user.id, rent.id, "expense", Decimal("30000"), date(2026, 7, 1))
-    transaction_service.create_transaction(db, user.id, food.id, "expense", Decimal("9999"), date(2026, 8, 1))
+    transaction_service.create_transaction(db, user_id=user.id, category_id=food.id, type_="expense", amount=Decimal("10000"), transaction_date=date(2026, 7, 5))
+    transaction_service.create_transaction(db, user_id=user.id, category_id=food.id, type_="expense", amount=Decimal("5000"), transaction_date=date(2026, 7, 6))
+    transaction_service.create_transaction(db, user_id=user.id, category_id=rent.id, type_="expense", amount=Decimal("30000"), transaction_date=date(2026, 7, 1))
+    transaction_service.create_transaction(db, user_id=user.id, category_id=food.id, type_="expense", amount=Decimal("9999"), transaction_date=date(2026, 8, 1))
 
     resp = client.get(
         "/api/v1/transactions/category-breakdown",
@@ -259,7 +250,7 @@ def test_category_breakdown(client, seeded_db):
 
 def test_category_breakdown_defaults_to_expense_type(client, seeded_db):
     db, user, food = seeded_db["db"], seeded_db["user"], seeded_db["food"]
-    transaction_service.create_transaction(db, user.id, food.id, "expense", Decimal("1000"), date(2026, 7, 5))
+    transaction_service.create_transaction(db, user_id=user.id, category_id=food.id, type_="expense", amount=Decimal("1000"), transaction_date=date(2026, 7, 5))
 
     resp = client.get(
         "/api/v1/transactions/category-breakdown",
@@ -272,7 +263,7 @@ def test_category_breakdown_defaults_to_expense_type(client, seeded_db):
 
 def test_export_csv(client, seeded_db):
     db, user, food = seeded_db["db"], seeded_db["user"], seeded_db["food"]
-    transaction_service.create_transaction(db, user.id, food.id, "expense", Decimal("3000"), date(2026, 7, 5), description="커피")
+    transaction_service.create_transaction(db, user_id=user.id, category_id=food.id, type_="expense", amount=Decimal("3000"), transaction_date=date(2026, 7, 5), description="커피")
 
     resp = client.get("/api/v1/transactions/export.csv", params={"date_from": "2026-07-01", "date_to": "2026-07-31"})
 
@@ -290,10 +281,10 @@ def test_list_transactions_totals_follow_search_query(client, seeded_db):
     """합계는 목록과 같은 집합이어야 한다 — 검색 중에도 기간 전체 합계가 나오던 회귀."""
     db, user, food, rent = seeded_db["db"], seeded_db["user"], seeded_db["food"], seeded_db["rent"]
     transaction_service.create_transaction(
-        db, user.id, food.id, "expense", Decimal("10000"), date(2026, 7, 5), description="스타벅스 커피"
+        db, user_id=user.id, category_id=food.id, type_="expense", amount=Decimal("10000"), transaction_date=date(2026, 7, 5), description="스타벅스 커피"
     )
     transaction_service.create_transaction(
-        db, user.id, rent.id, "expense", Decimal("800000"), date(2026, 7, 1), description="월세"
+        db, user_id=user.id, category_id=rent.id, type_="expense", amount=Decimal("800000"), transaction_date=date(2026, 7, 1), description="월세"
     )
 
     resp = client.get(
@@ -307,7 +298,7 @@ def test_list_transactions_totals_follow_search_query(client, seeded_db):
 def test_list_transactions_search_without_dates_includes_future_rows_in_totals(client, seeded_db):
     db, user, food = seeded_db["db"], seeded_db["user"], seeded_db["food"]
     transaction_service.create_transaction(
-        db, user.id, food.id, "expense", Decimal("7000"), date(2099, 1, 1), description="미래 커피"
+        db, user_id=user.id, category_id=food.id, type_="expense", amount=Decimal("7000"), transaction_date=date(2099, 1, 1), description="미래 커피"
     )
 
     body = client.get("/api/v1/transactions", params={"q": "커피"}).json()

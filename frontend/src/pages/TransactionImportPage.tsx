@@ -85,7 +85,6 @@ export default function TransactionImportPage() {
       fetchTransactionsCsv({ date_from, date_to }),
     onSuccess: (blob, { date_from, date_to }) =>
       triggerBlobDownload(blob, `transactions_${date_from}_${date_to}.csv`),
-    onError: (err) => toast(extractErrorMessage(err), "error"),
   });
 
   const exportRange = (kind: "month" | "year") => {

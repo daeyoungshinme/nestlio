@@ -1,6 +1,6 @@
 import { useRef, useState } from "react";
 import { Link } from "react-router-dom";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Copy } from "lucide-react";
 import CashflowPlanItemForm from "@/components/financialPlan/CashflowPlanItemForm";
 import CashflowPlanQuickAddModal from "@/components/financialPlan/CashflowPlanQuickAddModal";
@@ -25,19 +25,21 @@ import {
   splitCashflowPlanItem,
   upsertCashflowPlanItem,
 } from "@/api/cashflowPlan";
-import { fetchSavingsProductsPlan } from "@/api/savingsProducts";
 import { useCategories, useUsers } from "@/hooks/useReferenceData";
 import { SECTIONS, SAVINGS_INVESTMENT_LABEL } from "@/constants/planSections";
 import { ROUTES } from "@/constants/routes";
 import { useSwipeMonth } from "@/hooks/useSwipeMonth";
-import { QUERY_KEYS } from "@/constants/queryKeys";
+import { useCashflowPlan, useSavingsProductsPlan } from "@/hooks/usePlanQueries";
+import { PLAN_RELATED_KEYS } from "@/constants/queryKeys";
+import { invalidateKeys } from "@/utils/queryClient";
 import { formatYearMonth, pctOf } from "@/utils/format";
-import { extractErrorMessage } from "@/utils/error";
 import { worseStatus } from "@/utils/colors";
 import { toast } from "@/utils/toast";
 import type { BudgetRowOut, CashflowPlanItemOut, CashflowSection } from "@/types";
 import type { CashflowPlanItemFormValues } from "@/components/financialPlan/CashflowPlanItemForm";
 import type { CashflowPlanSplitFormValues } from "@/components/financialPlan/CashflowPlanSplitForm";
+import AccountActionsMenu from "@/components/common/AccountActionsMenu";
+import CollapsibleHint from "@/components/common/CollapsibleHint";
 
 interface ModalState {
   section: CashflowSection;
@@ -58,29 +60,15 @@ export default function CashflowPlanTab({ view }: { view: "monthly" | "annual" }
   const nextYearMonth = shiftYearMonth(yearMonth, 1);
   const nextYearMonthLabel = formatYearMonth(nextYearMonth);
 
-  const cashflowQuery = useQuery({
-    queryKey: QUERY_KEYS.cashflowPlan(yearMonth),
-    queryFn: () => fetchCashflowPlan(yearMonth),
-    // 연간 보기는 AnnualPlanPanel이 자체 쿼리를 쓴다 — 이 달 쿼리는 월 보기에서만 보낸다.
-    enabled: view === "monthly",
-  });
+  // 연간 보기는 AnnualPlanPanel이 자체 쿼리를 쓴다 — 이 달 쿼리는 월 보기에서만 보낸다.
+  const cashflowQuery = useCashflowPlan(yearMonth, { enabled: view === "monthly" });
   const { data: users } = useUsers();
   const { data: categories } = useCategories("expense");
   // 반복거래 등록/가계부 즉시추가 모달은 수입 카테고리도 골라야 하므로 지출 전용인 위 categories와 별도로 전체를 받는다.
   const { data: allCategories } = useCategories();
-  const savingsPlanQuery = useQuery({
-    queryKey: QUERY_KEYS.savingsProductsPlan(yearMonth),
-    queryFn: () => fetchSavingsProductsPlan(yearMonth),
-    enabled: view === "monthly",
-  });
+  const savingsPlanQuery = useSavingsProductsPlan(yearMonth, { enabled: view === "monthly" });
 
-  // 이번 달 계획은 연간계획의 한 달 단면이라, 여기서 저장하면 연간계획과(항목 이름·카테고리는 모든 달 공통이라)
-  // 다른 달 화면도 바뀐다 — 월과 무관하게 두 계획 쿼리를 모두 무효화한다.
-  const invalidate = () => {
-    void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.cashflowPlanAll });
-    void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.annualPlanAll });
-    void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.dashboardAll });
-  };
+  const invalidate = () => invalidateKeys(queryClient, PLAN_RELATED_KEYS);
 
   const upsertMutation = useMutation({
     mutationFn: upsertCashflowPlanItem,
@@ -88,7 +76,6 @@ export default function CashflowPlanTab({ view }: { view: "monthly" | "annual" }
       invalidate();
       toast("저장했습니다.", "success");
     },
-    onError: (err) => toast(extractErrorMessage(err), "error"),
   });
 
   const deleteMutation = useMutation({
@@ -98,7 +85,6 @@ export default function CashflowPlanTab({ view }: { view: "monthly" | "annual" }
       setDeleteTarget(null);
       toast("삭제했습니다.", "success");
     },
-    onError: (err) => toast(extractErrorMessage(err), "error"),
   });
 
   const splitMutation = useMutation({
@@ -108,7 +94,6 @@ export default function CashflowPlanTab({ view }: { view: "monthly" | "annual" }
       setSplitModalOpen(false);
       toast(`${result.created}개월치 계획으로 나눠 등록했습니다.`, "success");
     },
-    onError: (err) => toast(extractErrorMessage(err), "error"),
   });
 
   const copyMutation = useMutation({
@@ -120,7 +105,6 @@ export default function CashflowPlanTab({ view }: { view: "monthly" | "annual" }
         "success",
       );
     },
-    onError: (err) => toast(extractErrorMessage(err), "error"),
   });
 
   // "최근 3개월 평균 제안값을 다음 달 계획에 반영" — 카테고리 예산/수입 항목이 공유하는 read-modify-write.
@@ -162,7 +146,6 @@ export default function CashflowPlanTab({ view }: { view: "monthly" | "annual" }
       invalidate();
       toast(`${nextYearMonthLabel} 예산에 반영했습니다.`, "success");
     },
-    onError: (err) => toast(extractErrorMessage(err), "error"),
     onSettled: () => setApplyingCategoryId(null),
   });
 
@@ -181,7 +164,6 @@ export default function CashflowPlanTab({ view }: { view: "monthly" | "annual" }
       invalidate();
       toast(`${nextYearMonthLabel} 계획에 반영했습니다.`, "success");
     },
-    onError: (err) => toast(extractErrorMessage(err), "error"),
   });
 
   if (view === "annual") {
@@ -292,15 +274,30 @@ export default function CashflowPlanTab({ view }: { view: "monthly" | "annual" }
     <div ref={swipeRef} className="space-y-4">
       <div className="flex items-center justify-between flex-wrap gap-3">
         <MonthPicker yearMonth={yearMonth} onChange={setYearMonth} />
-        <Button
-          variant="secondary"
-          size="sm"
-          icon={<Copy size={14} />}
-          loading={copyMutation.isPending}
-          onClick={() => copyMutation.mutate()}
-        >
-          전월 계획 복사
-        </Button>
+        {/* 계획이 빈 달에만 버튼으로 크게 — 이미 채운 달엔 가끔 쓰는 기능이라 ⋯ 메뉴로 접는다(빠진 항목만 채운다). */}
+        {data.items.length === 0 ? (
+          <Button
+            variant="secondary"
+            size="sm"
+            icon={<Copy size={14} />}
+            loading={copyMutation.isPending}
+            onClick={() => copyMutation.mutate()}
+          >
+            전월 계획 복사
+          </Button>
+        ) : (
+          <AccountActionsMenu
+            ariaLabel="이번 달 계획 작업"
+            items={[
+              {
+                icon: <Copy size={16} />,
+                label: "전월 계획에서 빠진 항목 복사",
+                onClick: () => copyMutation.mutate(),
+                disabled: copyMutation.isPending,
+              },
+            ]}
+          />
+        )}
       </div>
 
       <PlanBalanceSummary
@@ -312,14 +309,14 @@ export default function CashflowPlanTab({ view }: { view: "monthly" | "annual" }
 
       <PlanSectionAccordion sections={sections} />
 
-      <p className="text-xs text-gray-400 dark:text-gray-500">
-        이번 달 계획은 연간계획의 이번 달 금액이에요. 여기서 바꾼 금액은 이번 달에만 적용되고, 달마다 다른 금액은
-        연간 탭에서 한 번에 채울 수 있어요. 실제 수입·지출은{" "}
+      <CollapsibleHint summary="이번 달 계획은 연간계획의 이번 달 금액이에요.">
+        여기서 바꾼 금액은 이번 달에만 적용되고, 달마다 다른 금액은 연간 탭에서 한 번에 채울 수 있어요. 실제
+        수입·지출은{" "}
         <Link to={ROUTES.transactions} className="font-semibold underline hover:no-underline">
           가계부
         </Link>
         에서 확인해요.
-      </p>
+      </CollapsibleHint>
 
       {modal && (
         <Modal

@@ -8,7 +8,7 @@ from app.utils.dates import today_kst
 
 def test_yearly_report_returns_monthly_and_breakdown(client, seeded_db):
     db, user, food = seeded_db["db"], seeded_db["user"], seeded_db["food"]
-    transaction_service.create_transaction(db, user.id, food.id, "expense", Decimal("30000"), date(2026, 3, 10))
+    transaction_service.create_transaction(db, user_id=user.id, category_id=food.id, type_="expense", amount=Decimal("30000"), transaction_date=date(2026, 3, 10))
 
     resp = client.get("/api/v1/reports/yearly", params={"year": 2026})
 
@@ -25,8 +25,8 @@ def test_yearly_report_benchmark_reflects_tagged_categories(client, seeded_db):
     db, user, food, salary = seeded_db["db"], seeded_db["user"], seeded_db["food"], seeded_db["salary"]
     food.benchmark_group = "food"
     db.commit()
-    transaction_service.create_transaction(db, user.id, salary.id, "income", Decimal("1000000"), date(2026, 3, 1))
-    transaction_service.create_transaction(db, user.id, food.id, "expense", Decimal("200000"), date(2026, 3, 10))
+    transaction_service.create_transaction(db, user_id=user.id, category_id=salary.id, type_="income", amount=Decimal("1000000"), transaction_date=date(2026, 3, 1))
+    transaction_service.create_transaction(db, user_id=user.id, category_id=food.id, type_="expense", amount=Decimal("200000"), transaction_date=date(2026, 3, 10))
 
     resp = client.get("/api/v1/reports/yearly", params={"year": 2026})
 
@@ -40,7 +40,7 @@ def test_yearly_report_benchmark_reflects_tagged_categories(client, seeded_db):
 
 def test_yearly_report_benchmark_empty_when_no_category_tagged(client, seeded_db):
     db, user, food = seeded_db["db"], seeded_db["user"], seeded_db["food"]
-    transaction_service.create_transaction(db, user.id, food.id, "expense", Decimal("30000"), date(2026, 3, 10))
+    transaction_service.create_transaction(db, user_id=user.id, category_id=food.id, type_="expense", amount=Decimal("30000"), transaction_date=date(2026, 3, 10))
 
     resp = client.get("/api/v1/reports/yearly", params={"year": 2026})
 
@@ -55,10 +55,10 @@ def test_yearly_report_breakdown_filters_by_owner(client, seeded_db):
     db.commit()
     db.refresh(spouse2)
     transaction_service.create_transaction(
-        db, user.id, food.id, "expense", Decimal("30000"), date(2026, 3, 6), owner_user_id=spouse2.id
+        db, user_id=user.id, category_id=food.id, type_="expense", amount=Decimal("30000"), transaction_date=date(2026, 3, 6), owner_user_id=spouse2.id
     )
     transaction_service.create_transaction(
-        db, user.id, rent.id, "expense", Decimal("800000"), date(2026, 3, 1), owner_user_id=user.id
+        db, user_id=user.id, category_id=rent.id, type_="expense", amount=Decimal("800000"), transaction_date=date(2026, 3, 1), owner_user_id=user.id
     )
 
     resp_owner = client.get("/api/v1/reports/yearly", params={"year": 2026, "owner": str(spouse2.id)})
@@ -74,9 +74,9 @@ def test_yearly_report_breakdown_filters_by_owner(client, seeded_db):
 def test_yearly_report_breakdown_filters_by_shared_owner(client, seeded_db):
     db, user, food = seeded_db["db"], seeded_db["user"], seeded_db["food"]
     transaction_service.create_transaction(
-        db, user.id, food.id, "expense", Decimal("50000"), date(2026, 3, 6), owner_user_id=user.id
+        db, user_id=user.id, category_id=food.id, type_="expense", amount=Decimal("50000"), transaction_date=date(2026, 3, 6), owner_user_id=user.id
     )
-    transaction_service.create_transaction(db, user.id, food.id, "expense", Decimal("15000"), date(2026, 3, 12))
+    transaction_service.create_transaction(db, user_id=user.id, category_id=food.id, type_="expense", amount=Decimal("15000"), transaction_date=date(2026, 3, 12))
 
     resp = client.get("/api/v1/reports/yearly", params={"year": 2026, "owner": "shared"})
 
@@ -93,7 +93,7 @@ def test_yearly_report_rejects_invalid_owner_param(client):
 
 def test_category_trend_returns_trailing_months_with_series(client, seeded_db):
     db, user, food = seeded_db["db"], seeded_db["user"], seeded_db["food"]
-    transaction_service.create_transaction(db, user.id, food.id, "expense", Decimal("40000"), today_kst())
+    transaction_service.create_transaction(db, user_id=user.id, category_id=food.id, type_="expense", amount=Decimal("40000"), transaction_date=today_kst())
 
     resp = client.get("/api/v1/reports/category-trend", params={"months": 3})
 
@@ -106,8 +106,8 @@ def test_category_trend_returns_trailing_months_with_series(client, seeded_db):
 
 def test_savings_review_returns_spending_items(client, seeded_db):
     db, user, food = seeded_db["db"], seeded_db["user"], seeded_db["food"]
-    transaction_service.create_transaction(db, user.id, food.id, "expense", Decimal("100000"), date(2026, 8, 10))
-    transaction_service.create_transaction(db, user.id, food.id, "expense", Decimal("150000"), date(2026, 9, 10))
+    transaction_service.create_transaction(db, user_id=user.id, category_id=food.id, type_="expense", amount=Decimal("100000"), transaction_date=date(2026, 8, 10))
+    transaction_service.create_transaction(db, user_id=user.id, category_id=food.id, type_="expense", amount=Decimal("150000"), transaction_date=date(2026, 9, 10))
 
     resp = client.get("/api/v1/reports/savings-review", params={"year_month": "2026-09"})
 

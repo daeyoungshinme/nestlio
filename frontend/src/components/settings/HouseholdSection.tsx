@@ -4,11 +4,12 @@ import { Copy, UserMinus, UserPlus, X } from "lucide-react";
 import Button from "@/components/common/Button";
 import ConfirmModal from "@/components/common/ConfirmModal";
 import FormInput from "@/components/common/FormInput";
-import { SettingsSectionCard, onMutationError } from "@/components/settings/shared";
+import { SettingsSectionCard } from "@/components/settings/shared";
 import { cancelInvite, createInvite, fetchInvites } from "@/api/invites";
 import { removeUser } from "@/api/users";
 import { useSpouse, useUsers } from "@/hooks/useReferenceData";
 import { QUERY_KEYS, USER_RELATED_KEYS } from "@/constants/queryKeys";
+import { invalidateKeys } from "@/utils/queryClient";
 import { inviteStatusLabel, inviteStatusTextClass } from "@/utils/colors";
 import type { InviteStatus } from "@/utils/colors";
 import { toast } from "@/utils/toast";
@@ -42,7 +43,6 @@ export default function HouseholdSection() {
         toast("초대를 생성했지만 메일 발송에 실패했습니다. 아래 목록에서 링크를 복사해 직접 전달해주세요.", "info");
       }
     },
-    onError: onMutationError,
   });
 
   const cancelInviteMutation = useMutation({
@@ -51,18 +51,16 @@ export default function HouseholdSection() {
       void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.invites });
       toast("초대를 취소했습니다.", "success");
     },
-    onError: onMutationError,
   });
 
   const removeSpouseMutation = useMutation({
     mutationFn: () => removeUser(spouse!.id),
     onSuccess: () => {
-      USER_RELATED_KEYS.forEach((key) => void queryClient.invalidateQueries({ queryKey: key }));
+      invalidateKeys(queryClient, USER_RELATED_KEYS);
       setRemoveSpouseOpen(false);
       setRemoveSpouseConfirmText("");
       toast("배우자를 제거했습니다.", "success");
     },
-    onError: onMutationError,
   });
 
   const copyAcceptUrl = async (url: string) => {

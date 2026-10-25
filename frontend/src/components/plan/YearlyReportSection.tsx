@@ -28,10 +28,12 @@ import { useUsers } from "@/hooks/useReferenceData";
 import { QUERY_KEYS } from "@/constants/queryKeys";
 import { ROUTES } from "@/constants/routes";
 import { STALE_TIME } from "@/constants/queryConfig";
-import { formatKrw, formatKrwAxis, formatPercent, formatYearMonth, formatMonthOnly } from "@/utils/format";
-import { incomeExpenseChartColor, planStatusBarClass, planStatusTextClass } from "@/utils/colors";
+import { formatKrw, formatKrwAxis, formatKrwCompact, formatPercent, formatYearMonth, formatMonthOnly } from "@/utils/format";
+import { CATEGORY_SWATCH_FALLBACK_COLOR, chartTooltipStyle, incomeExpenseChartColor, planStatusBarClass, planStatusTextClass } from "@/utils/colors";
 import { useThemeStore } from "@/stores/themeStore";
 import type { CategoryBenchmarkRowOut } from "@/types";
+
+const PIE_TOP_COUNT = 5;
 
 const CATEGORY_TREND_MONTHS = 6;
 const ALL_OWNERS_TAB = "전체";
@@ -103,10 +105,16 @@ export default function YearlyReportSection({ year }: { year: number }) {
       })) ?? [],
     [yearlyData],
   );
-  const pieData = useMemo(
-    () => yearlyData?.breakdown.map((row) => ({ name: row.name, value: Number(row.amount), color: row.color })) ?? [],
-    [yearlyData],
-  );
+  // 카테고리가 10~15개면 범례가 화면 하나를 차지해 상위 PIE_TOP_COUNT개 + "기타"로 묶는다(파이와 범례가 같은 묶음).
+  const pieData = useMemo(() => {
+    const rows = (yearlyData?.breakdown ?? [])
+      .map((row) => ({ name: row.name, value: Number(row.amount), color: row.color }))
+      .sort((a, b) => b.value - a.value);
+    if (rows.length <= PIE_TOP_COUNT + 1) return rows;
+    const rest = rows.slice(PIE_TOP_COUNT).reduce((sum, row) => sum + row.value, 0);
+    return [...rows.slice(0, PIE_TOP_COUNT), { name: "기타", value: rest, color: CATEGORY_SWATCH_FALLBACK_COLOR }];
+  }, [yearlyData]);
+  const pieTotal = pieData.reduce((sum, row) => sum + row.value, 0);
 
   return (
     <QueryBoundary
@@ -125,7 +133,7 @@ export default function YearlyReportSection({ year }: { year: number }) {
                     <CartesianGrid strokeDasharray="3 3" className="stroke-gray-200 dark:stroke-gray-700" />
                     <XAxis dataKey="name" tick={{ fontSize: 11 }} tickFormatter={MONTH_TICK_FORMATTER} interval="preserveStartEnd" minTickGap={8} />
                     <YAxis tick={{ fontSize: 11 }} tickFormatter={(v) => formatKrwAxis(Number(v))} width={44} />
-                    <Tooltip formatter={(v) => formatKrw(Number(v))} />
+                    <Tooltip {...chartTooltipStyle(isDark)} formatter={(v) => formatKrw(Number(v))} />
                     <Legend />
                     <Bar dataKey="수입" fill={incomeExpenseChartColor("income", isDark)} radius={[4, 4, 0, 0]} />
                     <Bar dataKey="지출" fill={incomeExpenseChartColor("expense", isDark)} radius={[4, 4, 0, 0]} />
@@ -152,7 +160,7 @@ export default function YearlyReportSection({ year }: { year: number }) {
                             <Cell key={i} fill={entry.color} />
                           ))}
                         </Pie>
-                        <Tooltip formatter={(v) => formatKrw(Number(v))} />
+                        <Tooltip {...chartTooltipStyle(isDark)} formatter={(v) => formatKrw(Number(v))} />
                       </PieChart>
                     </ResponsiveContainer>
                   </div>
@@ -164,7 +172,8 @@ export default function YearlyReportSection({ year }: { year: number }) {
                           style={{ backgroundColor: entry.color }}
                         />
                         <span className="text-xs text-gray-600 dark:text-gray-400">
-                          {entry.name} {formatKrw(entry.value)}
+                          {entry.name} {formatKrwCompact(entry.value)}
+                          {pieTotal > 0 && ` (${formatPercent((entry.value / pieTotal) * 100)})`}
                         </span>
                       </div>
                     ))}
@@ -211,7 +220,7 @@ export default function YearlyReportSection({ year }: { year: number }) {
                       <CartesianGrid strokeDasharray="3 3" className="stroke-gray-200 dark:stroke-gray-700" />
                       <XAxis dataKey="name" tick={{ fontSize: 11 }} tickFormatter={TREND_TICK_FORMATTER} interval="preserveStartEnd" minTickGap={8} />
                       <YAxis tick={{ fontSize: 11 }} tickFormatter={(v) => formatKrwAxis(Number(v))} width={44} />
-                      <Tooltip formatter={(v) => formatKrw(Number(v))} />
+                      <Tooltip {...chartTooltipStyle(isDark)} formatter={(v) => formatKrw(Number(v))} />
                       <Legend
                         onClick={(e) => toggleSeries(String(e.value))}
                         wrapperStyle={{ cursor: "pointer" }}

@@ -6,7 +6,9 @@ import AccountsSnapshotCard from "@/components/accounts/AccountsSnapshotCard";
 import SavingsProductsSection from "@/components/accounts/SavingsProductsSection";
 import RealEstateSection from "@/components/accounts/RealEstateSection";
 import LoansSection from "@/components/accounts/LoansSection";
-import { useUsers } from "@/hooks/useReferenceData";
+import { useNetWorth, useSavingsProducts, useUsers } from "@/hooks/useReferenceData";
+import { formatKrwCompact } from "@/utils/format";
+import { splitSavingsAndRealEstate } from "@/utils/netWorth";
 import { ACCOUNTS_SECTIONS, type AccountsSection as AccountsSectionName } from "@/constants/routes";
 
 const SECTIONS = ACCOUNTS_SECTIONS;
@@ -29,6 +31,20 @@ export default function AccountsPage() {
   const openSection: Section = isSection(requested) ? requested : "계좌";
 
   const { data: users } = useUsers();
+  // 스냅샷 카드와 같은 쿼리(캐시 공유)로 섹션 헤더에 합계를 붙인다 — 접힌 섹션도 펼치지 않고 규모를 본다.
+  const { data: netWorth } = useNetWorth(12);
+  const { data: products } = useSavingsProducts();
+  const sectionTotals: Partial<Record<Section, string>> = {};
+  if (netWorth) {
+    const { savingsInvestmentTotal, realEstateTotal } = splitSavingsAndRealEstate(
+      Number(netWorth.current.savings_total),
+      products,
+    );
+    sectionTotals["계좌"] = formatKrwCompact(Number(netWorth.current.accounts_total));
+    sectionTotals["저축·투자"] = formatKrwCompact(savingsInvestmentTotal);
+    sectionTotals["부동산"] = formatKrwCompact(realEstateTotal);
+    sectionTotals["대출"] = formatKrwCompact(Number(netWorth.current.loans_total));
+  }
 
   useEffect(() => {
     if (isSection(requested)) {
@@ -44,6 +60,7 @@ export default function AccountsPage() {
       <div id={sectionId("계좌")} className="scroll-mt-4">
         <CollapsibleGroup
           header={<span className="text-base font-semibold text-gray-800 dark:text-gray-100">계좌</span>}
+          amount={sectionTotals["계좌"]}
           defaultOpen={openSection === "계좌"}
         >
           <AccountsSection users={users} />
@@ -53,6 +70,7 @@ export default function AccountsPage() {
       <div id={sectionId("저축·투자")} className="scroll-mt-4">
         <CollapsibleGroup
           header={<span className="text-base font-semibold text-gray-800 dark:text-gray-100">저축·투자</span>}
+          amount={sectionTotals["저축·투자"]}
           defaultOpen={openSection === "저축·투자"}
         >
           <SavingsProductsSection users={users} />
@@ -62,6 +80,7 @@ export default function AccountsPage() {
       <div id={sectionId("부동산")} className="scroll-mt-4">
         <CollapsibleGroup
           header={<span className="text-base font-semibold text-gray-800 dark:text-gray-100">부동산</span>}
+          amount={sectionTotals["부동산"]}
           defaultOpen={openSection === "부동산"}
         >
           <RealEstateSection users={users} />
@@ -71,6 +90,7 @@ export default function AccountsPage() {
       <div id={sectionId("대출")} className="scroll-mt-4">
         <CollapsibleGroup
           header={<span className="text-base font-semibold text-gray-800 dark:text-gray-100">대출</span>}
+          amount={sectionTotals["대출"]}
           defaultOpen={openSection === "대출"}
         >
           <LoansSection users={users} />

@@ -2,15 +2,14 @@ import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import Tabs from "@/components/common/Tabs";
 import { fetchRecentTransactions } from "@/api/transactions";
-import { fetchCashflowPlan } from "@/api/cashflowPlan";
 import { QUERY_KEYS } from "@/constants/queryKeys";
-import { STALE_TIME } from "@/constants/queryConfig";
 import { LABEL_SM } from "@/constants/inputStyles";
 import { TOUCH_TARGET_COMPACT_MOBILE_ONLY } from "@/constants/uiSizes";
 import { EXPENSE_TYPE_FILTER_OPTIONS } from "@/components/transactions/TransactionFilterBar";
 import { categoryTypeBadgeStyle } from "@/utils/colors";
 import { formatKrw } from "@/utils/format";
 import type { CashflowPlanItemOut, TransactionOut, TransactionType, UserOut } from "@/types";
+import { useCashflowPlan } from "@/hooks/usePlanQueries";
 
 export type UiType = "income" | "expense" | "savings";
 
@@ -77,7 +76,6 @@ export function useRecentQuickItems(uiType: UiType, enabled = true) {
   return useQuery({
     queryKey: QUERY_KEYS.recentTransactions({ type, is_savings: isSavings, limit }),
     queryFn: () => fetchRecentTransactions({ type, is_savings: isSavings, limit }),
-    staleTime: STALE_TIME.SHORT,
     enabled,
   });
 }
@@ -123,12 +121,7 @@ export default function TransactionQuickPicks({
 
   /** "이번 달 계획" 칩: 폼에서 선택한 거래 날짜가 속한 달의 현금흐름계획 항목 (수입/고정/변동/비정기지출만 — 저축/투자는 계획 개념이 없음). */
   const yearMonth = transactionDate.slice(0, 7);
-  const { data: planData } = useQuery({
-    queryKey: QUERY_KEYS.cashflowPlan(yearMonth),
-    queryFn: () => fetchCashflowPlan(yearMonth),
-    staleTime: STALE_TIME.SHORT,
-    enabled: uiType !== "savings",
-  });
+  const { data: planData } = useCashflowPlan(yearMonth, { enabled: uiType !== "savings" });
   const planItems = (planData?.items ?? []).filter((item) => Number(item.amount) > 0);
   const planGroups =
     uiType === "expense"
