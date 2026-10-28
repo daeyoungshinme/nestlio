@@ -376,8 +376,8 @@ def import_rows(
     계좌·카드 칸은 활성 계좌·카드 이름으로(`_match_by_name`), 소유자 칸은 가구 사용자 표시 이름·이메일로(`_match_owner`,
     "공통"은 소유자 없음) 매칭하고, 못 찾은 이름은 비워 넣고 `unmatched_accounts`/`unmatched_owners`로 알린다.
     결제수단 칸은 한국어 라벨·별칭을 받는다(`_parse_payment_method`). 카드는 카드 칸 → 계좌 칸(카드가 계좌 종류이던
-    시절의 내보내기) → 결제수단 칸(일반 표기 제외) 순으로 찾고(`_resolve_card`), 찾으면 계좌·결제수단은 카드의
-    결제계좌·종류로 정한다 — 화면 입력과 같은 규칙(transaction_service._apply_card).
+    시절의 내보내기) → 결제수단 칸(일반 표기 제외) 순으로 찾고(`_resolve_card`), 찾으면 결제수단은 카드 종류, 계좌는
+    계좌 칸에 적힌 계좌(없으면 카드의 결제계좌)로 정한다 — 화면 입력(카드 우선)과 달리 적힌 계좌가 실제 나간 계좌다.
 
     카테고리 칸이 비었거나 모르는 이름이면 메모로 과거 거래 이력(`_infer_category`) → 가맹점 키워드 사전
     (`_keyword_category`, 지출만) → `fallback_category_id`(같은 구분일 때만) 순으로 정하고 `auto_categorized`에
@@ -452,7 +452,11 @@ def import_rows(
             unmatched_accounts.append(raw_account)
         payment_method = _parse_payment_method(raw_payment)
         if card is not None:
-            account, payment_method = card.payment_account, card_service.PAYMENT_METHOD_BY_CARD_TYPE[card.card_type]
+            # 계좌 칸에 적힌 계좌가 있으면 그것을 쓴다 — 그 거래가 실제로 나간 계좌라, 그 뒤 카드의 결제계좌를
+            # 바꿨어도 내보내기 → 다시 가져오기에서 지난 거래가 새 계좌로 옮겨지면 안 된다. 화면 입력은 새 거래라
+            # 카드 우선(transaction_service._apply_card)이지만 CSV는 기존 기록의 이관이다.
+            account = account or card.payment_account
+            payment_method = card_service.PAYMENT_METHOD_BY_CARD_TYPE[card.card_type]
         raw_owner = cell(row, "owner")
         owner = None
         if raw_owner and raw_owner not in _COMMON_OWNER_ALIASES:

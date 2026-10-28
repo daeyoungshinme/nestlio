@@ -829,3 +829,36 @@ def test_reupload_with_card_backfills_existing_transaction(seeded_db):
     [tx] = _july(db)
     assert result["updated"] == 1
     assert (tx.card_id, tx.account_id, tx.payment_method) == (card.id, bank.id, "credit_card")
+
+
+def test_reimport_after_card_account_change_keeps_original_account(seeded_db):
+    db, user, food = seeded_db["db"], seeded_db["user"], seeded_db["food"]
+    old_bank = account_service.create_account(db, "예전통장", "bank", Decimal("0"))
+    new_bank = account_service.create_account(db, "새통장", "bank", Decimal("0"))
+    card = card_service.create_card(db, "신한카드", "credit", old_bank.id)
+    transaction_service.create_transaction(
+        db, user_id=user.id, category_id=food.id, type_="expense", amount=Decimal("5000"),
+        transaction_date=date(2026, 7, 5), description="점심", card_id=card.id,
+    )
+    card_service.update_card(db, card.id, "신한카드", "credit", new_bank.id)
+    txs = _july(db)
+    csv_text = transaction_import_service.export_csv(txs)
+
+    transaction_service.delete_transaction(db, txs[0].id)
+    transaction_import_service.import_csv(db, csv_text, user.id)
+
+    [tx] = _july(db)
+    assert (tx.card_id, tx.account_id, tx.payment_method) == (card.id, old_bank.id, "credit_card")
+
+
+def test_import_card_without_account_column_uses_card_payment_account(seeded_db):
+    db, user = seeded_db["db"], seeded_db["user"]
+    bank = account_service.create_account(db, "월급통장", "bank", Decimal("0"))
+    card = card_service.create_card(db, "신한카드", "debit", bank.id)
+
+    transaction_import_service.import_csv(
+        db, "날짜,구분,카테고리,금액,메모,계좌,카드\n2026-07-05,지출,식비,5000,점심,,신한카드\n", user.id
+    )
+
+    [tx] = _july(db)
+    assert (tx.card_id, tx.account_id) == (card.id, bank.id)
