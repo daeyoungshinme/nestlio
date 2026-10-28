@@ -70,6 +70,10 @@ def _google_auth_test_db(monkeypatch, db_session):
     # 태스크)처럼 함수 안에서 `from app.database import SessionLocal`로 늦게 import하는 곳은 모듈 속성
     # 자체를 바꿔야 잡힌다 — TestClient가 백그라운드 태스크까지 실행하므로 빠지면 운영 DB에 붙는다.
     monkeypatch.setattr("app.database.SessionLocal", test_session_factory)
+    # POST /internal/jobs/*의 job_lock은 세션이 아니라 엔진에 직접 advisory lock을 건다 — 빠지면 테스트가
+    # 운영 Postgres에 접속하고, 실제 잡이 잠금을 쥐고 있는 동안엔 "skipped"를 받아 실패한다.
+    # SQLite 엔진이면 job_lock은 잠금 없이 통과한다.
+    monkeypatch.setattr("app.scheduler.job_lock.default_engine", db_session.get_bind())
 
 
 @pytest.fixture()
