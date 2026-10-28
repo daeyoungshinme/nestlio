@@ -9,10 +9,38 @@ describe("ImportResultCard", () => {
     const result = {
       created: 0,
       created_ids: [],
+      auto_categorized: [],
+      merged: [],
       skipped: Array.from({ length: 25 }, (_, i) => ({ line: i + 2, reason: "날짜 형식 오류" })),
     } as unknown as ImportResultOut;
     render(<ImportResultCard result={result} />);
     expect(screen.getAllByText(/행: 날짜 형식 오류/)).toHaveLength(20);
     expect(screen.getByText("외 5건")).toBeInTheDocument();
+  });
+
+  it("lists rows whose category was inferred from the memo", () => {
+    const result: ImportResultOut = {
+      created: 2,
+      created_ids: [1, 2],
+      skipped: [],
+      auto_categorized: [{ line: 3, description: "스타벅스 강남점", category_name: "식비" }],
+      merged: [],
+    };
+    render(<ImportResultCard result={result} />);
+    expect(screen.getByText("1건은 메모를 보고 카테고리를 자동으로 정했어요")).toBeInTheDocument();
+    expect(screen.getByText("3행 스타벅스 강남점 → 식비")).toBeInTheDocument();
+  });
+
+  it("lists rows merged into one transaction", () => {
+    const result: ImportResultOut = {
+      created: 1,
+      created_ids: [1],
+      skipped: [],
+      auto_categorized: [],
+      merged: [{ lines: [1, 2], description: "점심", amount: "12000.00" }],
+    };
+    render(<ImportResultCard result={result} />);
+    expect(screen.getByText("같은 날 비슷한 메모 1묶음은 금액을 합쳐 한 건으로 만들었어요")).toBeInTheDocument();
+    expect(screen.getByText(/1·2행 점심 →/)).toBeInTheDocument();
   });
 });

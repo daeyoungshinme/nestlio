@@ -75,10 +75,26 @@ class SkippedRowOut(BaseModel):
     reason: str
 
 
+class AutoCategorizedRowOut(BaseModel):
+    line: int
+    description: str
+    category_name: str
+
+
+class MergedRowsOut(BaseModel):
+    lines: list[int]
+    description: str
+    amount: Decimal
+
+
 class ImportResultOut(BaseModel):
     created: int
     skipped: list[SkippedRowOut]
     created_ids: list[int] = []
+    # 카테고리 칸이 비었거나 모르는 이름이라 메모로 추론해 채운 행
+    auto_categorized: list[AutoCategorizedRowOut] = []
+    # 같은 날·비슷한 메모라 금액을 합쳐 한 건으로 만든 행 묶음
+    merged: list[MergedRowsOut] = []
 
 
 BULK_DELETE_MAX = 500

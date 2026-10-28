@@ -1,9 +1,12 @@
 import csv
 import io
+import re
 import uuid
+from dataclasses import dataclass, field
 from datetime import date
 from decimal import Decimal, InvalidOperation
 
+from sqlalchemy import func
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
@@ -15,7 +18,106 @@ from app.models.transaction import Transaction
 CSV_HEADER = ["날짜", "구분", "카테고리", "금액", "메모", "입력자"]
 CSV_TYPE_LABELS = {"income": "수입", "expense": "지출"}
 CSV_TYPE_BY_LABEL = {"수입": "income", "지출": "expense", "income": "income", "expense": "expense"}
+# 부분 일치로 쓸 학습 메모의 최소 길이 — 한 글자("커")는 거의 모든 메모에 들어가 엉뚱하게 매칭된다.
+MEMO_PARTIAL_MATCH_MIN_LENGTH = 2
 
+# (거래 구분, 정규화 메모) → {카테고리 id: [건수, 가장 최근 거래일]}
+MemoIndex = dict[tuple[str, str], dict[int, list]]
+DUPLICATE_REASON = "이미 같은 날 같은 금액의 비슷한 거래가 있어 건너뛰었습니다"
+
+
+def _normalize_memo(memo: str | None) -> str:
+    return re.sub(r"\s+", " ", (memo or "").strip()).casefold()
+
+
+def _similar_memo(a: str, b: str) -> bool:
+    """정규화한 두 메모가 같거나, 짧은 쪽(2자 이상)이 긴 쪽에 들어 있으면 비슷하다.
+    빈 메모는 무엇과도 비슷하지 않다 — 메모 없는 별개 지출이 합쳐지거나 중복으로 빠지지 않게."""
+    if not a or not b:
+        return False
+    short, long_ = sorted((a, b), key=len)
+    return short == long_ or (len(short) >= MEMO_PARTIAL_MATCH_MIN_LENGTH and short in long_)
+
+
+@dataclass
+class _ImportGroup:
+    """같은 날·구분·카테고리에 메모가 비슷한 CSV 행 묶음 — 거래 한 건이 된다."""
+
+    transaction_date: date
+    tx_type: str
+    category: Category
+    description: str | None
+    amount: Decimal = Decimal("0")
+    lines: list[tuple[int, list[str]]] = field(default_factory=list)
+    memos: list[str] = field(default_factory=list)
+    inferred: list[tuple[int, str]] = field(default_factory=list)  # (행 번호, 메모)
+
+    def matches(self, tx_date: date, tx_type: str, category_id: int, memo: str) -> bool:
+        return (
+            self.transaction_date == tx_date
+            and self.tx_type == tx_type
+            and self.category.id == category_id
+            and any(_similar_memo(memo, m) for m in self.memos)
+        )
+
+
+def _learn_memo(index: MemoIndex, tx_type: str, memo: str | None, category_id: int, count: int, last_date: date) -> None:
+    key = _normalize_memo(memo)
+    if not key:
+        return
+    stats = index.setdefault((tx_type, key), {}).setdefault(category_id, [0, last_date])
+    stats[0] += count
+    stats[1] = max(stats[1], last_date)
+
+
+def _build_memo_index(db: Session) -> MemoIndex:
+    """저장된 거래의 메모별 카테고리 사용 이력. 정규화는 파이썬에서 하므로 원문 메모 단위로 한 번에 집계한다."""
+    rows = (
+        db.query(
+            Transaction.description,
+            Transaction.type,
+            Transaction.category_id,
+            func.count(Transaction.id),
+            func.max(Transaction.transaction_date),
+        )
+        .filter(Transaction.description.isnot(None))
+        .group_by(Transaction.description, Transaction.type, Transaction.category_id)
+        .all()
+    )
+    index: MemoIndex = {}
+    for description, tx_type, category_id, count, last_date in rows:
+        _learn_memo(index, tx_type, description, category_id, count, last_date)
+    return index
+
+
+def _infer_category(
+    index: MemoIndex, tx_type: str, memo: str | None, categories_by_id: dict[int, Category]
+) -> Category | None:
+    """메모가 같은(없으면 학습된 메모를 포함하는 가장 긴) 과거 거래에서 가장 많이 쓴 카테고리.
+    동률이면 최근 거래 쪽. 비활성이거나 구분(수입/지출)이 다른 카테고리는 후보에서 뺀다."""
+    key = _normalize_memo(memo)
+    if not key:
+        return None
+
+    def eligible(stats: dict[int, list]) -> dict[int, list]:
+        return {
+            cid: s
+            for cid, s in stats.items()
+            if (c := categories_by_id.get(cid)) is not None and c.is_active and c.kind == tx_type
+        }
+
+    candidates = eligible(index.get((tx_type, key), {}))
+    if not candidates:
+        partial = [
+            (len(known), sum(s[0] for s in stats.values()), stats)
+            for (t, known), stats in index.items()
+            if t == tx_type and len(known) >= MEMO_PARTIAL_MATCH_MIN_LENGTH and known in key and eligible(stats)
+        ]
+        if not partial:
+            return None
+        candidates = eligible(max(partial, key=lambda p: (p[0], p[1]))[2])
+    best_id = max(candidates, key=lambda cid: (candidates[cid][0], candidates[cid][1]))
+    return categories_by_id[best_id]
 
 
 def decode_upload(raw: bytes) -> str:
@@ -53,44 +155,122 @@ def import_rows(db: Session, rows: list[list[str]], user_id: uuid.UUID) -> dict:
     """Bulk-create transactions from already-split rows matching export_csv's column
     layout (날짜,구분,카테고리,금액,메모,입력자). import_csv가 파싱한 행을 넘긴다.
     Unknown categories or malformed rows are skipped and reported, not raised,
-    so one bad row doesn't abort an otherwise-good import."""
-    categories_by_name = {c.name: c for c in db.query(Category).all()}
+    so one bad row doesn't abort an otherwise-good import.
+
+    카테고리 칸이 비었거나 모르는 이름이면 메모로 과거 거래에서 카테고리를 추론하고(`_infer_category`)
+    `auto_categorized`로 알린다. 명시된 카테고리는 덮어쓰지 않는다. 앞 행의 명시 카테고리도 뒤 행의 학습에 쓴다.
+
+    같은 날·구분·카테고리에 메모가 비슷한(`_similar_memo`) 행은 금액을 합쳐 한 건으로 만들고(`merged`),
+    합친 결과가 이미 저장된 거래(같은 날·구분·금액, 비슷한 메모)와 겹치면 중복으로 건너뛴다 —
+    같은 CSV를 다시 올려도 두 번 들어가지 않는다."""
+    categories = db.query(Category).all()
+    categories_by_name = {c.name: c for c in categories}
+    categories_by_id = {c.id: c for c in categories}
+    memo_index = _build_memo_index(db)
     if rows and rows[0] and rows[0][0].strip() in ("날짜", CSV_HEADER[0]):
         rows = rows[1:]  # skip header if present
 
-    created = 0
     skipped: list[dict] = []
-    created_transactions: list[Transaction] = []
+
+    # 1) 행 해석 + 파일 안 병합
+    groups: list[_ImportGroup] = []
     for line_no, row in enumerate(rows, start=1):
         if not row or not any(cell.strip() for cell in row):
             continue
         try:
-            # 각 행을 SAVEPOINT로 감싼다 — db.flush()가 IntegrityError/DataError(금액 정밀도 초과,
+            raw_date, raw_type, raw_category, raw_amount, *rest = row
+            description = (rest[0] if rest else "").strip()
+            tx_date = date.fromisoformat(raw_date.strip())
+            amount = Decimal(raw_amount.strip())
+            tx_type = CSV_TYPE_BY_LABEL.get(raw_type.strip())
+            if tx_type is None:
+                raise ValueError(f"구분은 수입/지출이어야 합니다: '{raw_type.strip()}'")
+            category = categories_by_name.get(raw_category.strip())
+            inferred = category is None
+            if category is None:
+                category = _infer_category(memo_index, tx_type, description, categories_by_id)
+                if category is None:
+                    unknown = f"카테고리 '{raw_category.strip()}'를 찾을 수 없고" if raw_category.strip() else "카테고리가 비어 있고"
+                    raise ValueError(f"{unknown} 메모로도 추론하지 못했습니다")
+        except (ValueError, InvalidOperation, IndexError) as exc:
+            skipped.append({"line": line_no, "row": row, "reason": str(exc)})
+            continue
+        if not inferred:
+            _learn_memo(memo_index, tx_type, description, category.id, 1, tx_date)
+        memo = _normalize_memo(description)
+        group = next((g for g in groups if g.matches(tx_date, tx_type, category.id, memo)), None)
+        if group is None:
+            group = _ImportGroup(tx_date, tx_type, category, description or None)
+            groups.append(group)
+        group.amount += amount
+        group.lines.append((line_no, row))
+        group.memos.append(memo)
+        if inferred:
+            group.inferred.append((line_no, description))
+
+    # 2) 이미 저장된 거래와 중복 제거 — 기존 거래 한 건은 묶음 하나만 막는다
+    existing: dict[tuple[date, str], list[tuple[str, Decimal]]] = {}
+    dates = {g.transaction_date for g in groups}
+    if dates:
+        for tx_date, tx_type, description, amount in db.query(
+            Transaction.transaction_date, Transaction.type, Transaction.description, Transaction.amount
+        ).filter(Transaction.transaction_date.in_(dates)):
+            existing.setdefault((tx_date, tx_type), []).append((_normalize_memo(description), amount))
+
+    # 3) 묶음마다 거래 생성
+    created_transactions: list[Transaction] = []
+    auto_categorized: list[dict] = []
+    merged: list[dict] = []
+    for group in groups:
+        same_day = existing.get((group.transaction_date, group.tx_type), [])
+        duplicate = next(
+            (
+                e
+                for e in same_day
+                if e[1] == group.amount and any(_similar_memo(e[0], m) for m in group.memos)
+            ),
+            None,
+        )
+        if duplicate is not None:
+            same_day.remove(duplicate)
+            skipped.extend({"line": line_no, "row": row, "reason": DUPLICATE_REASON} for line_no, row in group.lines)
+            continue
+        try:
+            # 묶음마다 SAVEPOINT로 감싼다 — db.flush()가 IntegrityError/DataError(금액 정밀도 초과,
             # 메모 길이 초과 등)를 내면 세션이 오염돼 이후 행과 최종 commit이 모두 실패하므로,
-            # 행 단위로 롤백해 나머지 가져오기를 계속 진행한다.
+            # 묶음 단위로 롤백해 나머지 가져오기를 계속 진행한다.
             with db.begin_nested():
-                raw_date, raw_type, raw_category, raw_amount, *rest = row
-                description = rest[0] if rest else ""
-                tx_type = CSV_TYPE_BY_LABEL.get(raw_type.strip())
-                category = categories_by_name.get(raw_category.strip())
-                if tx_type is None or category is None:
-                    raise ValueError("unknown type or category")
                 tx = Transaction(
                     user_id=user_id,
-                    category_id=category.id,
-                    type=tx_type,
-                    amount=Decimal(raw_amount.strip()),
-                    transaction_date=date.fromisoformat(raw_date.strip()),
-                    description=description.strip() or None,
+                    category_id=group.category.id,
+                    type=group.tx_type,
+                    amount=group.amount,
+                    transaction_date=group.transaction_date,
+                    description=group.description,
                 )
                 db.add(tx)
                 db.flush()  # PK 확보 (되돌리기용 created_ids, 최종 commit은 루프 종료 후 한 번)
-            created_transactions.append(tx)
-            created += 1
-        except (ValueError, InvalidOperation, IndexError, SQLAlchemyError) as exc:
-            skipped.append({"line": line_no, "row": row, "reason": str(exc)})
+        except SQLAlchemyError as exc:
+            skipped.extend({"line": line_no, "row": row, "reason": str(exc)} for line_no, row in group.lines)
+            continue
+        created_transactions.append(tx)
+        auto_categorized.extend(
+            {"line": line_no, "description": description, "category_name": group.category.name}
+            for line_no, description in group.inferred
+        )
+        if len(group.lines) > 1:
+            merged.append(
+                {"lines": [line_no for line_no, _ in group.lines], "description": group.description or "", "amount": group.amount}
+            )
     db.commit()
-    return {"created": created, "skipped": skipped, "created_ids": [tx.id for tx in created_transactions]}
+    skipped.sort(key=lambda s: s["line"])
+    return {
+        "created": len(created_transactions),
+        "skipped": skipped,
+        "created_ids": [tx.id for tx in created_transactions],
+        "auto_categorized": auto_categorized,
+        "merged": merged,
+    }
 
 
 def import_csv(db: Session, content: str, user_id: uuid.UUID) -> dict:

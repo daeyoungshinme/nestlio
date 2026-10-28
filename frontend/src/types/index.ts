@@ -245,10 +245,24 @@ export interface SkippedRowOut {
   reason: string;
 }
 
+export interface AutoCategorizedRowOut {
+  line: number;
+  description: string;
+  category_name: string;
+}
+
+export interface MergedRowsOut {
+  lines: number[];
+  description: string;
+  amount: string;
+}
+
 export interface ImportResultOut {
   created: number;
   skipped: SkippedRowOut[];
   created_ids: number[];
+  auto_categorized: AutoCategorizedRowOut[];
+  merged: MergedRowsOut[];
 }
 
 export interface BulkDeleteResultOut {

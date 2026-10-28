@@ -78,6 +78,208 @@ def test_import_csv_skips_malformed_amount_but_keeps_valid_rows(seeded_db):
     assert result["skipped"][0]["line"] == 1
 
 
+def _expense(db, user, category, description, day=1):
+    transaction_service.create_transaction(
+        db, user_id=user.id, category_id=category.id, type_="expense", amount=Decimal("1000"),
+        transaction_date=date(2026, 6, day), description=description,
+    )
+
+
+def _category_of(db, description):
+    txs = transaction_service.list_transactions(db, date(2026, 7, 1), date(2026, 7, 31))
+    return next(tx.category.name for tx in txs if tx.description == description)
+
+
+def test_import_blank_category_uses_most_frequent_category_for_same_memo(seeded_db):
+    db, user, food, rent = seeded_db["db"], seeded_db["user"], seeded_db["food"], seeded_db["rent"]
+    _expense(db, user, food, "편의점", day=1)
+    _expense(db, user, food, "편의점", day=2)
+    _expense(db, user, rent, "편의점", day=3)
+
+    result = transaction_import_service.import_csv(db, "2026-07-05,지출,,5000,편의점\n", user.id)
+
+    assert result["created"] == 1
+    assert _category_of(db, "편의점") == "식비"
+    assert result["auto_categorized"] == [{"line": 1, "description": "편의점", "category_name": "식비"}]
+
+
+def test_import_tie_in_memo_history_prefers_most_recent(seeded_db):
+    db, user, food, rent = seeded_db["db"], seeded_db["user"], seeded_db["food"], seeded_db["rent"]
+    _expense(db, user, food, "관리비", day=1)
+    _expense(db, user, rent, "관리비", day=20)
+
+    transaction_import_service.import_csv(db, "2026-07-05,지출,,5000,관리비\n", user.id)
+
+    assert _category_of(db, "관리비") == "주거비"
+
+
+def test_import_explicit_category_is_not_overridden_by_memo(seeded_db):
+    db, user, food = seeded_db["db"], seeded_db["user"], seeded_db["food"]
+    _expense(db, user, food, "꽃다발")
+
+    result = transaction_import_service.import_csv(db, "2026-07-05,지출,경조사비,5000,꽃다발\n", user.id)
+
+    assert _category_of(db, "꽃다발") == "경조사비"
+    assert result["auto_categorized"] == []
+
+
+def test_import_unknown_category_name_falls_back_to_memo(seeded_db):
+    db, user, food = seeded_db["db"], seeded_db["user"], seeded_db["food"]
+    _expense(db, user, food, "점심")
+
+    result = transaction_import_service.import_csv(db, "2026-07-05,지출,외식,5000,점심\n", user.id)
+
+    assert result["created"] == 1
+    assert _category_of(db, "점심") == "식비"
+
+
+def test_import_memo_history_of_other_type_is_ignored(seeded_db):
+    db, user, salary = seeded_db["db"], seeded_db["user"], seeded_db["salary"]
+    transaction_service.create_transaction(
+        db, user_id=user.id, category_id=salary.id, type_="income", amount=Decimal("100"),
+        transaction_date=date(2026, 6, 1), description="이자",
+    )
+
+    result = transaction_import_service.import_csv(db, "2026-07-05,지출,,5000,이자\n", user.id)
+
+    assert result["created"] == 0
+    assert "메모로도 추론하지 못했습니다" in result["skipped"][0]["reason"]
+
+
+def test_import_partial_memo_match_uses_longest_known_memo(seeded_db):
+    db, user, food, rent = seeded_db["db"], seeded_db["user"], seeded_db["food"], seeded_db["rent"]
+    _expense(db, user, food, "스타벅스")
+    _expense(db, user, rent, "스타")
+
+    transaction_import_service.import_csv(db, "2026-07-05,지출,,5000,스타벅스 강남점\n", user.id)
+
+    assert _category_of(db, "스타벅스 강남점") == "식비"
+
+
+def test_import_memo_match_ignores_case_and_spacing(seeded_db):
+    db, user, food = seeded_db["db"], seeded_db["user"], seeded_db["food"]
+    _expense(db, user, food, "GS25  역삼")
+
+    result = transaction_import_service.import_csv(db, "2026-07-05,지출,,5000,gs25 역삼\n", user.id)
+
+    assert result["created"] == 1
+    assert _category_of(db, "gs25 역삼") == "식비"
+
+
+def test_import_learns_from_earlier_rows_in_same_file(seeded_db):
+    db, user = seeded_db["db"], seeded_db["user"]
+    csv_text = "2026-07-05,지출,주거비,5000,세탁소\n2026-07-06,지출,,5000,세탁소\n"
+
+    result = transaction_import_service.import_csv(db, csv_text, user.id)
+
+    assert result["created"] == 2
+    assert [r["line"] for r in result["auto_categorized"]] == [2]
+
+
+def test_import_blank_category_without_memo_history_is_skipped(seeded_db):
+    db, user = seeded_db["db"], seeded_db["user"]
+
+    result = transaction_import_service.import_csv(db, "2026-07-05,지출,,5000,처음보는가게\n", user.id)
+
+    assert result["created"] == 0
+    assert result["skipped"][0]["reason"] == "카테고리가 비어 있고 메모로도 추론하지 못했습니다"
+
+
+def _july(db):
+    return transaction_service.list_transactions(db, date(2026, 7, 1), date(2026, 7, 31))
+
+
+def test_import_merges_same_day_similar_memo_rows(seeded_db):
+    db, user = seeded_db["db"], seeded_db["user"]
+    csv_text = (
+        "2026-07-05,지출,식비,8000,스타벅스\n"
+        "2026-07-05,지출,식비,4000,스타벅스 강남점\n"
+        "2026-07-05,지출,식비,3000, 스타벅스 \n"
+    )
+
+    result = transaction_import_service.import_csv(db, csv_text, user.id)
+
+    assert result["created"] == 1
+    assert [(tx.description, tx.amount) for tx in _july(db)] == [("스타벅스", Decimal("15000"))]
+    assert result["merged"] == [{"lines": [1, 2, 3], "description": "스타벅스", "amount": Decimal("15000")}]
+
+
+@pytest.mark.parametrize(
+    "second_row",
+    [
+        "2026-07-06,지출,식비,4000,점심",  # 다른 날
+        "2026-07-05,수입,식비,4000,점심",  # 다른 구분
+        "2026-07-05,지출,주거비,4000,점심",  # 다른 카테고리
+        "2026-07-05,지출,식비,4000,저녁",  # 다른 메모
+    ],
+)
+def test_import_does_not_merge_rows_that_differ(seeded_db, second_row):
+    db, user = seeded_db["db"], seeded_db["user"]
+
+    result = transaction_import_service.import_csv(db, f"2026-07-05,지출,식비,8000,점심\n{second_row}\n", user.id)
+
+    assert result["created"] == 2
+    assert result["merged"] == []
+
+
+def test_import_does_not_merge_blank_memos(seeded_db):
+    db, user = seeded_db["db"], seeded_db["user"]
+
+    result = transaction_import_service.import_csv(db, "2026-07-05,지출,식비,8000,\n2026-07-05,지출,식비,4000,\n", user.id)
+
+    assert result["created"] == 2
+
+
+def test_import_merges_inferred_category_with_explicit_one(seeded_db):
+    db, user = seeded_db["db"], seeded_db["user"]
+    csv_text = "2026-07-05,지출,식비,8000,점심\n2026-07-05,지출,,4000,점심\n"
+
+    result = transaction_import_service.import_csv(db, csv_text, user.id)
+
+    assert result["created"] == 1
+    assert _july(db)[0].amount == Decimal("12000")
+    assert [r["line"] for r in result["auto_categorized"]] == [2]
+
+
+def test_import_skips_row_already_saved_with_similar_memo(seeded_db):
+    db, user, food = seeded_db["db"], seeded_db["user"], seeded_db["food"]
+    transaction_service.create_transaction(
+        db, user_id=user.id, category_id=food.id, type_="expense", amount=Decimal("8000"),
+        transaction_date=date(2026, 7, 5), description="스타벅스",
+    )
+
+    result = transaction_import_service.import_csv(db, "2026-07-05,지출,식비,8000,스타벅스 강남점\n", user.id)
+
+    assert result["created"] == 0
+    assert result["skipped"][0]["reason"] == transaction_import_service.DUPLICATE_REASON
+    assert len(_july(db)) == 1
+
+
+def test_import_same_memo_with_different_amount_is_not_duplicate(seeded_db):
+    db, user, food = seeded_db["db"], seeded_db["user"], seeded_db["food"]
+    transaction_service.create_transaction(
+        db, user_id=user.id, category_id=food.id, type_="expense", amount=Decimal("8000"),
+        transaction_date=date(2026, 7, 5), description="점심",
+    )
+
+    result = transaction_import_service.import_csv(db, "2026-07-05,지출,식비,9000,점심\n", user.id)
+
+    assert result["created"] == 1
+
+
+def test_reimporting_same_csv_creates_nothing_twice(seeded_db):
+    db, user = seeded_db["db"], seeded_db["user"]
+    csv_text = "2026-07-05,지출,식비,8000,점심\n2026-07-05,지출,식비,4000,점심\n2026-07-06,지출,식비,5000,저녁\n"
+
+    first = transaction_import_service.import_csv(db, csv_text, user.id)
+    second = transaction_import_service.import_csv(db, csv_text, user.id)
+
+    assert first["created"] == 2
+    assert second["created"] == 0
+    assert [s["line"] for s in second["skipped"]] == [1, 2, 3]
+    assert len(_july(db)) == 2
+
+
 def test_import_row_db_error_is_isolated_and_does_not_abort_whole_import(seeded_db):
     """한 행의 db.flush()가 DB 오류(정밀도 초과 등)를 내도 SAVEPOINT 롤백으로 그 행만 skip하고
     나머지 행과 최종 commit은 정상 진행된다 — 예전에는 세션이 오염돼 import 전체가 실패했다."""

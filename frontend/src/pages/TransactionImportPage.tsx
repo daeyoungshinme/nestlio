@@ -10,6 +10,7 @@ import { currentYear, currentYearMonth, monthBounds } from "@/utils/date";
 import { extractErrorMessage } from "@/utils/error";
 import { toast } from "@/utils/toast";
 import { triggerBlobDownload } from "@/utils/download";
+import { formatKrw } from "@/utils/format";
 import { TOUCH_TARGET_MIN_HEIGHT, TOUCH_TARGET_ROW } from "@/constants/uiSizes";
 import type { ImportResultOut } from "@/types";
 import { ROUTES } from "@/constants/routes";
@@ -21,11 +22,46 @@ const SKIPPED_ROWS_LIMIT = 20;
 export function ImportResultCard({ result, onUndo }: { result: ImportResultOut; onUndo?: () => void }) {
   const shownSkipped = result.skipped.slice(0, SKIPPED_ROWS_LIMIT);
   const hiddenSkipped = result.skipped.length - shownSkipped.length;
+  const autoCategorized = result.auto_categorized;
+  const shownAuto = autoCategorized.slice(0, SKIPPED_ROWS_LIMIT);
+  const hiddenAuto = autoCategorized.length - shownAuto.length;
+  const shownMerged = result.merged.slice(0, SKIPPED_ROWS_LIMIT);
+  const hiddenMerged = result.merged.length - shownMerged.length;
   return (
     <div className="card space-y-2">
       <p className="text-sm font-medium text-gray-900 dark:text-gray-50">
         {result.created}건 생성됨, {result.skipped.length}건 건너뜀
       </p>
+      {autoCategorized.length > 0 && (
+        <div className="space-y-1">
+          <p className="text-xs text-gray-600 dark:text-gray-300">
+            {autoCategorized.length}건은 메모를 보고 카테고리를 자동으로 정했어요
+          </p>
+          <ul className="text-xs text-gray-500 dark:text-gray-400 space-y-1">
+            {shownAuto.map((row) => (
+              <li key={row.line}>
+                {row.line}행 {row.description} → {row.category_name}
+              </li>
+            ))}
+            {hiddenAuto > 0 && <li>외 {hiddenAuto}건</li>}
+          </ul>
+        </div>
+      )}
+      {result.merged.length > 0 && (
+        <div className="space-y-1">
+          <p className="text-xs text-gray-600 dark:text-gray-300">
+            같은 날 비슷한 메모 {result.merged.length}묶음은 금액을 합쳐 한 건으로 만들었어요
+          </p>
+          <ul className="text-xs text-gray-500 dark:text-gray-400 space-y-1">
+            {shownMerged.map((group) => (
+              <li key={group.lines[0]}>
+                {group.lines.join("·")}행 {group.description} → {formatKrw(group.amount)}
+              </li>
+            ))}
+            {hiddenMerged > 0 && <li>외 {hiddenMerged}묶음</li>}
+          </ul>
+        </div>
+      )}
       {result.skipped.length > 0 && (
         <ul className={`text-xs ${errorMessageTextClass()} space-y-1`}>
           {shownSkipped.map((row, i) => (
@@ -146,7 +182,10 @@ export default function TransactionImportPage() {
       <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300 pt-2">거래 가져오기</h2>
 
       <div className="card space-y-3">
-        <p className="text-sm text-gray-500 dark:text-gray-400">내보내기와 같은 형식의 CSV 파일을 올리세요.</p>
+        <p className="text-sm text-gray-500 dark:text-gray-400">
+          내보내기와 같은 형식의 CSV 파일을 올리세요. 카테고리 칸을 비워 두면 메모를 보고 이전 거래와 같은
+          카테고리로 채워요. 같은 날 비슷한 메모는 한 건으로 합치고, 이미 있는 거래는 건너뛰어요.
+        </p>
         {/* 브라우저 기본 파일 입력은 버튼이 작고 화면마다 모양이 달라 label 버튼으로 감싼다(부부 사진과 같은 방식). */}
         <div className="flex items-center gap-3">
           <label

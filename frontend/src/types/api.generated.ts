@@ -1859,6 +1859,15 @@ export interface components {
             /** Available */
             available: string;
         };
+        /** AutoCategorizedRowOut */
+        AutoCategorizedRowOut: {
+            /** Line */
+            line: number;
+            /** Description */
+            description: string;
+            /** Category Name */
+            category_name: string;
+        };
         /** Body_import_csv_api_v1_transactions_import_post */
         Body_import_csv_api_v1_transactions_import_post: {
             /** File */
@@ -2870,6 +2879,16 @@ export interface components {
              * @default []
              */
             created_ids: number[];
+            /**
+             * Auto Categorized
+             * @default []
+             */
+            auto_categorized: components["schemas"]["AutoCategorizedRowOut"][];
+            /**
+             * Merged
+             * @default []
+             */
+            merged: components["schemas"]["MergedRowsOut"][];
         };
         /** InsightOut */
         InsightOut: {
@@ -3260,6 +3279,15 @@ export interface components {
         MarkAllReadOut: {
             /** Marked */
             marked: number;
+        };
+        /** MergedRowsOut */
+        MergedRowsOut: {
+            /** Lines */
+            lines: number[];
+            /** Description */
+            description: string;
+            /** Amount */
+            amount: string;
         };
         /** MonthlyRetrospectiveOut */
         MonthlyRetrospectiveOut: {

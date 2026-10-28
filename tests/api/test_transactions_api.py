@@ -206,6 +206,18 @@ def test_import_csv(client):
     assert resp.status_code == 200
     assert resp.json()["created"] == 1
     assert resp.json()["skipped"] == []
+    assert resp.json()["auto_categorized"] == []
+
+
+def test_import_csv_fills_blank_category_from_memo_history(client):
+    csv_text = "날짜,구분,카테고리,금액,메모\n2026-07-05,지출,식비,10000,점심\n2026-07-06,지출,,8000,점심\n"
+    resp = client.post(
+        "/api/v1/transactions/import",
+        files={"file": ("import.csv", csv_text.encode("utf-8-sig"), "text/csv")},
+    )
+    assert resp.status_code == 200
+    assert resp.json()["created"] == 2
+    assert resp.json()["auto_categorized"] == [{"line": 2, "description": "점심", "category_name": "식비"}]
 
 
 def test_import_csv_undecodable_file_returns_400(client):
