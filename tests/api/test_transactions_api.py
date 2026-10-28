@@ -207,6 +207,7 @@ def test_import_csv(client):
     assert resp.json()["created"] == 1
     assert resp.json()["skipped"] == []
     assert resp.json()["auto_categorized"] == []
+    assert resp.json()["unmatched_accounts"] == []
 
 
 def test_import_csv_fills_blank_category_from_memo_history(client):

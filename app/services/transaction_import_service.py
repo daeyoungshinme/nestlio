@@ -14,10 +14,12 @@ from sqlalchemy.orm import Session
 from app.config import settings
 from app.constants.merchant_keywords import EXPENSE_MERCHANT_KEYWORDS
 from app.errors import InvalidInputError, PayloadTooLargeError
+from app.models.account import Account
 from app.models.category import Category
 from app.models.transaction import Transaction
 
-CSV_HEADER = ["날짜", "구분", "카테고리", "금액", "메모", "입력자"]
+CSV_HEADER = ["날짜", "구분", "카테고리", "금액", "메모", "입력자", "계좌", "결제수단"]
+PAYMENT_METHOD_LABELS = {"cash": "현금", "credit_card": "신용카드", "debit_card": "체크카드", "transfer": "계좌이체", "other": "기타"}
 CSV_TYPE_LABELS = {"income": "수입", "expense": "지출"}
 CSV_TYPE_BY_LABEL = {"수입": "income", "지출": "expense", "income": "income", "expense": "expense"}
 # 부분 일치로 쓸 학습 메모의 최소 길이 — 한 글자("커")는 거의 모든 메모에 들어가 엉뚱하게 매칭된다.
@@ -67,24 +69,93 @@ def _similar_memo(a: str, b: str) -> bool:
 
 @dataclass
 class _ImportGroup:
-    """같은 날·구분·카테고리에 메모가 비슷한 CSV 행 묶음 — 거래 한 건이 된다."""
+    """같은 날·구분·카테고리·계좌·결제수단에 메모가 비슷한 CSV 행 묶음 — 거래 한 건이 된다."""
 
     transaction_date: date
     tx_type: str
     category: Category
+    account: Account | None
+    payment_method: str | None
     description: str | None
     amount: Decimal = Decimal("0")
     lines: list[tuple[int, list[str]]] = field(default_factory=list)
     memos: list[str] = field(default_factory=list)
     inferred: list[tuple[int, str, CategorySource]] = field(default_factory=list)  # (행 번호, 메모, 출처)
 
-    def matches(self, tx_date: date, tx_type: str, category_id: int, memo: str) -> bool:
+    def matches(
+        self, tx_date: date, tx_type: str, category: Category, account: Account | None, payment_method: str | None, memo: str
+    ) -> bool:
         return (
-            self.transaction_date == tx_date
-            and self.tx_type == tx_type
-            and self.category.id == category_id
+            (self.transaction_date, self.tx_type, self.category.id, self.account, self.payment_method)
+            == (tx_date, tx_type, category.id, account, payment_method)
             and any(_similar_memo(memo, m) for m in self.memos)
         )
+
+
+# 결제수단 칸 → payment_method. 앞에서부터 먼저 걸리는 규칙("체크카드"는 "카드"보다 먼저).
+# 영문 값(cash 등)은 그대로 받는다. 어느 것에도 안 걸리는 비어 있지 않은 값은 "other".
+_PAYMENT_METHOD_RULES: tuple[tuple[tuple[str, ...], str], ...] = (
+    (("체크", "직불", "debit"), "debit_card"),
+    (("신용", "카드", "credit"), "credit_card"),
+    (("현금", "cash"), "cash"),
+    (("이체", "송금", "계좌", "transfer"), "transfer"),
+)
+
+
+def _parse_payment_method(raw: str) -> str | None:
+    key = _normalize_memo(raw)
+    if not key:
+        return None
+    if key in ("cash", "credit_card", "debit_card", "transfer", "other"):
+        return key
+    return next((method for words, method in _PAYMENT_METHOD_RULES if any(w in key for w in words)), "other")
+
+
+def _match_account(raw: str, accounts: list[Account]) -> Account | None:
+    """계좌 칸 → 활성 계좌. 이름이 정규화 후 같으면 그것, 아니면 서로 포함하는(2자 이상) 것 중 이름이 가장 긴 것
+    ("신한카드" ↔ "신한카드(본인)")."""
+    key = _normalize_memo(raw)
+    if not key:
+        return None
+    names = [(_normalize_memo(a.name), a) for a in accounts if a.is_active]
+    exact = next((a for name, a in names if name == key), None)
+    if exact is not None:
+        return exact
+    partial = [(len(name), a) for name, a in names if _similar_memo(name, key)]
+    return max(partial, key=lambda p: p[0])[1] if partial else None
+
+
+# 헤더가 있으면 이름으로 칸을 찾는다(순서가 달라도 됨). 없으면 CSV_HEADER 순서로 읽는다.
+_COLUMN_ALIASES: dict[str, tuple[str, ...]] = {
+    "date": ("날짜", "거래일", "거래일자", "이용일", "이용일자"),
+    "type": ("구분",),
+    "category": ("카테고리", "분류"),
+    "amount": ("금액", "이용금액", "거래금액"),
+    "description": ("메모", "내용", "적요", "가맹점", "가맹점명", "이용처"),
+    "account": ("계좌", "카드", "계좌/카드"),
+    "payment_method": ("결제수단", "결제 수단"),
+}
+_REQUIRED_COLUMNS = ("date", "type", "amount")
+
+
+def _column_map(header: list[str]) -> dict[str, int] | None:
+    """헤더 행이면 {필드: 칸 번호}, 아니면 None. 필수 칸이 빠진 헤더는 InvalidInputError."""
+    cells = [re.sub(r"\s+", "", c).lstrip("﻿") for c in header]
+    columns: dict[str, int] = {}
+    for field_name, aliases in _COLUMN_ALIASES.items():
+        normalized = {re.sub(r"\s+", "", a) for a in aliases}
+        idx = next((i for i, c in enumerate(cells) if c in normalized), None)
+        if idx is not None:
+            columns[field_name] = idx
+    if "date" not in columns:
+        return None
+    missing = [_COLUMN_ALIASES[f][0] for f in _REQUIRED_COLUMNS if f not in columns]
+    if missing:
+        raise InvalidInputError(f"CSV 헤더에 {', '.join(missing)} 칸이 없습니다.")
+    return columns
+
+
+_POSITIONAL_COLUMNS = {"date": 0, "type": 1, "category": 2, "amount": 3, "description": 4, "account": 6, "payment_method": 7}
 
 
 def _learn_memo(index: MemoIndex, tx_type: str, memo: str | None, category_id: int, count: int, last_date: date) -> None:
@@ -186,6 +257,8 @@ def export_csv(transactions: list[Transaction]) -> str:
                 str(tx.amount),
                 tx.description or "",
                 tx.user.display_name,
+                tx.account.name if tx.account else "",
+                PAYMENT_METHOD_LABELS.get(tx.payment_method or "", tx.payment_method or ""),
             ]
         )
     return buffer.getvalue()
@@ -194,16 +267,20 @@ def export_csv(transactions: list[Transaction]) -> str:
 def import_rows(
     db: Session, rows: list[list[str]], user_id: uuid.UUID, fallback_category_id: int | None = None
 ) -> dict:
-    """Bulk-create transactions from already-split rows matching export_csv's column
-    layout (날짜,구분,카테고리,금액,메모,입력자). import_csv가 파싱한 행을 넘긴다.
+    """Bulk-create transactions from already-split rows. import_csv가 파싱한 행을 넘긴다.
+    헤더 행이 있으면 칸을 이름으로 찾고(`_column_map`, 순서 무관), 없으면 export_csv 순서
+    (날짜,구분,카테고리,금액,메모,입력자,계좌,결제수단)로 읽는다. 입력자 칸은 쓰지 않는다(입력자 = 가져온 사람).
     Unknown categories or malformed rows are skipped and reported, not raised,
     so one bad row doesn't abort an otherwise-good import.
+
+    계좌 칸은 활성 계좌 이름으로 매칭하고(`_match_account`), 못 찾은 이름은 계좌 없이 넣고
+    `unmatched_accounts`로 알린다. 결제수단 칸은 한국어 라벨·별칭을 받는다(`_parse_payment_method`).
 
     카테고리 칸이 비었거나 모르는 이름이면 메모로 과거 거래 이력(`_infer_category`) → 가맹점 키워드 사전
     (`_keyword_category`, 지출만) → `fallback_category_id`(같은 구분일 때만) 순으로 정하고 `auto_categorized`에
     출처(`source`)와 함께 알린다. 명시된 카테고리는 덮어쓰지 않는다. 앞 행의 명시 카테고리도 뒤 행의 학습에 쓴다.
 
-    같은 날·구분·카테고리에 메모가 비슷한(`_similar_memo`) 행은 금액을 합쳐 한 건으로 만들고(`merged`),
+    같은 날·구분·카테고리·계좌·결제수단에 메모가 비슷한(`_similar_memo`) 행은 금액을 합쳐 한 건으로 만들고(`merged`),
     합친 결과가 이미 저장된 거래(같은 날·구분·금액, 비슷한 메모)와 겹치면 중복으로 건너뛴다 —
     같은 CSV를 다시 올려도 두 번 들어가지 않는다."""
     categories = db.query(Category).all()
@@ -213,10 +290,19 @@ def import_rows(
     if fallback_category_id is not None and (fallback is None or not fallback.is_active):
         raise InvalidInputError("기본 카테고리를 찾을 수 없습니다.")
     memo_index = _build_memo_index(db)
-    if rows and rows[0] and rows[0][0].strip() in ("날짜", CSV_HEADER[0]):
-        rows = rows[1:]  # skip header if present
+    accounts = db.query(Account).all()
+    columns = _column_map(rows[0]) if rows else None
+    if columns is not None:
+        rows = rows[1:]
+    else:
+        columns = _POSITIONAL_COLUMNS
+
+    def cell(row: list[str], field_name: str) -> str:
+        idx = columns.get(field_name)
+        return row[idx].strip() if idx is not None and idx < len(row) else ""
 
     skipped: list[dict] = []
+    unmatched_accounts: list[str] = []
 
     # 1) 행 해석 + 파일 안 병합
     groups: list[_ImportGroup] = []
@@ -224,14 +310,14 @@ def import_rows(
         if not row or not any(cell.strip() for cell in row):
             continue
         try:
-            raw_date, raw_type, raw_category, raw_amount, *rest = row
-            description = (rest[0] if rest else "").strip()
-            tx_date = _parse_date(raw_date)
-            amount = _parse_amount(raw_amount)
-            tx_type = CSV_TYPE_BY_LABEL.get(raw_type.strip())
+            raw_type, raw_category = cell(row, "type"), cell(row, "category")
+            description = cell(row, "description")
+            tx_date = _parse_date(cell(row, "date"))
+            amount = _parse_amount(cell(row, "amount"))
+            tx_type = CSV_TYPE_BY_LABEL.get(raw_type)
             if tx_type is None:
-                raise ValueError(f"구분은 수입/지출이어야 합니다: '{raw_type.strip()}'")
-            category = categories_by_name.get(raw_category.strip())
+                raise ValueError(f"구분은 수입/지출이어야 합니다: '{raw_type}'")
+            category = categories_by_name.get(raw_category)
             source: CategorySource | None = None
             if category is None:
                 if (category := _infer_category(memo_index, tx_type, description, categories_by_id)) is not None:
@@ -241,17 +327,24 @@ def import_rows(
                 elif fallback is not None and fallback.kind == tx_type:
                     category, source = fallback, "fallback"
                 else:
-                    unknown = f"카테고리 '{raw_category.strip()}'를 찾을 수 없고" if raw_category.strip() else "카테고리가 비어 있고"
+                    unknown = f"카테고리 '{raw_category}'를 찾을 수 없고" if raw_category else "카테고리가 비어 있고"
                     raise ValueError(f"{unknown} 메모로도 추론하지 못했습니다")
         except (ValueError, InvalidOperation, IndexError) as exc:
             skipped.append({"line": line_no, "row": row, "reason": str(exc)})
             continue
         if source is None:
             _learn_memo(memo_index, tx_type, description, category.id, 1, tx_date)
+        raw_account = cell(row, "account")
+        account = _match_account(raw_account, accounts)
+        if raw_account and account is None and raw_account not in unmatched_accounts:
+            unmatched_accounts.append(raw_account)
+        payment_method = _parse_payment_method(cell(row, "payment_method"))
         memo = _normalize_memo(description)
-        group = next((g for g in groups if g.matches(tx_date, tx_type, category.id, memo)), None)
+        group = next(
+            (g for g in groups if g.matches(tx_date, tx_type, category, account, payment_method, memo)), None
+        )
         if group is None:
-            group = _ImportGroup(tx_date, tx_type, category, description or None)
+            group = _ImportGroup(tx_date, tx_type, category, account, payment_method, description or None)
             groups.append(group)
         group.amount += amount
         group.lines.append((line_no, row))
@@ -298,6 +391,8 @@ def import_rows(
                     amount=group.amount,
                     transaction_date=group.transaction_date,
                     description=group.description,
+                    account_id=group.account.id if group.account else None,
+                    payment_method=group.payment_method,
                 )
                 db.add(tx)
                 db.flush()  # PK 확보 (되돌리기용 created_ids, 최종 commit은 루프 종료 후 한 번)
@@ -319,6 +414,7 @@ def import_rows(
         "created": len(created_transactions),
         "skipped": skipped,
         "created_ids": [tx.id for tx in created_transactions],
+        "unmatched_accounts": unmatched_accounts,
         "auto_categorized": auto_categorized,
         "merged": merged,
     }

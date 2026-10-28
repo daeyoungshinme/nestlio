@@ -2896,6 +2896,11 @@ export interface components {
              * @default []
              */
             merged: components["schemas"]["MergedRowsOut"][];
+            /**
+             * Unmatched Accounts
+             * @default []
+             */
+            unmatched_accounts: string[];
         };
         /** InsightOut */
         InsightOut: {

@@ -16,7 +16,7 @@ import type { AutoCategorySource, ImportResultOut } from "@/types";
 import { useCategories } from "@/hooks/useReferenceData";
 import { INPUT_SM, LABEL_SM } from "@/constants/inputStyles";
 import { ROUTES } from "@/constants/routes";
-import { errorMessageTextClass } from "@/utils/colors";
+import { cautionTextClass, errorMessageTextClass } from "@/utils/colors";
 
 /** 건너뛴 행 목록은 이만큼만 — 형식이 틀린 CSV면 수백 줄이 화면을 덮는다. */
 const SKIPPED_ROWS_LIMIT = 20;
@@ -54,6 +54,11 @@ export function ImportResultCard({ result, onUndo }: { result: ImportResultOut; 
             {hiddenAuto > 0 && <li>외 {hiddenAuto}건</li>}
           </ul>
         </div>
+      )}
+      {result.unmatched_accounts.length > 0 && (
+        <p className={`text-xs ${cautionTextClass()}`}>
+          등록되지 않은 계좌라 계좌 없이 넣었어요: {result.unmatched_accounts.join(", ")}
+        </p>
       )}
       {result.merged.length > 0 && (
         <div className="space-y-1">
@@ -166,7 +171,7 @@ export default function TransactionImportPage() {
       <div className="card space-y-3">
         <p className="text-sm font-medium text-gray-900 dark:text-gray-50">CSV 내보내기</p>
         <p className="text-xs text-gray-500 dark:text-gray-400">
-          날짜, 구분, 카테고리, 금액, 메모 순서로 내려받아요 (가져오기와 동일한 형식).
+          날짜, 구분, 카테고리, 금액, 메모, 입력자, 계좌, 결제수단 순서로 내려받아요 (가져오기와 동일한 형식).
         </p>
         <div className="flex flex-wrap gap-2">
           <Button
@@ -194,7 +199,7 @@ export default function TransactionImportPage() {
 
       <div className="card space-y-3">
         <p className="text-sm text-gray-500 dark:text-gray-400">
-          내보내기와 같은 형식의 CSV 파일을 올리세요. 카테고리 칸을 비워 두면 메모를 보고 이전 거래와 같은
+          내보내기와 같은 형식의 CSV 파일을 올리세요. 첫 줄에 헤더가 있으면 칸 순서는 달라도 돼요. 계좌는 등록된 계좌 이름으로, 결제수단은 현금·신용카드·체크카드·계좌이체로 맞춰요. 카테고리 칸을 비워 두면 메모를 보고 이전 거래와 같은
           카테고리로 채우고, 처음 보는 메모는 가맹점 이름(스타벅스·이마트 등)으로 짐작해요. 같은 날 비슷한 메모는 한 건으로 합치고, 이미 있는 거래는 건너뛰어요.
         </p>
         {/* 브라우저 기본 파일 입력은 버튼이 작고 화면마다 모양이 달라 label 버튼으로 감싼다(부부 사진과 같은 방식). */}

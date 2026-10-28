@@ -97,6 +97,8 @@ class ImportResultOut(BaseModel):
     auto_categorized: list[AutoCategorizedRowOut] = []
     # 같은 날·비슷한 메모라 금액을 합쳐 한 건으로 만든 행 묶음
     merged: list[MergedRowsOut] = []
+    # 계좌 칸에 적혔지만 활성 계좌와 매칭되지 않은 이름(그 행은 계좌 없이 들어감)
+    unmatched_accounts: list[str] = []
 
 
 BULK_DELETE_MAX = 500

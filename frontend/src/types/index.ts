@@ -266,6 +266,7 @@ export interface ImportResultOut {
   created_ids: number[];
   auto_categorized: AutoCategorizedRowOut[];
   merged: MergedRowsOut[];
+  unmatched_accounts: string[];
 }
 
 export interface BulkDeleteResultOut {

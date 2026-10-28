@@ -266,6 +266,96 @@ def test_import_unknown_fallback_category_is_rejected(seeded_db):
         transaction_import_service.import_csv(db, "2026-07-05,지출,,5000,x\n", user.id, fallback_category_id=99999)
 
 
+def test_export_includes_account_and_payment_method_and_round_trips(seeded_db):
+    db, user, food = seeded_db["db"], seeded_db["user"], seeded_db["food"]
+    card = account_service.create_account(db, "신한카드", "card", Decimal("0"))
+    transaction_service.create_transaction(
+        db, user_id=user.id, category_id=food.id, type_="expense", amount=Decimal("5000"),
+        transaction_date=date(2026, 7, 5), description="점심", account_id=card.id, payment_method="credit_card",
+    )
+    txs = _july(db)
+    csv_text = transaction_import_service.export_csv(txs)
+    assert csv_text.splitlines()[0] == "날짜,구분,카테고리,금액,메모,입력자,계좌,결제수단"
+    assert csv_text.splitlines()[1].endswith(",신한카드,신용카드")
+
+    transaction_service.delete_transaction(db, txs[0].id)
+    transaction_import_service.import_csv(db, csv_text, user.id)
+
+    [tx] = _july(db)
+    assert (tx.account_id, tx.payment_method) == (card.id, "credit_card")
+
+
+def test_import_reads_columns_by_header_name_in_any_order(seeded_db):
+    db, user = seeded_db["db"], seeded_db["user"]
+    account = account_service.create_account(db, "국민은행 생활비", "bank", Decimal("0"))
+    csv_text = "결제수단,메모,금액,계좌,구분,날짜\n계좌이체,관리비,120000,국민은행,지출,2026.07.05\n"
+
+    result = transaction_import_service.import_csv(db, csv_text, user.id, fallback_category_id=seeded_db["rent"].id)
+
+    assert result["created"] == 1
+    [tx] = _july(db)
+    assert (tx.amount, tx.account_id, tx.payment_method) == (Decimal("120000"), account.id, "transfer")
+
+
+def test_import_header_missing_required_column_is_rejected(seeded_db):
+    db, user = seeded_db["db"], seeded_db["user"]
+
+    with pytest.raises(InvalidInputError, match="금액"):
+        transaction_import_service.import_csv(db, "날짜,구분,메모\n2026-07-05,지출,점심\n", user.id)
+
+
+def test_import_unknown_account_is_reported_and_row_still_imported(seeded_db):
+    db, user = seeded_db["db"], seeded_db["user"]
+    csv_text = "날짜,구분,카테고리,금액,메모,계좌\n2026-07-05,지출,식비,5000,점심,없는카드\n2026-07-06,지출,식비,5000,저녁,없는카드\n"
+
+    result = transaction_import_service.import_csv(db, csv_text, user.id)
+
+    assert result["created"] == 2
+    assert result["unmatched_accounts"] == ["없는카드"]
+    assert all(tx.account_id is None for tx in _july(db))
+
+
+def test_import_does_not_merge_rows_from_different_accounts(seeded_db):
+    db, user = seeded_db["db"], seeded_db["user"]
+    account_service.create_account(db, "신한카드", "card", Decimal("0"))
+    account_service.create_account(db, "현대카드", "card", Decimal("0"))
+    csv_text = "날짜,구분,카테고리,금액,메모,계좌\n2026-07-05,지출,식비,5000,점심,신한카드\n2026-07-05,지출,식비,5000,점심,현대카드\n"
+
+    result = transaction_import_service.import_csv(db, csv_text, user.id)
+
+    assert result["created"] == 2
+    assert result["merged"] == []
+
+
+@pytest.mark.parametrize(
+    ("raw", "expected"),
+    [
+        ("", None),
+        ("신용카드", "credit_card"),
+        ("삼성카드", "credit_card"),
+        ("체크카드", "debit_card"),
+        ("현금", "cash"),
+        ("계좌이체", "transfer"),
+        ("송금", "transfer"),
+        ("debit_card", "debit_card"),
+        ("페이", "other"),
+    ],
+)
+def test_parse_payment_method(raw, expected):
+    assert transaction_import_service._parse_payment_method(raw) == expected
+
+
+def test_match_account_prefers_exact_then_longest_partial(seeded_db):
+    db = seeded_db["db"]
+    shinhan = account_service.create_account(db, "신한", "bank", Decimal("0"))
+    shinhan_card = account_service.create_account(db, "신한카드(본인)", "card", Decimal("0"))
+    accounts = [shinhan, shinhan_card]
+
+    assert transaction_import_service._match_account("신한", accounts) is shinhan
+    assert transaction_import_service._match_account("신한카드", accounts) is shinhan_card
+    assert transaction_import_service._match_account("국민", accounts) is None
+
+
 def _july(db):
     return transaction_service.list_transactions(db, date(2026, 7, 1), date(2026, 7, 31))
 
