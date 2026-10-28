@@ -2,7 +2,7 @@
 # 린트(미사용 import/변수, undefined name, bugbear, 구식 문법)와 import 정렬만 강제한다.
 [tool.ruff]
 line-length = 120
-target-version = "py311"
+target-version = "py312"
 # alembic이 생성하는 리비전 스크립트는 템플릿 스타일(Union[...] 등)을 그대로 쓰므로 제외한다.
 extend-exclude = ["migrations"]
 
@@ -26,9 +26,6 @@ filterwarnings = [
     # (starlette.exceptions.StarletteDeprecationWarning)을 직접 참조하면 상류에서
     # 그 심볼이 옮겨지거나 사라질 때 pytest가 필터 파싱 단계에서 죽으므로 메시지로 매칭한다.
     "ignore:Using `httpx` with `starlette.testclient` is deprecated:UserWarning",
-    # google.api_core가 Python EOL 1년 전부터 import 시점에 던지는 지원 종료 예고
-    # (3.11 EOL 2027-10-24 → 2026-10-24부터). Python 버전 업그레이드는 별도 작업.
-    "ignore:You are using a Python version:FutureWarning",
 ]
 
 [tool.ruff.lint.per-file-ignores]
