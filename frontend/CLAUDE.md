@@ -56,7 +56,7 @@ npm run generate:icons      # public/favicon.svg → PNG/ICO
 
 - Import는 `@/` alias(`@/* → src/*`).
 - 데이터 흐름: `api/client.ts`(axios + JWT 인터셉터) → `api/<리소스>.ts`(백엔드 라우터와 대체로 1:1) → 컴포넌트의 `useQuery`/`useMutation`. 여러 화면이 공유하는 것만 `hooks/`로 감싼다(`useCrudMutations`, `useRecurringMutations`, `useInvalidateTransactionRelated`, `useEventActions` 등). Zustand(`stores/authStore`, `themeStore`)는 서버 캐시와 무관한 클라이언트 상태만.
-- 컴포넌트: 페이지별 디렉토리(`home/`, `dashboard/`, `transactions/`, `plan/`, `financialPlan/`, `accounts/`, `categories/`, `settings/`, `schedule/`)는 대체로 그 페이지 전용이다. 공용은 `common/`(growlio에서 옮긴 `Button`/`Modal`/`ConfirmModal`/`Tabs`/`FormInput`/`EmptyState` 등 + `CategoryPicker`, `GrowlioImportModal`, `QuickAddFab`, `MonthPicker`, `CollapsibleGroup`, `StatusBadge`), 셸은 `layout/`(`AppLayout`/`Sidebar`/`Header`/`BottomNav`). 최상위 `ErrorBoundary`·`Toaster`(`nestlio:toast` 이벤트).
+- 컴포넌트: 페이지별 디렉토리(`home/`, `dashboard/`, `transactions/`, `plan/`, `financialPlan/`, `accounts/`, `categories/`, `settings/`, `schedule/`, `review/`)는 대체로 그 페이지 전용이다. 공용은 `common/`(growlio에서 옮긴 `Button`/`Modal`/`ConfirmModal`/`Tabs`/`FormInput`/`EmptyState` 등 + `CategoryPicker`, `GrowlioImportModal`, `QuickAddFab`, `MonthPicker`, `CollapsibleGroup`, `StatusBadge`), 셸은 `layout/`(`AppLayout`/`Sidebar`/`Header`/`BottomNav`). 최상위 `ErrorBoundary`·`Toaster`(`nestlio:toast` 이벤트).
 
 ### 인증
 
@@ -76,13 +76,13 @@ npm run generate:icons      # public/favicon.svg → PNG/ICO
 | `/categories` | 카테고리 관리 | 메뉴에 없음 — 설정 › 고급·계획 섹션의 "카테고리" 버튼에서만 진입 |
 | `/accounts` | 자산 | 계좌/저축·투자/부동산/대출 4개 `CollapsibleGroup`(접힌 섹션은 마운트·쿼리 안 함). `?section=`. 상단 `AccountsSnapshotCard`의 "전체 동기화"가 **growlio 잔액 동기화의 유일한 수동 진입점** |
 | `/plan` | `PlanPage` | `[이번 달 \| 연간]`(`?view=`). 아래 "계획 화면" 참고 |
-| `/goals`, `/goals/:id` | `GoalsTab`, `GoalDetailPage` | 재무목표·챌린지·순자산 목표. 상세에 응원·시나리오·growlio 인사이트. 순자산 목표는 가구당 하나, 목록·홈 Hero에서 항상 맨 앞(`pinNetWorthFirst`) |
+| `/goals`, `/goals/:id` | `GoalsPage`(→ `financialPlan/GoalsTab`), `GoalDetailPage` | 재무목표·챌린지·순자산 목표. 상세에 응원·시나리오·growlio 인사이트. 순자산 목표는 가구당 하나, 목록·홈 Hero에서 항상 맨 앞(`pinNetWorthFirst`) |
 | `/review` | `SavingsReviewPage` | 절감 점검 `[소비 \| 보험]`(`?tab=`). 주 메뉴에 없음 — 홈·계획 "실적 분석"의 `SavingsReviewLinkCard`로 진입. 컴포넌트는 `components/review/`(보험 계약 폼 `InsurancePolicyFormModal` + 순수 변환 `insurancePolicyDraft.ts`, 특약 `RiderListEditor`, 보장 현황 `CoverageStatusTable`·적정 기준 `InsuranceTargetsModal`). 쿼리 키 `savingsReview`는 `dashboardAll` 하위라 거래·계획·반복·카테고리·이름·임계값 변경에 자동 갱신되고, 보험 계약·적정 기준 저장만 `savingsReviewAll`을 직접 무효화한다 |
 | `/settings` | 설정 | 헤더 톱니 아이콘으로 진입. 순서: 계정(다크모드 스위치) → 가구·초대 → 알림(Gmail 연결 상태 배지 포함) → 부부 사진 → 고급(카테고리·거래 데이터 링크, 코칭 민감도) → 로그아웃. 켜고 끄는 항목은 `settings/shared.tsx`의 `ToggleRow` |
 
 레거시 리다이렉트(지우지 않는다 — 외부 링크·메일 딥링크): `/calendar`·`/budgets`·`/recurring` → `/transactions`, `/schedule` → `/transactions?view=일정`(`LegacyScheduleRedirect`), `/financial-plan`(구 `?tab=`/`?view=` 포함) → `/goals` 또는 `/plan?view=`(`LegacyFinancialPlanRedirect`), `/reports/yearly` → `/plan?view=연간&section=분석`, `/transactions/:id/edit` → `/transactions`.
 
-**새 페이지를 추가하면** `App.tsx`의 `<Route>`와 `constants/nav.ts`를 함께 갱신한다. `PRIMARY_NAV_ITEMS`(홈/가계부/계획/목표/자산)가 `BottomNav`·사이드바의 유일한 메뉴이고("더보기" 없음), 헤더 타이틀은 `PAGE_TITLES`에서 가장 긴 경로 prefix로 고른다.
+**새 페이지를 추가하면** `constants/routes.ts`의 `ROUTES`, `App.tsx`의 `<Route>`, `constants/nav.ts`를 함께 갱신한다(경로 문자열은 `ROUTES`로만 참조). `PRIMARY_NAV_ITEMS`(홈/가계부/계획/목표/자산)가 `BottomNav`·사이드바의 유일한 메뉴이고("더보기" 없음), 헤더 타이틀은 `PAGE_TITLES`에서 가장 긴 경로 prefix로 고른다.
 
 ### 계획 화면 (`/plan`)과 목표
 
