@@ -274,6 +274,7 @@ export default function TransactionForm({
                 category_id: "",
                 savings_product_id: "",
                 card_id: "",
+                payment_method: "",
               }));
             }}
             className={`flex-1 px-3 ${TOUCH_TARGET_MIN_HEIGHT} text-sm font-medium rounded-md transition-colors ${
@@ -296,6 +297,7 @@ export default function TransactionForm({
                 category_id: String(savingsCategory.id),
                 savings_product_id: "",
                 card_id: "",
+                payment_method: "",
               }));
             }}
             className={`flex-1 px-3 ${TOUCH_TARGET_MIN_HEIGHT} text-sm font-medium rounded-md transition-colors ${

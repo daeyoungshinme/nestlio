@@ -18,6 +18,7 @@ vi.mock("@/api/cards", () => ({
 const categories = [
   { id: 1, name: "식비", kind: "expense", type: "variable", color: "#000", is_active: true, sort_order: 0 },
   { id: 2, name: "교통", kind: "expense", type: "variable", color: "#000", is_active: true, sort_order: 1 },
+  { id: 3, name: "급여", kind: "income", type: "fixed", color: "#000", is_active: true, sort_order: 2 },
 ] as CategoryOut[];
 
 const accounts = [
@@ -86,5 +87,22 @@ describe("TransactionForm card", () => {
     expect(onSubmit).toHaveBeenLastCalledWith(
       expect.objectContaining({ card_id: null, account_id: 4, payment_method: "cash" }),
     );
+  });
+});
+
+// 결제 선택칸은 지출에만 보인다 — 지출에서 고른 값이 수입으로 바꾼 뒤 숨은 채 저장되면 안 된다.
+describe("TransactionForm type toggle", () => {
+  it("clears the hidden payment method when switching to income", () => {
+    const onSubmit = renderForm();
+    fireEvent.click(screen.getByRole("button", { name: /상세 입력/ }));
+    fireEvent.change(screen.getByLabelText("결제"), { target: { value: "method:cash" } });
+
+    fireEvent.click(screen.getByRole("button", { name: "수입" }));
+    expect(screen.queryByLabelText("결제")).not.toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText(/금액/), { target: { value: "3000000" } });
+    fireEvent.click(screen.getByRole("button", { name: "급여" }));
+    fireEvent.click(screen.getByRole("button", { name: "추가" }));
+
+    expect(onSubmit).toHaveBeenCalledWith(expect.objectContaining({ type: "income", payment_method: null }));
   });
 });
