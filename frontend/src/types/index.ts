@@ -60,10 +60,12 @@ export interface CategoryCreateIn {
 
 export type CategoryUpdateIn = CategoryCreateIn;
 
+export type AccountType = "bank" | "cash";
+
 export interface AccountOut {
   id: number;
   name: string;
-  account_type: "bank" | "cash" | "card";
+  account_type: AccountType;
   initial_balance: string;
   is_active: boolean;
   sort_order: number;
@@ -79,16 +81,48 @@ export interface AccountWithBalanceOut {
 
 export interface AccountCreateIn {
   name: string;
-  account_type: "bank" | "cash" | "card";
+  account_type: AccountType;
   initial_balance: string;
   owner_user_id?: string | null;
 }
 
 export interface AccountUpdateIn {
   name: string;
-  account_type: "bank" | "cash" | "card";
+  account_type: AccountType;
   current_balance: string;
   owner_user_id?: string | null;
+}
+
+export type CardType = "credit" | "debit";
+
+/** 결제카드 — 가계부에서 고르면 거래의 계좌·결제수단을 결제계좌·종류로 채운다(백엔드가 덮어씀). */
+export interface CardOut {
+  id: number;
+  name: string;
+  card_type: CardType;
+  payment_account_id: number | null;
+  payment_account: AccountOut | null;
+  owner_user_id: string | null;
+  is_active: boolean;
+  sort_order: number;
+}
+
+export interface CardWithUsageOut {
+  card: CardOut;
+  /** 결제계좌 없이 기록된 이 카드의 거래 수 */
+  unlinked_transaction_count: number;
+}
+
+export interface CardCreateIn {
+  name: string;
+  card_type: CardType;
+  payment_account_id?: number | null;
+  owner_user_id?: string | null;
+}
+
+export interface CardUpdateIn extends CardCreateIn {
+  /** 결제계좌 없이 기록된 지난 거래에도 결제계좌를 채운다 */
+  apply_to_unlinked?: boolean;
 }
 
 /** growlio 계좌 가져오기 요청 — 계좌·저축/투자·부동산 가져오기가 백엔드의 같은 GrowlioImportIn을 쓴다. */
@@ -202,8 +236,10 @@ export interface TransactionOut {
   payment_method: PaymentMethod | null;
   account_id: number | null;
   savings_product_id: number | null;
+  card_id: number | null;
   category: CategoryOut;
   account: AccountOut | null;
+  card: CardOut | null;
   savings_product: SavingsProductOut | null;
   user: UserOut;
   owner_user_id: string | null;
@@ -220,6 +256,8 @@ export interface TransactionCreateIn {
   payment_method?: PaymentMethod | null;
   account_id?: number | null;
   savings_product_id?: number | null;
+  /** 지정하면 account_id·payment_method는 무시되고 카드의 결제계좌·종류로 저장된다 */
+  card_id?: number | null;
   owner_user_id?: string | null;
 }
 
@@ -268,6 +306,7 @@ export interface ImportResultOut {
   merged: MergedRowsOut[];
   unmatched_accounts: string[];
   unmatched_owners: string[];
+  unmatched_cards: string[];
   updated: number;
 }
 

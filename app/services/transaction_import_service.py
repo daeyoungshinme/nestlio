@@ -15,12 +15,13 @@ from app.config import settings
 from app.constants.merchant_keywords import EXPENSE_MERCHANT_KEYWORDS
 from app.errors import InvalidInputError, PayloadTooLargeError
 from app.models.account import Account
+from app.models.card import Card
 from app.models.category import Category
 from app.models.transaction import Transaction
 from app.models.user import User
-from app.services import user_service
+from app.services import card_service, user_service
 
-CSV_HEADER = ["날짜", "구분", "카테고리", "금액", "메모", "입력자", "계좌", "결제수단", "소유자"]
+CSV_HEADER = ["날짜", "구분", "카테고리", "금액", "메모", "입력자", "계좌", "결제수단", "소유자", "카드"]
 PAYMENT_METHOD_LABELS = {"cash": "현금", "credit_card": "신용카드", "debit_card": "체크카드", "transfer": "계좌이체", "other": "기타"}
 CSV_TYPE_LABELS = {"income": "수입", "expense": "지출"}
 CSV_TYPE_BY_LABEL = {"수입": "income", "지출": "expense", "income": "income", "expense": "expense"}
@@ -80,6 +81,7 @@ class _ImportLine:
     account: Account | None
     payment_method: str | None
     owner: User | None
+    card: Card | None = None
 
 
 @dataclass
@@ -131,9 +133,13 @@ def _take_existing(same_day: list[Transaction], amount: Decimal, memos: list[str
 
 
 def _backfill(tx: Transaction, lines: list[_ImportLine]) -> bool:
-    """기존 거래의 비어 있는 계좌·결제수단·소유자만 CSV 값으로 채운다. 이미 있는 값은 건드리지 않는다
+    """기존 거래의 비어 있는 카드·계좌·결제수단·소유자만 CSV 값으로 채운다. 이미 있는 값은 건드리지 않는다
     (소유자 None은 '공통'과 구분되지 않아, CSV가 사람을 지정했을 때만 채운다). 바뀐 게 있으면 True."""
     changed = False
+    card = _first_filled(lines, "card")
+    if tx.card_id is None and card is not None:
+        tx.card_id = card.id
+        changed = True
     account = _first_filled(lines, "account")
     if tx.account_id is None and account is not None:
         tx.account_id = account.id
@@ -168,18 +174,35 @@ def _parse_payment_method(raw: str) -> str | None:
     return next((method for words, method in _PAYMENT_METHOD_RULES if any(w in key for w in words)), "other")
 
 
-def _match_account(raw: str, accounts: list[Account]) -> Account | None:
-    """계좌 칸 → 활성 계좌. 이름이 정규화 후 같으면 그것, 아니면 서로 포함하는(2자 이상) 것 중 이름이 가장 긴 것
-    ("신한카드" ↔ "신한카드(본인)")."""
+# 결제수단 칸에서 카드 이름을 찾지 않을 일반 표기 — "신용카드"가 "신한카드" 같은 카드 이름과 부분 일치하지 않게
+_GENERIC_PAYMENT_LABELS = {
+    _normalize_memo(label) for label in (*PAYMENT_METHOD_LABELS, *PAYMENT_METHOD_LABELS.values(), "카드", "신용", "체크")
+}
+
+
+def _match_by_name[T: (Account, Card)](raw: str, items: list[T]) -> T | None:
+    """계좌·카드 칸 → 활성 계좌·카드. 이름이 정규화 후 같으면 그것, 아니면 서로 포함하는(2자 이상) 것 중 이름이
+    가장 긴 것("신한카드" ↔ "신한카드(본인)")."""
     key = _normalize_memo(raw)
     if not key:
         return None
-    names = [(_normalize_memo(a.name), a) for a in accounts if a.is_active]
+    names = [(_normalize_memo(a.name), a) for a in items if a.is_active]
     exact = next((a for name, a in names if name == key), None)
     if exact is not None:
         return exact
     partial = [(len(name), a) for name, a in names if _similar_memo(name, key)]
     return max(partial, key=lambda p: p[0])[1] if partial else None
+
+
+def _resolve_card(raw_card: str, raw_account: str, raw_payment: str, cards: list[Card]) -> Card | None:
+    """카드 칸 → (계좌로 못 찾은) 계좌 칸 → 결제수단 칸 순으로 카드를 찾는다. 카드 칸이 채워져 있으면 그것만 본다."""
+    if raw_card:
+        return _match_by_name(raw_card, cards)
+    if (card := _match_by_name(raw_account, cards)) is not None:
+        return card
+    if _normalize_memo(raw_payment) in _GENERIC_PAYMENT_LABELS:
+        return None
+    return _match_by_name(raw_payment, cards)
 
 
 # 소유자 칸의 공통 표기 — 화면(common/OwnerSelect)에서 소유자 없음(None)을 "공통"으로 보여준다.
@@ -202,7 +225,8 @@ _COLUMN_ALIASES: dict[str, tuple[str, ...]] = {
     "category": ("카테고리", "분류"),
     "amount": ("금액", "이용금액", "거래금액"),
     "description": ("메모", "내용", "적요", "가맹점", "가맹점명", "이용처"),
-    "account": ("계좌", "카드", "계좌/카드"),
+    "account": ("계좌", "계좌/카드"),
+    "card": ("카드", "카드명", "결제카드"),
     "payment_method": ("결제수단", "결제 수단"),
     "owner": ("소유자", "사용자"),
 }
@@ -228,6 +252,7 @@ def _column_map(header: list[str]) -> dict[str, int] | None:
 
 _POSITIONAL_COLUMNS = {
     "date": 0, "type": 1, "category": 2, "amount": 3, "description": 4, "account": 6, "payment_method": 7, "owner": 8,
+    "card": 9,
 }
 
 
@@ -333,6 +358,7 @@ def export_csv(transactions: list[Transaction]) -> str:
                 tx.account.name if tx.account else "",
                 PAYMENT_METHOD_LABELS.get(tx.payment_method or "", tx.payment_method or ""),
                 tx.owner.display_name if tx.owner else COMMON_OWNER_LABEL,
+                tx.card.name if tx.card else "",
             ]
         )
     return buffer.getvalue()
@@ -343,13 +369,15 @@ def import_rows(
 ) -> dict:
     """Bulk-create transactions from already-split rows. import_csv가 파싱한 행을 넘긴다.
     헤더 행이 있으면 칸을 이름으로 찾고(`_column_map`, 순서 무관), 없으면 export_csv 순서
-    (날짜,구분,카테고리,금액,메모,입력자,계좌,결제수단,소유자)로 읽는다. 입력자 칸은 쓰지 않는다(입력자 = 가져온 사람).
+    (날짜,구분,카테고리,금액,메모,입력자,계좌,결제수단,소유자,카드)로 읽는다. 입력자 칸은 쓰지 않는다(입력자 = 가져온 사람).
     Unknown categories or malformed rows are skipped and reported, not raised,
     so one bad row doesn't abort an otherwise-good import.
 
-    계좌 칸은 활성 계좌 이름으로(`_match_account`), 소유자 칸은 가구 사용자 표시 이름·이메일로(`_match_owner`,
+    계좌·카드 칸은 활성 계좌·카드 이름으로(`_match_by_name`), 소유자 칸은 가구 사용자 표시 이름·이메일로(`_match_owner`,
     "공통"은 소유자 없음) 매칭하고, 못 찾은 이름은 비워 넣고 `unmatched_accounts`/`unmatched_owners`로 알린다.
-    결제수단 칸은 한국어 라벨·별칭을 받는다(`_parse_payment_method`).
+    결제수단 칸은 한국어 라벨·별칭을 받는다(`_parse_payment_method`). 카드는 카드 칸 → 계좌 칸(카드가 계좌 종류이던
+    시절의 내보내기) → 결제수단 칸(일반 표기 제외) 순으로 찾고(`_resolve_card`), 찾으면 계좌·결제수단은 카드의
+    결제계좌·종류로 정한다 — 화면 입력과 같은 규칙(transaction_service._apply_card).
 
     카테고리 칸이 비었거나 모르는 이름이면 메모로 과거 거래 이력(`_infer_category`) → 가맹점 키워드 사전
     (`_keyword_category`, 지출만) → `fallback_category_id`(같은 구분일 때만) 순으로 정하고 `auto_categorized`에
@@ -368,6 +396,7 @@ def import_rows(
         raise InvalidInputError("기본 카테고리를 찾을 수 없습니다.")
     memo_index = _build_memo_index(db)
     accounts = db.query(Account).all()
+    cards = card_service.list_cards(db)
     users = user_service.list_users(db)
     columns = _column_map(rows[0]) if rows else None
     if columns is not None:
@@ -382,6 +411,7 @@ def import_rows(
     skipped: list[dict] = []
     unmatched_accounts: list[str] = []
     unmatched_owners: list[str] = []
+    unmatched_cards: list[str] = []
 
     # 1) 행 해석 + 파일 안 병합
     groups: list[_ImportGroup] = []
@@ -413,20 +443,23 @@ def import_rows(
             continue
         if source is None:
             _learn_memo(memo_index, tx_type, description, category.id, 1, tx_date)
-        raw_account = cell(row, "account")
-        account = _match_account(raw_account, accounts)
-        if raw_account and account is None and raw_account not in unmatched_accounts:
+        raw_account, raw_card, raw_payment = cell(row, "account"), cell(row, "card"), cell(row, "payment_method")
+        account = _match_by_name(raw_account, accounts)
+        card = _resolve_card(raw_card, raw_account if account is None else "", raw_payment, cards)
+        if raw_card and card is None and raw_card not in unmatched_cards:
+            unmatched_cards.append(raw_card)
+        if raw_account and account is None and card is None and raw_account not in unmatched_accounts:
             unmatched_accounts.append(raw_account)
+        payment_method = _parse_payment_method(raw_payment)
+        if card is not None:
+            account, payment_method = card.payment_account, card_service.PAYMENT_METHOD_BY_CARD_TYPE[card.card_type]
         raw_owner = cell(row, "owner")
         owner = None
         if raw_owner and raw_owner not in _COMMON_OWNER_ALIASES:
             owner = _match_owner(raw_owner, users)
             if owner is None and raw_owner not in unmatched_owners:
                 unmatched_owners.append(raw_owner)
-        line = _ImportLine(
-            line_no, row, amount, _normalize_memo(description), account,
-            _parse_payment_method(cell(row, "payment_method")), owner,
-        )
+        line = _ImportLine(line_no, row, amount, _normalize_memo(description), account, payment_method, owner, card)
         group = next((g for g in groups if g.matches(tx_date, tx_type, category, line.memo)), None)
         if group is None:
             group = _ImportGroup(tx_date, tx_type, category, description or None)
@@ -480,6 +513,7 @@ def import_rows(
                     account_id=account.id if (account := _first_filled(group.lines, "account")) else None,
                     payment_method=_first_filled(group.lines, "payment_method"),
                     owner_user_id=owner.id if (owner := _first_filled(group.lines, "owner")) else None,
+                    card_id=card.id if (card := _first_filled(group.lines, "card")) else None,
                 )
                 db.add(tx)
                 db.flush()  # PK 확보 (되돌리기용 created_ids, 최종 commit은 루프 종료 후 한 번)
@@ -504,6 +538,7 @@ def import_rows(
         "created_ids": [tx.id for tx in created_transactions],
         "unmatched_accounts": unmatched_accounts,
         "unmatched_owners": unmatched_owners,
+        "unmatched_cards": unmatched_cards,
         "auto_categorized": auto_categorized,
         "merged": merged,
     }

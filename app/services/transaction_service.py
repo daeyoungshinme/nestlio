@@ -9,7 +9,7 @@ from app.errors import InvalidInputError
 from app.models.category import Category
 from app.models.growlio_push_queue import GrowlioPushQueue
 from app.models.transaction import Transaction
-from app.services import growlio_push_service, savings_product_service, transaction_report_service
+from app.services import card_service, growlio_push_service, savings_product_service, transaction_report_service
 from app.utils.dates import month_bounds
 
 # 검색(q)만 주고 기간을 안 주면 "전체 기간" 합계를 낸다 — 하한을 이 앱에 거래가 있을 리 없는
@@ -31,6 +31,13 @@ def _validate_savings_link(db: Session, category_id: int, type_: str, savings_pr
     category = db.get(Category, category_id)
     if category is None or not category.is_savings:
         raise InvalidSavingsLinkError("저축상품은 저축 전용 카테고리에서만 연결할 수 있습니다.")
+
+
+def _apply_card(db: Session, card_id: int) -> tuple[int | None, str]:
+    """새로 지정한 결제카드 → 거래에 저장할 (account_id, payment_method). 클라이언트가 보낸 계좌·결제수단보다
+    우선한다 — 가계부 화면·CSV 가져오기 어디서 넣든 카드의 결제계좌로 잔액이 빠지게."""
+    card = card_service.get_active_card(db, card_id)
+    return card.payment_account_id, card_service.PAYMENT_METHOD_BY_CARD_TYPE[card.card_type]
 
 
 def _send_staged_pushes(
@@ -63,10 +70,13 @@ def create_transaction(
     recurring_expense_id: int | None = None,
     account_id: int | None = None,
     savings_product_id: int | None = None,
+    card_id: int | None = None,
     owner_user_id: uuid.UUID | None = None,
     bearer_token: str | None = None,
 ) -> Transaction:
     _validate_savings_link(db, category_id, type_, savings_product_id)
+    if card_id is not None:
+        account_id, payment_method = _apply_card(db, card_id)
     tx = Transaction(
         user_id=user_id,
         category_id=category_id,
@@ -78,6 +88,7 @@ def create_transaction(
         recurring_expense_id=recurring_expense_id,
         account_id=account_id,
         savings_product_id=savings_product_id,
+        card_id=card_id,
         owner_user_id=owner_user_id,
     )
     db.add(tx)
@@ -104,6 +115,13 @@ def update_transaction(db: Session, tx_id: int, bearer_token: str | None = None,
     new_category_id = fields.get("category_id", tx.category_id)
     new_savings_product_id = fields.get("savings_product_id", tx.savings_product_id)
     _validate_savings_link(db, new_category_id, new_type, new_savings_product_id)
+    new_card_id = fields.get("card_id", tx.card_id)
+    if new_card_id is not None and new_card_id != tx.card_id:
+        fields["account_id"], fields["payment_method"] = _apply_card(db, new_card_id)
+    elif new_card_id is not None:
+        # 카드가 그대로면 저장된 계좌·결제수단을 유지한다 — 그 뒤 카드의 결제계좌를 바꿨어도 지난 거래는
+        # 실제로 나간 계좌에 남아야 하고, 비활성화한 카드의 거래도 메모 등은 고칠 수 있어야 한다.
+        fields["account_id"], fields["payment_method"] = tx.account_id, tx.payment_method
 
     old_amount = tx.amount
     old_savings_product_id = tx.savings_product_id
@@ -271,7 +289,7 @@ def frequent_unique_transactions(
     )
     groups: dict[tuple, dict] = {}
     for tx in rows:
-        key = (tx.category_id, tx.description, tx.amount, tx.account_id, tx.savings_product_id)
+        key = (tx.category_id, tx.description, tx.amount, tx.account_id, tx.savings_product_id, tx.card_id)
         group = groups.setdefault(key, {"count": 0, "tx": tx})
         group["count"] += 1
     ranked = sorted(

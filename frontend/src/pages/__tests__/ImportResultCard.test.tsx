@@ -13,6 +13,7 @@ describe("ImportResultCard", () => {
       merged: [],
       unmatched_accounts: [],
       unmatched_owners: [],
+      unmatched_cards: [],
       updated: 0,
       skipped: Array.from({ length: 25 }, (_, i) => ({ line: i + 2, reason: "날짜 형식 오류" })),
     } as unknown as ImportResultOut;
@@ -30,6 +31,7 @@ describe("ImportResultCard", () => {
       merged: [],
       unmatched_accounts: [],
       unmatched_owners: [],
+      unmatched_cards: [],
       updated: 0,
     };
     render(<ImportResultCard result={result} />);
@@ -46,6 +48,7 @@ describe("ImportResultCard", () => {
       merged: [{ lines: [1, 2], description: "점심", amount: "12000.00" }],
       unmatched_accounts: ["없는카드"],
       unmatched_owners: ["모르는사람"],
+      unmatched_cards: ["없는카드2"],
       updated: 3,
     };
     render(<ImportResultCard result={result} />);
@@ -53,6 +56,7 @@ describe("ImportResultCard", () => {
     expect(screen.getByText(/1·2행 점심 →/)).toBeInTheDocument();
     expect(screen.getByText(/계좌 없이 넣었어요: 없는카드/)).toBeInTheDocument();
     expect(screen.getByText(/공통으로 넣었어요: 모르는사람/)).toBeInTheDocument();
+    expect(screen.getByText(/카드 없이 넣었어요: 없는카드2/)).toBeInTheDocument();
     expect(screen.getByText(/3건 채움/)).toBeInTheDocument();
   });
 });

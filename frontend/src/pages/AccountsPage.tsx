@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import { useSearchParams } from "react-router-dom";
 import CollapsibleGroup from "@/components/common/CollapsibleGroup";
 import AccountsSection from "@/components/accounts/AccountsSection";
+import CardsSection from "@/components/accounts/CardsSection";
 import AccountsSnapshotCard from "@/components/accounts/AccountsSnapshotCard";
 import SavingsProductsSection from "@/components/accounts/SavingsProductsSection";
 import RealEstateSection from "@/components/accounts/RealEstateSection";
@@ -63,7 +64,10 @@ export default function AccountsPage() {
           amount={sectionTotals["계좌"]}
           defaultOpen={openSection === "계좌"}
         >
-          <AccountsSection users={users} />
+          <div className="space-y-6">
+            <AccountsSection users={users} />
+            <CardsSection users={users} />
+          </div>
         </CollapsibleGroup>
       </div>
 

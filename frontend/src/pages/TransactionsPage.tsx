@@ -176,8 +176,10 @@ export default function TransactionsPage() {
               account_id: target.account ? String(target.account.id) : "",
               savings_product_id: target.savings_product_id ? String(target.savings_product_id) : "",
               owner_user_id: target.owner_user_id ?? "",
+              card_id: target.card_id ? String(target.card_id) : "",
             }
       }
+      editingCard={target === "new" ? null : target.card}
       onSubmit={(payload) =>
         target === "new" ? createMutation.mutate(payload) : updateMutation.mutate({ id: target.id, payload })
       }

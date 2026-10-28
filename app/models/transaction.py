@@ -8,6 +8,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
 from app.models.account import Account
+from app.models.card import Card
 from app.models.category import Category
 from app.models.savings_product import SavingsProduct
 from app.models.user import User
@@ -40,6 +41,8 @@ class Transaction(Base):
         ),
         nullable=True,
     )
+    # 결제카드. 있으면 account_id·payment_method는 저장 시 카드에서 채운다(transaction_service._apply_card)
+    card_id: Mapped[int | None] = mapped_column(ForeignKey("cards.id"), nullable=True, index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=now_kst, server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=now_kst, server_default=func.now(), onupdate=now_kst)
 
@@ -48,6 +51,7 @@ class Transaction(Base):
     category: Mapped["Category"] = relationship(lazy="joined")
     account: Mapped["Account | None"] = relationship(lazy="joined")
     savings_product: Mapped["SavingsProduct | None"] = relationship(lazy="joined")
+    card: Mapped["Card | None"] = relationship(lazy="joined")
 
     # 비영속(트랜잭션 스코프) 플래그 — DB 컬럼이 아니다(그래서 Mapped 애노테이션을 붙이지 않는다).
     # growlio 잔액 반영이 best-effort로 실패했을 때 transaction_service._send_staged_pushes가 True로

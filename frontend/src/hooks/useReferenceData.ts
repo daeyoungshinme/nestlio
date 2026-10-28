@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { fetchAccounts } from "@/api/accounts";
+import { fetchCards } from "@/api/cards";
 import { fetchCategories } from "@/api/categories";
 import { fetchDashboardBootstrap } from "@/api/dashboardBootstrap";
 import { fetchGoals } from "@/api/goals";
@@ -12,7 +13,7 @@ import { fetchMe, fetchUsers } from "@/api/users";
 import { STALE_TIME } from "@/constants/queryConfig";
 import { QUERY_KEYS } from "@/constants/queryKeys";
 
-/** 여러 화면이 공유하는, 느리게 변하는 참조 데이터(계좌·카테고리·저축상품·유저·설정·목표·대출·순자산) 쿼리 훅.
+/** 여러 화면이 공유하는, 느리게 변하는 참조 데이터(계좌·카드·카테고리·저축상품·유저·설정·목표·대출·순자산) 쿼리 훅.
  *
  * raw `useQuery` + 제각각 `staleTime`(LONG/MEDIUM/미지정)으로 ~15개 파일 30여 곳에서
  * 재선언되던 것을 하나로 모아, 쿼리 키(`QUERY_KEYS`)와 기본 `staleTime`을 한 곳에서
@@ -27,6 +28,15 @@ export function useAccounts(options?: RefDataOptions) {
   return useQuery({
     queryKey: QUERY_KEYS.accounts,
     queryFn: fetchAccounts,
+    staleTime: STALE_TIME.MEDIUM,
+    ...options,
+  });
+}
+
+export function useCards(options?: RefDataOptions) {
+  return useQuery({
+    queryKey: QUERY_KEYS.cards,
+    queryFn: fetchCards,
     staleTime: STALE_TIME.MEDIUM,
     ...options,
   });

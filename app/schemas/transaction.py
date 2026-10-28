@@ -6,6 +6,7 @@ from typing import Annotated, Literal
 from pydantic import BaseModel, BeforeValidator, ConfigDict, Field
 
 from app.schemas.account import AccountOut
+from app.schemas.card import CardOut
 from app.schemas.category import CategoryOut
 from app.schemas.common import KrwAmount, TotalsOut, bounded_str
 from app.schemas.savings_product import SavingsProductOut
@@ -38,8 +39,10 @@ class TransactionOut(BaseModel):
     payment_method: PaymentMethodOut | None = None
     account_id: int | None = None
     savings_product_id: int | None = None
+    card_id: int | None = None
     category: CategoryOut
     account: AccountOut | None = None
+    card: CardOut | None = None
     savings_product: SavingsProductOut | None = None
     user: UserOut
     owner_user_id: uuid.UUID | None = None
@@ -57,6 +60,8 @@ class TransactionCreateIn(BaseModel):
     payment_method: PaymentMethod | None = None
     account_id: int | None = None
     savings_product_id: int | None = None
+    # 결제카드를 고르면 account_id·payment_method는 무시하고 카드의 결제계좌·종류로 저장한다
+    card_id: int | None = None
     owner_user_id: uuid.UUID | None = None
 
 
@@ -97,8 +102,10 @@ class ImportResultOut(BaseModel):
     auto_categorized: list[AutoCategorizedRowOut] = []
     # 같은 날·비슷한 메모라 금액을 합쳐 한 건으로 만든 행 묶음
     merged: list[MergedRowsOut] = []
-    # 계좌 칸에 적혔지만 활성 계좌와 매칭되지 않은 이름(그 행은 계좌 없이 들어감)
+    # 계좌 칸에 적혔지만 활성 계좌·카드와 매칭되지 않은 이름(그 행은 계좌 없이 들어감)
     unmatched_accounts: list[str] = []
+    # 카드 칸에 적혔지만 활성 카드와 매칭되지 않은 이름(그 행은 카드 없이 들어감)
+    unmatched_cards: list[str] = []
     # 소유자 칸에 적혔지만 가구 사용자와 매칭되지 않은 이름(그 행은 소유자 없이 = 공통으로 들어감)
     unmatched_owners: list[str] = []
     # 이미 있는 거래로 판정돼 비어 있던 계좌·결제수단·소유자를 채운 건수

@@ -22,7 +22,8 @@ export default function TransactionListItem({ tx, onEdit, showDate, showUser, us
   const meta = [
     !hideCategoryBadge && tx.description ? tx.category.name : null,
     tx.savings_product ? `→ ${tx.savings_product.name}` : null,
-    tx.payment_method ? PAYMENT_METHOD_LABEL[tx.payment_method] : null,
+    // 카드로 결제했으면 결제수단 라벨 대신 카드 이름 (영속 캐시의 예전 응답엔 card가 없을 수 있다)
+    tx.card ? tx.card.name : tx.payment_method ? PAYMENT_METHOD_LABEL[tx.payment_method] : null,
     showUser ? ownerLabel : null,
     showDate ? formatDate(tx.transaction_date) : null,
   ].filter(Boolean);

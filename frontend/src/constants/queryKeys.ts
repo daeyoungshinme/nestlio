@@ -26,6 +26,7 @@ export const QUERY_KEYS = {
   /** Prefix for invalidating every events date-range variant at once. */
   eventsAll: ["events"] as const,
   accounts: ["accounts"] as const,
+  cards: ["cards"] as const,
   yearlyReport: (year: number, owner?: string) => ["yearly-report", year, owner ?? "all"] as const,
   /** Prefix for invalidating every yearly-report year/owner variant at once. */
   yearlyReportAll: ["yearly-report"] as const,
@@ -83,6 +84,7 @@ export const QUERY_KEYS = {
  * (`dashboardAll`)도 목표 페이스·비상금 잔액·잉여자금 배분 코칭이 이 값들을 읽으므로 포함한다. */
 export const ASSET_RELATED_KEYS: QueryKey[] = [
   QUERY_KEYS.accounts,
+  QUERY_KEYS.cards,
   QUERY_KEYS.loans,
   QUERY_KEYS.savingsProducts,
   QUERY_KEYS.netWorthAll,
@@ -136,6 +138,7 @@ export const TRANSACTION_RELATED_KEYS: QueryKey[] = [
   QUERY_KEYS.cashflowPlanAll,
   QUERY_KEYS.annualPlanAll,
   QUERY_KEYS.accounts,
+  QUERY_KEYS.cards,
   QUERY_KEYS.financialGoals,
   QUERY_KEYS.recentTransactionsAll,
   QUERY_KEYS.yearlyReportAll,

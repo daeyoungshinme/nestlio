@@ -14,7 +14,7 @@ class AccountOut(BaseModel):
 
     id: int
     name: str
-    account_type: Literal["bank", "cash", "card"]
+    account_type: Literal["bank", "cash"]
     initial_balance: Decimal
     is_active: bool
     sort_order: int
@@ -30,14 +30,14 @@ class AccountWithBalanceOut(BaseModel):
 
 class AccountCreateIn(BaseModel):
     name: bounded_str(100)
-    account_type: Literal["bank", "cash", "card"]
+    account_type: Literal["bank", "cash"]
     initial_balance: SignedKrwBalance = Decimal("0")
     owner_user_id: uuid.UUID | None = None
 
 
 class AccountUpdateIn(BaseModel):
     name: bounded_str(100)
-    account_type: Literal["bank", "cash", "card"]
+    account_type: Literal["bank", "cash"]
     current_balance: SignedKrwBalance
     owner_user_id: uuid.UUID | None = None
 
