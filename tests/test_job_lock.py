@@ -59,3 +59,9 @@ def test_failed_unlock_invalidates_connection(monkeypatch):
     with job_lock("event-reminder-check", engine=engine):
         pass
     conn.invalidate.assert_called_once()
+
+
+def test_default_engine_is_isolated_test_db_not_real_postgres():
+    # conftest가 default_engine을 테스트 SQLite로 바꾼다 — 빠지면 /internal/jobs 테스트가 .env의 운영 Postgres에
+    # advisory lock을 걸고, 실제 잡이 잠금을 쥐고 있을 때 "skipped"로 실패한다.
+    assert job_lock_module.default_engine.dialect.name == "sqlite"
