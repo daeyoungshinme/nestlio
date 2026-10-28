@@ -75,10 +75,34 @@ class SkippedRowOut(BaseModel):
     reason: str
 
 
+class AutoCategorizedRowOut(BaseModel):
+    line: int
+    description: str
+    category_name: str
+    # history=과거 거래 이력, keyword=가맹점 키워드 사전, fallback=업로드 시 고른 기본 카테고리
+    source: Literal["history", "keyword", "fallback"]
+
+
+class MergedRowsOut(BaseModel):
+    lines: list[int]
+    description: str
+    amount: Decimal
+
+
 class ImportResultOut(BaseModel):
     created: int
     skipped: list[SkippedRowOut]
     created_ids: list[int] = []
+    # 카테고리 칸이 비었거나 모르는 이름이라 메모로 추론해 채운 행
+    auto_categorized: list[AutoCategorizedRowOut] = []
+    # 같은 날·비슷한 메모라 금액을 합쳐 한 건으로 만든 행 묶음
+    merged: list[MergedRowsOut] = []
+    # 계좌 칸에 적혔지만 활성 계좌와 매칭되지 않은 이름(그 행은 계좌 없이 들어감)
+    unmatched_accounts: list[str] = []
+    # 소유자 칸에 적혔지만 가구 사용자와 매칭되지 않은 이름(그 행은 소유자 없이 = 공통으로 들어감)
+    unmatched_owners: list[str] = []
+    # 이미 있는 거래로 판정돼 비어 있던 계좌·결제수단·소유자를 채운 건수
+    updated: int = 0
 
 
 BULK_DELETE_MAX = 500

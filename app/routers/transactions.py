@@ -3,7 +3,7 @@ import uuid
 from datetime import date
 from typing import Literal
 
-from fastapi import APIRouter, Depends, File, HTTPException, Query, Response, UploadFile, status
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Response, UploadFile, status
 from sqlalchemy.orm import Session
 
 from app.config import settings
@@ -128,6 +128,8 @@ def export_csv(
 @router.post("/import", response_model=ImportResultOut)
 def import_csv(
     file: UploadFile = File(...),
+    # 메모로도 카테고리를 못 정한 행을 넣을 카테고리(비우면 그 행은 건너뜀)
+    fallback_category_id: int | None = Form(default=None),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -135,7 +137,7 @@ def import_csv(
     # 상한+1바이트까지만 읽는다(크기 초과 판정과 인코딩 판별은 decode_upload).
     raw = file.file.read(settings.max_upload_bytes + 1)
     text = transaction_import_service.decode_upload(raw)
-    return transaction_import_service.import_csv(db, text, current_user.id)
+    return transaction_import_service.import_csv(db, text, current_user.id, fallback_category_id)
 
 
 @router.post("/bulk-delete", response_model=BulkDeleteResultOut)

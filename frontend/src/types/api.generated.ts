@@ -1859,10 +1859,26 @@ export interface components {
             /** Available */
             available: string;
         };
+        /** AutoCategorizedRowOut */
+        AutoCategorizedRowOut: {
+            /** Line */
+            line: number;
+            /** Description */
+            description: string;
+            /** Category Name */
+            category_name: string;
+            /**
+             * Source
+             * @enum {string}
+             */
+            source: "history" | "keyword" | "fallback";
+        };
         /** Body_import_csv_api_v1_transactions_import_post */
         Body_import_csv_api_v1_transactions_import_post: {
             /** File */
             file: string;
+            /** Fallback Category Id */
+            fallback_category_id?: number | null;
         };
         /** Body_upload_couple_photo_api_v1_settings_couple_photo_post */
         Body_upload_couple_photo_api_v1_settings_couple_photo_post: {
@@ -2870,6 +2886,31 @@ export interface components {
              * @default []
              */
             created_ids: number[];
+            /**
+             * Auto Categorized
+             * @default []
+             */
+            auto_categorized: components["schemas"]["AutoCategorizedRowOut"][];
+            /**
+             * Merged
+             * @default []
+             */
+            merged: components["schemas"]["MergedRowsOut"][];
+            /**
+             * Unmatched Accounts
+             * @default []
+             */
+            unmatched_accounts: string[];
+            /**
+             * Unmatched Owners
+             * @default []
+             */
+            unmatched_owners: string[];
+            /**
+             * Updated
+             * @default 0
+             */
+            updated: number;
         };
         /** InsightOut */
         InsightOut: {
@@ -3260,6 +3301,15 @@ export interface components {
         MarkAllReadOut: {
             /** Marked */
             marked: number;
+        };
+        /** MergedRowsOut */
+        MergedRowsOut: {
+            /** Lines */
+            lines: number[];
+            /** Description */
+            description: string;
+            /** Amount */
+            amount: string;
         };
         /** MonthlyRetrospectiveOut */
         MonthlyRetrospectiveOut: {

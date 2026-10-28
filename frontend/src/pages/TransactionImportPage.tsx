@@ -10,22 +10,77 @@ import { currentYear, currentYearMonth, monthBounds } from "@/utils/date";
 import { extractErrorMessage } from "@/utils/error";
 import { toast } from "@/utils/toast";
 import { triggerBlobDownload } from "@/utils/download";
+import { formatKrw } from "@/utils/format";
 import { TOUCH_TARGET_MIN_HEIGHT, TOUCH_TARGET_ROW } from "@/constants/uiSizes";
-import type { ImportResultOut } from "@/types";
+import type { AutoCategorySource, ImportResultOut } from "@/types";
+import { useCategories } from "@/hooks/useReferenceData";
+import { INPUT_SM, LABEL_SM } from "@/constants/inputStyles";
 import { ROUTES } from "@/constants/routes";
-import { errorMessageTextClass } from "@/utils/colors";
+import { cautionTextClass, errorMessageTextClass } from "@/utils/colors";
 
 /** 건너뛴 행 목록은 이만큼만 — 형식이 틀린 CSV면 수백 줄이 화면을 덮는다. */
 const SKIPPED_ROWS_LIMIT = 20;
 
+const AUTO_CATEGORY_SOURCE_LABELS: Record<AutoCategorySource, string> = {
+  history: "이전 거래",
+  keyword: "가맹점",
+  fallback: "기본값",
+};
+
 export function ImportResultCard({ result, onUndo }: { result: ImportResultOut; onUndo?: () => void }) {
   const shownSkipped = result.skipped.slice(0, SKIPPED_ROWS_LIMIT);
   const hiddenSkipped = result.skipped.length - shownSkipped.length;
+  const autoCategorized = result.auto_categorized;
+  const shownAuto = autoCategorized.slice(0, SKIPPED_ROWS_LIMIT);
+  const hiddenAuto = autoCategorized.length - shownAuto.length;
+  const shownMerged = result.merged.slice(0, SKIPPED_ROWS_LIMIT);
+  const hiddenMerged = result.merged.length - shownMerged.length;
   return (
     <div className="card space-y-2">
       <p className="text-sm font-medium text-gray-900 dark:text-gray-50">
-        {result.created}건 생성됨, {result.skipped.length}건 건너뜀
+        {result.created}건 생성됨, {result.updated > 0 && `${result.updated}건 채움, `}
+        {result.skipped.length}건 건너뜀
       </p>
+      {autoCategorized.length > 0 && (
+        <div className="space-y-1">
+          <p className="text-xs text-gray-600 dark:text-gray-300">
+            {autoCategorized.length}건은 메모를 보고 카테고리를 자동으로 정했어요
+          </p>
+          <ul className="text-xs text-gray-500 dark:text-gray-400 space-y-1">
+            {shownAuto.map((row) => (
+              <li key={row.line}>
+                {row.line}행 {row.description} → {row.category_name} ({AUTO_CATEGORY_SOURCE_LABELS[row.source]})
+              </li>
+            ))}
+            {hiddenAuto > 0 && <li>외 {hiddenAuto}건</li>}
+          </ul>
+        </div>
+      )}
+      {result.unmatched_accounts.length > 0 && (
+        <p className={`text-xs ${cautionTextClass()}`}>
+          등록되지 않은 계좌라 계좌 없이 넣었어요: {result.unmatched_accounts.join(", ")}
+        </p>
+      )}
+      {result.unmatched_owners.length > 0 && (
+        <p className={`text-xs ${cautionTextClass()}`}>
+          가구 구성원이 아니라 공통으로 넣었어요: {result.unmatched_owners.join(", ")}
+        </p>
+      )}
+      {result.merged.length > 0 && (
+        <div className="space-y-1">
+          <p className="text-xs text-gray-600 dark:text-gray-300">
+            같은 날 비슷한 메모 {result.merged.length}묶음은 금액을 합쳐 한 건으로 만들었어요
+          </p>
+          <ul className="text-xs text-gray-500 dark:text-gray-400 space-y-1">
+            {shownMerged.map((group) => (
+              <li key={group.lines[0]}>
+                {group.lines.join("·")}행 {group.description} → {formatKrw(group.amount)}
+              </li>
+            ))}
+            {hiddenMerged > 0 && <li>외 {hiddenMerged}묶음</li>}
+          </ul>
+        </div>
+      )}
       {result.skipped.length > 0 && (
         <ul className={`text-xs ${errorMessageTextClass()} space-y-1`}>
           {shownSkipped.map((row, i) => (
@@ -51,7 +106,10 @@ export function ImportResultCard({ result, onUndo }: { result: ImportResultOut; 
 
 export default function TransactionImportPage() {
   const fileInputId = useId();
+  const fallbackSelectId = useId();
   const [file, setFile] = useState<File | null>(null);
+  const [fallbackCategoryId, setFallbackCategoryId] = useState<number | undefined>(undefined);
+  const { data: expenseCategories = [] } = useCategories("expense");
   const [exportingKind, setExportingKind] = useState<"month" | "year" | null>(null);
   const [result, setResult] = useState<ImportResultOut | null>(null);
   const [error, setError] = useState("");
@@ -83,7 +141,7 @@ export default function TransactionImportPage() {
   });
 
   const csvMutation = useMutation({
-    mutationFn: (f: File) => importTransactionsCsv(f),
+    mutationFn: (f: File) => importTransactionsCsv(f, fallbackCategoryId),
     onSuccess: onImportSuccess,
     onError: onImportError,
   });
@@ -119,7 +177,7 @@ export default function TransactionImportPage() {
       <div className="card space-y-3">
         <p className="text-sm font-medium text-gray-900 dark:text-gray-50">CSV 내보내기</p>
         <p className="text-xs text-gray-500 dark:text-gray-400">
-          날짜, 구분, 카테고리, 금액, 메모 순서로 내려받아요 (가져오기와 동일한 형식).
+          날짜, 구분, 카테고리, 금액, 메모, 입력자, 계좌, 결제수단, 소유자 순서로 내려받아요 (가져오기와 동일한 형식).
         </p>
         <div className="flex flex-wrap gap-2">
           <Button
@@ -146,7 +204,10 @@ export default function TransactionImportPage() {
       <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300 pt-2">거래 가져오기</h2>
 
       <div className="card space-y-3">
-        <p className="text-sm text-gray-500 dark:text-gray-400">내보내기와 같은 형식의 CSV 파일을 올리세요.</p>
+        <p className="text-sm text-gray-500 dark:text-gray-400">
+          내보내기와 같은 형식의 CSV 파일을 올리세요. 첫 줄에 헤더가 있으면 칸 순서는 달라도 돼요. 계좌는 등록된 계좌 이름으로, 결제수단은 현금·신용카드·체크카드·계좌이체로, 소유자는 구성원 이름이나 "공통"으로 맞춰요. 이미 있는 거래는 비어 있는 계좌·결제수단·소유자만 채워요. 카테고리 칸을 비워 두면 메모를 보고 이전 거래와 같은
+          카테고리로 채우고, 처음 보는 메모는 가맹점 이름(스타벅스·이마트 등)으로 짐작해요. 같은 날 비슷한 메모는 한 건으로 합치고, 이미 있는 거래는 건너뛰어요.
+        </p>
         {/* 브라우저 기본 파일 입력은 버튼이 작고 화면마다 모양이 달라 label 버튼으로 감싼다(부부 사진과 같은 방식). */}
         <div className="flex items-center gap-3">
           <label
@@ -165,6 +226,26 @@ export default function TransactionImportPage() {
           <span className="min-w-0 truncate text-sm text-gray-500 dark:text-gray-400">
             {file ? file.name : "선택된 파일 없음"}
           </span>
+        </div>
+        <div>
+          <label htmlFor={fallbackSelectId} className={`block mb-1 font-medium ${LABEL_SM}`}>
+            메모로도 못 찾은 지출은
+          </label>
+          <select
+            id={fallbackSelectId}
+            className={`${INPUT_SM} w-full`}
+            value={fallbackCategoryId ?? ""}
+            onChange={(e) => setFallbackCategoryId(e.target.value ? Number(e.target.value) : undefined)}
+          >
+            <option value="">건너뛰기</option>
+            {expenseCategories
+              .filter((c) => c.is_active)
+              .map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}(으)로 넣기
+                </option>
+              ))}
+          </select>
         </div>
         <Button
           disabled={!file}

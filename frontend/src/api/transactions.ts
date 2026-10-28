@@ -35,9 +35,10 @@ export const deleteTransaction = (id: number) => apiDelete(`/transactions/${id}`
 export const bulkDeleteTransactions = (ids: number[]) =>
   apiPost<BulkDeleteResultOut>("/transactions/bulk-delete", { ids });
 
-export const importTransactionsCsv = (file: File) => {
+export const importTransactionsCsv = (file: File, fallbackCategoryId?: number) => {
   const form = new FormData();
   form.append("file", file);
+  if (fallbackCategoryId !== undefined) form.append("fallback_category_id", String(fallbackCategoryId));
   return apiPost<ImportResultOut>("/transactions/import", form, {
     headers: { "Content-Type": "multipart/form-data" },
   });

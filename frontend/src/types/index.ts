@@ -245,10 +245,30 @@ export interface SkippedRowOut {
   reason: string;
 }
 
+export type AutoCategorySource = "history" | "keyword" | "fallback";
+
+export interface AutoCategorizedRowOut {
+  line: number;
+  description: string;
+  category_name: string;
+  source: AutoCategorySource;
+}
+
+export interface MergedRowsOut {
+  lines: number[];
+  description: string;
+  amount: string;
+}
+
 export interface ImportResultOut {
   created: number;
   skipped: SkippedRowOut[];
   created_ids: number[];
+  auto_categorized: AutoCategorizedRowOut[];
+  merged: MergedRowsOut[];
+  unmatched_accounts: string[];
+  unmatched_owners: string[];
+  updated: number;
 }
 
 export interface BulkDeleteResultOut {
