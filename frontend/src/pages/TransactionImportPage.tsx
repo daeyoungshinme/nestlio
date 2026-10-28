@@ -61,6 +61,11 @@ export function ImportResultCard({ result, onUndo }: { result: ImportResultOut; 
           등록되지 않은 계좌라 계좌 없이 넣었어요: {result.unmatched_accounts.join(", ")}
         </p>
       )}
+      {result.unmatched_cards.length > 0 && (
+        <p className={`text-xs ${cautionTextClass()}`}>
+          등록되지 않은 카드라 카드 없이 넣었어요: {result.unmatched_cards.join(", ")}
+        </p>
+      )}
       {result.unmatched_owners.length > 0 && (
         <p className={`text-xs ${cautionTextClass()}`}>
           가구 구성원이 아니라 공통으로 넣었어요: {result.unmatched_owners.join(", ")}

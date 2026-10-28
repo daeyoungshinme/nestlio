@@ -70,6 +70,7 @@ def create_transaction(
         payment_method=payload.payment_method,
         account_id=payload.account_id,
         savings_product_id=payload.savings_product_id,
+        card_id=payload.card_id,
         owner_user_id=payload.owner_user_id,
         bearer_token=bearer_token,
     )
@@ -172,6 +173,7 @@ def update_transaction(
         payment_method=payload.payment_method,
         account_id=payload.account_id,
         savings_product_id=payload.savings_product_id,
+        card_id=payload.card_id,
         owner_user_id=payload.owner_user_id,
     )
     if tx is None:

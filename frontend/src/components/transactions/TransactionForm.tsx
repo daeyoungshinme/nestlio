@@ -10,10 +10,12 @@ import OwnerSelect from "@/components/common/OwnerSelect";
 import TransactionQuickPicks, { useRecentQuickItems } from "@/components/transactions/TransactionQuickPicks";
 import type { UiType } from "@/components/transactions/TransactionQuickPicks";
 import { INLINE_BUTTON_OFFSET, INPUT_SM, LABEL_SM } from "@/constants/inputStyles";
-import { PAYMENT_METHOD_OPTIONS } from "@/constants/transactions";
+import { CARD_TYPE_LABEL, NON_CARD_PAYMENT_METHODS, PAYMENT_METHOD_LABEL } from "@/constants/transactions";
+import { useCards } from "@/hooks/useReferenceData";
 import { currentDateIso } from "@/utils/date";
 import { toAmountInputValue } from "@/utils/format";
 import type {
+  CardOut,
   CategoryOut,
   AccountWithBalanceOut,
   CashflowPlanItemOut,
@@ -36,6 +38,8 @@ export interface TransactionFormValues {
   account_id: string;
   savings_product_id: string;
   owner_user_id: string;
+  /** 결제카드 — 고르면 계좌는 카드의 결제계좌로 잠긴다(서버도 카드 기준으로 덮어쓴다). */
+  card_id: string;
 }
 
 interface Props {
@@ -54,7 +58,12 @@ interface Props {
   isNew: boolean;
   /** 수정 폼에서만 — 목록 행에 삭제 버튼을 두지 않고 여기로 모았다(확인 모달은 부모가 띄운다). */
   onDelete?: () => void;
+  /** 수정 중인 거래의 카드 — 비활성화된 카드여도 선택지에 남겨 그대로 저장할 수 있게. */
+  editingCard?: CardOut | null;
 }
+
+const CARD_PREFIX = "card:";
+const METHOD_PREFIX = "method:";
 
 const today = currentDateIso;
 
@@ -72,8 +81,13 @@ export default function TransactionForm({
   layout = "row",
   isNew,
   onDelete,
+  editingCard,
 }: Props) {
   const fieldId = useId();
+  const { data: cardRows } = useCards();
+  const activeCards = (cardRows ?? []).map((row) => row.card);
+  const cardOptions =
+    editingCard && !activeCards.some((c) => c.id === editingCard.id) ? [...activeCards, editingCard] : activeCards;
   const savingsCategory = categories.find((c) => c.is_savings);
   const nonSavingsCategories = categories.filter((c) => !c.is_savings);
 
@@ -93,6 +107,7 @@ export default function TransactionForm({
     account_id: initialValues?.account_id ?? "",
     savings_product_id: initialValues?.savings_product_id ?? "",
     owner_user_id: initialValues?.owner_user_id ?? (isNew ? (currentUserId ?? "") : ""),
+    card_id: initialValues?.card_id ?? "",
   });
 
   const [showCategoryError, setShowCategoryError] = useState(false);
@@ -102,7 +117,7 @@ export default function TransactionForm({
 
   /** 계좌·소유자 등 부가 필드 접기/펼치기. 이미 값이 있는 상태(수정 모드 포함)로 시작하면 숨겨져 놀라지 않도록 펼친 채로 시작한다. */
   const [showDetails, setShowDetails] = useState(
-    () => !isNew || Boolean(initialValues?.account_id || initialValues?.owner_user_id),
+    () => !isNew || Boolean(initialValues?.account_id || initialValues?.owner_user_id || initialValues?.card_id),
   );
   const buildPayload = (v: TransactionFormValues, forSavings: boolean): TransactionCreateIn => ({
     amount: v.amount,
@@ -113,6 +128,7 @@ export default function TransactionForm({
     payment_method: v.payment_method || null,
     account_id: v.account_id ? Number(v.account_id) : null,
     savings_product_id: forSavings && v.savings_product_id ? Number(v.savings_product_id) : null,
+    card_id: v.card_id ? Number(v.card_id) : null,
     owner_user_id: v.owner_user_id || null,
   });
 
@@ -138,6 +154,8 @@ export default function TransactionForm({
           payment_method: tx.payment_method ?? "",
           account_id: tx.account ? String(tx.account.id) : "",
           savings_product_id: tx.savings_product_id ? String(tx.savings_product_id) : "",
+          // 그 사이 비활성화된 카드면 빼고 넣는다(새 거래엔 활성 카드만 지정할 수 있다)
+          card_id: tx.card_id && activeCards.some((c) => c.id === tx.card_id) ? String(tx.card_id) : "",
         },
         Boolean(tx.savings_product_id),
       ),
@@ -155,6 +173,86 @@ export default function TransactionForm({
       owner_user_id: uiType === "income" ? (item.owner_user_id ?? "") : v.owner_user_id,
     }));
   };
+
+  /** "결제" 선택 = 카드(card:id) 또는 카드가 아닌 결제수단(method:값). 카드를 고르면 계좌를 결제계좌로 맞춘다. */
+  const paymentValue = values.card_id
+    ? `${CARD_PREFIX}${values.card_id}`
+    : values.payment_method
+      ? `${METHOD_PREFIX}${values.payment_method}`
+      : "";
+  // 카드 없이 신용/체크로 기록된 예전 거래는 그 값을 선택지에 남긴다
+  const methodOptions =
+    values.payment_method && !values.card_id && !NON_CARD_PAYMENT_METHODS.includes(values.payment_method)
+      ? [...NON_CARD_PAYMENT_METHODS, values.payment_method]
+      : NON_CARD_PAYMENT_METHODS;
+  const selectedCard = values.card_id ? cardOptions.find((c) => String(c.id) === values.card_id) : undefined;
+
+  const handlePaymentChange = (raw: string) => {
+    if (raw.startsWith(CARD_PREFIX)) {
+      const cardId = raw.slice(CARD_PREFIX.length);
+      const card = cardOptions.find((c) => String(c.id) === cardId);
+      // 원래 카드로 되돌리면 저장된 계좌로(서버도 카드가 그대로면 저장된 계좌를 유지한다)
+      const accountId =
+        cardId === (initialValues?.card_id ?? "")
+          ? (initialValues?.account_id ?? "")
+          : card?.payment_account_id
+            ? String(card.payment_account_id)
+            : "";
+      setValues((v) => ({ ...v, card_id: cardId, account_id: accountId }));
+      return;
+    }
+    const method = raw.startsWith(METHOD_PREFIX) ? (raw.slice(METHOD_PREFIX.length) as PaymentMethod) : "";
+    setValues((v) => ({ ...v, card_id: "", payment_method: method }));
+  };
+
+  const renderAccountSelect = (id: string, selectClassName: string) => (
+    <div>
+      <label htmlFor={id} className={`block mb-1 font-medium ${LABEL_SM}`}>계좌</label>
+      <select
+        id={id}
+        className={`${INPUT_SM} ${selectClassName}`}
+        value={values.account_id}
+        disabled={Boolean(selectedCard)}
+        title={selectedCard ? "카드의 결제계좌로 연결돼요" : undefined}
+        onChange={(e) => setValues((v) => ({ ...v, account_id: e.target.value }))}
+      >
+        <option value="">{selectedCard ? "(결제계좌 미지정)" : "(선택 안 함)"}</option>
+        {accounts.map(({ account }) => (
+          <option key={account.id} value={account.id}>
+            {account.name}
+          </option>
+        ))}
+      </select>
+    </div>
+  );
+
+  const renderPaymentSelect = (id: string, selectClassName: string) => (
+    <div>
+      <label htmlFor={id} className={`block mb-1 font-medium ${LABEL_SM}`}>결제</label>
+      <select
+        id={id}
+        className={`${INPUT_SM} ${selectClassName}`}
+        value={paymentValue}
+        onChange={(e) => handlePaymentChange(e.target.value)}
+      >
+        <option value="">(선택 안 함)</option>
+        {cardOptions.length > 0 && (
+          <optgroup label="카드">
+            {cardOptions.map((card) => (
+              <option key={card.id} value={`${CARD_PREFIX}${card.id}`}>
+                {card.name} ({CARD_TYPE_LABEL[card.card_type]})
+              </option>
+            ))}
+          </optgroup>
+        )}
+        {methodOptions.map((method) => (
+          <option key={method} value={`${METHOD_PREFIX}${method}`}>
+            {PAYMENT_METHOD_LABEL[method]}
+          </option>
+        ))}
+      </select>
+    </div>
+  );
 
   const isStack = layout === "stack";
   const containerClass = isStack ? "flex flex-col gap-3 max-w-sm" : "flex flex-wrap items-start gap-3";
@@ -175,6 +273,7 @@ export default function TransactionForm({
                 type: t,
                 category_id: "",
                 savings_product_id: "",
+                card_id: "",
               }));
             }}
             className={`flex-1 px-3 ${TOUCH_TARGET_MIN_HEIGHT} text-sm font-medium rounded-md transition-colors ${
@@ -196,6 +295,7 @@ export default function TransactionForm({
                 type: "expense",
                 category_id: String(savingsCategory.id),
                 savings_product_id: "",
+                card_id: "",
               }));
             }}
             className={`flex-1 px-3 ${TOUCH_TARGET_MIN_HEIGHT} text-sm font-medium rounded-md transition-colors ${
@@ -289,48 +389,13 @@ export default function TransactionForm({
             aria-expanded={showDetails}
             className={`flex items-center gap-1 ${LABEL_SM} font-medium ${TOUCH_TARGET_MIN_HEIGHT}`}
           >
-            상세 입력 (계좌 · 소유자)
+            상세 입력 (결제 · 계좌 · 소유자)
             {showDetails ? <ChevronUp size={14} aria-hidden="true" /> : <ChevronDown size={14} aria-hidden="true" />}
           </button>
           {showDetails && (
-            <div className={`grid gap-3 mt-1 ${users.length > 1 ? "grid-cols-2" : "grid-cols-1"}`}>
-              <div>
-                <label htmlFor={`${fieldId}-0`} className={`block mb-1 font-medium ${LABEL_SM}`}>계좌</label>
-                <select
-                  id={`${fieldId}-0`}
-                  className={`${INPUT_SM} w-full`}
-                  value={values.account_id}
-                  onChange={(e) => setValues((v) => ({ ...v, account_id: e.target.value }))}
-                >
-                  <option value="">(선택 안 함)</option>
-                  {accounts.map(({ account }) => (
-                    <option key={account.id} value={account.id}>
-                      {account.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              {uiType === "expense" && (
-                <div>
-                  <label htmlFor={`${fieldId}-1`} className={`block mb-1 font-medium ${LABEL_SM}`}>결제수단</label>
-                  <select
-                    id={`${fieldId}-1`}
-                    className={`${INPUT_SM} w-full`}
-                    value={values.payment_method}
-                    onChange={(e) =>
-                      setValues((v) => ({ ...v, payment_method: e.target.value as PaymentMethod | "" }))
-                    }
-                  >
-                    <option value="">(선택 안 함)</option>
-                    {PAYMENT_METHOD_OPTIONS.map((option) => (
-                      <option key={option.value} value={option.value}>
-                        {option.label}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              )}
+            <div className="grid gap-3 mt-1 grid-cols-2">
+              {uiType === "expense" && renderPaymentSelect(`${fieldId}-1`, "w-full")}
+              {renderAccountSelect(`${fieldId}-0`, "w-full")}
 
               {users.length > 1 && (
                 <OwnerSelect
@@ -344,41 +409,8 @@ export default function TransactionForm({
         </div>
       ) : (
         <>
-          <div>
-            <label htmlFor={`${fieldId}-2`} className={`block mb-1 font-medium ${LABEL_SM}`}>계좌</label>
-            <select
-              id={`${fieldId}-2`}
-              className={`${INPUT_SM} w-32`}
-              value={values.account_id}
-              onChange={(e) => setValues((v) => ({ ...v, account_id: e.target.value }))}
-            >
-              <option value="">(선택 안 함)</option>
-              {accounts.map(({ account }) => (
-                <option key={account.id} value={account.id}>
-                  {account.name}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          {uiType === "expense" && (
-            <div>
-              <label htmlFor={`${fieldId}-3`} className={`block mb-1 font-medium ${LABEL_SM}`}>결제수단</label>
-              <select
-                id={`${fieldId}-3`}
-                className={`${INPUT_SM} w-32`}
-                value={values.payment_method}
-                onChange={(e) => setValues((v) => ({ ...v, payment_method: e.target.value as PaymentMethod | "" }))}
-              >
-                <option value="">(선택 안 함)</option>
-                {PAYMENT_METHOD_OPTIONS.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-          )}
+          {uiType === "expense" && renderPaymentSelect(`${fieldId}-3`, "w-32")}
+          {renderAccountSelect(`${fieldId}-2`, "w-32")}
 
           {users.length > 1 && (
             <OwnerSelect

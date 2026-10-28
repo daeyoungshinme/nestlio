@@ -33,10 +33,9 @@ import { sumAmounts } from "@/utils/amount";
 const ACCOUNT_TYPE_LABEL: Record<AccountOut["account_type"], string> = {
   bank: "은행",
   cash: "현금",
-  card: "카드",
 };
 
-const ACCOUNT_TYPES: AccountOut["account_type"][] = ["bank", "cash", "card"];
+const ACCOUNT_TYPES: AccountOut["account_type"][] = ["bank", "cash"];
 
 interface Draft {
   name: string;
@@ -290,7 +289,6 @@ function AccountFormModal({
           >
             <option value="bank">은행</option>
             <option value="cash">현금</option>
-            <option value="card">카드</option>
           </select>
         </div>
         <OwnerSelect

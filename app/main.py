@@ -5,6 +5,7 @@ from app.middleware import register_middleware
 from app.routers import (
     accounts,
     annual_plan,
+    cards,
     cashflow_plan,
     categories,
     dashboard,
@@ -37,6 +38,7 @@ API_ROUTERS = (
     recurring.router,
     events.router,
     accounts.router,
+    cards.router,
     reports.router,
     settings.router,
     cashflow_plan.router,

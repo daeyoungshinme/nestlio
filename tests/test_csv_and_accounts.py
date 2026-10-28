@@ -10,6 +10,7 @@ from app.models.category import Category
 from app.models.user import User
 from app.services import (
     account_service,
+    card_service,
     transaction_import_service,
     transaction_service,
     transaction_trend_service,
@@ -269,15 +270,15 @@ def test_import_unknown_fallback_category_is_rejected(seeded_db):
 
 def test_export_includes_account_and_payment_method_and_round_trips(seeded_db):
     db, user, food = seeded_db["db"], seeded_db["user"], seeded_db["food"]
-    card = account_service.create_account(db, "신한카드", "card", Decimal("0"))
+    card = account_service.create_account(db, "신한통장", "bank", Decimal("0"))
     transaction_service.create_transaction(
         db, user_id=user.id, category_id=food.id, type_="expense", amount=Decimal("5000"),
         transaction_date=date(2026, 7, 5), description="점심", account_id=card.id, payment_method="credit_card",
     )
     txs = _july(db)
     csv_text = transaction_import_service.export_csv(txs)
-    assert csv_text.splitlines()[0] == "날짜,구분,카테고리,금액,메모,입력자,계좌,결제수단,소유자"
-    assert csv_text.splitlines()[1].endswith(",신한카드,신용카드,공통")
+    assert csv_text.splitlines()[0] == "날짜,구분,카테고리,금액,메모,입력자,계좌,결제수단,소유자,카드"
+    assert csv_text.splitlines()[1].endswith(",신한통장,신용카드,공통,")
 
     transaction_service.delete_transaction(db, txs[0].id)
     transaction_import_service.import_csv(db, csv_text, user.id)
@@ -307,12 +308,12 @@ def test_import_header_missing_required_column_is_rejected(seeded_db):
 
 def test_import_unknown_account_is_reported_and_row_still_imported(seeded_db):
     db, user = seeded_db["db"], seeded_db["user"]
-    csv_text = "날짜,구분,카테고리,금액,메모,계좌\n2026-07-05,지출,식비,5000,점심,없는카드\n2026-07-06,지출,식비,5000,저녁,없는카드\n"
+    csv_text = "날짜,구분,카테고리,금액,메모,계좌\n2026-07-05,지출,식비,5000,점심,없는통장\n2026-07-06,지출,식비,5000,저녁,없는통장\n"
 
     result = transaction_import_service.import_csv(db, csv_text, user.id)
 
     assert result["created"] == 2
-    assert result["unmatched_accounts"] == ["없는카드"]
+    assert result["unmatched_accounts"] == ["없는통장"]
     assert all(tx.account_id is None for tx in _july(db))
 
 
@@ -320,13 +321,13 @@ def test_import_merges_rows_from_different_accounts_using_first_filled_values(se
     # 계좌·결제수단은 병합 기준이 아니다 — 처음 합쳐 가져온 줄에 나중에 다른 계좌를 채워 다시 올려도 같은 묶음이 돼야
     # 기존 거래를 찾는다. 값은 처음 나온 비어 있지 않은 것.
     db, user = seeded_db["db"], seeded_db["user"]
-    account_service.create_account(db, "신한카드", "card", Decimal("0"))
-    hyundai = account_service.create_account(db, "현대카드", "card", Decimal("0"))
+    account_service.create_account(db, "신한통장", "bank", Decimal("0"))
+    hyundai = account_service.create_account(db, "국민통장", "bank", Decimal("0"))
     csv_text = (
         "날짜,구분,카테고리,금액,메모,계좌,결제수단\n"
         "2026-07-05,지출,식비,5000,점심,,\n"
-        "2026-07-05,지출,식비,5000,점심,현대카드,체크카드\n"
-        "2026-07-05,지출,식비,5000,점심,신한카드,신용카드\n"
+        "2026-07-05,지출,식비,5000,점심,국민통장,체크카드\n"
+        "2026-07-05,지출,식비,5000,점심,신한통장,신용카드\n"
     )
 
     result = transaction_import_service.import_csv(db, csv_text, user.id)
@@ -345,11 +346,11 @@ def _spouse(db):
 
 def test_reupload_with_filled_columns_backfills_existing_transaction(seeded_db):
     db, user, food = seeded_db["db"], seeded_db["user"], seeded_db["food"]
-    card = account_service.create_account(db, "신한카드", "card", Decimal("0"))
+    card = account_service.create_account(db, "신한통장", "bank", Decimal("0"))
     spouse = _spouse(db)
     transaction_import_service.import_csv(db, "2026-07-05,지출,식비,5000,점심\n", user.id)
     csv_text = transaction_import_service.export_csv(_july(db))
-    filled = csv_text.replace(",,,공통", ",신한카드,신용카드,Spouse 2")
+    filled = csv_text.replace(",,,공통", ",신한통장,신용카드,Spouse 2")
     assert filled != csv_text
 
     result = transaction_import_service.import_csv(db, filled, user.id)
@@ -364,14 +365,14 @@ def test_reupload_with_filled_columns_backfills_existing_transaction(seeded_db):
 def test_backfill_never_overwrites_existing_values(seeded_db):
     db, user, food = seeded_db["db"], seeded_db["user"], seeded_db["food"]
     mine = account_service.create_account(db, "내통장", "bank", Decimal("0"))
-    account_service.create_account(db, "신한카드", "card", Decimal("0"))
+    account_service.create_account(db, "신한통장", "bank", Decimal("0"))
     transaction_service.create_transaction(
         db, user_id=user.id, category_id=food.id, type_="expense", amount=Decimal("5000"),
         transaction_date=date(2026, 7, 5), description="점심", account_id=mine.id, payment_method="cash",
     )
 
     result = transaction_import_service.import_csv(
-        db, "날짜,구분,카테고리,금액,메모,계좌,결제수단,소유자\n2026-07-05,지출,식비,5000,점심,신한카드,신용카드,Spouse 1\n", user.id
+        db, "날짜,구분,카테고리,금액,메모,계좌,결제수단,소유자\n2026-07-05,지출,식비,5000,점심,신한통장,신용카드,Spouse 1\n", user.id
     )
 
     assert result["updated"] == 1  # 비어 있던 소유자만
@@ -392,13 +393,13 @@ def test_reupload_without_new_values_is_skipped_as_duplicate(seeded_db):
 
 def test_reupload_of_merged_rows_with_different_accounts_backfills_instead_of_duplicating(seeded_db):
     db, user = seeded_db["db"], seeded_db["user"]
-    shinhan = account_service.create_account(db, "신한카드", "card", Decimal("0"))
-    account_service.create_account(db, "현대카드", "card", Decimal("0"))
+    shinhan = account_service.create_account(db, "신한통장", "bank", Decimal("0"))
+    account_service.create_account(db, "국민통장", "bank", Decimal("0"))
     transaction_import_service.import_csv(db, "2026-07-05,지출,식비,8000,점심\n2026-07-05,지출,식비,4000,점심\n", user.id)
 
     result = transaction_import_service.import_csv(
         db,
-        "날짜,구분,카테고리,금액,메모,계좌\n2026-07-05,지출,식비,8000,점심,신한카드\n2026-07-05,지출,식비,4000,점심,현대카드\n",
+        "날짜,구분,카테고리,금액,메모,계좌\n2026-07-05,지출,식비,8000,점심,신한통장\n2026-07-05,지출,식비,4000,점심,국민통장\n",
         user.id,
     )
 
@@ -409,7 +410,7 @@ def test_reupload_of_merged_rows_with_different_accounts_backfills_instead_of_du
 
 def test_reupload_backfills_line_by_line_when_existing_rows_were_not_merged(seeded_db):
     db, user, food = seeded_db["db"], seeded_db["user"], seeded_db["food"]
-    card = account_service.create_account(db, "신한카드", "card", Decimal("0"))
+    card = account_service.create_account(db, "신한통장", "bank", Decimal("0"))
     for amount in ("8000", "4000"):
         transaction_service.create_transaction(
             db, user_id=user.id, category_id=food.id, type_="expense", amount=Decimal(amount),
@@ -418,7 +419,7 @@ def test_reupload_backfills_line_by_line_when_existing_rows_were_not_merged(seed
 
     result = transaction_import_service.import_csv(
         db,
-        "날짜,구분,카테고리,금액,메모,계좌\n2026-07-05,지출,식비,8000,점심,신한카드\n2026-07-05,지출,식비,4000,점심,신한카드\n",
+        "날짜,구분,카테고리,금액,메모,계좌\n2026-07-05,지출,식비,8000,점심,신한통장\n2026-07-05,지출,식비,4000,점심,신한통장\n",
         user.id,
     )
 
@@ -483,12 +484,12 @@ def test_parse_payment_method(raw, expected):
 def test_match_account_prefers_exact_then_longest_partial(seeded_db):
     db = seeded_db["db"]
     shinhan = account_service.create_account(db, "신한", "bank", Decimal("0"))
-    shinhan_card = account_service.create_account(db, "신한카드(본인)", "card", Decimal("0"))
-    accounts = [shinhan, shinhan_card]
+    shinhan_main = account_service.create_account(db, "신한통장(본인)", "bank", Decimal("0"))
+    accounts = [shinhan, shinhan_main]
 
-    assert transaction_import_service._match_account("신한", accounts) is shinhan
-    assert transaction_import_service._match_account("신한카드", accounts) is shinhan_card
-    assert transaction_import_service._match_account("국민", accounts) is None
+    assert transaction_import_service._match_by_name("신한", accounts) is shinhan
+    assert transaction_import_service._match_by_name("신한통장", accounts) is shinhan_main
+    assert transaction_import_service._match_by_name("하나", accounts) is None
 
 
 def _july(db):
@@ -633,7 +634,7 @@ def test_account_balance_reflects_initial_balance_plus_transactions(seeded_db):
 
 def test_deactivated_account_excluded_from_active_listing(seeded_db):
     db = seeded_db["db"]
-    account = account_service.create_account(db, "카드", "card", Decimal("0"))
+    account = account_service.create_account(db, "비상금통장", "bank", Decimal("0"))
 
     account_service.deactivate_account(db, account.id)
 
@@ -752,3 +753,79 @@ def test_decode_upload_rejects_unreadable_encoding_and_oversized(monkeypatch):
     monkeypatch.setattr(transaction_import_service.settings, "max_upload_size_mb", 1)
     with pytest.raises(PayloadTooLargeError):
         transaction_import_service.decode_upload(b"a" * (1024 * 1024 + 1))
+
+
+def test_export_and_reimport_keep_card(seeded_db):
+    db, user, food = seeded_db["db"], seeded_db["user"], seeded_db["food"]
+    bank = account_service.create_account(db, "월급통장", "bank", Decimal("0"))
+    card = card_service.create_card(db, "신한카드", "credit", bank.id)
+    transaction_service.create_transaction(
+        db, user_id=user.id, category_id=food.id, type_="expense", amount=Decimal("5000"),
+        transaction_date=date(2026, 7, 5), description="점심", card_id=card.id,
+    )
+    txs = _july(db)
+    csv_text = transaction_import_service.export_csv(txs)
+    assert csv_text.splitlines()[1].endswith(",월급통장,신용카드,공통,신한카드")
+
+    transaction_service.delete_transaction(db, txs[0].id)
+    transaction_import_service.import_csv(db, csv_text, user.id)
+
+    [tx] = _july(db)
+    assert (tx.card_id, tx.account_id, tx.payment_method) == (card.id, bank.id, "credit_card")
+
+
+@pytest.mark.parametrize(
+    ("header", "row"),
+    [
+        ("날짜,구분,카테고리,금액,메모,카드", "2026-07-05,지출,식비,5000,점심,신한카드(본인)"),
+        # 카드가 계좌 종류이던 시절의 내보내기 — 카드 이름이 계좌 칸에 있다
+        ("날짜,구분,카테고리,금액,메모,계좌,결제수단", "2026-07-05,지출,식비,5000,점심,신한카드(본인),신용카드"),
+        # 은행·카드 앱 CSV — 결제수단 칸에 카드 이름
+        ("날짜,구분,카테고리,금액,메모,결제수단", "2026-07-05,지출,식비,5000,점심,신한카드"),
+    ],
+)
+def test_import_finds_card_from_card_account_or_payment_column(seeded_db, header, row):
+    db, user = seeded_db["db"], seeded_db["user"]
+    bank = account_service.create_account(db, "월급통장", "bank", Decimal("0"))
+    card = card_service.create_card(db, "신한카드(본인)", "debit", bank.id)
+
+    result = transaction_import_service.import_csv(db, f"{header}\n{row}\n", user.id)
+
+    [tx] = _july(db)
+    assert (tx.card_id, tx.account_id, tx.payment_method) == (card.id, bank.id, "debit_card")
+    assert result["unmatched_accounts"] == [] and result["unmatched_cards"] == []
+
+
+def test_import_generic_payment_label_is_not_matched_to_card(seeded_db):
+    db, user = seeded_db["db"], seeded_db["user"]
+    card_service.create_card(db, "카드", "debit", None)
+
+    transaction_import_service.import_csv(db, "날짜,구분,카테고리,금액,메모,결제수단\n2026-07-05,지출,식비,5000,점심,신용카드\n", user.id)
+
+    [tx] = _july(db)
+    assert (tx.card_id, tx.payment_method) == (None, "credit_card")
+
+
+def test_import_unknown_card_is_reported(seeded_db):
+    db, user = seeded_db["db"], seeded_db["user"]
+
+    result = transaction_import_service.import_csv(db, "날짜,구분,카테고리,금액,메모,카드\n2026-07-05,지출,식비,5000,점심,없는카드\n", user.id)
+
+    [tx] = _july(db)
+    assert tx.card_id is None
+    assert result["unmatched_cards"] == ["없는카드"]
+
+
+def test_reupload_with_card_backfills_existing_transaction(seeded_db):
+    db, user = seeded_db["db"], seeded_db["user"]
+    bank = account_service.create_account(db, "월급통장", "bank", Decimal("0"))
+    card = card_service.create_card(db, "신한카드", "credit", bank.id)
+    transaction_import_service.import_csv(db, "날짜,구분,카테고리,금액,메모\n2026-07-05,지출,식비,5000,점심\n", user.id)
+
+    result = transaction_import_service.import_csv(
+        db, "날짜,구분,카테고리,금액,메모,카드\n2026-07-05,지출,식비,5000,점심,신한카드\n", user.id
+    )
+
+    [tx] = _july(db)
+    assert result["updated"] == 1
+    assert (tx.card_id, tx.account_id, tx.payment_method) == (card.id, bank.id, "credit_card")

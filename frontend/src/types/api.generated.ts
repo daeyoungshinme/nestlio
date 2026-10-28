@@ -548,6 +548,58 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/cards": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Cards */
+        get: operations["list_cards_api_v1_cards_get"];
+        put?: never;
+        /** Create Card */
+        post: operations["create_card_api_v1_cards_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/cards/{card_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Update Card */
+        put: operations["update_card_api_v1_cards__card_id__put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/cards/{card_id}/deactivate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Deactivate */
+        post: operations["deactivate_api_v1_cards__card_id__deactivate_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/reports/yearly": {
         parameters: {
             query?: never;
@@ -1622,7 +1674,7 @@ export interface components {
              * Account Type
              * @enum {string}
              */
-            account_type: "bank" | "cash" | "card";
+            account_type: "bank" | "cash";
             /**
              * Initial Balance
              * @default 0
@@ -1641,7 +1693,7 @@ export interface components {
              * Account Type
              * @enum {string}
              */
-            account_type: "bank" | "cash" | "card";
+            account_type: "bank" | "cash";
             /** Initial Balance */
             initial_balance: string;
             /** Is Active */
@@ -1663,7 +1715,7 @@ export interface components {
              * Account Type
              * @enum {string}
              */
-            account_type: "bank" | "cash" | "card";
+            account_type: "bank" | "cash";
             /** Current Balance */
             current_balance: number | string;
             /** Owner User Id */
@@ -1896,6 +1948,66 @@ export interface components {
             deleted: number;
             /** Failed */
             failed: number[];
+        };
+        /** CardCreateIn */
+        CardCreateIn: {
+            /** Name */
+            name: string;
+            /**
+             * Card Type
+             * @enum {string}
+             */
+            card_type: "credit" | "debit";
+            /** Payment Account Id */
+            payment_account_id?: number | null;
+            /** Owner User Id */
+            owner_user_id?: string | null;
+        };
+        /** CardOut */
+        CardOut: {
+            /** Id */
+            id: number;
+            /** Name */
+            name: string;
+            /**
+             * Card Type
+             * @enum {string}
+             */
+            card_type: "credit" | "debit";
+            /** Payment Account Id */
+            payment_account_id?: number | null;
+            payment_account?: components["schemas"]["AccountOut"] | null;
+            /** Owner User Id */
+            owner_user_id?: string | null;
+            /** Is Active */
+            is_active: boolean;
+            /** Sort Order */
+            sort_order: number;
+        };
+        /** CardUpdateIn */
+        CardUpdateIn: {
+            /** Name */
+            name: string;
+            /**
+             * Card Type
+             * @enum {string}
+             */
+            card_type: "credit" | "debit";
+            /** Payment Account Id */
+            payment_account_id?: number | null;
+            /** Owner User Id */
+            owner_user_id?: string | null;
+            /**
+             * Apply To Unlinked
+             * @default false
+             */
+            apply_to_unlinked: boolean;
+        };
+        /** CardWithUsageOut */
+        CardWithUsageOut: {
+            card: components["schemas"]["CardOut"];
+            /** Unlinked Transaction Count */
+            unlinked_transaction_count: number;
         };
         /** CashflowPlanCopyIn */
         CashflowPlanCopyIn: {
@@ -2901,6 +3013,11 @@ export interface components {
              * @default []
              */
             unmatched_accounts: string[];
+            /**
+             * Unmatched Cards
+             * @default []
+             */
+            unmatched_cards: string[];
             /**
              * Unmatched Owners
              * @default []
@@ -4012,6 +4129,8 @@ export interface components {
             account_id?: number | null;
             /** Savings Product Id */
             savings_product_id?: number | null;
+            /** Card Id */
+            card_id?: number | null;
             /** Owner User Id */
             owner_user_id?: string | null;
         };
@@ -4045,8 +4164,11 @@ export interface components {
             account_id?: number | null;
             /** Savings Product Id */
             savings_product_id?: number | null;
+            /** Card Id */
+            card_id?: number | null;
             category: components["schemas"]["CategoryOut"];
             account?: components["schemas"]["AccountOut"] | null;
+            card?: components["schemas"]["CardOut"] | null;
             savings_product?: components["schemas"]["SavingsProductOut"] | null;
             user: components["schemas"]["UserOut"];
             /** Owner User Id */
@@ -4086,6 +4208,8 @@ export interface components {
             account_id?: number | null;
             /** Savings Product Id */
             savings_product_id?: number | null;
+            /** Card Id */
+            card_id?: number | null;
             /** Owner User Id */
             owner_user_id?: string | null;
         };
@@ -5476,6 +5600,140 @@ export interface operations {
             };
             path: {
                 account_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_cards_api_v1_cards_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CardWithUsageOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_card_api_v1_cards_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CardCreateIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CardOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_card_api_v1_cards__card_id__put: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                card_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CardUpdateIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CardOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    deactivate_api_v1_cards__card_id__deactivate_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                card_id: number;
             };
             cookie?: never;
         };

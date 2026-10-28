@@ -14,7 +14,7 @@ class Account(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     name: Mapped[str] = mapped_column(String(100))
-    account_type: Mapped[str] = mapped_column(String(10))  # 'bank' | 'cash' | 'card'
+    account_type: Mapped[str] = mapped_column(String(10))  # 'bank' | 'cash' (예전 'card'는 cards 테이블로 옮김)
     initial_balance: Mapped[Decimal] = mapped_column(Numeric(14, 2), default=0)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     sort_order: Mapped[int] = mapped_column(Integer, default=0)
