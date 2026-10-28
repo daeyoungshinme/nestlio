@@ -245,10 +245,13 @@ export interface SkippedRowOut {
   reason: string;
 }
 
+export type AutoCategorySource = "history" | "keyword" | "fallback";
+
 export interface AutoCategorizedRowOut {
   line: number;
   description: string;
   category_name: string;
+  source: AutoCategorySource;
 }
 
 export interface MergedRowsOut {

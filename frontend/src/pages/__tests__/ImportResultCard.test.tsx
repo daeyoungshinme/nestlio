@@ -23,12 +23,12 @@ describe("ImportResultCard", () => {
       created: 2,
       created_ids: [1, 2],
       skipped: [],
-      auto_categorized: [{ line: 3, description: "스타벅스 강남점", category_name: "식비" }],
+      auto_categorized: [{ line: 3, description: "스타벅스 강남점", category_name: "식비", source: "keyword" }],
       merged: [],
     };
     render(<ImportResultCard result={result} />);
     expect(screen.getByText("1건은 메모를 보고 카테고리를 자동으로 정했어요")).toBeInTheDocument();
-    expect(screen.getByText("3행 스타벅스 강남점 → 식비")).toBeInTheDocument();
+    expect(screen.getByText("3행 스타벅스 강남점 → 식비 (가맹점)")).toBeInTheDocument();
   });
 
   it("lists rows merged into one transaction", () => {

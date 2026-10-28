@@ -5,6 +5,8 @@ from unittest.mock import patch
 import pytest
 from sqlalchemy.exc import SQLAlchemyError
 
+from app.errors import InvalidInputError
+from app.models.category import Category
 from app.services import (
     account_service,
     transaction_import_service,
@@ -100,7 +102,7 @@ def test_import_blank_category_uses_most_frequent_category_for_same_memo(seeded_
 
     assert result["created"] == 1
     assert _category_of(db, "편의점") == "식비"
-    assert result["auto_categorized"] == [{"line": 1, "description": "편의점", "category_name": "식비"}]
+    assert result["auto_categorized"] == [{"line": 1, "description": "편의점", "category_name": "식비", "source": "history"}]
 
 
 def test_import_tie_in_memo_history_prefers_most_recent(seeded_db):
@@ -211,6 +213,57 @@ def test_import_accepts_dotted_dates_and_comma_amounts(seeded_db):
 
     assert result["skipped"] == []
     assert [(tx.transaction_date, tx.amount) for tx in _july(db)] == [(date(2026, 7, 5), Decimal("12000"))]
+
+
+def test_import_uses_merchant_keyword_when_no_history(seeded_db):
+    db, user = seeded_db["db"], seeded_db["user"]
+
+    result = transaction_import_service.import_csv(db, "2026-07-05,지출,,5000,스타벅스 역삼점\n", user.id)
+
+    assert result["created"] == 1
+    assert result["auto_categorized"][0]["category_name"] == "식비"
+    assert result["auto_categorized"][0]["source"] == "keyword"
+
+
+def test_import_history_beats_merchant_keyword(seeded_db):
+    db, user, rent = seeded_db["db"], seeded_db["user"], seeded_db["rent"]
+    _expense(db, user, rent, "스타벅스 역삼점")
+
+    result = transaction_import_service.import_csv(db, "2026-07-05,지출,,5000,스타벅스 역삼점\n", user.id)
+
+    assert result["auto_categorized"][0]["category_name"] == "주거비"
+    assert result["auto_categorized"][0]["source"] == "history"
+
+
+def test_keyword_category_prefers_longest_keyword_and_skips_missing_category(seeded_db):
+    db = seeded_db["db"]
+    by_name = {c.name: c for c in db.query(Category).all()}
+
+    # "쿠팡이츠"(식비)가 "쿠팡"(장보기 — seeded_db엔 없음)보다 길다
+    assert transaction_import_service._keyword_category("쿠팡이츠 주문", by_name).name == "식비"
+    # 장보기 카테고리가 없는 가구라 키워드는 무시된다
+    assert transaction_import_service._keyword_category("이마트 성수점", by_name) is None
+
+
+def test_import_unmatched_rows_go_to_fallback_category(seeded_db):
+    db, user, events = seeded_db["db"], seeded_db["user"], seeded_db["events"]
+    csv_text = "2026-07-05,지출,,5000,처음보는가게\n2026-07-06,수입,,5000,처음보는입금\n"
+
+    result = transaction_import_service.import_csv(db, csv_text, user.id, fallback_category_id=events.id)
+
+    assert result["created"] == 1
+    assert result["auto_categorized"] == [
+        {"line": 1, "description": "처음보는가게", "category_name": "경조사비", "source": "fallback"}
+    ]
+    # 지출 기본 카테고리는 수입 행에 쓰지 않는다
+    assert [s["line"] for s in result["skipped"]] == [2]
+
+
+def test_import_unknown_fallback_category_is_rejected(seeded_db):
+    db, user = seeded_db["db"], seeded_db["user"]
+
+    with pytest.raises(InvalidInputError):
+        transaction_import_service.import_csv(db, "2026-07-05,지출,,5000,x\n", user.id, fallback_category_id=99999)
 
 
 def _july(db):

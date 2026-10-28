@@ -5,12 +5,14 @@ import uuid
 from dataclasses import dataclass, field
 from datetime import date
 from decimal import Decimal, InvalidOperation
+from typing import Literal
 
 from sqlalchemy import func
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from app.config import settings
+from app.constants.merchant_keywords import EXPENSE_MERCHANT_KEYWORDS
 from app.errors import InvalidInputError, PayloadTooLargeError
 from app.models.category import Category
 from app.models.transaction import Transaction
@@ -24,6 +26,8 @@ MEMO_PARTIAL_MATCH_MIN_LENGTH = 2
 # (거래 구분, 정규화 메모) → {카테고리 id: [건수, 가장 최근 거래일]}
 MemoIndex = dict[tuple[str, str], dict[int, list]]
 DUPLICATE_REASON = "이미 같은 날 같은 금액의 비슷한 거래가 있어 건너뛰었습니다"
+# 자동으로 정한 카테고리의 출처: 과거 거래 이력 / 가맹점 키워드 사전 / 업로드 시 고른 기본 카테고리
+CategorySource = Literal["history", "keyword", "fallback"]
 # 은행·카드 앱 CSV의 날짜: 2026-10-26, 2026.10.26, 2026/10/26, 2026. 10. 26., 20261026 — 뒤에 시각이 붙어도 된다.
 _DATE_RE = re.compile(r"(\d{4})\s*[-./]\s*(\d{1,2})\s*[-./]\s*(\d{1,2})\.?(?:\s.*)?|(\d{4})(\d{2})(\d{2})")
 
@@ -72,7 +76,7 @@ class _ImportGroup:
     amount: Decimal = Decimal("0")
     lines: list[tuple[int, list[str]]] = field(default_factory=list)
     memos: list[str] = field(default_factory=list)
-    inferred: list[tuple[int, str]] = field(default_factory=list)  # (행 번호, 메모)
+    inferred: list[tuple[int, str, CategorySource]] = field(default_factory=list)  # (행 번호, 메모, 출처)
 
     def matches(self, tx_date: date, tx_type: str, category_id: int, memo: str) -> bool:
         return (
@@ -110,6 +114,20 @@ def _build_memo_index(db: Session) -> MemoIndex:
     for description, tx_type, category_id, count, last_date in rows:
         _learn_memo(index, tx_type, description, category_id, count, last_date)
     return index
+
+
+def _keyword_category(memo: str | None, categories_by_name: dict[str, Category]) -> Category | None:
+    """메모에 든 가장 긴 가맹점 키워드의 기본 카테고리(지출만). 그 이름의 활성 지출 카테고리가 없으면 건너뛴다."""
+    key = _normalize_memo(memo)
+    best: tuple[int, Category] | None = None
+    for name, keywords in EXPENSE_MERCHANT_KEYWORDS.items():
+        category = categories_by_name.get(name)
+        if category is None or not category.is_active or category.kind != "expense":
+            continue
+        for keyword in keywords:
+            if keyword in key and (best is None or len(keyword) > best[0]):
+                best = (len(keyword), category)
+    return best[1] if best else None
 
 
 def _infer_category(
@@ -173,14 +191,17 @@ def export_csv(transactions: list[Transaction]) -> str:
     return buffer.getvalue()
 
 
-def import_rows(db: Session, rows: list[list[str]], user_id: uuid.UUID) -> dict:
+def import_rows(
+    db: Session, rows: list[list[str]], user_id: uuid.UUID, fallback_category_id: int | None = None
+) -> dict:
     """Bulk-create transactions from already-split rows matching export_csv's column
     layout (날짜,구분,카테고리,금액,메모,입력자). import_csv가 파싱한 행을 넘긴다.
     Unknown categories or malformed rows are skipped and reported, not raised,
     so one bad row doesn't abort an otherwise-good import.
 
-    카테고리 칸이 비었거나 모르는 이름이면 메모로 과거 거래에서 카테고리를 추론하고(`_infer_category`)
-    `auto_categorized`로 알린다. 명시된 카테고리는 덮어쓰지 않는다. 앞 행의 명시 카테고리도 뒤 행의 학습에 쓴다.
+    카테고리 칸이 비었거나 모르는 이름이면 메모로 과거 거래 이력(`_infer_category`) → 가맹점 키워드 사전
+    (`_keyword_category`, 지출만) → `fallback_category_id`(같은 구분일 때만) 순으로 정하고 `auto_categorized`에
+    출처(`source`)와 함께 알린다. 명시된 카테고리는 덮어쓰지 않는다. 앞 행의 명시 카테고리도 뒤 행의 학습에 쓴다.
 
     같은 날·구분·카테고리에 메모가 비슷한(`_similar_memo`) 행은 금액을 합쳐 한 건으로 만들고(`merged`),
     합친 결과가 이미 저장된 거래(같은 날·구분·금액, 비슷한 메모)와 겹치면 중복으로 건너뛴다 —
@@ -188,6 +209,9 @@ def import_rows(db: Session, rows: list[list[str]], user_id: uuid.UUID) -> dict:
     categories = db.query(Category).all()
     categories_by_name = {c.name: c for c in categories}
     categories_by_id = {c.id: c for c in categories}
+    fallback = categories_by_id.get(fallback_category_id) if fallback_category_id is not None else None
+    if fallback_category_id is not None and (fallback is None or not fallback.is_active):
+        raise InvalidInputError("기본 카테고리를 찾을 수 없습니다.")
     memo_index = _build_memo_index(db)
     if rows and rows[0] and rows[0][0].strip() in ("날짜", CSV_HEADER[0]):
         rows = rows[1:]  # skip header if present
@@ -208,16 +232,21 @@ def import_rows(db: Session, rows: list[list[str]], user_id: uuid.UUID) -> dict:
             if tx_type is None:
                 raise ValueError(f"구분은 수입/지출이어야 합니다: '{raw_type.strip()}'")
             category = categories_by_name.get(raw_category.strip())
-            inferred = category is None
+            source: CategorySource | None = None
             if category is None:
-                category = _infer_category(memo_index, tx_type, description, categories_by_id)
-                if category is None:
+                if (category := _infer_category(memo_index, tx_type, description, categories_by_id)) is not None:
+                    source = "history"
+                elif tx_type == "expense" and (category := _keyword_category(description, categories_by_name)):
+                    source = "keyword"
+                elif fallback is not None and fallback.kind == tx_type:
+                    category, source = fallback, "fallback"
+                else:
                     unknown = f"카테고리 '{raw_category.strip()}'를 찾을 수 없고" if raw_category.strip() else "카테고리가 비어 있고"
                     raise ValueError(f"{unknown} 메모로도 추론하지 못했습니다")
         except (ValueError, InvalidOperation, IndexError) as exc:
             skipped.append({"line": line_no, "row": row, "reason": str(exc)})
             continue
-        if not inferred:
+        if source is None:
             _learn_memo(memo_index, tx_type, description, category.id, 1, tx_date)
         memo = _normalize_memo(description)
         group = next((g for g in groups if g.matches(tx_date, tx_type, category.id, memo)), None)
@@ -227,8 +256,8 @@ def import_rows(db: Session, rows: list[list[str]], user_id: uuid.UUID) -> dict:
         group.amount += amount
         group.lines.append((line_no, row))
         group.memos.append(memo)
-        if inferred:
-            group.inferred.append((line_no, description))
+        if source is not None:
+            group.inferred.append((line_no, description, source))
 
     # 2) 이미 저장된 거래와 중복 제거 — 기존 거래 한 건은 묶음 하나만 막는다
     existing: dict[tuple[date, str], list[tuple[str, Decimal]]] = {}
@@ -277,8 +306,8 @@ def import_rows(db: Session, rows: list[list[str]], user_id: uuid.UUID) -> dict:
             continue
         created_transactions.append(tx)
         auto_categorized.extend(
-            {"line": line_no, "description": description, "category_name": group.category.name}
-            for line_no, description in group.inferred
+            {"line": line_no, "description": description, "category_name": group.category.name, "source": source}
+            for line_no, description, source in group.inferred
         )
         if len(group.lines) > 1:
             merged.append(
@@ -295,7 +324,7 @@ def import_rows(db: Session, rows: list[list[str]], user_id: uuid.UUID) -> dict:
     }
 
 
-def import_csv(db: Session, content: str, user_id: uuid.UUID) -> dict:
+def import_csv(db: Session, content: str, user_id: uuid.UUID, fallback_category_id: int | None = None) -> dict:
     rows = list(csv.reader(io.StringIO(content)))
-    return import_rows(db, rows, user_id)
+    return import_rows(db, rows, user_id, fallback_category_id)
 

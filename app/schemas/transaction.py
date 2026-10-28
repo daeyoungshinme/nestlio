@@ -79,6 +79,8 @@ class AutoCategorizedRowOut(BaseModel):
     line: int
     description: str
     category_name: str
+    # history=과거 거래 이력, keyword=가맹점 키워드 사전, fallback=업로드 시 고른 기본 카테고리
+    source: Literal["history", "keyword", "fallback"]
 
 
 class MergedRowsOut(BaseModel):

@@ -1867,11 +1867,18 @@ export interface components {
             description: string;
             /** Category Name */
             category_name: string;
+            /**
+             * Source
+             * @enum {string}
+             */
+            source: "history" | "keyword" | "fallback";
         };
         /** Body_import_csv_api_v1_transactions_import_post */
         Body_import_csv_api_v1_transactions_import_post: {
             /** File */
             file: string;
+            /** Fallback Category Id */
+            fallback_category_id?: number | null;
         };
         /** Body_upload_couple_photo_api_v1_settings_couple_photo_post */
         Body_upload_couple_photo_api_v1_settings_couple_photo_post: {

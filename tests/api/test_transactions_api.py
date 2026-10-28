@@ -217,7 +217,17 @@ def test_import_csv_fills_blank_category_from_memo_history(client):
     )
     assert resp.status_code == 200
     assert resp.json()["created"] == 2
-    assert resp.json()["auto_categorized"] == [{"line": 2, "description": "점심", "category_name": "식비"}]
+    assert resp.json()["auto_categorized"] == [{"line": 2, "description": "점심", "category_name": "식비", "source": "history"}]
+
+
+def test_import_csv_with_fallback_category(client, seeded_db):
+    resp = client.post(
+        "/api/v1/transactions/import",
+        files={"file": ("import.csv", "2026-07-05,지출,,5000,처음보는가게\n".encode("utf-8-sig"), "text/csv")},
+        data={"fallback_category_id": str(seeded_db["events"].id)},
+    )
+    assert resp.status_code == 200
+    assert resp.json()["auto_categorized"][0]["source"] == "fallback"
 
 
 def test_import_csv_undecodable_file_returns_400(client):
