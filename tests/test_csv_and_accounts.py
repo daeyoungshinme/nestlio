@@ -185,6 +185,34 @@ def test_import_blank_category_without_memo_history_is_skipped(seeded_db):
     assert result["skipped"][0]["reason"] == "카테고리가 비어 있고 메모로도 추론하지 못했습니다"
 
 
+@pytest.mark.parametrize(
+    "raw",
+    ["2026-07-05", "2026.07.05", "2026.7.5", "2026/07/05", "2026. 07. 05.", "20260705", "2026.07.05 13:24", " 2026.07.05 "],
+)
+def test_parse_date_accepts_bank_export_formats(raw):
+    assert transaction_import_service._parse_date(raw) == date(2026, 7, 5)
+
+
+@pytest.mark.parametrize("raw", ["07.05.2026", "2026.13.01", "어제", ""])
+def test_parse_date_rejects_unreadable_dates(raw):
+    with pytest.raises(ValueError):
+        transaction_import_service._parse_date(raw)
+
+
+@pytest.mark.parametrize("raw", ["12000", "12,000", "12,000원", " ₩12,000 ", "12000.50"])
+def test_parse_amount_strips_separators(raw):
+    assert transaction_import_service._parse_amount(raw) in (Decimal("12000"), Decimal("12000.50"))
+
+
+def test_import_accepts_dotted_dates_and_comma_amounts(seeded_db):
+    db, user = seeded_db["db"], seeded_db["user"]
+
+    result = transaction_import_service.import_csv(db, '2026.07.05,지출,식비,"12,000",점심\n', user.id)
+
+    assert result["skipped"] == []
+    assert [(tx.transaction_date, tx.amount) for tx in _july(db)] == [(date(2026, 7, 5), Decimal("12000"))]
+
+
 def _july(db):
     return transaction_service.list_transactions(db, date(2026, 7, 1), date(2026, 7, 31))
 

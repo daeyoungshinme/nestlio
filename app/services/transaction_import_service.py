@@ -24,6 +24,28 @@ MEMO_PARTIAL_MATCH_MIN_LENGTH = 2
 # (거래 구분, 정규화 메모) → {카테고리 id: [건수, 가장 최근 거래일]}
 MemoIndex = dict[tuple[str, str], dict[int, list]]
 DUPLICATE_REASON = "이미 같은 날 같은 금액의 비슷한 거래가 있어 건너뛰었습니다"
+# 은행·카드 앱 CSV의 날짜: 2026-10-26, 2026.10.26, 2026/10/26, 2026. 10. 26., 20261026 — 뒤에 시각이 붙어도 된다.
+_DATE_RE = re.compile(r"(\d{4})\s*[-./]\s*(\d{1,2})\s*[-./]\s*(\d{1,2})\.?(?:\s.*)?|(\d{4})(\d{2})(\d{2})")
+
+
+def _parse_date(raw: str) -> date:
+    m = _DATE_RE.fullmatch(raw.strip())
+    if m is None:
+        raise ValueError(f"날짜 형식을 읽을 수 없습니다: '{raw.strip()}' (예: 2026-10-26, 2026.10.26)")
+    y, mo, d = (int(g) for g in (m.groups()[:3] if m.group(1) else m.groups()[3:]))
+    try:
+        return date(y, mo, d)
+    except ValueError:
+        raise ValueError(f"없는 날짜입니다: '{raw.strip()}'") from None
+
+
+def _parse_amount(raw: str) -> Decimal:
+    """천 단위 쉼표·'원'·공백을 허용한다(12,000원)."""
+    cleaned = re.sub(r"[,\s원₩]", "", raw)
+    try:
+        return Decimal(cleaned)
+    except InvalidOperation:
+        raise ValueError(f"금액을 읽을 수 없습니다: '{raw.strip()}'") from None
 
 
 def _normalize_memo(memo: str | None) -> str:
@@ -180,8 +202,8 @@ def import_rows(db: Session, rows: list[list[str]], user_id: uuid.UUID) -> dict:
         try:
             raw_date, raw_type, raw_category, raw_amount, *rest = row
             description = (rest[0] if rest else "").strip()
-            tx_date = date.fromisoformat(raw_date.strip())
-            amount = Decimal(raw_amount.strip())
+            tx_date = _parse_date(raw_date)
+            amount = _parse_amount(raw_amount)
             tx_type = CSV_TYPE_BY_LABEL.get(raw_type.strip())
             if tx_type is None:
                 raise ValueError(f"구분은 수입/지출이어야 합니다: '{raw_type.strip()}'")
