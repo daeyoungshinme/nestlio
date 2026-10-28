@@ -20,3 +20,6 @@ google-api-python-client==2.201.0
 # 전이 의존성으로 끌어오지만 직접 import하는 패키지라 명시적으로 핀한다.
 requests==2.34.2
 httpx==0.28.1
+# zoneinfo("Asia/Seoul")용 IANA 데이터. Linux(Render·CI)는 시스템 tz DB를 쓰지만 Windows엔 없어서
+# 새로 만든 로컬 venv에선 ZoneInfoNotFoundError가 난다(예전 venv는 남아 있던 tzlocal이 끌어와서 가려졌음).
+tzdata==2026.3; sys_platform == "win32"

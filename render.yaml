@@ -21,7 +21,7 @@ services:
         value: production
       # .python-version(CI의 setup-python이 읽는 정본)과 함께 올린다.
       - key: PYTHON_VERSION
-        value: 3.11.9
+        value: 3.12.10
       - key: NODE_VERSION
         value: "22"
       - key: DATABASE_URL

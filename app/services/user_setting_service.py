@@ -1,14 +1,12 @@
 import logging
 import uuid
 from collections.abc import Callable, Iterable
-from typing import TypeVar
 
 from sqlalchemy.orm import Session
 
 from app.models.user_setting import UserSetting
 
 logger = logging.getLogger(__name__)
-T = TypeVar("T")
 
 
 def get_shared_setting(db: Session, key: str, default: str | None = None) -> str | None:
@@ -45,7 +43,7 @@ def set_shared_settings(db: Session, values: dict[str, str], user_id: uuid.UUID)
     db.commit()
 
 
-def get_overrides(
+def get_overrides[T](
     db: Session, prefix: str, fields: Iterable[str], parse: Callable[[str], T], default: Callable[[str], T]
 ) -> dict[str, T]:
     """부부가 설정 화면에서 바꾼 값(키 = prefix + field)이 있으면 그 값, 없으면 default(field)(대개 app.config 기본값).
