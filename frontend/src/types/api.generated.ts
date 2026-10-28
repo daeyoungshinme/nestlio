@@ -2901,6 +2901,16 @@ export interface components {
              * @default []
              */
             unmatched_accounts: string[];
+            /**
+             * Unmatched Owners
+             * @default []
+             */
+            unmatched_owners: string[];
+            /**
+             * Updated
+             * @default 0
+             */
+            updated: number;
         };
         /** InsightOut */
         InsightOut: {

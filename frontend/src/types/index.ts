@@ -267,6 +267,8 @@ export interface ImportResultOut {
   auto_categorized: AutoCategorizedRowOut[];
   merged: MergedRowsOut[];
   unmatched_accounts: string[];
+  unmatched_owners: string[];
+  updated: number;
 }
 
 export interface BulkDeleteResultOut {

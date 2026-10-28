@@ -12,6 +12,8 @@ describe("ImportResultCard", () => {
       auto_categorized: [],
       merged: [],
       unmatched_accounts: [],
+      unmatched_owners: [],
+      updated: 0,
       skipped: Array.from({ length: 25 }, (_, i) => ({ line: i + 2, reason: "날짜 형식 오류" })),
     } as unknown as ImportResultOut;
     render(<ImportResultCard result={result} />);
@@ -27,6 +29,8 @@ describe("ImportResultCard", () => {
       auto_categorized: [{ line: 3, description: "스타벅스 강남점", category_name: "식비", source: "keyword" }],
       merged: [],
       unmatched_accounts: [],
+      unmatched_owners: [],
+      updated: 0,
     };
     render(<ImportResultCard result={result} />);
     expect(screen.getByText("1건은 메모를 보고 카테고리를 자동으로 정했어요")).toBeInTheDocument();
@@ -41,10 +45,14 @@ describe("ImportResultCard", () => {
       auto_categorized: [],
       merged: [{ lines: [1, 2], description: "점심", amount: "12000.00" }],
       unmatched_accounts: ["없는카드"],
+      unmatched_owners: ["모르는사람"],
+      updated: 3,
     };
     render(<ImportResultCard result={result} />);
     expect(screen.getByText("같은 날 비슷한 메모 1묶음은 금액을 합쳐 한 건으로 만들었어요")).toBeInTheDocument();
     expect(screen.getByText(/1·2행 점심 →/)).toBeInTheDocument();
     expect(screen.getByText(/계좌 없이 넣었어요: 없는카드/)).toBeInTheDocument();
+    expect(screen.getByText(/공통으로 넣었어요: 모르는사람/)).toBeInTheDocument();
+    expect(screen.getByText(/3건 채움/)).toBeInTheDocument();
   });
 });

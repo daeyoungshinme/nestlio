@@ -7,6 +7,7 @@ from sqlalchemy.exc import SQLAlchemyError
 
 from app.errors import InvalidInputError
 from app.models.category import Category
+from app.models.user import User
 from app.services import (
     account_service,
     transaction_import_service,
@@ -275,8 +276,8 @@ def test_export_includes_account_and_payment_method_and_round_trips(seeded_db):
     )
     txs = _july(db)
     csv_text = transaction_import_service.export_csv(txs)
-    assert csv_text.splitlines()[0] == "날짜,구분,카테고리,금액,메모,입력자,계좌,결제수단"
-    assert csv_text.splitlines()[1].endswith(",신한카드,신용카드")
+    assert csv_text.splitlines()[0] == "날짜,구분,카테고리,금액,메모,입력자,계좌,결제수단,소유자"
+    assert csv_text.splitlines()[1].endswith(",신한카드,신용카드,공통")
 
     transaction_service.delete_transaction(db, txs[0].id)
     transaction_import_service.import_csv(db, csv_text, user.id)
@@ -315,16 +316,150 @@ def test_import_unknown_account_is_reported_and_row_still_imported(seeded_db):
     assert all(tx.account_id is None for tx in _july(db))
 
 
-def test_import_does_not_merge_rows_from_different_accounts(seeded_db):
+def test_import_merges_rows_from_different_accounts_using_first_filled_values(seeded_db):
+    # 계좌·결제수단은 병합 기준이 아니다 — 처음 합쳐 가져온 줄에 나중에 다른 계좌를 채워 다시 올려도 같은 묶음이 돼야
+    # 기존 거래를 찾는다. 값은 처음 나온 비어 있지 않은 것.
     db, user = seeded_db["db"], seeded_db["user"]
     account_service.create_account(db, "신한카드", "card", Decimal("0"))
-    account_service.create_account(db, "현대카드", "card", Decimal("0"))
-    csv_text = "날짜,구분,카테고리,금액,메모,계좌\n2026-07-05,지출,식비,5000,점심,신한카드\n2026-07-05,지출,식비,5000,점심,현대카드\n"
+    hyundai = account_service.create_account(db, "현대카드", "card", Decimal("0"))
+    csv_text = (
+        "날짜,구분,카테고리,금액,메모,계좌,결제수단\n"
+        "2026-07-05,지출,식비,5000,점심,,\n"
+        "2026-07-05,지출,식비,5000,점심,현대카드,체크카드\n"
+        "2026-07-05,지출,식비,5000,점심,신한카드,신용카드\n"
+    )
 
     result = transaction_import_service.import_csv(db, csv_text, user.id)
 
-    assert result["created"] == 2
-    assert result["merged"] == []
+    assert result["created"] == 1
+    [tx] = _july(db)
+    assert (tx.amount, tx.account_id, tx.payment_method) == (Decimal("15000"), hyundai.id, "debit_card")
+
+
+def _spouse(db):
+    spouse = User(email="spouse2@example.com", display_name="Spouse 2")
+    db.add(spouse)
+    db.commit()
+    return spouse
+
+
+def test_reupload_with_filled_columns_backfills_existing_transaction(seeded_db):
+    db, user, food = seeded_db["db"], seeded_db["user"], seeded_db["food"]
+    card = account_service.create_account(db, "신한카드", "card", Decimal("0"))
+    spouse = _spouse(db)
+    transaction_import_service.import_csv(db, "2026-07-05,지출,식비,5000,점심\n", user.id)
+    csv_text = transaction_import_service.export_csv(_july(db))
+    filled = csv_text.replace(",,,공통", ",신한카드,신용카드,Spouse 2")
+    assert filled != csv_text
+
+    result = transaction_import_service.import_csv(db, filled, user.id)
+
+    assert (result["created"], result["updated"], result["skipped"]) == (0, 1, [])
+    [tx] = _july(db)
+    assert (tx.account_id, tx.payment_method, tx.owner_user_id, tx.category_id) == (
+        card.id, "credit_card", spouse.id, food.id,
+    )
+
+
+def test_backfill_never_overwrites_existing_values(seeded_db):
+    db, user, food = seeded_db["db"], seeded_db["user"], seeded_db["food"]
+    mine = account_service.create_account(db, "내통장", "bank", Decimal("0"))
+    account_service.create_account(db, "신한카드", "card", Decimal("0"))
+    transaction_service.create_transaction(
+        db, user_id=user.id, category_id=food.id, type_="expense", amount=Decimal("5000"),
+        transaction_date=date(2026, 7, 5), description="점심", account_id=mine.id, payment_method="cash",
+    )
+
+    result = transaction_import_service.import_csv(
+        db, "날짜,구분,카테고리,금액,메모,계좌,결제수단,소유자\n2026-07-05,지출,식비,5000,점심,신한카드,신용카드,Spouse 1\n", user.id
+    )
+
+    assert result["updated"] == 1  # 비어 있던 소유자만
+    [tx] = _july(db)
+    assert (tx.account_id, tx.payment_method, tx.owner_user_id) == (mine.id, "cash", user.id)
+
+
+def test_reupload_without_new_values_is_skipped_as_duplicate(seeded_db):
+    db, user = seeded_db["db"], seeded_db["user"]
+    csv_text = "날짜,구분,카테고리,금액,메모,소유자\n2026-07-05,지출,식비,5000,점심,공통\n"
+    transaction_import_service.import_csv(db, csv_text, user.id)
+
+    result = transaction_import_service.import_csv(db, csv_text, user.id)
+
+    assert (result["created"], result["updated"]) == (0, 0)
+    assert result["skipped"][0]["reason"] == transaction_import_service.DUPLICATE_REASON
+
+
+def test_reupload_of_merged_rows_with_different_accounts_backfills_instead_of_duplicating(seeded_db):
+    db, user = seeded_db["db"], seeded_db["user"]
+    shinhan = account_service.create_account(db, "신한카드", "card", Decimal("0"))
+    account_service.create_account(db, "현대카드", "card", Decimal("0"))
+    transaction_import_service.import_csv(db, "2026-07-05,지출,식비,8000,점심\n2026-07-05,지출,식비,4000,점심\n", user.id)
+
+    result = transaction_import_service.import_csv(
+        db,
+        "날짜,구분,카테고리,금액,메모,계좌\n2026-07-05,지출,식비,8000,점심,신한카드\n2026-07-05,지출,식비,4000,점심,현대카드\n",
+        user.id,
+    )
+
+    assert (result["created"], result["updated"]) == (0, 1)
+    [tx] = _july(db)
+    assert (tx.amount, tx.account_id) == (Decimal("12000"), shinhan.id)
+
+
+def test_reupload_backfills_line_by_line_when_existing_rows_were_not_merged(seeded_db):
+    db, user, food = seeded_db["db"], seeded_db["user"], seeded_db["food"]
+    card = account_service.create_account(db, "신한카드", "card", Decimal("0"))
+    for amount in ("8000", "4000"):
+        transaction_service.create_transaction(
+            db, user_id=user.id, category_id=food.id, type_="expense", amount=Decimal(amount),
+            transaction_date=date(2026, 7, 5), description="점심",
+        )
+
+    result = transaction_import_service.import_csv(
+        db,
+        "날짜,구분,카테고리,금액,메모,계좌\n2026-07-05,지출,식비,8000,점심,신한카드\n2026-07-05,지출,식비,4000,점심,신한카드\n",
+        user.id,
+    )
+
+    assert (result["created"], result["updated"]) == (0, 2)
+    assert all(tx.account_id == card.id for tx in _july(db))
+
+
+@pytest.mark.parametrize(
+    ("raw_owner", "expected"),
+    [("Spouse 1", "user"), ("spouse1@example.com", "user"), ("공통", None), ("공동", None), ("", None)],
+)
+def test_import_owner_column(seeded_db, raw_owner, expected):
+    db, user = seeded_db["db"], seeded_db["user"]
+
+    result = transaction_import_service.import_csv(
+        db, f"날짜,구분,카테고리,금액,메모,소유자\n2026-07-05,지출,식비,5000,점심,{raw_owner}\n", user.id
+    )
+
+    assert result["unmatched_owners"] == []
+    [tx] = _july(db)
+    assert tx.owner_user_id == (user.id if expected else None)
+
+
+def test_import_unknown_owner_is_reported(seeded_db):
+    db, user = seeded_db["db"], seeded_db["user"]
+
+    result = transaction_import_service.import_csv(
+        db, "날짜,구분,카테고리,금액,메모,소유자\n2026-07-05,지출,식비,5000,점심,모르는사람\n", user.id
+    )
+
+    assert result["created"] == 1
+    assert result["unmatched_owners"] == ["모르는사람"]
+
+
+def test_import_headerless_nine_column_row_reads_owner_by_position(seeded_db):
+    db, user = seeded_db["db"], seeded_db["user"]
+
+    transaction_import_service.import_csv(db, "2026-07-05,지출,식비,5000,점심,누군가,,,Spouse 1\n", user.id)
+
+    [tx] = _july(db)
+    assert tx.owner_user_id == user.id
 
 
 @pytest.mark.parametrize(

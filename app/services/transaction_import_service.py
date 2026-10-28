@@ -17,8 +17,10 @@ from app.errors import InvalidInputError, PayloadTooLargeError
 from app.models.account import Account
 from app.models.category import Category
 from app.models.transaction import Transaction
+from app.models.user import User
+from app.services import user_service
 
-CSV_HEADER = ["날짜", "구분", "카테고리", "금액", "메모", "입력자", "계좌", "결제수단"]
+CSV_HEADER = ["날짜", "구분", "카테고리", "금액", "메모", "입력자", "계좌", "결제수단", "소유자"]
 PAYMENT_METHOD_LABELS = {"cash": "현금", "credit_card": "신용카드", "debit_card": "체크카드", "transfer": "계좌이체", "other": "기타"}
 CSV_TYPE_LABELS = {"income": "수입", "expense": "지출"}
 CSV_TYPE_BY_LABEL = {"수입": "income", "지출": "expense", "income": "income", "expense": "expense"}
@@ -68,28 +70,83 @@ def _similar_memo(a: str, b: str) -> bool:
 
 
 @dataclass
+class _ImportLine:
+    """CSV 한 줄을 해석한 값. memo는 정규화된 메모."""
+
+    line_no: int
+    row: list[str]
+    amount: Decimal
+    memo: str
+    account: Account | None
+    payment_method: str | None
+    owner: User | None
+
+
+@dataclass
 class _ImportGroup:
-    """같은 날·구분·카테고리·계좌·결제수단에 메모가 비슷한 CSV 행 묶음 — 거래 한 건이 된다."""
+    """같은 날·구분·카테고리에 메모가 비슷한 CSV 행 묶음 — 거래 한 건이 된다.
+    계좌·결제수단·소유자는 병합 기준에 넣지 않는다 — 넣으면 처음 합쳐 가져온 줄들에 나중에 서로 다른 계좌를
+    채워 다시 올렸을 때 묶음이 갈라져 금액이 기존 거래와 어긋나고, 기존 거래를 못 찾아 중복 생성된다.
+    묶음 안에서 값이 다르면 처음 나온 비어 있지 않은 값을 쓴다."""
 
     transaction_date: date
     tx_type: str
     category: Category
-    account: Account | None
-    payment_method: str | None
     description: str | None
-    amount: Decimal = Decimal("0")
-    lines: list[tuple[int, list[str]]] = field(default_factory=list)
-    memos: list[str] = field(default_factory=list)
+    lines: list[_ImportLine] = field(default_factory=list)
     inferred: list[tuple[int, str, CategorySource]] = field(default_factory=list)  # (행 번호, 메모, 출처)
 
-    def matches(
-        self, tx_date: date, tx_type: str, category: Category, account: Account | None, payment_method: str | None, memo: str
-    ) -> bool:
+    @property
+    def amount(self) -> Decimal:
+        return sum((line.amount for line in self.lines), Decimal("0"))
+
+    @property
+    def memos(self) -> list[str]:
+        return [line.memo for line in self.lines]
+
+    def matches(self, tx_date: date, tx_type: str, category: Category, memo: str) -> bool:
         return (
-            (self.transaction_date, self.tx_type, self.category.id, self.account, self.payment_method)
-            == (tx_date, tx_type, category.id, account, payment_method)
+            (self.transaction_date, self.tx_type, self.category.id) == (tx_date, tx_type, category.id)
             and any(_similar_memo(memo, m) for m in self.memos)
         )
+
+
+def _first_filled(lines: list[_ImportLine], attr: str):
+    return next((v for line in lines if (v := getattr(line, attr)) is not None), None)
+
+
+def _take_existing(same_day: list[Transaction], amount: Decimal, memos: list[str]) -> Transaction | None:
+    """같은 날·구분 기존 거래 중 금액이 같고 메모가 비슷한 첫 거래를 꺼낸다(한 건은 한 번만 매칭)."""
+    tx = next(
+        (
+            t
+            for t in same_day
+            if t.amount == amount and any(_similar_memo(_normalize_memo(t.description), m) for m in memos)
+        ),
+        None,
+    )
+    if tx is not None:
+        same_day.remove(tx)
+    return tx
+
+
+def _backfill(tx: Transaction, lines: list[_ImportLine]) -> bool:
+    """기존 거래의 비어 있는 계좌·결제수단·소유자만 CSV 값으로 채운다. 이미 있는 값은 건드리지 않는다
+    (소유자 None은 '공통'과 구분되지 않아, CSV가 사람을 지정했을 때만 채운다). 바뀐 게 있으면 True."""
+    changed = False
+    account = _first_filled(lines, "account")
+    if tx.account_id is None and account is not None:
+        tx.account_id = account.id
+        changed = True
+    payment_method = _first_filled(lines, "payment_method")
+    if tx.payment_method is None and payment_method is not None:
+        tx.payment_method = payment_method
+        changed = True
+    owner = _first_filled(lines, "owner")
+    if tx.owner_user_id is None and owner is not None:
+        tx.owner_user_id = owner.id
+        changed = True
+    return changed
 
 
 # 결제수단 칸 → payment_method. 앞에서부터 먼저 걸리는 규칙("체크카드"는 "카드"보다 먼저).
@@ -125,6 +182,19 @@ def _match_account(raw: str, accounts: list[Account]) -> Account | None:
     return max(partial, key=lambda p: p[0])[1] if partial else None
 
 
+# 소유자 칸의 공통 표기 — 화면(common/OwnerSelect)에서 소유자 없음(None)을 "공통"으로 보여준다.
+COMMON_OWNER_LABEL = "공통"
+_COMMON_OWNER_ALIASES = {"공통", "공동", "함께"}
+
+
+def _match_owner(raw: str, users: list[User]) -> User | None:
+    """소유자 칸 → 가구 사용자(표시 이름, 없으면 이메일 정규화 일치). 공통 표기는 호출부가 먼저 거른다."""
+    key = _normalize_memo(raw)
+    return next((u for u in users if _normalize_memo(u.display_name) == key), None) or next(
+        (u for u in users if _normalize_memo(u.email) == key), None
+    )
+
+
 # 헤더가 있으면 이름으로 칸을 찾는다(순서가 달라도 됨). 없으면 CSV_HEADER 순서로 읽는다.
 _COLUMN_ALIASES: dict[str, tuple[str, ...]] = {
     "date": ("날짜", "거래일", "거래일자", "이용일", "이용일자"),
@@ -134,6 +204,7 @@ _COLUMN_ALIASES: dict[str, tuple[str, ...]] = {
     "description": ("메모", "내용", "적요", "가맹점", "가맹점명", "이용처"),
     "account": ("계좌", "카드", "계좌/카드"),
     "payment_method": ("결제수단", "결제 수단"),
+    "owner": ("소유자", "사용자"),
 }
 _REQUIRED_COLUMNS = ("date", "type", "amount")
 
@@ -155,7 +226,9 @@ def _column_map(header: list[str]) -> dict[str, int] | None:
     return columns
 
 
-_POSITIONAL_COLUMNS = {"date": 0, "type": 1, "category": 2, "amount": 3, "description": 4, "account": 6, "payment_method": 7}
+_POSITIONAL_COLUMNS = {
+    "date": 0, "type": 1, "category": 2, "amount": 3, "description": 4, "account": 6, "payment_method": 7, "owner": 8,
+}
 
 
 def _learn_memo(index: MemoIndex, tx_type: str, memo: str | None, category_id: int, count: int, last_date: date) -> None:
@@ -259,6 +332,7 @@ def export_csv(transactions: list[Transaction]) -> str:
                 tx.user.display_name,
                 tx.account.name if tx.account else "",
                 PAYMENT_METHOD_LABELS.get(tx.payment_method or "", tx.payment_method or ""),
+                tx.owner.display_name if tx.owner else COMMON_OWNER_LABEL,
             ]
         )
     return buffer.getvalue()
@@ -269,20 +343,23 @@ def import_rows(
 ) -> dict:
     """Bulk-create transactions from already-split rows. import_csv가 파싱한 행을 넘긴다.
     헤더 행이 있으면 칸을 이름으로 찾고(`_column_map`, 순서 무관), 없으면 export_csv 순서
-    (날짜,구분,카테고리,금액,메모,입력자,계좌,결제수단)로 읽는다. 입력자 칸은 쓰지 않는다(입력자 = 가져온 사람).
+    (날짜,구분,카테고리,금액,메모,입력자,계좌,결제수단,소유자)로 읽는다. 입력자 칸은 쓰지 않는다(입력자 = 가져온 사람).
     Unknown categories or malformed rows are skipped and reported, not raised,
     so one bad row doesn't abort an otherwise-good import.
 
-    계좌 칸은 활성 계좌 이름으로 매칭하고(`_match_account`), 못 찾은 이름은 계좌 없이 넣고
-    `unmatched_accounts`로 알린다. 결제수단 칸은 한국어 라벨·별칭을 받는다(`_parse_payment_method`).
+    계좌 칸은 활성 계좌 이름으로(`_match_account`), 소유자 칸은 가구 사용자 표시 이름·이메일로(`_match_owner`,
+    "공통"은 소유자 없음) 매칭하고, 못 찾은 이름은 비워 넣고 `unmatched_accounts`/`unmatched_owners`로 알린다.
+    결제수단 칸은 한국어 라벨·별칭을 받는다(`_parse_payment_method`).
 
     카테고리 칸이 비었거나 모르는 이름이면 메모로 과거 거래 이력(`_infer_category`) → 가맹점 키워드 사전
     (`_keyword_category`, 지출만) → `fallback_category_id`(같은 구분일 때만) 순으로 정하고 `auto_categorized`에
     출처(`source`)와 함께 알린다. 명시된 카테고리는 덮어쓰지 않는다. 앞 행의 명시 카테고리도 뒤 행의 학습에 쓴다.
 
-    같은 날·구분·카테고리·계좌·결제수단에 메모가 비슷한(`_similar_memo`) 행은 금액을 합쳐 한 건으로 만들고(`merged`),
-    합친 결과가 이미 저장된 거래(같은 날·구분·금액, 비슷한 메모)와 겹치면 중복으로 건너뛴다 —
-    같은 CSV를 다시 올려도 두 번 들어가지 않는다."""
+    같은 날·구분·카테고리에 메모가 비슷한(`_similar_memo`) 행은 금액을 합쳐 한 건으로 만들고(`merged`),
+    합친 결과가 이미 저장된 거래(같은 날·구분·금액, 비슷한 메모)와 겹치면 새로 만들지 않고 그 거래의 비어 있는
+    계좌·결제수단·소유자만 채운다(`_backfill`, `updated`). 채울 게 없으면 중복으로 건너뛴다 — 같은 CSV를 다시
+    올려도 두 번 들어가지 않고, 칸을 채운 CSV를 다시 올리면 기존 거래가 채워진다. 묶음으로 못 찾았지만 줄마다
+    서로 다른 기존 거래가 있으면(합치지 않고 들어간 예전 데이터) 줄 단위로 같은 처리를 한다."""
     categories = db.query(Category).all()
     categories_by_name = {c.name: c for c in categories}
     categories_by_id = {c.id: c for c in categories}
@@ -291,6 +368,7 @@ def import_rows(
         raise InvalidInputError("기본 카테고리를 찾을 수 없습니다.")
     memo_index = _build_memo_index(db)
     accounts = db.query(Account).all()
+    users = user_service.list_users(db)
     columns = _column_map(rows[0]) if rows else None
     if columns is not None:
         rows = rows[1:]
@@ -303,6 +381,7 @@ def import_rows(
 
     skipped: list[dict] = []
     unmatched_accounts: list[str] = []
+    unmatched_owners: list[str] = []
 
     # 1) 행 해석 + 파일 안 병합
     groups: list[_ImportGroup] = []
@@ -338,46 +417,53 @@ def import_rows(
         account = _match_account(raw_account, accounts)
         if raw_account and account is None and raw_account not in unmatched_accounts:
             unmatched_accounts.append(raw_account)
-        payment_method = _parse_payment_method(cell(row, "payment_method"))
-        memo = _normalize_memo(description)
-        group = next(
-            (g for g in groups if g.matches(tx_date, tx_type, category, account, payment_method, memo)), None
+        raw_owner = cell(row, "owner")
+        owner = None
+        if raw_owner and raw_owner not in _COMMON_OWNER_ALIASES:
+            owner = _match_owner(raw_owner, users)
+            if owner is None and raw_owner not in unmatched_owners:
+                unmatched_owners.append(raw_owner)
+        line = _ImportLine(
+            line_no, row, amount, _normalize_memo(description), account,
+            _parse_payment_method(cell(row, "payment_method")), owner,
         )
+        group = next((g for g in groups if g.matches(tx_date, tx_type, category, line.memo)), None)
         if group is None:
-            group = _ImportGroup(tx_date, tx_type, category, account, payment_method, description or None)
+            group = _ImportGroup(tx_date, tx_type, category, description or None)
             groups.append(group)
-        group.amount += amount
-        group.lines.append((line_no, row))
-        group.memos.append(memo)
+        group.lines.append(line)
         if source is not None:
             group.inferred.append((line_no, description, source))
 
-    # 2) 이미 저장된 거래와 중복 제거 — 기존 거래 한 건은 묶음 하나만 막는다
-    existing: dict[tuple[date, str], list[tuple[str, Decimal]]] = {}
+    # 2) 이미 저장된 거래 — 날짜 집합으로 한 번만 조회한다
+    existing: dict[tuple[date, str], list[Transaction]] = {}
     dates = {g.transaction_date for g in groups}
     if dates:
-        for tx_date, tx_type, description, amount in db.query(
-            Transaction.transaction_date, Transaction.type, Transaction.description, Transaction.amount
-        ).filter(Transaction.transaction_date.in_(dates)):
-            existing.setdefault((tx_date, tx_type), []).append((_normalize_memo(description), amount))
+        for tx in db.query(Transaction).filter(Transaction.transaction_date.in_(dates)):
+            existing.setdefault((tx.transaction_date, tx.type), []).append(tx)
 
-    # 3) 묶음마다 거래 생성
+    # 3) 묶음마다: 기존 거래가 있으면 빈 칸 채우기/건너뛰기, 없으면 새로 생성
     created_transactions: list[Transaction] = []
+    updated_ids: list[int] = []
     auto_categorized: list[dict] = []
     merged: list[dict] = []
     for group in groups:
         same_day = existing.get((group.transaction_date, group.tx_type), [])
-        duplicate = next(
-            (
-                e
-                for e in same_day
-                if e[1] == group.amount and any(_similar_memo(e[0], m) for m in group.memos)
-            ),
-            None,
-        )
-        if duplicate is not None:
-            same_day.remove(duplicate)
-            skipped.extend({"line": line_no, "row": row, "reason": DUPLICATE_REASON} for line_no, row in group.lines)
+        matched: list[tuple[list[_ImportLine], Transaction]] = []
+        if (tx := _take_existing(same_day, group.amount, group.memos)) is not None:
+            matched = [(group.lines, tx)]
+        elif len(group.lines) > 1:
+            per_line = [(line, _take_existing(same_day, line.amount, [line.memo])) for line in group.lines]
+            if all(tx is not None for _, tx in per_line):
+                matched = [([line], tx) for line, tx in per_line]
+            else:
+                same_day.extend(tx for _, tx in per_line if tx is not None)  # 일부만 맞으면 되돌리고 새로 생성
+        if matched:
+            for lines, tx in matched:
+                if _backfill(tx, lines):
+                    updated_ids.append(tx.id)
+                else:
+                    skipped.extend({"line": ln.line_no, "row": ln.row, "reason": DUPLICATE_REASON} for ln in lines)
             continue
         try:
             # 묶음마다 SAVEPOINT로 감싼다 — db.flush()가 IntegrityError/DataError(금액 정밀도 초과,
@@ -391,13 +477,14 @@ def import_rows(
                     amount=group.amount,
                     transaction_date=group.transaction_date,
                     description=group.description,
-                    account_id=group.account.id if group.account else None,
-                    payment_method=group.payment_method,
+                    account_id=account.id if (account := _first_filled(group.lines, "account")) else None,
+                    payment_method=_first_filled(group.lines, "payment_method"),
+                    owner_user_id=owner.id if (owner := _first_filled(group.lines, "owner")) else None,
                 )
                 db.add(tx)
                 db.flush()  # PK 확보 (되돌리기용 created_ids, 최종 commit은 루프 종료 후 한 번)
         except SQLAlchemyError as exc:
-            skipped.extend({"line": line_no, "row": row, "reason": str(exc)} for line_no, row in group.lines)
+            skipped.extend({"line": ln.line_no, "row": ln.row, "reason": str(exc)} for ln in group.lines)
             continue
         created_transactions.append(tx)
         auto_categorized.extend(
@@ -406,15 +493,17 @@ def import_rows(
         )
         if len(group.lines) > 1:
             merged.append(
-                {"lines": [line_no for line_no, _ in group.lines], "description": group.description or "", "amount": group.amount}
+                {"lines": [ln.line_no for ln in group.lines], "description": group.description or "", "amount": group.amount}
             )
     db.commit()
     skipped.sort(key=lambda s: s["line"])
     return {
         "created": len(created_transactions),
+        "updated": len(updated_ids),
         "skipped": skipped,
         "created_ids": [tx.id for tx in created_transactions],
         "unmatched_accounts": unmatched_accounts,
+        "unmatched_owners": unmatched_owners,
         "auto_categorized": auto_categorized,
         "merged": merged,
     }

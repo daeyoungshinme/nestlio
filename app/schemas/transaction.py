@@ -99,6 +99,10 @@ class ImportResultOut(BaseModel):
     merged: list[MergedRowsOut] = []
     # 계좌 칸에 적혔지만 활성 계좌와 매칭되지 않은 이름(그 행은 계좌 없이 들어감)
     unmatched_accounts: list[str] = []
+    # 소유자 칸에 적혔지만 가구 사용자와 매칭되지 않은 이름(그 행은 소유자 없이 = 공통으로 들어감)
+    unmatched_owners: list[str] = []
+    # 이미 있는 거래로 판정돼 비어 있던 계좌·결제수단·소유자를 채운 건수
+    updated: int = 0
 
 
 BULK_DELETE_MAX = 500
