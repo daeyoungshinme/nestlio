@@ -91,7 +91,7 @@ def update_display_name(db: Session, user: User, display_name: str) -> User:
 
 def remove_user(db: Session, target: User, requested_by: User, now: datetime | None = None) -> User:
     """target을 소프트 삭제한다 - 거래내역 등 target.id를 참조하는 기존 데이터는 그대로 두고
-    removed_at만 채운다 (하드 삭제는 13개 테이블의 FK 위반을 일으킨다). list_users()가 이후
+    removed_at만 채운다 (하드 삭제는 users.id를 참조하는 여러 테이블의 FK 위반을 일으킨다). list_users()가 이후
     target을 제외하므로 가구 정원이 다시 열려 새 계정이 그 자리를 채울 수 있다."""
     now = now or now_kst()
     if target.id == requested_by.id:

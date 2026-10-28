@@ -37,7 +37,7 @@
 
 - 로컬 `users`는 최대 2명(`user_service.MAX_HOUSEHOLD_USERS`). 공개 가입 폼은 없지만, 유효한 Supabase JWT로 들어온 요청이면 정원이 찰 때까지 `get_current_user`가 로컬 `User` 행을 자동 미러링한다(같은 Supabase 프로젝트의 growlio 계정도 로그인만으로 등록됨). 정원이 차면 403.
 - 배우자 초대(`invite_service`)는 표시 이름을 미리 정하는 보조 경로다. `accept_invite`는 body의 `user_id`가 아니라 검증된 JWT의 `sub`/`email`을 초대 이메일과 대조한다.
-- 배우자 제거(`user_service.remove_user`)는 소프트 삭제(`removed_at`/`removed_by_id`) — 13개 테이블(+ `users.removed_by_id` 자기참조)이 `users.id`를 FK로 참조한다. 본인은 제거 불가(`CannotRemoveSelfError`). 제거된 계정의 요청은 401이 아니라 **403 + `user_service.REMOVED_USER_DETAIL`** 로 거부한다(401이면 프론트가 `refreshSession()` 재시도에 성공해 로그아웃되지 않음). `frontend/src/api/client.ts`가 이 문자열을 정확히 매칭하므로 **문구를 바꾸면 프론트도 같이 바꾼다**.
+- 배우자 제거(`user_service.remove_user`)는 소프트 삭제(`removed_at`/`removed_by_id`) — 대부분의 도메인 테이블(+ `users.removed_by_id` 자기참조)이 `users.id`를 FK로 참조해 하드 삭제가 불가능하다(목록은 `grep -n 'ForeignKey("users.id"' app/models/*.py`). 본인은 제거 불가(`CannotRemoveSelfError`). 제거된 계정의 요청은 401이 아니라 **403 + `user_service.REMOVED_USER_DETAIL`** 로 거부한다(401이면 프론트가 `refreshSession()` 재시도에 성공해 로그아웃되지 않음). `frontend/src/api/client.ts`가 이 문자열을 정확히 매칭하므로 **문구를 바꾸면 프론트도 같이 바꾼다**.
 
 ## 커맨드
 

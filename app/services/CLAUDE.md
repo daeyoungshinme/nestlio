@@ -16,7 +16,7 @@
 
 - 주 리소스(path param id)를 못 찾으면 `None` 반환 → 라우터가 404로 변환하는 게 기본.
 - 요청 바디로 참조된 보조 리소스가 없거나 상태 충돌(이미 연결됨 등)처럼 라우터가 404/409를 구분해야 하면 전용 예외 클래스를 raise한다(`notification_service`/`invite_service`가 주 리소스에도 예외를 쓰는 건 기존 관례로 유지).
-- 전용 예외는 `app/errors.py`의 베이스(`InvalidInputError` 400 / `ForbiddenError` 403 / `NotFoundError` 404 / `ConflictError` 409 / `UnprocessableError` 422 / `UpstreamError` 502)를 상속한다. `app/exception_handlers.py`가 전역에서 `{"detail": str(exc)}`로 바꾸므로 **라우터는 catch해서 HTTPException으로 다시 던지지 않는다**. 맨 `ValueError`를 도메인 오류로 쓰지 않는다(라우터마다 400/409로 제각각 매핑되던 원인). 상태코드는 `tests/test_exception_handlers.py`가 고정한다.
+- 전용 예외는 `app/errors.py`의 베이스(`InvalidInputError` 400 / `ForbiddenError` 403 / `NotFoundError` 404 / `ConflictError` 409 / `PayloadTooLargeError` 413 / `UnprocessableError` 422 / `UpstreamError` 502 / 그 하위 `ServiceUnavailableError` 503)를 상속한다. `app/exception_handlers.py`가 전역에서 `{"detail": str(exc)}`로 바꾸므로 **라우터는 catch해서 HTTPException으로 다시 던지지 않는다**. 맨 `ValueError`를 도메인 오류로 쓰지 않는다(라우터마다 400/409로 제각각 매핑되던 원인). 상태코드는 `tests/test_exception_handlers.py`가 고정한다.
 - 한 함수에 두 방식이 섞여 있다고 자동으로 버그는 아니다 — 라우터까지 대조해 각 분기가 실제로 다른 상태를 구분하는지 본다.
 
 ## 라우터에 두지 않는 것
