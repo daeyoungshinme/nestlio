@@ -651,6 +651,7 @@ export type NotifType =
   | "goal_milestone"
   | "challenge_success"
   | "event_reminder"
+  | "event_change"
   | "goal_cheer"
   | "savings_pace_reminder"
   | "partner_saving"

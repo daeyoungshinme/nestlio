@@ -1,12 +1,19 @@
 import uuid
 from datetime import date, datetime
 
-from sqlalchemy.orm import Session
+from sqlalchemy.exc import IntegrityError
+from sqlalchemy.orm import Session, selectinload
 
+from app.errors import InvalidInputError
 from app.models.event import Event
+from app.models.event_occurrence_completion import EventOccurrenceCompletion
 from app.utils.dates import advance_due_date, now_kst
 
 _MAX_OCCURRENCE_STEPS = 2000
+
+
+class EventOccurrenceNotFoundError(InvalidInputError):
+    pass
 
 
 def occurrences_in_range(event: Event, range_start: date, range_end: date) -> list[datetime]:
@@ -30,7 +37,19 @@ def occurrences_in_range(event: Event, range_start: date, range_end: date) -> li
     return occurrences
 
 
+def occurrence_completed_at(event: Event, occurrence_start: datetime) -> datetime | None:
+    """그 회차의 완료 시각 — 단건은 일정 자체의 상태, 반복은 회차별 기록."""
+    if event.frequency == "once":
+        return event.completed_at
+    occurrence_date = occurrence_start.date()
+    for completion in event.occurrence_completions:
+        if completion.occurrence_date == occurrence_date:
+            return completion.completed_at
+    return None
+
+
 def to_out_dict(event: Event, occurrence_start: datetime | None = None) -> dict:
+    occurrence_start = occurrence_start if occurrence_start is not None else event.start_at
     return {
         "id": event.id,
         "title": event.title,
@@ -44,14 +63,15 @@ def to_out_dict(event: Event, occurrence_start: datetime | None = None) -> dict:
         "reminder_minutes_before": event.reminder_minutes_before,
         "creator": event.creator,
         "assignee": event.assignee,
-        "completed_at": event.completed_at,
-        "occurrence_start": occurrence_start if occurrence_start is not None else event.start_at,
+        "completed_at": occurrence_completed_at(event, occurrence_start),
+        "occurrence_start": occurrence_start,
     }
 
 
 def list_events(db: Session, range_start: date, range_end: date) -> list[dict]:
     candidates = (
         db.query(Event)
+        .options(selectinload(Event.occurrence_completions))
         .filter(Event.start_at <= datetime.combine(range_end, datetime.max.time()))
         .filter(
             (Event.frequency == "once")
@@ -123,14 +143,42 @@ def delete_event(db: Session, event_id: int) -> Event | None:
     return event
 
 
-def set_completed(db: Session, event_id: int, completed: bool, now: datetime | None = None) -> Event | None:
-    """완료 체크 토글. 체크박스 토글마다 배우자에게 메일이 가면 과도하므로 라우터가
-    배우자 알림을 보내지 않는다(담당자 배정 자체는 생성·수정 알림이 이미 알린다)."""
+def set_completed(
+    db: Session,
+    event_id: int,
+    completed: bool,
+    occurrence_date: date | None = None,
+    now: datetime | None = None,
+) -> dict | None:
+    """완료 체크 토글. 응답용 dict를 돌려준다(반복 일정은 그 회차 기준). 단건은 일정 자체를, 반복은
+    occurrence_date 회차만 바꾼다 — 실제 회차가 아닌 날짜면 EventOccurrenceNotFoundError.
+    체크박스 토글마다 배우자에게 메일이 가면 과도하므로 라우터가 배우자 알림을 보내지 않는다(담당자 배정 자체는
+    생성·수정 알림이 이미 알린다)."""
     now = now or now_kst()
     event = db.get(Event, event_id)
     if event is None:
         return None
-    event.completed_at = now if completed else None
-    db.commit()
+    if event.frequency == "once":
+        event.completed_at = now if completed else None
+        db.commit()
+        db.refresh(event)
+        return to_out_dict(event)
+    occurrences = occurrences_in_range(event, occurrence_date, occurrence_date) if occurrence_date else []
+    if not occurrences:
+        raise EventOccurrenceNotFoundError("일정의 회차를 찾을 수 없습니다.")
+    _set_occurrence_completed(db, event, occurrence_date, completed, now)
     db.refresh(event)
-    return event
+    return to_out_dict(event, occurrences[0])
+
+
+def _set_occurrence_completed(db: Session, event: Event, occurrence_date: date, completed: bool, now: datetime) -> None:
+    existing = db.get(EventOccurrenceCompletion, (event.id, occurrence_date))
+    if completed and existing is None:
+        db.add(EventOccurrenceCompletion(event_id=event.id, occurrence_date=occurrence_date, completed_at=now))
+    elif not completed and existing is not None:
+        db.delete(existing)
+    try:
+        db.commit()
+    except IntegrityError:
+        # 두 사람이 같은 회차를 동시에 체크 — 이미 완료됐으니 먼저 저장된 기록을 그대로 쓴다.
+        db.rollback()

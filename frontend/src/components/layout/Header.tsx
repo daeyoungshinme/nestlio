@@ -27,6 +27,7 @@ const NOTIF_TYPE_LABEL: Record<NotifType, string> = {
   goal_milestone: "목표 마일스톤 달성",
   challenge_success: "챌린지 성공",
   event_reminder: "일정 알림",
+  event_change: "일정 변경",
   goal_cheer: "목표 응원",
   savings_pace_reminder: "월말 저축 리마인더",
   partner_saving: "배우자 저축",
