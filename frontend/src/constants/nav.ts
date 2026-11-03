@@ -29,6 +29,7 @@ const PAGE_TITLES: { to: string; label: string }[] = [
   { to: ROUTES.categories, label: "카테고리" },
   { to: ROUTES.transactionImport, label: "거래 데이터" },
   { to: ROUTES.savingsReview, label: "절감 점검" },
+  { to: ROUTES.todos, label: "부부 할일" },
 ];
 
 /** 현재 경로에 대응하는 페이지 타이틀. 가장 긴 prefix가 이긴다(`/transactions/import` > `/transactions`). */

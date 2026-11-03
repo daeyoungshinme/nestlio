@@ -444,6 +444,33 @@ export interface EventCreateIn {
 
 export type EventUpdateIn = EventCreateIn;
 
+export type TodoFrequency = "once" | "weekly" | "monthly" | "yearly";
+export type TodoStatus = "open" | "done";
+
+export interface TodoOut {
+  id: number;
+  title: string;
+  memo: string | null;
+  due_date: string | null;
+  frequency: TodoFrequency;
+  creator: UserOut;
+  /** 담당자 - null이면 공동(두 사람 모두 담당) */
+  assignee: UserOut | null;
+  completed_at: string | null;
+  completer: UserOut | null;
+  created_at: string;
+}
+
+export interface TodoCreateIn {
+  title: string;
+  memo?: string | null;
+  due_date?: string | null;
+  frequency?: TodoFrequency;
+  assignee_id?: string | null;
+}
+
+export type TodoUpdateIn = TodoCreateIn;
+
 export interface CoachingThresholdsOut {
   savings_rate_warn: number;
   savings_rate_critical: number;

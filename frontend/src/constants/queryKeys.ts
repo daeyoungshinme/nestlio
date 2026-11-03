@@ -1,4 +1,5 @@
 import type { QueryKey } from "@tanstack/react-query";
+import type { TodoStatus } from "@/types";
 
 export const QUERY_KEYS = {
   dashboard: (yearMonth: string) => ["dashboard", yearMonth] as const,
@@ -25,6 +26,9 @@ export const QUERY_KEYS = {
   events: (dateFrom: string, dateTo: string) => ["events", dateFrom, dateTo] as const,
   /** Prefix for invalidating every events date-range variant at once. */
   eventsAll: ["events"] as const,
+  todos: (status: TodoStatus) => ["todos", status] as const,
+  /** Prefix for invalidating both todo status lists at once. */
+  todosAll: ["todos"] as const,
   accounts: ["accounts"] as const,
   cards: ["cards"] as const,
   yearlyReport: (year: number, owner?: string) => ["yearly-report", year, owner ?? "all"] as const,
@@ -112,13 +116,14 @@ export const CATEGORY_RELATED_KEYS: QueryKey[] = [
 ];
 
 /** 가구 구성원의 표시 이름을 응답에 박아 두는 캐시 묶음 — 본인/배우자 이름 변경, 배우자 제거 시
- * 전부 무효화한다. 거래 기록자(TransactionOut.user), 일정 작성자·담당자(EventOut), 알림 응원
+ * 전부 무효화한다. 거래 기록자(TransactionOut.user), 일정·할일 작성자·담당자(EventOut·TodoOut), 알림 응원
  * 반응, 대시보드·월간 회고의 부부 기여도(OwnerTotalsOut)가 여기에 해당한다. */
 export const USER_RELATED_KEYS: QueryKey[] = [
   QUERY_KEYS.me,
   QUERY_KEYS.users,
   QUERY_KEYS.transactionsAll,
   QUERY_KEYS.eventsAll,
+  QUERY_KEYS.todosAll,
   QUERY_KEYS.notifications,
   QUERY_KEYS.dashboardAll,
   QUERY_KEYS.dashboardBootstrap,
