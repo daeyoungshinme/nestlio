@@ -14,6 +14,8 @@ export const ROUTES = {
   settings: "/settings",
   /** 절감 점검(소비·보험) — 주 메뉴에 없고 홈 코칭·계획 실적 분석에서 들어간다. */
   savingsReview: "/review",
+  /** 부부 할일 — 주 메뉴에 없고 홈의 "우리 할일" 카드에서 들어간다. */
+  todos: "/todos",
   login: "/login",
   inviteAccept: "/invite/accept",
   authCallback: "/auth/callback",
@@ -58,6 +60,10 @@ export function accountsSectionLink(section: AccountsSection): string {
 /** `/review`의 탭(`?tab=`). SavingsReviewPage가 이 값을 그대로 탭 라벨로 쓴다. */
 export const SAVINGS_REVIEW_TABS = ["소비", "보험"] as const;
 export type SavingsReviewTab = (typeof SAVINGS_REVIEW_TABS)[number];
+
+/** `/todos`의 탭(`?tab=`). */
+export const TODO_TABS = ["진행 중", "완료"] as const;
+export type TodoTab = (typeof TODO_TABS)[number];
 
 export function savingsReviewLink(tab?: SavingsReviewTab): string {
   return tab ? `${ROUTES.savingsReview}?tab=${tab}` : ROUTES.savingsReview;

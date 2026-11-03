@@ -3,10 +3,11 @@ import uuid
 from datetime import datetime, timedelta
 
 from sqlalchemy import and_, func, or_
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 
 from app.models.event import Event
 from app.models.notification_log import NotificationLog
+from app.models.notification_read import NotificationRead
 from app.models.user import User
 from app.services import (
     email_templates,
@@ -15,10 +16,13 @@ from app.services import (
     notification_service,
     notification_settings_service,
 )
+from app.utils.dates import now_kst
 
 logger = logging.getLogger(__name__)
 
 NOTIF_TYPE = "event_reminder"
+# 등록·수정·삭제 알림. 켜고 끄는 설정은 NOTIF_TYPE을 함께 쓰고, 종류만 나눠 리마인더 dedup(_already_notified_pairs)과 섞이지 않게 한다.
+CHANGE_NOTIF_TYPE = "event_change"
 
 
 def send_due_reminders(db: Session, now: datetime, window_minutes: int = 30) -> int:
@@ -53,7 +57,7 @@ def _candidate_events(db: Session, now: datetime, window_minutes: int) -> list[E
     """이번 틱에 리마인더가 나갈 수 있는 일정만 DB에서 고른다 — 리마인더가 있는 일정 전체(지난 일정 포함)를
     매 틱 로드하지 않기 위해. 발송 대상 회차는 now < 회차 ≤ now + 리마인더 오프셋 + window이므로
     가장 큰 오프셋으로 잡은 horizon까지만 본다(정확한 판정은 _due_occurrences가 일정별 오프셋으로 한다).
-    - 단건: 시작이 (now, horizon] 안
+    - 단건: 시작이 (now, horizon] 안이고 아직 완료 전
     - 반복: 첫 회차가 horizon 이전이고, 반복 종료일이 없거나 오늘 이후"""
     max_lead = db.query(func.max(Event.reminder_minutes_before)).scalar()
     if max_lead is None:
@@ -61,11 +65,12 @@ def _candidate_events(db: Session, now: datetime, window_minutes: int) -> list[E
     horizon = now + timedelta(minutes=max_lead + window_minutes)
     return (
         db.query(Event)
+        .options(selectinload(Event.occurrence_completions))
         .filter(
             Event.reminder_minutes_before.isnot(None),
             Event.start_at <= horizon,
             or_(
-                and_(Event.frequency == "once", Event.start_at > now),
+                and_(Event.frequency == "once", Event.start_at > now, Event.completed_at.is_(None)),
                 and_(
                     Event.frequency != "once",
                     or_(Event.recurrence_end_date.is_(None), Event.recurrence_end_date >= now.date()),
@@ -98,8 +103,12 @@ def _due_occurrences(event: Event, now: datetime, window_minutes: int) -> list[d
     for occurrence in event_service.occurrences_in_range(event, range_start, range_end):
         reminder_at = occurrence - lead
         # 리마인더 시각이 도래했고(윈도우 안에 들어왔고) 일정 자체는 아직 미래면 발송 대상.
-        # 지난 틱이 밀려서 reminder_at이 now보다 과거여도 잡는다 — 중복은 dedup이 막는다.
-        if reminder_at <= now + timedelta(minutes=window_minutes) and now < occurrence:
+        # 지난 틱이 밀려서 reminder_at이 now보다 과거여도 잡는다 — 중복은 dedup이 막는다. 이미 완료한 회차는 뺀다.
+        if (
+            reminder_at <= now + timedelta(minutes=window_minutes)
+            and now < occurrence
+            and event_service.occurrence_completed_at(event, occurrence) is None
+        ):
             due.append(occurrence)
     return due
 
@@ -120,15 +129,47 @@ def _already_notified_pairs(db: Session, event_ids: set[int]) -> set[tuple[int, 
     return {(related_id, year_month) for related_id, year_month in rows}
 
 
-def notify_other_spouse_best_effort(db: Session, event: Event, actor_id: uuid.UUID, action_label: str) -> None:
-    """일정 생성·수정·삭제 직후 라우터가 호출한다. 설정된 수신자 중 행위자 본인 이메일은 빼고 보낸다 —
-    자기 자신에게 "방금 내가 한 행동" 메일을 보낼 필요는 없다(다른 알림과 달리 이 경로만 행위자를 배제).
-    메일 전용이라 인앱 알림은 남기지 않고, 실패해도 일정은 이미 저장됐으니 로그만 남긴다."""
+def _log_change(db: Session, event: Event, actor_id: uuid.UUID, action_label: str, now: datetime) -> None:
+    actor = db.get(User, actor_id)
+    actor_name = f" ({actor.display_name})" if actor else ""
+    log = NotificationLog(
+        notif_type=CHANGE_NOTIF_TYPE,
+        related_type="event",
+        related_id=event.id,
+        # dedupe 대상이 아니다 — 컬럼이 String(20)이라 초 단위까지만(send_goal_cheer 참고).
+        year_month=now.isoformat(timespec="seconds"),
+        status="sent",
+        detail=f"{action_label}: {event.title}{actor_name}"[:500],
+    )
+    # 호출자는 같은 세션으로 응답을 직렬화하므로, 실패하면 롤백해 세션을 쓸 수 있는 상태로 돌려 놓는다.
     try:
-        actor = db.get(User, actor_id)
-        recipients = [
-            email for email in notification_settings_service.get_recipients(db) if actor is None or email != actor.email
-        ]
+        db.add(log)
+        db.flush()
+        db.add(NotificationRead(notification_log_id=log.id, user_id=actor_id, read_at=now))
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise
+
+
+def notify_other_spouse_best_effort(
+    db: Session, event: Event, actor_id: uuid.UUID, action_label: str, now: datetime | None = None
+) -> None:
+    """일정 생성·수정·삭제 직후 라우터가 호출한다. 알림함에 남겨 Gmail이 끊겨도 배우자가 알 수 있게 하고(행위자는
+    바로 읽음), 메일은 설정된 수신자 중 행위자 본인 이메일을 빼고 보낸다 — 자기 자신에게 "방금 내가 한 행동"
+    메일을 보낼 필요는 없다. 일정 알림 설정을 끄면 둘 다 보내지 않는다. 실패해도 일정은 이미 저장됐으니 로그만 남긴다."""
+    try:
+        if not notification_settings_service.is_enabled(db, NOTIF_TYPE):
+            return
+    except Exception:
+        logger.exception("일정 알림 설정 조회 실패 (일정은 정상 저장됨): %s", event.title)
+        return
+    try:
+        _log_change(db, event, actor_id, action_label, now or now_kst())
+    except Exception:
+        logger.exception("일정 인앱 알림 기록 실패 (일정은 정상 저장됨): %s", event.title)
+    try:
+        recipients = notification_settings_service.recipients_excluding(db, actor_id)
         body = email_templates.event_summary_text(event, event.start_at, header=action_label)
         notification_service.send_email_best_effort(
             db, f"[Nestlio] {action_label}: {event.title}", body, to=recipients

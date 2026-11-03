@@ -19,7 +19,7 @@ const NOTIF_PREF_FIELDS: { key: keyof NotificationPrefsOut; label: string; hint:
   { key: "threshold_alert", label: "예산 초과 경고", hint: "카테고리 예산이 주의/위험 기준을 넘으면 알림" },
   { key: "goal_milestone", label: "목표 마일스톤 달성", hint: "재무목표가 25/50/75/100%에 도달하면 축하 알림" },
   { key: "challenge_success", label: "챌린지 성공", hint: "부부 챌린지를 달성하면 축하 알림" },
-  { key: "event_reminder", label: "일정 알림", hint: "등록한 개인 일정·리마인더의 알림 시각이 되면 이메일" },
+  { key: "event_reminder", label: "일정 알림", hint: "일정이 등록·변경되거나 리마인더 시각이 되면 알림함과 이메일로 알려줘요" },
   {
     key: "savings_pace_reminder",
     label: "월말 저축 리마인더",
@@ -29,6 +29,11 @@ const NOTIF_PREF_FIELDS: { key: keyof NotificationPrefsOut; label: string; hint:
     key: "partner_saving",
     label: "배우자 저축 소식",
     hint: "한 사람이 저축·투자 내역을 기록하면 알림함에 알려줘요 — 바로 응원 반응을 남길 수 있어요",
+  },
+  {
+    key: "todo",
+    label: "부부 할일",
+    hint: "배우자가 할일을 맡기면 알림함과 이메일로, 완료하거나 삭제하면 알림함으로 알려줘요",
   },
 ];
 

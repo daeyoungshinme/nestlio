@@ -7,6 +7,7 @@ import EventForm, { emptyEventFormValues, eventToFormValues } from "@/components
 import { completeEvent, createEvent, deleteEvent, updateEvent } from "@/api/events";
 import { useCrudMutations } from "@/hooks/useCrudMutations";
 import { QUERY_KEYS } from "@/constants/queryKeys";
+import { occurrenceDate } from "@/utils/date";
 import { toast } from "@/utils/toast";
 import type { EventOut, UserOut } from "@/types";
 
@@ -59,7 +60,8 @@ export function useEventActions({
   });
 
   const completeMutation = useMutation({
-    mutationFn: ({ id, completed }: { id: number; completed: boolean }) => completeEvent(id, completed),
+    mutationFn: ({ id, completed, occurrenceDate: date }: { id: number; completed: boolean; occurrenceDate: string }) =>
+      completeEvent(id, completed, date),
     onSuccess: invalidateEvents,
   });
 
@@ -99,7 +101,12 @@ export function useEventActions({
     },
     openEdit: setFormTarget,
     openDelete: setDeleteTarget,
-    toggleComplete: (event) => completeMutation.mutate({ id: event.id, completed: !event.completed_at }),
+    toggleComplete: (event) =>
+      completeMutation.mutate({
+        id: event.id,
+        completed: !event.completed_at,
+        occurrenceDate: occurrenceDate(event.occurrence_start),
+      }),
     renderForm,
     modals,
   };

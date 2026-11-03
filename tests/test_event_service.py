@@ -1,10 +1,14 @@
 from datetime import date, datetime
 from unittest.mock import patch
 
+import pytest
+
 from app.models.event import Event
+from app.models.event_occurrence_completion import EventOccurrenceCompletion
 from app.models.notification_log import NotificationLog
+from app.models.notification_read import NotificationRead
 from app.models.user import User
-from app.services import event_reminder_service, event_service
+from app.services import event_reminder_service, event_service, notification_settings_service
 from app.services.gmail_service import GmailSendError
 
 
@@ -153,10 +157,10 @@ def test_set_completed_toggles_completed_at(seeded_db):
     assert event.completed_at is None
 
     done = event_service.set_completed(db, event.id, completed=True, now=datetime(2026, 7, 15, 12, 0))
-    assert done.completed_at == datetime(2026, 7, 15, 12, 0)
+    assert done["completed_at"] == datetime(2026, 7, 15, 12, 0)
 
     undone = event_service.set_completed(db, event.id, completed=False)
-    assert undone.completed_at is None
+    assert undone["completed_at"] is None
 
     assert event_service.set_completed(db, 999999, completed=True) is None
 
@@ -324,3 +328,181 @@ def test_reminder_scan_horizon_uses_largest_offset(mock_connected, mock_send, se
     assert event_reminder_service.send_due_reminders(db, now=datetime(2026, 7, 15, 9, 0)) == 1
     [log] = _reminder_logs(db)
     assert log.related_id == day_before.id
+
+
+def _change_logs(db):
+    return db.query(NotificationLog).filter_by(notif_type="event_change").all()
+
+
+@patch("app.services.notification_service.is_connected", return_value=False)
+def test_notify_other_spouse_logs_inbox_even_without_gmail(mock_connected, seeded_db):
+    db, user = seeded_db["db"], seeded_db["user"]
+    spouse2 = _spouse2(db)
+    event = event_service.create_event(db, created_by=user.id, title="여행", start_at=datetime(2026, 8, 1, 9, 0))
+
+    event_reminder_service.notify_other_spouse_best_effort(
+        db, event, user.id, "새 일정이 등록되었습니다", now=datetime(2026, 7, 1, 9, 0)
+    )
+
+    log = _change_logs(db)[0]
+    assert log.detail == "새 일정이 등록되었습니다: 여행 (Spouse 1)"
+    assert (log.related_type, log.related_id) == ("event", event.id)
+    assert log.year_month == "2026-07-01T09:00:00"
+    assert db.query(NotificationRead).filter_by(notification_log_id=log.id, user_id=user.id).count() == 1
+    assert db.query(NotificationRead).filter_by(notification_log_id=log.id, user_id=spouse2.id).count() == 0
+
+
+@patch("app.services.notification_service.gmail_service.send_email")
+@patch("app.services.notification_service.is_connected", return_value=True)
+def test_notify_other_spouse_respects_event_reminder_pref(mock_connected, mock_send, seeded_db):
+    db, user = seeded_db["db"], seeded_db["user"]
+    _spouse2(db)
+    notification_settings_service.set_prefs(db, {"event_reminder": False}, user.id)
+    event = event_service.create_event(db, created_by=user.id, title="여행", start_at=datetime(2026, 8, 1, 9, 0))
+
+    event_reminder_service.notify_other_spouse_best_effort(db, event, user.id, "새 일정이 등록되었습니다")
+
+    mock_send.assert_not_called()
+    assert _change_logs(db) == []
+
+
+@patch("app.services.notification_service.gmail_service.send_email")
+@patch("app.services.notification_service.is_connected", return_value=True)
+def test_inbox_failure_rolls_back_and_still_mails(mock_connected, mock_send, seeded_db):
+    db, user = seeded_db["db"], seeded_db["user"]
+    _spouse2(db)
+    event = event_service.create_event(db, created_by=user.id, title="여행", start_at=datetime(2026, 8, 1, 9, 0))
+
+    with patch("app.services.event_reminder_service.NotificationRead", side_effect=RuntimeError("db down")):
+        event_reminder_service.notify_other_spouse_best_effort(db, event, user.id, "새 일정이 등록되었습니다")
+
+    mock_send.assert_called_once()
+    assert _change_logs(db) == []
+    assert db.get(Event, event.id).title == "여행"
+
+
+@patch("app.services.notification_service.gmail_service.send_email")
+@patch("app.services.notification_service.is_connected", return_value=True)
+def test_completed_one_off_event_gets_no_reminder(mock_connected, mock_send, seeded_db):
+    db, user = seeded_db["db"], seeded_db["user"]
+    event = event_service.create_event(
+        db, created_by=user.id, title="병원", start_at=datetime(2026, 7, 15, 10, 0), reminder_minutes_before=60
+    )
+    event_service.set_completed(db, event.id, completed=True, now=datetime(2026, 7, 15, 8, 0))
+
+    assert event_reminder_service.send_due_reminders(db, now=datetime(2026, 7, 15, 9, 30)) == 0
+    mock_send.assert_not_called()
+
+    # 완료를 취소하면 다시 알린다
+    event_service.set_completed(db, event.id, completed=False)
+    assert event_reminder_service.send_due_reminders(db, now=datetime(2026, 7, 15, 9, 30)) == 1
+
+
+# --- 반복 일정 회차별 완료 --------------------------------------------------------------------------
+
+
+def _weekly(seeded_db, **kwargs):
+    return event_service.create_event(
+        seeded_db["db"],
+        created_by=seeded_db["user"].id,
+        title="장보기",
+        start_at=datetime(2026, 7, 1, 9, 0),
+        frequency="weekly",
+        **kwargs,
+    )
+
+
+def _completed_by_date(db):
+    return {
+        item["occurrence_start"].date(): item["completed_at"]
+        for item in event_service.list_events(db, date(2026, 7, 1), date(2026, 7, 31))
+    }
+
+
+def test_completing_one_occurrence_leaves_others_open(seeded_db):
+    db = seeded_db["db"]
+    event = _weekly(seeded_db)
+    at = datetime(2026, 7, 8, 12, 0)
+
+    result = event_service.set_completed(db, event.id, completed=True, occurrence_date=date(2026, 7, 8), now=at)
+
+    assert result["completed_at"] == at
+    assert result["occurrence_start"] == datetime(2026, 7, 8, 9, 0)
+    assert db.get(Event, event.id).completed_at is None
+    assert _completed_by_date(db) == {
+        date(2026, 7, 1): None,
+        date(2026, 7, 8): at,
+        date(2026, 7, 15): None,
+        date(2026, 7, 22): None,
+        date(2026, 7, 29): None,
+    }
+
+
+def test_uncompleting_occurrence_and_repeating_are_idempotent(seeded_db):
+    db = seeded_db["db"]
+    event = _weekly(seeded_db)
+    first = datetime(2026, 7, 8, 12, 0)
+
+    event_service.set_completed(db, event.id, completed=True, occurrence_date=date(2026, 7, 8), now=first)
+    again = event_service.set_completed(
+        db, event.id, completed=True, occurrence_date=date(2026, 7, 8), now=datetime(2026, 7, 9, 12, 0)
+    )
+    assert again["completed_at"] == first  # 먼저 체크한 시각 유지
+
+    undone = event_service.set_completed(db, event.id, completed=False, occurrence_date=date(2026, 7, 8))
+    assert undone["completed_at"] is None
+    assert event_service.set_completed(db, event.id, completed=False, occurrence_date=date(2026, 7, 8))[
+        "completed_at"
+    ] is None
+
+
+@pytest.mark.parametrize("occurrence_date", [None, date(2026, 7, 2), date(2026, 6, 24)])
+def test_recurring_completion_requires_real_occurrence(seeded_db, occurrence_date):
+    event = _weekly(seeded_db)
+
+    with pytest.raises(event_service.EventOccurrenceNotFoundError):
+        event_service.set_completed(seeded_db["db"], event.id, completed=True, occurrence_date=occurrence_date)
+
+
+def test_changing_event_time_keeps_occurrence_completion(seeded_db):
+    db = seeded_db["db"]
+    event = _weekly(seeded_db)
+    at = datetime(2026, 7, 8, 12, 0)
+    event_service.set_completed(db, event.id, completed=True, occurrence_date=date(2026, 7, 8), now=at)
+
+    event_service.update_event(db, event.id, start_at=datetime(2026, 7, 1, 18, 0))
+
+    assert _completed_by_date(db)[date(2026, 7, 8)] == at
+
+
+def test_deleting_event_removes_occurrence_completions(seeded_db):
+    db = seeded_db["db"]
+    event = _weekly(seeded_db)
+    event_service.set_completed(db, event.id, completed=True, occurrence_date=date(2026, 7, 8))
+
+    deleted = event_service.delete_event(db, event.id)
+
+    assert deleted.title == "장보기"
+    assert db.query(EventOccurrenceCompletion).count() == 0
+
+
+def test_list_events_loads_completions_without_n_plus_one(seeded_db, count_selects):
+    db = seeded_db["db"]
+    for _ in range(3):
+        _weekly(seeded_db)
+    db.expire_all()
+
+    with count_selects() as n:
+        event_service.list_events(db, date(2026, 7, 1), date(2026, 7, 31))
+    assert n[0] <= 2
+
+
+@patch("app.services.notification_service.gmail_service.send_email")
+@patch("app.services.notification_service.is_connected", return_value=True)
+def test_completed_occurrence_gets_no_reminder_but_next_does(mock_connected, mock_send, seeded_db):
+    db = seeded_db["db"]
+    event = _weekly(seeded_db, reminder_minutes_before=60)
+    event_service.set_completed(db, event.id, completed=True, occurrence_date=date(2026, 7, 8))
+
+    assert event_reminder_service.send_due_reminders(db, now=datetime(2026, 7, 8, 8, 30)) == 0
+    assert event_reminder_service.send_due_reminders(db, now=datetime(2026, 7, 15, 8, 30)) == 1

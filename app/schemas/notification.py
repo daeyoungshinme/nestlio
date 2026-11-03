@@ -15,9 +15,11 @@ NotifType = Literal[
     "goal_milestone",
     "challenge_success",
     "event_reminder",
+    "event_change",
     "goal_cheer",
     "savings_pace_reminder",
     "partner_saving",
+    "todo",
     "google_reauth",
     "other",
 ]

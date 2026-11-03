@@ -27,6 +27,7 @@ class EventOut(BaseModel):
     creator: UserOut
     # 담당자 - None이면 공동(두 사람 모두 담당)
     assignee: UserOut | None = None
+    # 반복 일정은 occurrence_start 회차의 완료 시각
     completed_at: datetime | None = None
     # 반복 일정에서 이번 조회 범위에 해당하는 실제 발생 시각(단일 일정은 start_at과 동일)
     occurrence_start: datetime
@@ -58,3 +59,5 @@ class EventUpdateIn(EventCreateIn):
 
 class EventCompleteIn(BaseModel):
     completed: bool
+    # 반복 일정은 어느 회차인지 필수. 단건 일정은 무시한다.
+    occurrence_date: date | None = None
