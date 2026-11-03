@@ -30,6 +30,11 @@ const NOTIF_PREF_FIELDS: { key: keyof NotificationPrefsOut; label: string; hint:
     label: "배우자 저축 소식",
     hint: "한 사람이 저축·투자 내역을 기록하면 알림함에 알려줘요 — 바로 응원 반응을 남길 수 있어요",
   },
+  {
+    key: "todo",
+    label: "부부 할일",
+    hint: "배우자가 할일을 맡기면 알림함과 이메일로, 완료하거나 삭제하면 알림함으로 알려줘요",
+  },
 ];
 
 interface Props {
