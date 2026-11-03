@@ -3563,7 +3563,7 @@ export interface components {
              * Notif Type
              * @enum {string}
              */
-            notif_type: "email_weekly" | "email_monthly" | "threshold_alert" | "goal_milestone" | "challenge_success" | "event_reminder" | "goal_cheer" | "savings_pace_reminder" | "partner_saving" | "todo" | "google_reauth" | "other";
+            notif_type: "email_weekly" | "email_monthly" | "threshold_alert" | "goal_milestone" | "challenge_success" | "event_reminder" | "event_change" | "goal_cheer" | "savings_pace_reminder" | "partner_saving" | "todo" | "google_reauth" | "other";
             /** Related Type */
             related_type: string | null;
             /** Related Id */

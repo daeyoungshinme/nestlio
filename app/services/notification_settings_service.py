@@ -18,7 +18,7 @@ from app.models.user import User
 from app.services import user_setting_service
 
 # 설정 화면에서 켜고 끌 수 있는 알림 종류. 사용자가 직접 누르는 발송(테스트 메일·초대장)과 목표 응원은
-# 토글 대상이 아니다.
+# 토글 대상이 아니다. 일정 변경 알림(event_change)은 event_reminder 토글을 함께 쓴다.
 NOTIF_TYPES = (
     "email_weekly",
     "email_monthly",
