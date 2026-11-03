@@ -3,7 +3,7 @@ import uuid
 from datetime import datetime, timedelta
 
 from sqlalchemy import and_, func, or_
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 
 from app.models.event import Event
 from app.models.notification_log import NotificationLog
@@ -65,6 +65,7 @@ def _candidate_events(db: Session, now: datetime, window_minutes: int) -> list[E
     horizon = now + timedelta(minutes=max_lead + window_minutes)
     return (
         db.query(Event)
+        .options(selectinload(Event.occurrence_completions))
         .filter(
             Event.reminder_minutes_before.isnot(None),
             Event.start_at <= horizon,
@@ -102,8 +103,12 @@ def _due_occurrences(event: Event, now: datetime, window_minutes: int) -> list[d
     for occurrence in event_service.occurrences_in_range(event, range_start, range_end):
         reminder_at = occurrence - lead
         # 리마인더 시각이 도래했고(윈도우 안에 들어왔고) 일정 자체는 아직 미래면 발송 대상.
-        # 지난 틱이 밀려서 reminder_at이 now보다 과거여도 잡는다 — 중복은 dedup이 막는다.
-        if reminder_at <= now + timedelta(minutes=window_minutes) and now < occurrence:
+        # 지난 틱이 밀려서 reminder_at이 now보다 과거여도 잡는다 — 중복은 dedup이 막는다. 이미 완료한 회차는 뺀다.
+        if (
+            reminder_at <= now + timedelta(minutes=window_minutes)
+            and now < occurrence
+            and event_service.occurrence_completed_at(event, occurrence) is None
+        ):
             due.append(occurrence)
     return due
 

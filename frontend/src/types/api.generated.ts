@@ -2515,6 +2515,8 @@ export interface components {
         EventCompleteIn: {
             /** Completed */
             completed: boolean;
+            /** Occurrence Date */
+            occurrence_date?: string | null;
         };
         /** EventCreateIn */
         EventCreateIn: {
