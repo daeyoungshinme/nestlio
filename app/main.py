@@ -23,6 +23,7 @@ from app.routers import (
     reports,
     savings_products,
     settings,
+    todos,
     transactions,
     users,
 )
@@ -37,6 +38,7 @@ API_ROUTERS = (
     transactions.router,
     recurring.router,
     events.router,
+    todos.router,
     accounts.router,
     cards.router,
     reports.router,

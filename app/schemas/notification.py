@@ -18,6 +18,7 @@ NotifType = Literal[
     "goal_cheer",
     "savings_pace_reminder",
     "partner_saving",
+    "todo",
     "google_reauth",
     "other",
 ]

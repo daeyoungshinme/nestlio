@@ -35,7 +35,7 @@
 ## 알림 dedup
 
 - 같은 알림의 중복 발송은 `NotificationLog`(`notif_type` + 기간 키) 기록으로 막는다. 헬퍼(`already_sent`/`log_sent`, 목표 마일스톤용 `highest_crossed_milestone`/`milestone_already_logged`/`log_milestone`)는 다른 서비스를 import하지 않는 말단 모듈 `notification_log_service.py`에 있다(`notification_service`를 import하면 순환이 되는 모듈도 쓸 수 있게). 새 알림 종류도 이 패턴을 따른다.
-- dedup이 없는 "사건" 알림(`goal_cheer`, `partner_saving`)은 `year_month`에 초 단위 ISO 시각을 넣고(String(20)), 행동한 본인에게는 `NotificationRead`로 바로 읽음 처리한다. `partner_saving`은 사용자가 직접 입력한 저축 거래(`POST /transactions`)에서만 남긴다 — 반복거래 자동 생성·CSV 가져오기는 알림함을 덮으므로 제외.
+- dedup이 없는 "사건" 알림(`goal_cheer`, `partner_saving`, `todo`)은 `year_month`에 초 단위 ISO 시각을 넣고(String(20)), 행동한 본인에게는 `NotificationRead`로 바로 읽음 처리한다. `partner_saving`은 사용자가 직접 입력한 저축 거래(`POST /transactions`)에서만 남긴다 — 반복거래 자동 생성·CSV 가져오기는 알림함을 덮으므로 제외.
 
 ## 모듈 분할 지도
 
@@ -45,6 +45,7 @@
 |---|---|---|
 | 거래 | `transaction_service`(CRUD, 저축상품 연결 검증, 결제카드 → 계좌·결제수단 `_apply_card`, growlio push) · `card_service`(결제카드 CRUD, 지난 거래에 결제계좌 채우기 `apply_to_unlinked`) · `transaction_report_service`(한 기간 집계·`period_snapshot`, 공용 쿼리 조각) · `transaction_trend_service`(여러 달 시계열·평균, 범위 1회 조회 후 달별 버킷팅) · `transaction_import_service`(CSV import·export) | 아래 "누가 기록했나 vs 누가 썼나" 참고 |
 | 일정 | `event_service`(CRUD, 반복 전개 `occurrences_in_range`) · `event_reminder_service`(리마인더, 배우자 알림) | `event_service`는 알림을 모른다 — 생성·수정·삭제 뒤 배우자 알림은 라우터가 `notify_other_spouse_best_effort`로 부른다 |
+| 할일 | `todo_service`(CRUD, 완료 토글, 반복 다음 회차 생성) · `todo_notification_service`(알림함·메일) | `todo_service`는 알림을 모른다 — 일정과 같이 라우터가 부른다. 반복은 회차마다 행이 하나(`previous_todo_id`로 연결)이고, 완료 전환은 조건부 UPDATE라 동시 체크에도 다음 회차가 하나만 생긴다 |
 | 저축상품 | `savings_product_service`(CRUD, `list_products`, `get_emergency_fund_balance`) · `savings_product_plan_service`(연간계획·실적, `PLAN_PRODUCT_TYPES`) · `savings_product_growlio_service`(growlio 동기화) | 상품 목록은 항상 `list_products(db)` 재사용 |
 | 목표 | `goal_service`(CRUD, 챌린지 상태 동기화, 자금원 연동, growlio 조회) · `goal_progress_service`(진행률·ETA·`to_out`, 커밋 없음. 목표 여러 개는 `list_out`/`current_amounts`로 — 목표마다 `to_out`/`compute_current_amount`를 돌리면 N+1) | `goal_service` → `goal_progress_service` 단방향 |
 | 알림 | `notification_service`(발송·판정) · `notification_inbox_service`(목록·읽음·반응·목표 응원) · `notification_log_service`(dedup) | 앞 둘은 서로 import하지 않음 |

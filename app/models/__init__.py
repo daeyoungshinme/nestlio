@@ -21,6 +21,7 @@ from app.models.recurring_expense import RecurringExpense
 from app.models.savings_product import SavingsProduct
 from app.models.savings_product_annual_plan import SavingsProductAnnualPlan
 from app.models.savings_product_annual_plan_monthly_target import SavingsProductAnnualPlanMonthlyTarget
+from app.models.todo import Todo
 from app.models.transaction import Transaction
 from app.models.user import User
 from app.models.user_setting import UserSetting
@@ -49,6 +50,7 @@ __all__ = [
     "SavingsProduct",
     "SavingsProductAnnualPlan",
     "SavingsProductAnnualPlanMonthlyTarget",
+    "Todo",
     "Transaction",
     "User",
     "UserSetting",

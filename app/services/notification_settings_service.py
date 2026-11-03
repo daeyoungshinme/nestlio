@@ -28,6 +28,7 @@ NOTIF_TYPES = (
     "event_reminder",
     "savings_pace_reminder",
     "partner_saving",
+    "todo",
 )
 
 NOTIFY_RECIPIENT_EMAILS_KEY = "notify_recipient_emails"
@@ -70,6 +71,12 @@ def get_recipients(db: Session) -> list[str]:
     if saved is not None:
         return json.loads(saved)
     return _default_recipients(db)
+
+
+def recipients_excluding(db: Session, actor_id: uuid.UUID) -> list[str]:
+    """설정된 수신자 중 행위자 본인을 뺀 목록 — 자기 자신에게 "방금 내가 한 행동" 메일을 보낼 필요는 없다."""
+    actor = db.get(User, actor_id)
+    return [email for email in get_recipients(db) if actor is None or email != actor.email]
 
 
 def set_recipients(db: Session, emails: list[str], updated_by: uuid.UUID) -> list[str]:
