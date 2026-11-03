@@ -134,3 +134,37 @@ def test_event_crud_notifies_other_spouse(mock_connected, mock_send, client, see
     subjects = [c.args[0] for c in mock_send.call_args_list]
     assert subjects == ["[Nestlio] 새 일정이 등록되었습니다: 여행", "[Nestlio] 일정이 삭제되었습니다: 여행"]
     assert all(c.kwargs["to"] == [spouse2.email] for c in mock_send.call_args_list)
+
+
+def test_complete_recurring_occurrence_via_api(client):
+    event_id = client.post(
+        "/api/v1/events", json={"title": "장보기", "start_at": "2026-07-01T09:00:00", "frequency": "weekly"}
+    ).json()["id"]
+
+    resp = client.patch(
+        f"/api/v1/events/{event_id}/complete", json={"completed": True, "occurrence_date": "2026-07-08"}
+    )
+    assert resp.status_code == 200
+    assert resp.json()["occurrence_start"] == "2026-07-08T09:00:00"
+    assert resp.json()["completed_at"] is not None
+
+    items = client.get("/api/v1/events", params={"date_from": "2026-07-01", "date_to": "2026-07-15"}).json()["items"]
+    assert [(i["occurrence_start"][:10], i["completed_at"] is not None) for i in items] == [
+        ("2026-07-01", False),
+        ("2026-07-08", True),
+        ("2026-07-15", False),
+    ]
+
+
+def test_complete_recurring_without_valid_occurrence_returns_400(client):
+    event_id = client.post(
+        "/api/v1/events", json={"title": "장보기", "start_at": "2026-07-01T09:00:00", "frequency": "weekly"}
+    ).json()["id"]
+
+    assert client.patch(f"/api/v1/events/{event_id}/complete", json={"completed": True}).status_code == 400
+    assert (
+        client.patch(
+            f"/api/v1/events/{event_id}/complete", json={"completed": True, "occurrence_date": "2026-07-02"}
+        ).status_code
+        == 400
+    )
