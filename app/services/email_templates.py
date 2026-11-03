@@ -368,6 +368,17 @@ def invite_message(accept_url: str, expiry_days: int) -> tuple[str, str]:
     return "[Nestlio] 배우자 초대", body
 
 
+def todo_summary_text(todo, header: str) -> str:
+    """배우자 할일 알림 본문. header는 "새 할일이 등록되었습니다" 같은 행위 문구."""
+    lines = [header, todo.title, f"담당: {todo.assignee.display_name if todo.assignee else '공동'}"]
+    if todo.due_date:
+        lines.append(f"기한: {todo.due_date.isoformat()}")
+    if todo.memo:
+        lines.append("")
+        lines.append(todo.memo)
+    return "\n".join(lines)
+
+
 def event_summary_text(event, when: datetime, header: str | None = None) -> str:
     """일정 리마인더·배우자 일정 알림 본문. header는 "새 일정이 등록되었습니다" 같은 행위 문구."""
     lines = [header] if header else []

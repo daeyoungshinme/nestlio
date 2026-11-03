@@ -7,7 +7,6 @@ from sqlalchemy.orm import Session
 
 from app.models.event import Event
 from app.models.notification_log import NotificationLog
-from app.models.user import User
 from app.services import (
     email_templates,
     event_service,
@@ -125,10 +124,7 @@ def notify_other_spouse_best_effort(db: Session, event: Event, actor_id: uuid.UU
     자기 자신에게 "방금 내가 한 행동" 메일을 보낼 필요는 없다(다른 알림과 달리 이 경로만 행위자를 배제).
     메일 전용이라 인앱 알림은 남기지 않고, 실패해도 일정은 이미 저장됐으니 로그만 남긴다."""
     try:
-        actor = db.get(User, actor_id)
-        recipients = [
-            email for email in notification_settings_service.get_recipients(db) if actor is None or email != actor.email
-        ]
+        recipients = notification_settings_service.recipients_excluding(db, actor_id)
         body = email_templates.event_summary_text(event, event.start_at, header=action_label)
         notification_service.send_email_best_effort(
             db, f"[Nestlio] {action_label}: {event.title}", body, to=recipients

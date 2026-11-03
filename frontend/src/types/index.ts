@@ -474,6 +474,7 @@ export interface NotificationPrefsOut {
   event_reminder: boolean;
   savings_pace_reminder: boolean;
   partner_saving: boolean;
+  todo: boolean;
 }
 
 export type NotificationPrefsIn = NotificationPrefsOut;
@@ -626,6 +627,7 @@ export type NotifType =
   | "goal_cheer"
   | "savings_pace_reminder"
   | "partner_saving"
+  | "todo"
   | "google_reauth"
   | "other";
 
