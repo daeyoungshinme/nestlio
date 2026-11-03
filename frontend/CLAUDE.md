@@ -56,7 +56,7 @@ npm run generate:icons      # public/favicon.svg → PNG/ICO
 
 - Import는 `@/` alias(`@/* → src/*`).
 - 데이터 흐름: `api/client.ts`(axios + JWT 인터셉터) → `api/<리소스>.ts`(백엔드 라우터와 대체로 1:1) → 컴포넌트의 `useQuery`/`useMutation`. 여러 화면이 공유하는 것만 `hooks/`로 감싼다(`useCrudMutations`, `useRecurringMutations`, `useInvalidateTransactionRelated`, `useEventActions` 등). Zustand(`stores/authStore`, `themeStore`)는 서버 캐시와 무관한 클라이언트 상태만.
-- 컴포넌트: 페이지별 디렉토리(`home/`, `dashboard/`, `transactions/`, `plan/`, `financialPlan/`, `accounts/`, `categories/`, `settings/`, `schedule/`, `review/`)는 대체로 그 페이지 전용이다. 공용은 `common/`(growlio에서 옮긴 `Button`/`Modal`/`ConfirmModal`/`Tabs`/`FormInput`/`EmptyState` 등 + `CategoryPicker`, `GrowlioImportModal`, `QuickAddFab`, `MonthPicker`, `CollapsibleGroup`, `StatusBadge`), 셸은 `layout/`(`AppLayout`/`Sidebar`/`Header`/`BottomNav`). 최상위 `ErrorBoundary`·`Toaster`(`nestlio:toast` 이벤트).
+- 컴포넌트: 페이지별 디렉토리(`home/`, `dashboard/`, `transactions/`, `plan/`, `financialPlan/`, `accounts/`, `categories/`, `settings/`, `schedule/`, `review/`, `todos/`)는 대체로 그 페이지 전용이다. 공용은 `common/`(growlio에서 옮긴 `Button`/`Modal`/`ConfirmModal`/`Tabs`/`FormInput`/`EmptyState` 등 + `CategoryPicker`, `GrowlioImportModal`, `QuickAddFab`, `MonthPicker`, `CollapsibleGroup`, `StatusBadge`), 셸은 `layout/`(`AppLayout`/`Sidebar`/`Header`/`BottomNav`). 최상위 `ErrorBoundary`·`Toaster`(`nestlio:toast` 이벤트).
 
 ### 인증
 
@@ -70,7 +70,7 @@ npm run generate:icons      # public/favicon.svg → PNG/ICO
 
 | 경로 | 페이지 | 메모 |
 |---|---|---|
-| `/` | `DashboardPage` | 항상 이번 달 기준: (월초 1~7일) `MonthlyRetrospectiveCard` → `HomeGoalHero`(대표 목표 — 순자산 목표가 있으면 그것, 함께 모은 돈·저축 리더·응원 보내기, 카드·응원 모두 목표 상세로, 스파크라인은 sm 이상만) → `MonthFlowCard`(계획 대비 미니 막대 + `InvestSurplusCard embedded`) → `CoachingInsights`(상위 2개, 위 카드와 겹치는 `budget_overrun`·`savings_execution`은 숨김) → `SavingsReviewLinkCard` → `TodayScheduleCard`. 배우자 응원은 `utils/cheers.ts::latestPartnerCheer` |
+| `/` | `DashboardPage` | 항상 이번 달 기준: (월초 1~7일) `MonthlyRetrospectiveCard` → `HomeGoalHero`(대표 목표 — 순자산 목표가 있으면 그것, 함께 모은 돈·저축 리더·응원 보내기, 카드·응원 모두 목표 상세로, 스파크라인은 sm 이상만) → `MonthFlowCard`(계획 대비 미니 막대 + `InvestSurplusCard embedded`) → `CoachingInsights`(상위 2개, 위 카드와 겹치는 `budget_overrun`·`savings_execution`은 숨김) → `SavingsReviewLinkCard` → `TodayScheduleCard` → `TodoCard`. 배우자 응원은 `utils/cheers.ts::latestPartnerCheer` |
 | `/transactions` | 가계부 | 월간 캘린더 + `[내역 \| 일정]` 세그먼트(`?view=`). 날짜 클릭 → `LedgerDayModal`(거래·일정 함께). 일정 CRUD는 `hooks/useEventActions.tsx`. 반복 거래 관리는 `RecurringManageSheet`. `?date=YYYY-MM-DD`로 모달 열기 |
 | `/transactions/import` | 거래 데이터 | CSV 내보내기·가져오기. 진입은 설정 › 고급뿐 |
 | `/categories` | 카테고리 관리 | 메뉴에 없음 — 설정 › 고급·계획 섹션의 "카테고리" 버튼에서만 진입 |
@@ -78,6 +78,7 @@ npm run generate:icons      # public/favicon.svg → PNG/ICO
 | `/plan` | `PlanPage` | `[이번 달 \| 연간]`(`?view=`). 아래 "계획 화면" 참고 |
 | `/goals`, `/goals/:id` | `GoalsPage`(→ `financialPlan/GoalsTab`), `GoalDetailPage` | 재무목표·챌린지·순자산 목표. 상세에 응원·시나리오·growlio 인사이트. 순자산 목표는 가구당 하나, 목록·홈 Hero에서 항상 맨 앞(`pinNetWorthFirst`) |
 | `/review` | `SavingsReviewPage` | 절감 점검 `[소비 \| 보험]`(`?tab=`). 주 메뉴에 없음 — 홈·계획 "실적 분석"의 `SavingsReviewLinkCard`로 진입. 컴포넌트는 `components/review/`(보험 계약 폼 `InsurancePolicyFormModal` + 순수 변환 `insurancePolicyDraft.ts`, 특약 `RiderListEditor`, 보장 현황 `CoverageStatusTable`·적정 기준 `InsuranceTargetsModal`). 쿼리 키 `savingsReview`는 `dashboardAll` 하위라 거래·계획·반복·카테고리·이름·임계값 변경에 자동 갱신되고, 보험 계약·적정 기준 저장만 `savingsReviewAll`을 직접 무효화한다 |
+| `/todos` | `TodosPage` | 부부 할일 `[진행 중 \| 완료]`(`?tab=`) + 담당 필터(공동은 나·배우자 양쪽에). 주 메뉴에 없음 — 홈 `TodoCard`로 진입. CRUD·완료는 `hooks/useTodoActions.tsx`, 표시 규칙은 `utils/todos.ts`. 반복 할일은 회차마다 항목이 하나이고 완료하면 다음 회차가 새 항목으로 생긴다 |
 | `/settings` | 설정 | 헤더 톱니 아이콘으로 진입. 순서: 계정(다크모드 스위치) → 가구·초대 → 알림(Gmail 연결 상태 배지 포함) → 부부 사진 → 고급(카테고리·거래 데이터 링크, 코칭 민감도) → 로그아웃. 켜고 끄는 항목은 `settings/shared.tsx`의 `ToggleRow` |
 
 레거시 리다이렉트(지우지 않는다 — 외부 링크·메일 딥링크): `/calendar`·`/budgets`·`/recurring` → `/transactions`, `/schedule` → `/transactions?view=일정`(`LegacyScheduleRedirect`), `/financial-plan`(구 `?tab=`/`?view=` 포함) → `/goals` 또는 `/plan?view=`(`LegacyFinancialPlanRedirect`), `/reports/yearly` → `/plan?view=연간&section=분석`, `/transactions/:id/edit` → `/transactions`.

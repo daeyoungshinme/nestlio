@@ -27,6 +27,7 @@ const GoalDetailPage = lazy(() => import("./pages/GoalDetailPage"));
 const LegacyFinancialPlanRedirect = lazy(() => import("./pages/LegacyFinancialPlanRedirect"));
 const SettingsPage = lazy(() => import("./pages/SettingsPage"));
 const SavingsReviewPage = lazy(() => import("./pages/SavingsReviewPage"));
+const TodosPage = lazy(() => import("./pages/TodosPage"));
 
 function PrivateRoute({ children }: { children: React.ReactNode }) {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
@@ -80,6 +81,7 @@ function AppRoutes() {
         <Route path="financial-plan" element={<LazyRoute Component={LegacyFinancialPlanRedirect} />} />
         <Route path="settings" element={<LazyRoute Component={SettingsPage} />} />
         <Route path="review" element={<LazyRoute Component={SavingsReviewPage} />} />
+        <Route path="todos" element={<LazyRoute Component={TodosPage} />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Route>
       <Route path="*" element={<Navigate to={ROUTES.login} replace />} />

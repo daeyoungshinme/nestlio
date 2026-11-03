@@ -25,6 +25,7 @@ describe("query key groups", () => {
         QUERY_KEYS.users,
         QUERY_KEYS.transactionsAll,
         QUERY_KEYS.eventsAll,
+        QUERY_KEYS.todosAll,
         QUERY_KEYS.monthlyRetrospective,
         QUERY_KEYS.dashboardBootstrap,
       ]),
