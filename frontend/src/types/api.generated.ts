@@ -419,6 +419,59 @@ export interface paths {
         patch: operations["complete_event_api_v1_events__event_id__complete_patch"];
         trace?: never;
     };
+    "/api/v1/todos": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Todos */
+        get: operations["list_todos_api_v1_todos_get"];
+        put?: never;
+        /** Create Todo */
+        post: operations["create_todo_api_v1_todos_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/todos/{todo_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Update Todo */
+        put: operations["update_todo_api_v1_todos__todo_id__put"];
+        post?: never;
+        /** Delete Todo */
+        delete: operations["delete_todo_api_v1_todos__todo_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/todos/{todo_id}/complete": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Complete Todo */
+        patch: operations["complete_todo_api_v1_todos__todo_id__complete_patch"];
+        trace?: never;
+    };
     "/api/v1/accounts": {
         parameters: {
             query?: never;
@@ -2462,6 +2515,8 @@ export interface components {
         EventCompleteIn: {
             /** Completed */
             completed: boolean;
+            /** Occurrence Date */
+            occurrence_date?: string | null;
         };
         /** EventCreateIn */
         EventCreateIn: {
@@ -3510,7 +3565,7 @@ export interface components {
              * Notif Type
              * @enum {string}
              */
-            notif_type: "email_weekly" | "email_monthly" | "threshold_alert" | "goal_milestone" | "challenge_success" | "event_reminder" | "goal_cheer" | "savings_pace_reminder" | "partner_saving" | "google_reauth" | "other";
+            notif_type: "email_weekly" | "email_monthly" | "threshold_alert" | "goal_milestone" | "challenge_success" | "event_reminder" | "event_change" | "goal_cheer" | "savings_pace_reminder" | "partner_saving" | "todo" | "google_reauth" | "other";
             /** Related Type */
             related_type: string | null;
             /** Related Id */
@@ -3556,6 +3611,11 @@ export interface components {
              * @default true
              */
             partner_saving: boolean;
+            /**
+             * Todo
+             * @default true
+             */
+            todo: boolean;
         };
         /** NotificationPrefsOut */
         NotificationPrefsOut: {
@@ -3581,6 +3641,11 @@ export interface components {
              * @default true
              */
             partner_saving: boolean;
+            /**
+             * Todo
+             * @default true
+             */
+            todo: boolean;
         };
         /** NotificationReactionIn */
         NotificationReactionIn: {
@@ -4076,6 +4141,71 @@ export interface components {
             sent: boolean;
             /** Message */
             message: string;
+        };
+        /** TodoCompleteIn */
+        TodoCompleteIn: {
+            /** Completed */
+            completed: boolean;
+        };
+        /** TodoCreateIn */
+        TodoCreateIn: {
+            /** Title */
+            title: string;
+            /** Memo */
+            memo?: string | null;
+            /** Due Date */
+            due_date?: string | null;
+            /**
+             * Frequency
+             * @default once
+             * @enum {string}
+             */
+            frequency: "once" | "weekly" | "monthly" | "yearly";
+            /** Assignee Id */
+            assignee_id?: string | null;
+        };
+        /** TodoOut */
+        TodoOut: {
+            /** Id */
+            id: number;
+            /** Title */
+            title: string;
+            /** Memo */
+            memo?: string | null;
+            /** Due Date */
+            due_date?: string | null;
+            /**
+             * Frequency
+             * @enum {string}
+             */
+            frequency: "once" | "weekly" | "monthly" | "yearly";
+            creator: components["schemas"]["UserOut"];
+            assignee?: components["schemas"]["UserOut"] | null;
+            /** Completed At */
+            completed_at?: string | null;
+            completer?: components["schemas"]["UserOut"] | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+        };
+        /** TodoUpdateIn */
+        TodoUpdateIn: {
+            /** Title */
+            title: string;
+            /** Memo */
+            memo?: string | null;
+            /** Due Date */
+            due_date?: string | null;
+            /**
+             * Frequency
+             * @default once
+             * @enum {string}
+             */
+            frequency: "once" | "weekly" | "monthly" | "yearly";
+            /** Assignee Id */
+            assignee_id?: string | null;
         };
         /** TopRiderOut */
         TopRiderOut: {
@@ -5346,6 +5476,179 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["EventOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_todos_api_v1_todos_get: {
+        parameters: {
+            query?: {
+                status?: "open" | "done";
+            };
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TodoOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_todo_api_v1_todos_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TodoCreateIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TodoOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_todo_api_v1_todos__todo_id__put: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                todo_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TodoUpdateIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TodoOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_todo_api_v1_todos__todo_id__delete: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                todo_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    complete_todo_api_v1_todos__todo_id__complete_patch: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                todo_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TodoCompleteIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TodoOut"];
                 };
             };
             /** @description Validation Error */

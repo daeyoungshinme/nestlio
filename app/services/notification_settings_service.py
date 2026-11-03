@@ -18,7 +18,7 @@ from app.models.user import User
 from app.services import user_setting_service
 
 # 설정 화면에서 켜고 끌 수 있는 알림 종류. 사용자가 직접 누르는 발송(테스트 메일·초대장)과 목표 응원은
-# 토글 대상이 아니다.
+# 토글 대상이 아니다. 일정 변경 알림(event_change)은 event_reminder 토글을 함께 쓴다.
 NOTIF_TYPES = (
     "email_weekly",
     "email_monthly",
@@ -28,6 +28,7 @@ NOTIF_TYPES = (
     "event_reminder",
     "savings_pace_reminder",
     "partner_saving",
+    "todo",
 )
 
 NOTIFY_RECIPIENT_EMAILS_KEY = "notify_recipient_emails"
@@ -70,6 +71,12 @@ def get_recipients(db: Session) -> list[str]:
     if saved is not None:
         return json.loads(saved)
     return _default_recipients(db)
+
+
+def recipients_excluding(db: Session, actor_id: uuid.UUID) -> list[str]:
+    """설정된 수신자 중 행위자 본인을 뺀 목록 — 자기 자신에게 "방금 내가 한 행동" 메일을 보낼 필요는 없다."""
+    actor = db.get(User, actor_id)
+    return [email for email in get_recipients(db) if actor is None or email != actor.email]
 
 
 def set_recipients(db: Session, emails: list[str], updated_by: uuid.UUID) -> list[str]:

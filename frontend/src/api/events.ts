@@ -11,5 +11,6 @@ export const updateEvent = (id: number, payload: EventUpdateIn) =>
 
 export const deleteEvent = (id: number) => apiDelete(`/events/${id}`);
 
-export const completeEvent = (id: number, completed: boolean) =>
-  apiPatch<EventOut>(`/events/${id}/complete`, { completed });
+/** occurrenceDate: 반복 일정에서 완료할 회차의 날짜(단건은 백엔드가 무시한다). */
+export const completeEvent = (id: number, completed: boolean, occurrenceDate: string) =>
+  apiPatch<EventOut>(`/events/${id}/complete`, { completed, occurrence_date: occurrenceDate });

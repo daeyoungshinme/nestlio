@@ -4,6 +4,7 @@ from app.models.annual_plan_item_monthly_target import AnnualPlanItemMonthlyTarg
 from app.models.card import Card
 from app.models.category import Category
 from app.models.event import Event
+from app.models.event_occurrence_completion import EventOccurrenceCompletion
 from app.models.financial_goal import FinancialGoal
 from app.models.goal_funding_source import GoalFundingSource
 from app.models.goal_monthly_target import GoalMonthlyTarget
@@ -21,6 +22,7 @@ from app.models.recurring_expense import RecurringExpense
 from app.models.savings_product import SavingsProduct
 from app.models.savings_product_annual_plan import SavingsProductAnnualPlan
 from app.models.savings_product_annual_plan_monthly_target import SavingsProductAnnualPlanMonthlyTarget
+from app.models.todo import Todo
 from app.models.transaction import Transaction
 from app.models.user import User
 from app.models.user_setting import UserSetting
@@ -32,6 +34,7 @@ __all__ = [
     "Card",
     "Category",
     "Event",
+    "EventOccurrenceCompletion",
     "FinancialGoal",
     "GoalFundingSource",
     "GoalMonthlyTarget",
@@ -49,6 +52,7 @@ __all__ = [
     "SavingsProduct",
     "SavingsProductAnnualPlan",
     "SavingsProductAnnualPlanMonthlyTarget",
+    "Todo",
     "Transaction",
     "User",
     "UserSetting",

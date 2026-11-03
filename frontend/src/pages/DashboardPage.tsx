@@ -6,6 +6,7 @@ import HomeGoalHero from "@/components/home/HomeGoalHero";
 import MonthFlowCard from "@/components/home/MonthFlowCard";
 import MonthlyRetrospectiveCard from "@/components/dashboard/MonthlyRetrospectiveCard";
 import TodayScheduleCard from "@/components/dashboard/TodayScheduleCard";
+import TodoCard from "@/components/dashboard/TodoCard";
 import InvestSurplusCard from "@/components/dashboard/InvestSurplusCard";
 import SkeletonCard from "@/components/common/SkeletonCard";
 import ErrorState from "@/components/common/ErrorState";
@@ -165,6 +166,8 @@ export default function DashboardPage() {
       <SavingsReviewLinkCard />
 
       <TodayScheduleCard day={today} users={users} />
+
+      <TodoCard day={today} users={users} />
 
       <QuickAddFab onClick={() => setShowQuickAdd(true)} />
 

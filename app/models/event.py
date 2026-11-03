@@ -6,6 +6,7 @@ from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
+from app.models.event_occurrence_completion import EventOccurrenceCompletion
 from app.models.user import User
 from app.utils.dates import now_kst
 
@@ -30,7 +31,8 @@ class Event(Base):
         ForeignKey("users.id", name="fk_events_assignee_id_users"),
         nullable=True,
     )
-    # "nullable timestamp = 상태 마커" 패턴 - 채워지면 완료.
+    # "nullable timestamp = 상태 마커" 패턴 - 채워지면 완료. 단건 일정 전용이고, 반복 일정은 회차별로
+    # occurrence_completions에 기록한다.
     completed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True, default=None)
     created_by: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"))
     created_at: Mapped[datetime] = mapped_column(DateTime, default=now_kst, server_default=func.now())
@@ -39,3 +41,6 @@ class Event(Base):
     # 추론하지 못한다 - 두 관계 모두 foreign_keys를 명시해야 한다.
     creator: Mapped["User"] = relationship(foreign_keys=[created_by], lazy="joined")
     assignee: Mapped["User | None"] = relationship(foreign_keys=[assignee_id], lazy="joined")
+    occurrence_completions: Mapped[list["EventOccurrenceCompletion"]] = relationship(
+        cascade="all, delete-orphan", passive_deletes=True
+    )

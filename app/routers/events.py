@@ -93,10 +93,12 @@ def complete_event(
     db: Session = Depends(get_db),
     _: User = Depends(get_current_user),
 ):
-    event = event_service.set_completed(db, event_id, completed=payload.completed)
-    if event is None:
+    result = event_service.set_completed(
+        db, event_id, completed=payload.completed, occurrence_date=payload.occurrence_date
+    )
+    if result is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="일정을 찾을 수 없습니다.")
-    return event_service.to_out_dict(event)
+    return result
 
 
 @router.delete("/{event_id}", status_code=status.HTTP_204_NO_CONTENT)
