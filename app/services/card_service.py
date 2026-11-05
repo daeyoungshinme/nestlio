@@ -8,6 +8,7 @@ from app.errors import InvalidInputError
 from app.models.account import Account
 from app.models.card import Card
 from app.models.transaction import Transaction
+from app.services import user_service
 
 # 카드 종류 → 거래의 payment_method(app/schemas/transaction.py PaymentMethod)
 PAYMENT_METHOD_BY_CARD_TYPE = {"credit": "credit_card", "debit": "debit_card"}
@@ -19,6 +20,15 @@ class InvalidCardAccountError(InvalidInputError):
 
 class CardNotFoundError(InvalidInputError):
     pass
+
+
+class InvalidCardOwnerError(InvalidInputError):
+    pass
+
+
+def _validate_owner(db: Session, owner_user_id: uuid.UUID | None) -> None:
+    if owner_user_id is not None and user_service.get_active_user(db, owner_user_id) is None:
+        raise InvalidCardOwnerError("소유자를 찾을 수 없습니다.")
 
 
 def list_cards(db: Session, active_only: bool = True) -> list[Card]:
@@ -55,6 +65,7 @@ def create_card(
     owner_user_id: uuid.UUID | None = None,
 ) -> Card:
     _validate_payment_account(db, payment_account_id)
+    _validate_owner(db, owner_user_id)
     card = Card(
         name=name,
         card_type=card_type,
@@ -84,6 +95,9 @@ def update_card(
     if card is None:
         return None
     _validate_payment_account(db, payment_account_id)
+    # 이미 지정돼 있던 소유자는 제거됐어도 카드의 다른 칸을 고칠 수 있게 둔다.
+    if owner_user_id != card.owner_user_id:
+        _validate_owner(db, owner_user_id)
     card.name = name
     card.card_type = card_type
     card.payment_account_id = payment_account_id

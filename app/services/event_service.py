@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session, selectinload
 from app.errors import InvalidInputError
 from app.models.event import Event
 from app.models.event_occurrence_completion import EventOccurrenceCompletion
+from app.services import user_service
 from app.utils.dates import advance_due_date, now_kst
 
 _MAX_OCCURRENCE_STEPS = 2000
@@ -14,6 +15,15 @@ _MAX_OCCURRENCE_STEPS = 2000
 
 class EventOccurrenceNotFoundError(InvalidInputError):
     pass
+
+
+class EventAssigneeNotFoundError(InvalidInputError):
+    pass
+
+
+def _ensure_assignable(db: Session, assignee_id: uuid.UUID | None) -> None:
+    if assignee_id is not None and user_service.get_active_user(db, assignee_id) is None:
+        raise EventAssigneeNotFoundError("담당자를 찾을 수 없습니다.")
 
 
 def occurrences_in_range(event: Event, range_start: date, range_end: date) -> list[datetime]:
@@ -102,6 +112,7 @@ def create_event(
     reminder_minutes_before: int | None = None,
     assignee_id: uuid.UUID | None = None,
 ) -> Event:
+    _ensure_assignable(db, assignee_id)
     event = Event(
         title=title,
         description=description,
@@ -125,6 +136,9 @@ def update_event(db: Session, event_id: int, **fields) -> Event | None:
     event = db.get(Event, event_id)
     if event is None:
         return None
+    # 이미 지정돼 있던 담당자는 제거됐어도 일정의 다른 칸을 고칠 수 있게 둔다.
+    if "assignee_id" in fields and fields["assignee_id"] != event.assignee_id:
+        _ensure_assignable(db, fields["assignee_id"])
     for key, value in fields.items():
         setattr(event, key, value)
     db.commit()
