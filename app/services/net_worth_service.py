@@ -21,7 +21,7 @@ from app.services import (
     savings_product_growlio_service,
     savings_product_service,
 )
-from app.utils.dates import now_kst, parse_year_month, shift_month, year_month_str
+from app.utils.dates import now_kst, year_month_str
 
 if TYPE_CHECKING:
     from fastapi import BackgroundTasks
@@ -66,18 +66,6 @@ def record_snapshot(db: Session, today: date) -> NetWorthSnapshot:
     db.commit()
     db.refresh(snapshot)
     return snapshot
-
-
-def savings_delta(db: Session, year_month: str) -> Decimal | None:
-    """Actual amount added to savings/investment products during `year_month`,
-    derived from the change in savings_total between this month's snapshot and
-    the previous month's. None if either snapshot is missing."""
-    prev_year_month = year_month_str(shift_month(parse_year_month(year_month), -1))
-    current = db.query(NetWorthSnapshot).filter(NetWorthSnapshot.year_month == year_month).first()
-    previous = db.query(NetWorthSnapshot).filter(NetWorthSnapshot.year_month == prev_year_month).first()
-    if current is None or previous is None:
-        return None
-    return current.savings_total - previous.savings_total
 
 
 def compute_growlio_unlinked(db: Session, bearer_token: str) -> dict:

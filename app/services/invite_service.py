@@ -142,6 +142,12 @@ def accept_invite(
         if not user_service.household_has_capacity(db):
             raise HouseholdFullError("이미 두 명의 사용자가 등록되어 있습니다.")
         user = user_service.mirror_supabase_user(db, user_id, invite.email)
+    elif user.removed_at is not None:
+        # 제거한 배우자를 다시 초대한 경우 — 지난 기록이 이 행을 참조하므로 새로 만들지 않고 복구한다.
+        if not user_service.household_has_capacity(db):
+            raise HouseholdFullError("이미 두 명의 사용자가 등록되어 있습니다.")
+        user.removed_at = None
+        user.removed_by_id = None
     # 새로 만든 경우에도 이름은 여기서 덮는다 — 수락 화면과 병렬로 들어온 다른 요청이 먼저
     # 자동 미러링(get_current_user)으로 행을 만들었어도 PK 충돌 없이 이어간다(mirror_supabase_user).
     user.display_name = display_name

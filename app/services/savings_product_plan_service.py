@@ -38,6 +38,12 @@ def actuals_for_month(db: Session, year_month: str) -> dict[int, Decimal]:
     return _actuals_between(db, *month_bounds(parse_year_month(year_month)))
 
 
+def deposits_total_for_month(db: Session, year_month: str) -> Decimal:
+    """그 달 모든 저축·투자 상품에 실제로 납입한 합계. 계획 대상이 아닌 비상금·부동산 상품도 포함한다 — "남은 돈을
+    저축으로 옮겼는가"를 보는 값이라 계획 대비 실적(plan_totals_for_month)과 범위가 다르다."""
+    return sum(actuals_for_month(db, year_month).values(), Decimal("0"))
+
+
 def trailing_average_actuals(db: Session, year_month: str, months: int = 3) -> dict[int, Decimal]:
     """`year_month` 직전 `months`개월 동안 상품별 실제 납입액 평균 — 부진한 상품의 다음 달 계획
     제안값으로 쓰인다. 직전 N개월치를 달마다 조회하지 않고 한 번의 범위 쿼리로 집계한다."""

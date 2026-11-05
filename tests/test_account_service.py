@@ -5,6 +5,7 @@ from unittest.mock import patch
 
 import pytest
 
+from app.models.user import User
 from app.services import account_service, transaction_service
 from app.services.growlio_client import GrowlioNotConfiguredError
 
@@ -18,6 +19,8 @@ def test_sync_account_without_link_raises(db_session):
 
 def test_create_and_update_account_owner_user_id(db_session):
     owner_id = uuid.uuid4()
+    db_session.add(User(id=owner_id, email="owner@example.com", display_name="소유자"))
+    db_session.commit()
     account = account_service.create_account(db_session, "주거래통장", "bank", Decimal("0"), owner_id)
 
     assert account.owner_user_id == owner_id

@@ -262,10 +262,6 @@ def test_savings_execution_boundaries(surplus, actual_saved, expected_severity):
     assert insight.severity == expected_severity
 
 
-def test_savings_execution_skips_when_no_prior_snapshot():
-    assert savings_execution_insight(Decimal("1000000"), None) is None
-
-
 def test_savings_execution_skips_when_no_surplus():
     assert savings_execution_insight(Decimal("0"), Decimal("100000")) is None
     assert savings_execution_insight(Decimal("-100000"), Decimal("100000")) is None
@@ -276,11 +272,6 @@ def test_savings_execution_skips_when_no_surplus():
 def test_investable_surplus_is_gap_between_surplus_and_actual_saved():
     totals = _totals(3000000, 2000000, 1000000, 500000)  # savings = 1,000,000
     assert investable_surplus(totals, Decimal("400000")) == Decimal("600000")
-
-
-def test_investable_surplus_zero_when_no_prior_snapshot():
-    totals = _totals(3000000, 2000000, 1000000, 500000)
-    assert investable_surplus(totals, None) == Decimal("0")
 
 
 def test_investable_surplus_floors_at_zero_when_actual_saved_covers_surplus():
@@ -455,28 +446,49 @@ def test_compute_insights_goal_pace_compares_savings_plan_with_deposits(seeded_d
     assert "30%" in pace.message
 
 
-def test_compute_insights_includes_savings_execution_when_snapshots_exist(seeded_db):
-    db, user, food = seeded_db["db"], seeded_db["user"], seeded_db["food"]
-    transaction_service.create_transaction(db, user_id=user.id, category_id=seeded_db["salary"].id, type_="income", amount=Decimal("2000000"), transaction_date=date(2026, 7, 1))
-    transaction_service.create_transaction(db, user_id=user.id, category_id=food.id, type_="expense", amount=Decimal("1000000"), transaction_date=date(2026, 7, 2))
-    # surplus = 1,000,000; only 300,000 actually moved into savings this month
-    product = savings_product_service.create_product(db, "적금", Decimal("0"), Decimal("300000"))
-    net_worth_service.record_snapshot(db, today=date(2026, 6, 30))
-    savings_product_service.update_product(db, product.id, "적금", Decimal("300000"), Decimal("300000"), "savings")
-    net_worth_service.record_snapshot(db, today=date(2026, 7, 31))
+def _seed_month_with_deposit(seeded_db):
+    """7월: 수입 200만 − 지출 100만 = 여유 100만, 그중 30만을 적금에 납입."""
+    from app.models.category import Category
 
-    insights = coaching_engine.compute_insights(db, "2026-07")
+    db, user, food, salary = seeded_db["db"], seeded_db["user"], seeded_db["food"], seeded_db["salary"]
+    transaction_service.create_transaction(db, user_id=user.id, category_id=salary.id, type_="income", amount=Decimal("2000000"), transaction_date=date(2026, 7, 1))
+    transaction_service.create_transaction(db, user_id=user.id, category_id=food.id, type_="expense", amount=Decimal("1000000"), transaction_date=date(2026, 7, 2))
+    product = savings_product_service.create_product(db, "적금", Decimal("0"), Decimal("300000"))
+    savings_cat = Category(name="저축", type="fixed", color="#000", sort_order=0, is_savings=True)
+    db.add(savings_cat)
+    db.commit()
+    transaction_service.create_transaction(db, user_id=user.id, category_id=savings_cat.id, type_="expense", amount=Decimal("300000"), transaction_date=date(2026, 7, 3), savings_product_id=product.id)
+    return db, product
+
+
+def test_compute_insights_savings_execution_compares_deposits_for_finished_month(seeded_db):
+    db, _ = _seed_month_with_deposit(seeded_db)
+
+    insights = coaching_engine.compute_insights(db, "2026-07", today=date(2026, 8, 1))
 
     savings_execution = next(i for i in insights if i.rule_code == "savings_execution")
-    assert savings_execution.severity == "critical"  # 30%
+    assert savings_execution.severity == "critical"
+    assert "300,000원(30%)" in savings_execution.message
+    assert "이번달" not in savings_execution.message  # 끝난 달에만 나오는 문구다
 
 
-def test_compute_insights_skips_savings_execution_without_two_snapshots(seeded_db):
-    db, user, food = seeded_db["db"], seeded_db["user"], seeded_db["food"]
-    transaction_service.create_transaction(db, user_id=user.id, category_id=seeded_db["salary"].id, type_="income", amount=Decimal("2000000"), transaction_date=date(2026, 7, 1))
-    transaction_service.create_transaction(db, user_id=user.id, category_id=food.id, type_="expense", amount=Decimal("1000000"), transaction_date=date(2026, 7, 2))
+def test_compute_insights_savings_execution_ignores_snapshot_changes(seeded_db):
+    """평가액이 올라도 저축한 것으로 치지 않는다 — 매월 1일 스냅샷 차이는 지난달 변화이기도 하다."""
+    db, product = _seed_month_with_deposit(seeded_db)
+    net_worth_service.record_snapshot(db, today=date(2026, 7, 1))
+    savings_product_service.update_product(db, product.id, "적금", Decimal("5000000"), Decimal("300000"), "savings")
+    net_worth_service.record_snapshot(db, today=date(2026, 8, 1))
 
-    insights = coaching_engine.compute_insights(db, "2026-07")
+    insights = coaching_engine.compute_insights(db, "2026-07", today=date(2026, 8, 1))
+
+    assert "300,000원(30%)" in next(i for i in insights if i.rule_code == "savings_execution").message
+
+
+def test_compute_insights_skips_savings_execution_for_month_in_progress(seeded_db):
+    """달 초에는 납입 전이라 "0원뿐" 경고가 된다."""
+    db, _ = _seed_month_with_deposit(seeded_db)
+
+    insights = coaching_engine.compute_insights(db, "2026-07", today=date(2026, 7, 31))
 
     assert not any(i.rule_code == "savings_execution" for i in insights)
 

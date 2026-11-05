@@ -6,10 +6,17 @@ from unittest.mock import patch
 import pytest
 
 from app.models.loan import Loan
+from app.models.user import User
 from app.services import real_estate_service
 from app.services.growlio_client import GrowlioNotConfiguredError
 
 _OWNER_ID = uuid.uuid4()
+
+
+@pytest.fixture(autouse=True)
+def _owner_user(db_session):
+    db_session.add(User(id=_OWNER_ID, email="owner@example.com", display_name="소유자"))
+    db_session.commit()
 
 _GROWLIO_ITEM = {
     "id": "growlio-re-1",

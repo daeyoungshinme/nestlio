@@ -8,8 +8,9 @@ import { extractErrorMessage } from "@/utils/error";
  * `if (isError) return <ErrorState/>; if (isLoading || !data) return <SkeletonCard/>;` 관용구를 대체한다.
  *
  * - 단일 쿼리: `query` prop + render-prop children — children이 확정된 `data`를 인자로 받는다.
- * - 다중 쿼리: `queries` 배열 + 일반 children — 하나라도 로딩이면 폴백, 하나라도 에러면 ErrorState.
- *   (호출부는 boundary 통과 후 각 쿼리의 `data`가 채워졌다고 보고 `data!`로 접근한다.) */
+ * - 다중 쿼리: `queries` 배열 + children — 하나라도 데이터가 없으면 폴백, 하나라도 에러면 ErrorState.
+ *   `data`의 속성을 읽는 내용은 반드시 render-prop(`{() => ...}`)으로 넘긴다. 일반 children은 boundary가
+ *   판단하기 전에 부모 렌더에서 평가되므로 `query.data!.field`가 그 자리에서 터진다. */
 interface BaseProps {
   /** 로딩 중 표시할 요소. 기본값 `<SkeletonCard rows={4} />`. */
   loadingFallback?: ReactNode;
@@ -28,7 +29,7 @@ interface SingleQueryProps<T> extends BaseProps {
 interface MultiQueryProps extends BaseProps {
   queries: UseQueryResult<unknown>[];
   query?: never;
-  children: ReactNode;
+  children: ReactNode | (() => ReactNode);
 }
 
 export default function QueryBoundary<T>(props: SingleQueryProps<T> | MultiQueryProps) {
@@ -51,6 +52,7 @@ export default function QueryBoundary<T>(props: SingleQueryProps<T> | MultiQuery
     return <>{props.children(props.query.data)}</>;
   }
 
-  if (props.queries.some((q) => q.isLoading)) return <>{loadingFallback}</>;
-  return <>{props.children}</>;
+  // isLoading이 아니라 data로 본다 — 오프라인으로 멈춘 쿼리는 isLoading이 false인데 data도 없다.
+  if (props.queries.some((q) => q.data === undefined)) return <>{loadingFallback}</>;
+  return <>{typeof props.children === "function" ? props.children() : props.children}</>;
 }

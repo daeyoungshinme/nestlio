@@ -6,6 +6,7 @@ from unittest.mock import patch
 import pytest
 
 from app.models.category import Category
+from app.models.user import User
 from app.services import (
     savings_product_growlio_service,
     savings_product_plan_service,
@@ -15,6 +16,12 @@ from app.services import (
 from app.services.growlio_client import GrowlioNotConfiguredError, GrowlioSyncError
 
 _OWNER_ID = uuid.uuid4()
+
+
+@pytest.fixture(autouse=True)
+def _owner_user(db_session):
+    db_session.add(User(id=_OWNER_ID, email="owner@example.com", display_name="소유자"))
+    db_session.commit()
 
 
 def _add_savings_category(db):

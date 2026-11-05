@@ -9,13 +9,43 @@ from app.services import (
     cashflow_plan_service,
     goal_service,
     notification_inbox_service,
+    notification_log_service,
     notification_service,
     notification_settings_service,
     transaction_service,
 )
 from app.services.gmail_service import GmailSendError
 from app.services.google_auth import GoogleAuthError
-from tests.factories import make_challenge
+from tests.factories import make_challenge, make_transaction
+
+
+@patch("app.services.notification_service.is_connected", return_value=True)
+@patch("app.services.notification_service.gmail_service.send_email")
+def test_weekly_summary_on_monday_covers_the_week_that_just_ended(mock_send, mock_connected, seeded_db):
+    """잡은 월요일 아침에 돈다 — 막 시작한 이번 주를 집계하면 메일이 빈다."""
+    db, user, food = seeded_db["db"], seeded_db["user"], seeded_db["food"]
+    make_transaction(db, user, food, "111000", date(2026, 7, 19))  # 지지난주 일요일
+    make_transaction(db, user, food, "300000", date(2026, 7, 20))  # 지난주 월요일
+    make_transaction(db, user, food, "50000", date(2026, 7, 26))  # 지난주 일요일
+    make_transaction(db, user, food, "7000", date(2026, 7, 27))  # 발송일(월요일)
+
+    assert notification_service.send_weekly_summary(db, today=date(2026, 7, 27)) is True
+
+    subject, body = mock_send.call_args.args[:2]
+    assert "2026-07-20 ~ 2026-07-26" in subject
+    assert "350,000" in body
+
+
+@patch("app.services.notification_service.is_connected", return_value=True)
+@patch("app.services.notification_service.gmail_service.send_email")
+def test_weekly_summary_dedup_key_stays_the_sending_weeks_monday(mock_send, mock_connected, seeded_db):
+    """키가 지난주 월요일이면 배포 직전 주에 옛 코드가 남긴 같은 키에 막혀 첫 주 메일이 빠진다."""
+    db = seeded_db["db"]
+    notification_log_service.log_sent(db, "email_weekly", "2026-07-20")  # 옛 코드가 7/20 월요일에 남긴 기록
+
+    assert notification_service.send_weekly_summary(db, today=date(2026, 7, 27)) is True
+    assert notification_service.send_weekly_summary(db, today=date(2026, 7, 29)) is False  # 같은 주 재실행
+    assert notification_service.send_weekly_summary(db, today=date(2026, 8, 3)) is True  # 다음 주
 
 
 @patch("app.services.notification_service.is_connected", return_value=True)

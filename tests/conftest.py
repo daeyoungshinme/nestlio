@@ -47,6 +47,8 @@ def db_session():
     engine = create_engine(
         "sqlite:///:memory:", connect_args={"check_same_thread": False}, poolclass=StaticPool
     ).execution_options(schema_translate_map={"household": None})
+    # SQLite는 기본으로 FK를 강제하지 않아 없는 id가 그대로 저장된다 — Postgres에서만 500이 나던 버그가 숨는다.
+    event.listen(engine, "connect", lambda conn, _: conn.execute("PRAGMA foreign_keys=ON"))
     Base.metadata.create_all(bind=engine)
     session = sessionmaker(bind=engine)()
     try:

@@ -1,5 +1,5 @@
 import logging
-from datetime import date
+from datetime import date, timedelta
 from decimal import Decimal
 from typing import Literal
 
@@ -76,8 +76,10 @@ def _savings_streak(db: Session, end: date) -> int:
 
 def send_weekly_summary(db: Session, today: date | None = None, force: bool = False) -> bool:
     today = today or today_kst()
-    start, end = week_bounds(today)
-    period_key = start.isoformat()
+    # 잡은 월요일 아침에 돈다 — 막 시작한 이번 주가 아니라 방금 끝난 지난주를 요약한다. dedup 키는 발송한 주의
+    # 월요일이다(요약 대상인 지난주 월요일로 바꾸면 그날 옛 코드가 남긴 기록과 겹쳐 한 주가 빠진다).
+    start, end = week_bounds(today - timedelta(days=7))
+    period_key = week_bounds(today)[0].isoformat()
     if not force and not notification_settings_service.is_enabled(db, "email_weekly"):
         return False
     if not force and notification_log_service.already_sent(db, "email_weekly", period_key):
