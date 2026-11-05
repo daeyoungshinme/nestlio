@@ -21,7 +21,7 @@ from app.services.growlio_client import GrowlioNotConfiguredError
 def test_export_csv_round_trips_through_import(seeded_db):
     db, user, food = seeded_db["db"], seeded_db["user"], seeded_db["food"]
     transaction_service.create_transaction(db, user_id=user.id, category_id=food.id, type_="expense", amount=Decimal("12000"), transaction_date=date(2026, 7, 5), description="점심")
-    transaction_service.create_transaction(db, user_id=user.id, category_id=food.id, type_="income", amount=Decimal("3000000"), transaction_date=date(2026, 7, 1), description="월급")
+    transaction_service.create_transaction(db, user_id=user.id, category_id=seeded_db["salary"].id, type_="income", amount=Decimal("3000000"), transaction_date=date(2026, 7, 1), description="월급")
 
     transactions = transaction_service.list_transactions(db, date(2026, 7, 1), date(2026, 7, 31))
     csv_text = transaction_import_service.export_csv(transactions)
@@ -515,7 +515,7 @@ def test_import_merges_same_day_similar_memo_rows(seeded_db):
     "second_row",
     [
         "2026-07-06,지출,식비,4000,점심",  # 다른 날
-        "2026-07-05,수입,식비,4000,점심",  # 다른 구분
+        "2026-07-05,수입,급여,4000,점심",  # 다른 구분
         "2026-07-05,지출,주거비,4000,점심",  # 다른 카테고리
         "2026-07-05,지출,식비,4000,저녁",  # 다른 메모
     ],
@@ -609,7 +609,7 @@ def test_import_row_db_error_is_isolated_and_does_not_abort_whole_import(seeded_
 
     assert result["created"] == 1
     assert len(result["skipped"]) == 1
-    assert "simulated data error" in result["skipped"][0]["reason"]
+    assert result["skipped"][0]["reason"] == transaction_import_service.SAVE_FAILED_REASON
     reimported = transaction_service.list_transactions(db, date(2026, 7, 1), date(2026, 7, 31))
     assert [tx.description for tx in reimported] == ["ok"]
 
@@ -619,7 +619,7 @@ def test_account_balance_reflects_initial_balance_plus_transactions(seeded_db):
     account = account_service.create_account(db, "현금", "cash", Decimal("100000"))
 
     transaction_service.create_transaction(
-        db, user_id=user.id, category_id=food.id, type_="income", amount=Decimal("50000"), transaction_date=date(2026, 7, 1), account_id=account.id
+        db, user_id=user.id, category_id=seeded_db["salary"].id, type_="income", amount=Decimal("50000"), transaction_date=date(2026, 7, 1), account_id=account.id
     )
     transaction_service.create_transaction(
         db, user_id=user.id, category_id=food.id, type_="expense", amount=Decimal("20000"), transaction_date=date(2026, 7, 2), account_id=account.id

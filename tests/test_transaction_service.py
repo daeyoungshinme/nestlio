@@ -24,7 +24,7 @@ def test_period_totals_splits_fixed_and_variable(seeded_db):
 
     transaction_service.create_transaction(db, user_id=user.id, category_id=rent.id, type_="expense", amount=Decimal("800000"), transaction_date=date(2026, 7, 1))
     transaction_service.create_transaction(db, user_id=user.id, category_id=food.id, type_="expense", amount=Decimal("50000"), transaction_date=date(2026, 7, 10))
-    transaction_service.create_transaction(db, user_id=user.id, category_id=food.id, type_="income", amount=Decimal("3000000"), transaction_date=date(2026, 7, 25))
+    transaction_service.create_transaction(db, user_id=user.id, category_id=seeded_db["salary"].id, type_="income", amount=Decimal("3000000"), transaction_date=date(2026, 7, 25))
 
     totals = transaction_report_service.period_totals(db, date(2026, 7, 1), date(2026, 7, 31))
 
@@ -158,7 +158,7 @@ def test_create_transaction_savings_link_rejects_income_type(seeded_db):
         transaction_service.create_transaction(
             db,
             user_id=user.id,
-            category_id=savings_category.id,
+            category_id=seeded_db["salary"].id,
             type_="income",
             amount=Decimal("10000"),
             transaction_date=date(2026, 7, 1),
@@ -301,7 +301,7 @@ def test_category_breakdown_filters_by_user(seeded_db):
 
 
 def test_totals_by_owner_splits_per_spouse_and_shared(seeded_db):
-    db, user, food, rent = seeded_db["db"], seeded_db["user"], seeded_db["food"], seeded_db["rent"]
+    db, user, food = seeded_db["db"], seeded_db["user"], seeded_db["food"]
     spouse2 = User(email="spouse2@example.com", display_name="Spouse 2")
     db.add(spouse2)
     db.commit()
@@ -313,7 +313,7 @@ def test_totals_by_owner_splits_per_spouse_and_shared(seeded_db):
         db, user_id=user.id, category_id=food.id, type_="expense", amount=Decimal("30000"), transaction_date=date(2026, 7, 6), owner_user_id=spouse2.id
     )
     transaction_service.create_transaction(
-        db, user_id=user.id, category_id=rent.id, type_="income", amount=Decimal("2000000"), transaction_date=date(2026, 7, 1), owner_user_id=user.id
+        db, user_id=user.id, category_id=seeded_db["salary"].id, type_="income", amount=Decimal("2000000"), transaction_date=date(2026, 7, 1), owner_user_id=user.id
     )
     # no owner_user_id -> shared ("공통")
     transaction_service.create_transaction(db, user_id=user.id, category_id=food.id, type_="expense", amount=Decimal("100000"), transaction_date=date(2026, 7, 10))
@@ -500,7 +500,7 @@ def test_frequent_unique_transactions_filters_by_type_and_is_savings(seeded_db):
     db, user, food = seeded_db["db"], seeded_db["user"], seeded_db["food"]
     savings_category, product = _add_savings_category_and_product(db)
     transaction_service.create_transaction(db, user_id=user.id, category_id=food.id, type_="expense", amount=Decimal("10000"), transaction_date=date(2026, 7, 1))
-    transaction_service.create_transaction(db, user_id=user.id, category_id=food.id, type_="income", amount=Decimal("3000000"), transaction_date=date(2026, 7, 2))
+    transaction_service.create_transaction(db, user_id=user.id, category_id=seeded_db["salary"].id, type_="income", amount=Decimal("3000000"), transaction_date=date(2026, 7, 2))
     transaction_service.create_transaction(
         db,
         user_id=user.id,
@@ -518,7 +518,7 @@ def test_frequent_unique_transactions_filters_by_type_and_is_savings(seeded_db):
 
     assert [tx.category_id for tx in expense_only] == [food.id]
     assert [tx.category_id for tx in savings_only] == [savings_category.id]
-    assert [tx.category_id for tx in income_only] == [food.id]
+    assert [tx.category_id for tx in income_only] == [seeded_db["salary"].id]
 
 
 def test_frequent_unique_transactions_respects_limit_and_recency_tiebreak(seeded_db):

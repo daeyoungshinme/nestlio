@@ -8,7 +8,7 @@ from app.services import dashboard_service, savings_product_service, transaction
 def test_build_month_combines_totals_and_streak(seeded_db):
     db, user, food = seeded_db["db"], seeded_db["user"], seeded_db["food"]
     today = date(2026, 8, 15)
-    transaction_service.create_transaction(db, user_id=user.id, category_id=food.id, type_="income", amount=Decimal("2000000"), transaction_date=today)
+    transaction_service.create_transaction(db, user_id=user.id, category_id=seeded_db["salary"].id, type_="income", amount=Decimal("2000000"), transaction_date=today)
     transaction_service.create_transaction(db, user_id=user.id, category_id=food.id, type_="expense", amount=Decimal("500000"), transaction_date=today)
 
     result = dashboard_service.build(db, year_month="2026-08", today=today)

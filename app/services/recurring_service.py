@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 
 from app.models.recurring_expense import RecurringExpense
 from app.models.transaction import Transaction
-from app.services.transaction_service import create_transaction
+from app.services.transaction_service import create_transaction, validate_category_kind
 from app.utils.dates import advance_recurring_date, first_monthly_date_on_or_after, today_kst
 
 logger = logging.getLogger(__name__)
@@ -62,6 +62,8 @@ def create_recurring(
     type_: str = "expense",
     days_of_month: list[int] | None = None,
 ) -> RecurringExpense:
+    # 어긋난 채 등록되면 generate_due_transactions가 예외를 삼키고 매번 거래를 만들지 못한다.
+    validate_category_kind(db, category_id, type_)
     day_of_month = min(days_of_month) if days_of_month else start_date.day
     next_due_date = first_monthly_date_on_or_after(start_date, days_of_month) if days_of_month else start_date
     recurring = RecurringExpense(
@@ -89,6 +91,7 @@ def update_recurring(db: Session, recurring_id: int, **fields) -> RecurringExpen
     recurring = db.get(RecurringExpense, recurring_id)
     if recurring is None:
         return None
+    validate_category_kind(db, fields.get("category_id", recurring.category_id), fields.get("type", recurring.type))
     # day_of_month(단일 앵커 일자)는 days_of_month/start_date에서 파생된다 — create_recurring과
     # 같은 규칙을 여기서도 적용해 라우터가 계산하지 않게 한다.
     if fields.get("days_of_month"):

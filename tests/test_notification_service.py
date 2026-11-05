@@ -359,7 +359,7 @@ def test_savings_streak_counts_consecutive_months_meeting_goal_pace(seeded_db):
     # 최근 2개월(6/7월)은 저축액(400,000)이 목표(100,000)를 넘지만, 그 이전 달(5월)은 못 미친다.
     for month, income, expense in [(5, 200000, 190000), (6, 500000, 100000), (7, 500000, 100000)]:
         transaction_service.create_transaction(
-            db, user_id=user.id, category_id=food.id, type_="income", amount=Decimal(income), transaction_date=date(2026, month, 1)
+            db, user_id=user.id, category_id=seeded_db["salary"].id, type_="income", amount=Decimal(income), transaction_date=date(2026, month, 1)
         )
         transaction_service.create_transaction(
             db, user_id=user.id, category_id=food.id, type_="expense", amount=Decimal(expense), transaction_date=date(2026, month, 15)
