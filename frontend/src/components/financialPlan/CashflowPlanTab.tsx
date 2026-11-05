@@ -172,7 +172,7 @@ export default function CashflowPlanTab({ view }: { view: "monthly" | "annual" }
 
   return (
     <QueryBoundary queries={[cashflowQuery, savingsPlanQuery]} loadingFallback={<SkeletonCard rows={6} />}>
-      {(() => {
+      {() => {
         const data = cashflowQuery.data!;
         const savingsPlanData = savingsPlanQuery.data;
 
@@ -388,7 +388,7 @@ export default function CashflowPlanTab({ view }: { view: "monthly" | "annual" }
       )}
     </div>
   );
-  })()}
+  }}
     </QueryBoundary>
   );
 }
