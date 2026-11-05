@@ -25,7 +25,7 @@ def test_build_investable_surplus_subtracts_this_months_deposits_without_snapsho
     db, user, food = seeded_db["db"], seeded_db["user"], seeded_db["food"]
     today = date(2026, 8, 15)
     product = savings_product_service.create_product(db, "적금", Decimal("0"), Decimal("300000"))
-    transaction_service.create_transaction(db, user_id=user.id, category_id=food.id, type_="income", amount=Decimal("2000000"), transaction_date=today)
+    transaction_service.create_transaction(db, user_id=user.id, category_id=seeded_db["salary"].id, type_="income", amount=Decimal("2000000"), transaction_date=today)
     transaction_service.create_transaction(db, user_id=user.id, category_id=food.id, type_="expense", amount=Decimal("500000"), transaction_date=today)
     savings_cat = Category(name="저축", type="fixed", color="#000", sort_order=0, is_savings=True)
     db.add(savings_cat)

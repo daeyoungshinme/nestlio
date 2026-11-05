@@ -450,8 +450,8 @@ def _seed_month_with_deposit(seeded_db):
     """7월: 수입 200만 − 지출 100만 = 여유 100만, 그중 30만을 적금에 납입."""
     from app.models.category import Category
 
-    db, user, food, rent = seeded_db["db"], seeded_db["user"], seeded_db["food"], seeded_db["rent"]
-    transaction_service.create_transaction(db, user_id=user.id, category_id=rent.id, type_="income", amount=Decimal("2000000"), transaction_date=date(2026, 7, 1))
+    db, user, food, salary = seeded_db["db"], seeded_db["user"], seeded_db["food"], seeded_db["salary"]
+    transaction_service.create_transaction(db, user_id=user.id, category_id=salary.id, type_="income", amount=Decimal("2000000"), transaction_date=date(2026, 7, 1))
     transaction_service.create_transaction(db, user_id=user.id, category_id=food.id, type_="expense", amount=Decimal("1000000"), transaction_date=date(2026, 7, 2))
     product = savings_product_service.create_product(db, "적금", Decimal("0"), Decimal("300000"))
     savings_cat = Category(name="저축", type="fixed", color="#000", sort_order=0, is_savings=True)
