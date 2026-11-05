@@ -6,9 +6,12 @@ from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
 from app.errors import InvalidInputError
+from app.models.account import Account
 from app.models.category import Category
 from app.models.growlio_push_queue import GrowlioPushQueue
+from app.models.savings_product import SavingsProduct
 from app.models.transaction import Transaction
+from app.models.user import User
 from app.services import card_service, growlio_push_service, savings_product_service, transaction_report_service
 from app.utils.dates import month_bounds
 
@@ -23,6 +26,10 @@ class InvalidSavingsLinkError(InvalidInputError):
     pass
 
 
+class InvalidTransactionReferenceError(InvalidInputError):
+    pass
+
+
 def _validate_savings_link(db: Session, category_id: int, type_: str, savings_product_id: int | None) -> None:
     if savings_product_id is None:
         return
@@ -31,6 +38,19 @@ def _validate_savings_link(db: Session, category_id: int, type_: str, savings_pr
     category = db.get(Category, category_id)
     if category is None or not category.is_savings:
         raise InvalidSavingsLinkError("저축상품은 저축 전용 카테고리에서만 연결할 수 있습니다.")
+
+
+def _validate_references(
+    db: Session, account_id: int | None, savings_product_id: int | None, owner_user_id: uuid.UUID | None
+) -> None:
+    """없는 id만 거른다(Postgres는 FK 위반으로 500을 낸다). 비활성 계좌·제거된 소유자는 통과시킨다 — 지난 거래를
+    고칠 때 그대로 돌아오는 값이다."""
+    if account_id is not None and db.get(Account, account_id) is None:
+        raise InvalidTransactionReferenceError("계좌를 찾을 수 없습니다.")
+    if savings_product_id is not None and db.get(SavingsProduct, savings_product_id) is None:
+        raise InvalidTransactionReferenceError("저축상품을 찾을 수 없습니다.")
+    if owner_user_id is not None and db.get(User, owner_user_id) is None:
+        raise InvalidTransactionReferenceError("소유자를 찾을 수 없습니다.")
 
 
 def _apply_card(db: Session, card_id: int) -> tuple[int | None, str]:
@@ -75,6 +95,7 @@ def create_transaction(
     bearer_token: str | None = None,
 ) -> Transaction:
     _validate_savings_link(db, category_id, type_, savings_product_id)
+    _validate_references(db, account_id, savings_product_id, owner_user_id)
     if card_id is not None:
         account_id, payment_method = _apply_card(db, card_id)
     tx = Transaction(
@@ -115,6 +136,9 @@ def update_transaction(db: Session, tx_id: int, bearer_token: str | None = None,
     new_category_id = fields.get("category_id", tx.category_id)
     new_savings_product_id = fields.get("savings_product_id", tx.savings_product_id)
     _validate_savings_link(db, new_category_id, new_type, new_savings_product_id)
+    _validate_references(
+        db, fields.get("account_id", tx.account_id), new_savings_product_id, fields.get("owner_user_id", tx.owner_user_id)
+    )
     new_card_id = fields.get("card_id", tx.card_id)
     if new_card_id is not None and new_card_id != tx.card_id:
         fields["account_id"], fields["payment_method"] = _apply_card(db, new_card_id)

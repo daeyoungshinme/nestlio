@@ -34,7 +34,7 @@ def _validate_refs(
     recurring_expense_id: int | None,
     current_insured_user_id: uuid.UUID | None = None,
 ) -> None:
-    # SQLite 테스트는 FK를 강제하지 않고 Postgres는 IntegrityError(500)를 내므로 서비스에서 404로 막는다.
+    # FK 위반은 IntegrityError(500)가 되므로 서비스에서 404로 막는다.
     # 제거된 배우자는 새 피보험자로 지정할 수 없다. 이미 그 사람으로 저장된 계약은 다른 필드를 고칠 수 있게 둔다.
     if (
         insured_user_id is not None

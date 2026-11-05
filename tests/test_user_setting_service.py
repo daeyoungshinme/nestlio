@@ -18,11 +18,15 @@ def test_set_shared_setting_overwrites_existing_row_regardless_of_who_saved_it(s
     """household 공유 설정이므로 다른 유저가 저장해도 같은 key의 기존 행을 갱신한다(새 행이 아니라)."""
     from uuid import uuid4
 
+    from app.models.user import User
+
     db, user = seeded_db["db"], seeded_db["user"]
     user_setting_service.set_shared_setting(db, "theme", "light", user.id)
 
-    other_user_id = uuid4()
-    user_setting_service.set_shared_setting(db, "theme", "dark", other_user_id)
+    other_user = User(id=uuid4(), email="spouse2@example.com", display_name="Spouse 2")
+    db.add(other_user)
+    db.commit()
+    user_setting_service.set_shared_setting(db, "theme", "dark", other_user.id)
 
     assert user_setting_service.get_shared_setting(db, "theme") == "dark"
 

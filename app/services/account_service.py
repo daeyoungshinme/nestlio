@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 
 from app.constants.sort_order import DEFAULT_SORT_ORDER
 from app.models.account import Account
+from app.models.card import Card
 from app.models.transaction import Transaction
 from app.services import growlio_client
 from app.services.growlio_client import GrowlioSyncError
@@ -71,6 +72,9 @@ def deactivate_account(db: Session, account_id: int) -> bool:
         return False
     account.is_active = False
     account.growlio_account_id = None
+    # 비활성 계좌는 잔액·순자산 합산에서 빠진다 — 카드에 남겨 두면 그 카드의 새 거래가 합산되지 않는 계좌로 들어간다.
+    # 지난 거래는 실제로 그 계좌에서 나갔으므로 그대로 둔다.
+    db.query(Card).filter(Card.payment_account_id == account_id).update({Card.payment_account_id: None})
     db.commit()
     return True
 
