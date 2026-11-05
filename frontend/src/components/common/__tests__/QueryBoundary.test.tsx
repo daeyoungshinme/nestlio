@@ -70,4 +70,47 @@ describe("QueryBoundary", () => {
 
     expect(screen.getByText("본문")).toBeInTheDocument();
   });
+
+  it("calls multi-query render-prop children only after every query has data", () => {
+    const children = vi.fn(() => <p>본문</p>);
+
+    const { rerender } = render(
+      <QueryBoundary queries={[mockQuery({ data: 1 }), mockQuery({ isLoading: true })]} loadingFallback={<p>로딩중</p>}>
+        {children}
+      </QueryBoundary>,
+    );
+    expect(screen.getByText("로딩중")).toBeInTheDocument();
+    expect(children).not.toHaveBeenCalled();
+
+    rerender(
+      <QueryBoundary queries={[mockQuery({ data: 1 }), mockQuery({ data: 2 })]} loadingFallback={<p>로딩중</p>}>
+        {children}
+      </QueryBoundary>,
+    );
+    expect(screen.getByText("본문")).toBeInTheDocument();
+  });
+
+  it("does not call multi-query render-prop children when a query failed", () => {
+    const children = vi.fn(() => <p>본문</p>);
+
+    render(
+      <QueryBoundary queries={[mockQuery({ isError: true, error: new Error("") })]} errorMessage="실패">
+        {children}
+      </QueryBoundary>,
+    );
+
+    expect(screen.getByText("실패")).toBeInTheDocument();
+    expect(children).not.toHaveBeenCalled();
+  });
+
+  it("shows the fallback for a paused query that is not loading but has no data", () => {
+    render(
+      <QueryBoundary queries={[mockQuery({ isLoading: false })]} loadingFallback={<p>로딩중</p>}>
+        <p>본문</p>
+      </QueryBoundary>,
+    );
+
+    expect(screen.getByText("로딩중")).toBeInTheDocument();
+    expect(screen.queryByText("본문")).not.toBeInTheDocument();
+  });
 });

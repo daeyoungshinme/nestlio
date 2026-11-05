@@ -179,19 +179,21 @@ export default function DashboardPage() {
               loadingFallback={<SkeletonCard rows={4} />}
               errorMessage="입력 양식을 불러오지 못했습니다."
             >
-              <TransactionForm
-                categories={categoriesQuery.data!}
-                accounts={accountsQuery.data!}
-                savingsProducts={bootstrap.data!.savings_products}
-                users={bootstrap.data!.users}
-                currentUserId={currentUserId ?? undefined}
-                layout="stack"
-                isNew
-                submitLabel="추가"
-                submitting={createMutation.isPending}
-                initialValues={quickAddPrefill ?? { transaction_date: today }}
-                onSubmit={(payload) => createMutation.mutate(payload)}
-              />
+              {() => (
+                <TransactionForm
+                  categories={categoriesQuery.data!}
+                  accounts={accountsQuery.data!}
+                  savingsProducts={bootstrap.data!.savings_products}
+                  users={bootstrap.data!.users}
+                  currentUserId={currentUserId ?? undefined}
+                  layout="stack"
+                  isNew
+                  submitLabel="추가"
+                  submitting={createMutation.isPending}
+                  initialValues={quickAddPrefill ?? { transaction_date: today }}
+                  onSubmit={(payload) => createMutation.mutate(payload)}
+                />
+              )}
             </QueryBoundary>
           </div>
         </Modal>
