@@ -45,7 +45,7 @@ def test_update_account_with_existing_transactions_sets_displayed_balance_exactl
     )
     account_id = create_resp.json()["id"]
     transaction_service.create_transaction(
-        db, user_id=user.id, category_id=food.id, type_="income", amount=Decimal("50000"), transaction_date=date(2026, 7, 1), account_id=account_id
+        db, user_id=user.id, category_id=seeded_db["salary"].id, type_="income", amount=Decimal("50000"), transaction_date=date(2026, 7, 1), account_id=account_id
     )
     transaction_service.create_transaction(
         db, user_id=user.id, category_id=food.id, type_="expense", amount=Decimal("20000"), transaction_date=date(2026, 7, 2), account_id=account_id

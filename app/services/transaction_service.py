@@ -23,6 +23,20 @@ class InvalidSavingsLinkError(InvalidInputError):
     pass
 
 
+class InvalidCategoryKindError(InvalidInputError):
+    pass
+
+
+def validate_category_kind(db: Session, category_id: int, type_: str) -> None:
+    """거래·반복거래의 유형은 카테고리 구분과 같아야 한다. 어긋나면 수입이 지출 집계의 카테고리로 잡힌다."""
+    category = db.get(Category, category_id)
+    if category is None:
+        raise InvalidCategoryKindError("카테고리를 찾을 수 없습니다.")
+    if category.kind != type_:
+        label = "수입" if type_ == "income" else "지출"
+        raise InvalidCategoryKindError(f"{label} 내역에는 {label} 카테고리만 쓸 수 있습니다.")
+
+
 def _validate_savings_link(db: Session, category_id: int, type_: str, savings_product_id: int | None) -> None:
     if savings_product_id is None:
         return
@@ -74,6 +88,7 @@ def create_transaction(
     owner_user_id: uuid.UUID | None = None,
     bearer_token: str | None = None,
 ) -> Transaction:
+    validate_category_kind(db, category_id, type_)
     _validate_savings_link(db, category_id, type_, savings_product_id)
     if card_id is not None:
         account_id, payment_method = _apply_card(db, card_id)
@@ -114,6 +129,7 @@ def update_transaction(db: Session, tx_id: int, bearer_token: str | None = None,
     new_type = fields.get("type", tx.type)
     new_category_id = fields.get("category_id", tx.category_id)
     new_savings_product_id = fields.get("savings_product_id", tx.savings_product_id)
+    validate_category_kind(db, new_category_id, new_type)
     _validate_savings_link(db, new_category_id, new_type, new_savings_product_id)
     new_card_id = fields.get("card_id", tx.card_id)
     if new_card_id is not None and new_card_id != tx.card_id:

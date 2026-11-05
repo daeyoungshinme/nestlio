@@ -33,7 +33,7 @@ def test_sync_account_reconciles_initial_balance_around_existing_transactions(se
     account.growlio_account_id = "growlio-acc-1"
     db.commit()
     transaction_service.create_transaction(
-        db, user_id=user.id, category_id=food.id, type_="income", amount=Decimal("50000"), transaction_date=date(2026, 7, 1), account_id=account.id
+        db, user_id=user.id, category_id=seeded_db["salary"].id, type_="income", amount=Decimal("50000"), transaction_date=date(2026, 7, 1), account_id=account.id
     )
     transaction_service.create_transaction(
         db, user_id=user.id, category_id=food.id, type_="expense", amount=Decimal("20000"), transaction_date=date(2026, 7, 2), account_id=account.id

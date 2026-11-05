@@ -1,5 +1,6 @@
 import csv
 import io
+import logging
 import re
 import uuid
 from dataclasses import dataclass, field
@@ -21,6 +22,8 @@ from app.models.transaction import Transaction
 from app.models.user import User
 from app.services import card_service, user_service
 
+logger = logging.getLogger(__name__)
+
 CSV_HEADER = ["날짜", "구분", "카테고리", "금액", "메모", "입력자", "계좌", "결제수단", "소유자", "카드"]
 PAYMENT_METHOD_LABELS = {"cash": "현금", "credit_card": "신용카드", "debit_card": "체크카드", "transfer": "계좌이체", "other": "기타"}
 CSV_TYPE_LABELS = {"income": "수입", "expense": "지출"}
@@ -31,6 +34,11 @@ MEMO_PARTIAL_MATCH_MIN_LENGTH = 2
 # (거래 구분, 정규화 메모) → {카테고리 id: [건수, 가장 최근 거래일]}
 MemoIndex = dict[tuple[str, str], dict[int, list]]
 DUPLICATE_REASON = "이미 같은 날 같은 금액의 비슷한 거래가 있어 건너뛰었습니다"
+SAVE_FAILED_REASON = "저장하지 못했습니다. 메모 길이와 금액을 확인해 주세요"
+# 행 수 상한. 파일 크기 상한(max_upload_size_mb)만으로는 짧은 행 수십만 개가 들어와 요청이 오래 묶인다.
+MAX_IMPORT_ROWS = 10_000
+# Transaction.amount = Numeric(12,2). 이 경로는 스키마 KrwAmount를 거치지 않으므로 같은 범위를 여기서 본다.
+AMOUNT_LIMIT = Decimal(10) ** 10
 # 자동으로 정한 카테고리의 출처: 과거 거래 이력 / 가맹점 키워드 사전 / 업로드 시 고른 기본 카테고리
 CategorySource = Literal["history", "keyword", "fallback"]
 # 은행·카드 앱 CSV의 날짜: 2026-10-26, 2026.10.26, 2026/10/26, 2026. 10. 26., 20261026 — 뒤에 시각이 붙어도 된다.
@@ -52,9 +60,18 @@ def _parse_amount(raw: str) -> Decimal:
     """천 단위 쉼표·'원'·공백을 허용한다(12,000원)."""
     cleaned = re.sub(r"[,\s원₩]", "", raw)
     try:
-        return Decimal(cleaned)
+        amount = Decimal(cleaned)
     except InvalidOperation:
         raise ValueError(f"금액을 읽을 수 없습니다: '{raw.strip()}'") from None
+    if not amount.is_finite():  # NaN·Infinity도 Decimal로는 파싱된다
+        raise ValueError(f"금액을 읽을 수 없습니다: '{raw.strip()}'")
+    if amount < 0:
+        raise ValueError(f"음수 금액은 가져오지 않습니다(취소·환불 내역은 직접 정리해 주세요): '{raw.strip()}'")
+    if amount >= AMOUNT_LIMIT:
+        raise ValueError(f"금액이 너무 큽니다: '{raw.strip()}'")
+    if amount.as_tuple().exponent < -2:
+        raise ValueError(f"금액은 소수 둘째 자리까지 받습니다: '{raw.strip()}'")
+    return amount
 
 
 def _normalize_memo(memo: str | None) -> str:
@@ -371,7 +388,8 @@ def import_rows(
     헤더 행이 있으면 칸을 이름으로 찾고(`_column_map`, 순서 무관), 없으면 export_csv 순서
     (날짜,구분,카테고리,금액,메모,입력자,계좌,결제수단,소유자,카드)로 읽는다. 입력자 칸은 쓰지 않는다(입력자 = 가져온 사람).
     Unknown categories or malformed rows are skipped and reported, not raised,
-    so one bad row doesn't abort an otherwise-good import.
+    so one bad row doesn't abort an otherwise-good import. 금액은 저장 범위 안의 0 이상만 받는다(`_parse_amount`) —
+    취소·환불처럼 음수인 행은 건너뛰고 사유로 알린다.
 
     계좌·카드 칸은 활성 계좌·카드 이름으로(`_match_by_name`), 소유자 칸은 가구 사용자 표시 이름·이메일로(`_match_owner`,
     "공통"은 소유자 없음) 매칭하고, 못 찾은 이름은 비워 넣고 `unmatched_accounts`/`unmatched_owners`로 알린다.
@@ -379,7 +397,7 @@ def import_rows(
     시절의 내보내기) → 결제수단 칸(일반 표기 제외) 순으로 찾고(`_resolve_card`), 찾으면 결제수단은 카드 종류, 계좌는
     계좌 칸에 적힌 계좌(없으면 카드의 결제계좌)로 정한다 — 화면 입력(카드 우선)과 달리 적힌 계좌가 실제 나간 계좌다.
 
-    카테고리 칸이 비었거나 모르는 이름이면 메모로 과거 거래 이력(`_infer_category`) → 가맹점 키워드 사전
+    카테고리 칸은 그 행 구분의 활성 카테고리 이름으로 찾는다. 비었거나 찾지 못하면 메모로 과거 거래 이력(`_infer_category`) → 가맹점 키워드 사전
     (`_keyword_category`, 지출만) → `fallback_category_id`(같은 구분일 때만) 순으로 정하고 `auto_categorized`에
     출처(`source`)와 함께 알린다. 명시된 카테고리는 덮어쓰지 않는다. 앞 행의 명시 카테고리도 뒤 행의 학습에 쓴다.
 
@@ -389,7 +407,9 @@ def import_rows(
     올려도 두 번 들어가지 않고, 칸을 채운 CSV를 다시 올리면 기존 거래가 채워진다. 묶음으로 못 찾았지만 줄마다
     서로 다른 기존 거래가 있으면(합치지 않고 들어간 예전 데이터) 줄 단위로 같은 처리를 한다."""
     categories = db.query(Category).all()
-    categories_by_name = {c.name: c for c in categories}
+    # 같은 이름이 수입·지출 양쪽에 있을 수 있어 구분까지 함께 찾는다. 비활성 카테고리는 새 거래에 붙이지 않는다.
+    active_categories = {(c.kind, c.name): c for c in categories if c.is_active}
+    expense_categories_by_name = {name: c for (kind, name), c in active_categories.items() if kind == "expense"}
     categories_by_id = {c.id: c for c in categories}
     fallback = categories_by_id.get(fallback_category_id) if fallback_category_id is not None else None
     if fallback_category_id is not None and (fallback is None or not fallback.is_active):
@@ -403,6 +423,8 @@ def import_rows(
         rows = rows[1:]
     else:
         columns = _POSITIONAL_COLUMNS
+    if sum(1 for row in rows if any(value.strip() for value in row)) > MAX_IMPORT_ROWS:
+        raise PayloadTooLargeError(f"한 번에 {MAX_IMPORT_ROWS:,}행까지 가져올 수 있습니다. 파일을 나눠 올려 주세요.")
 
     def cell(row: list[str], field_name: str) -> str:
         idx = columns.get(field_name)
@@ -426,17 +448,18 @@ def import_rows(
             tx_type = CSV_TYPE_BY_LABEL.get(raw_type)
             if tx_type is None:
                 raise ValueError(f"구분은 수입/지출이어야 합니다: '{raw_type}'")
-            category = categories_by_name.get(raw_category)
+            category = active_categories.get((tx_type, raw_category))
             source: CategorySource | None = None
             if category is None:
                 if (category := _infer_category(memo_index, tx_type, description, categories_by_id)) is not None:
                     source = "history"
-                elif tx_type == "expense" and (category := _keyword_category(description, categories_by_name)):
+                elif tx_type == "expense" and (category := _keyword_category(description, expense_categories_by_name)):
                     source = "keyword"
                 elif fallback is not None and fallback.kind == tx_type:
                     category, source = fallback, "fallback"
                 else:
-                    unknown = f"카테고리 '{raw_category}'를 찾을 수 없고" if raw_category else "카테고리가 비어 있고"
+                    label = CSV_TYPE_LABELS[tx_type]
+                    unknown = f"{label} 카테고리 '{raw_category}'를 찾을 수 없고" if raw_category else "카테고리가 비어 있고"
                     raise ValueError(f"{unknown} 메모로도 추론하지 못했습니다")
         except (ValueError, InvalidOperation, IndexError) as exc:
             skipped.append({"line": line_no, "row": row, "reason": str(exc)})
@@ -502,6 +525,10 @@ def import_rows(
                 else:
                     skipped.extend({"line": ln.line_no, "row": ln.row, "reason": DUPLICATE_REASON} for ln in lines)
             continue
+        if group.amount >= AMOUNT_LIMIT:
+            reason = f"같은 날 비슷한 메모의 행을 합친 금액이 너무 큽니다: {group.amount:,.0f}원"
+            skipped.extend({"line": ln.line_no, "row": ln.row, "reason": reason} for ln in group.lines)
+            continue
         try:
             # 묶음마다 SAVEPOINT로 감싼다 — db.flush()가 IntegrityError/DataError(금액 정밀도 초과,
             # 메모 길이 초과 등)를 내면 세션이 오염돼 이후 행과 최종 commit이 모두 실패하므로,
@@ -521,8 +548,10 @@ def import_rows(
                 )
                 db.add(tx)
                 db.flush()  # PK 확보 (되돌리기용 created_ids, 최종 commit은 루프 종료 후 한 번)
-        except SQLAlchemyError as exc:
-            skipped.extend({"line": ln.line_no, "row": ln.row, "reason": str(exc)} for ln in group.lines)
+        except SQLAlchemyError:
+            # 예외 문자열에는 SQL 원문이 들어 있어 응답으로 내보내지 않는다.
+            logger.exception("CSV 가져오기 저장 실패: lines=%s", [ln.line_no for ln in group.lines])
+            skipped.extend({"line": ln.line_no, "row": ln.row, "reason": SAVE_FAILED_REASON} for ln in group.lines)
             continue
         created_transactions.append(tx)
         auto_categorized.extend(
