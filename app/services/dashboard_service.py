@@ -18,6 +18,7 @@ from app.services import (
     insurance_review_service,
     net_worth_service,
     savings_coaching_service,
+    savings_product_plan_service,
     savings_product_service,
     settings_service,
     spending_review_service,
@@ -39,7 +40,7 @@ def build(db: Session, *, year_month: str | None = None, today: date | None = No
     totals, owner_totals, expense_breakdown = snapshot["totals"], snapshot["owner_totals"], snapshot["breakdown"]
     current_ym = year_month_str(start)
     goals = goal_service.list_goals(db)
-    actual_saved = net_worth_service.savings_delta(db, current_ym)
+    actual_saved = savings_product_plan_service.deposits_total_for_month(db, current_ym)
     owner_overspend_highlights = transaction_report_service.owner_spending_detail(
         db, start, end, owner_totals, start
     )
@@ -59,6 +60,7 @@ def build(db: Session, *, year_month: str | None = None, today: date | None = No
         fund_context=fund_context,
         thresholds=thresholds,
         benchmark_rows=category_benchmarks,
+        today=today,
     )
     investable_surplus = savings_coaching_service.investable_surplus(totals, actual_saved)
     surplus_allocation = savings_coaching_service.compute_surplus_allocation(
@@ -97,7 +99,9 @@ def build_retrospective(db: Session, today: date) -> dict:
     start, end, year_month = retrospective_period(today)
     snapshot = transaction_report_service.period_snapshot(db, start, end)
     breakdown = snapshot["breakdown"]
-    insights = coaching_engine.compute_insights(db, year_month, totals=snapshot["totals"], breakdown=breakdown)
+    insights = coaching_engine.compute_insights(
+        db, year_month, totals=snapshot["totals"], breakdown=breakdown, today=today
+    )
     return {
         "year_month": year_month,
         "start": start,

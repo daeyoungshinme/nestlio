@@ -55,33 +55,6 @@ def test_list_history_returns_ascending_order(seeded_db):
     assert [row.year_month for row in history] == ["2026-06", "2026-07"]
 
 
-def test_savings_delta_returns_change_between_consecutive_snapshots(seeded_db):
-    db = seeded_db["db"]
-    _seed_balances(db)
-    net_worth_service.record_snapshot(db, today=date(2026, 6, 1))  # savings_total = 2,000,000
-
-    savings_product_service.create_product(db, "예금", Decimal("500000"), Decimal("0"))
-    net_worth_service.record_snapshot(db, today=date(2026, 7, 1))  # savings_total = 2,500,000
-
-    assert net_worth_service.savings_delta(db, "2026-07") == Decimal("500000")
-
-
-def test_savings_delta_none_when_previous_snapshot_missing(seeded_db):
-    db = seeded_db["db"]
-    _seed_balances(db)
-    net_worth_service.record_snapshot(db, today=date(2026, 7, 1))
-
-    assert net_worth_service.savings_delta(db, "2026-07") is None
-
-
-def test_savings_delta_none_when_current_snapshot_missing(seeded_db):
-    db = seeded_db["db"]
-    _seed_balances(db)
-    net_worth_service.record_snapshot(db, today=date(2026, 6, 1))
-
-    assert net_worth_service.savings_delta(db, "2026-07") is None
-
-
 def test_compute_growlio_unlinked_excludes_linked_and_sums_by_category(seeded_db):
     db = seeded_db["db"]
     linked_account = account_service.create_account(db, "월급통장", "bank", Decimal("0"))
