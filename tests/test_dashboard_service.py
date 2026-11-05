@@ -2,7 +2,7 @@ from datetime import date
 from decimal import Decimal
 
 from app.models.category import Category
-from app.services import dashboard_service, transaction_service
+from app.services import dashboard_service, savings_product_service, transaction_service
 
 
 def test_build_month_combines_totals_and_streak(seeded_db):
@@ -19,6 +19,23 @@ def test_build_month_combines_totals_and_streak(seeded_db):
     assert Decimal(str(result["totals"]["income"])) == Decimal("2000000")
     assert isinstance(result["insights"], list)
     assert isinstance(result["savings_streak_months"], int)
+
+
+def test_build_investable_surplus_subtracts_this_months_deposits_without_snapshots(seeded_db):
+    db, user, food = seeded_db["db"], seeded_db["user"], seeded_db["food"]
+    today = date(2026, 8, 15)
+    product = savings_product_service.create_product(db, "적금", Decimal("0"), Decimal("300000"))
+    transaction_service.create_transaction(db, user_id=user.id, category_id=food.id, type_="income", amount=Decimal("2000000"), transaction_date=today)
+    transaction_service.create_transaction(db, user_id=user.id, category_id=food.id, type_="expense", amount=Decimal("500000"), transaction_date=today)
+    savings_cat = Category(name="저축", type="fixed", color="#000", sort_order=0, is_savings=True)
+    db.add(savings_cat)
+    db.commit()
+    transaction_service.create_transaction(db, user_id=user.id, category_id=savings_cat.id, type_="expense", amount=Decimal("300000"), transaction_date=today, savings_product_id=product.id)
+
+    result = dashboard_service.build(db, year_month="2026-08", today=today)
+
+    assert result["investable_surplus"] == Decimal("1200000")
+    assert not any(i.rule_code == "savings_execution" for i in result["insights"])
 
 
 def test_build_defaults_to_current_month(seeded_db):

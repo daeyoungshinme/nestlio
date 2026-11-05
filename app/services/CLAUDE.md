@@ -62,6 +62,7 @@
 - 부부가 바꿀 수 있는 설정값(코칭 임계값 `coaching_settings_service`, 보험 적정 기준 `insurance_target_service`)은 `user_setting_service.get_overrides`/`set_overrides`(키 prefix + `settings` 기본값 폴백, 손상 값도 폴백)로 읽고 쓴다 — 새 설정 묶음도 같은 헬퍼로. `user_settings`는 가구 공유라 key당 한 행(`uq_user_settings_key`)이고 `user_id`는 마지막으로 저장한 사람이다. 심각도 정렬은 `app/constants/severity.severity_rank`, 문구의 금액 표기는 `app/utils/money.format_won`.
 - 임계값은 하드코딩하지 않고 `settings`에서. 예산 경고/위험 %는 가구가 바꿀 수 있으므로 예산 상태를 계산하는 곳(계획 화면, 예산 알림 메일)은 `coaching_settings_service.budget_thresholds(db)`를 꺼내 `budget_vs_actual` 등에 넘긴다 — 생략하면 env 기본값이 쓰여 화면과 알림 판정이 어긋난다.
 - **"얼마 저축할지"의 원본은 저축·투자 상품의 월 계획**(`savings_product_plan_service.planned_by_product_for_month` — `SavingsProductAnnualPlan` 그리드, 없으면 `monthly_saving_amount`). `savings_pace_basis`가 (실적, 목표)를 고른다: 그 달 상품 계획이 있으면 계획 대비 실제 납입액(저축상품 연결 거래), 없는 가구만 목표들의 `monthly_saving_amount` 합 대비 수입−지출로 폴백. 목표의 월 계획액도 같은 원본(`goal_progress_service.planned_monthly_for_goal`)이고, 목표 저장은 연동 상품의 계획액을 건드리지 않는다.
+- **"남은 돈 중 실제 저축"**(`savings_execution` 인사이트, `investable_surplus`)의 실적은 그 달 납입액(`savings_product_plan_service.deposits_total_for_month`)이다. 순자산 스냅샷 차이는 쓰지 않는다 — 스냅샷은 매월 1일에 찍혀 한 달 밀리고 평가액 변동도 섞인다. 인사이트는 끝난 달에만 낸다(달 초에는 납입 전이라 "0원뿐" 경고가 된다).
 
 ## 계획 원본은 연간계획 하나 (annual_plan_service ↔ cashflow_plan_service)
 

@@ -1,6 +1,7 @@
 """Rule-based (non-AI) financial coaching. Every function here is a pure calculation
 over already-fetched numbers, so the thresholds can be exhaustively unit tested."""
 from dataclasses import dataclass
+from datetime import date
 from decimal import Decimal
 
 from sqlalchemy.orm import Session
@@ -13,7 +14,6 @@ from app.services import (
     budget_service,
     coaching_settings_service,
     goal_service,
-    net_worth_service,
     savings_coaching_service,
     savings_product_plan_service,
     transaction_report_service,
@@ -24,7 +24,7 @@ from app.utils.dates import month_bounds, parse_year_month, today_kst, year_mont
 # 코칭 임계값은 app/config.py의 settings에 있다 (app/services/CLAUDE.md 컨벤션). 뜻:
 #   emergency_fund_min/target_months — 비상금 런웨이(고정지출 기준 개월수)
 #   goal_pace_critical/info_pct       — 실제 저축 vs 계획 월저축액의 % (savings_pace_basis, 100=info, 70미만=critical)
-#   savings_execution_critical/warn_pct — 실제 순자산 저축 증가분 vs 이론적 잉여(수입-지출)의 %
+#   savings_execution_critical/warn_pct — 그 달 실제 납입액 vs 이론적 잉여(수입-지출)의 %
 #   variable_trend_flag_pct           — 변동지출이 최근 3개월 평균 대비 몇 %p 늘면 경고
 #   category_benchmark_top_n          — compute_insights가 대시보드에 노출할 벤치마크 인사이트 개수
 
@@ -217,30 +217,30 @@ def goal_pace_insight(actual: Decimal, target_monthly: Decimal) -> Insight | Non
     )
 
 
-def savings_execution_insight(surplus: Decimal, actual_saved: Decimal | None) -> Insight | None:
-    """Compares this month's theoretical surplus (income - expense) against the actual
-    increase in savings/investment product balances (net-worth snapshot delta), to check
-    whether leftover money was actually put away rather than left sitting in checking."""
-    if actual_saved is None or surplus <= 0:
+def savings_execution_insight(surplus: Decimal, actual_saved: Decimal) -> Insight | None:
+    """Compares a finished month's theoretical surplus (income - expense) against what was actually
+    deposited into savings/investment products that month, to check whether leftover money was
+    actually put away rather than left sitting in checking."""
+    if surplus <= 0:
         return None
     pct = _pct(actual_saved, surplus)
     if pct < settings.savings_execution_critical_pct:
         return Insight(
             "savings_execution",
             "critical",
-            f"이번달 남은 돈 {surplus:,.0f}원 중 실제로 저축·투자한 금액은 "
+            f"남은 돈 {surplus:,.0f}원 중 실제로 저축·투자한 금액은 "
             f"{actual_saved:,.0f}원({pct:.0f}%)뿐이에요. 나머지는 계좌에 머물러 있어요.",
         )
     if pct < settings.savings_execution_warn_pct:
         return Insight(
             "savings_execution",
             "warning",
-            f"이번달 남은 돈 {surplus:,.0f}원 중 {actual_saved:,.0f}원({pct:.0f}%)만 저축·투자로 옮겨졌어요.",
+            f"남은 돈 {surplus:,.0f}원 중 {actual_saved:,.0f}원({pct:.0f}%)만 저축·투자로 옮겨졌어요.",
         )
     return Insight(
         "savings_execution",
         "info",
-        f"이번달 남은 돈의 {pct:.0f}%를 저축·투자로 옮겼어요. 두 분 다 잘하고 있어요!",
+        f"남은 돈의 {pct:.0f}%를 저축·투자로 옮겼어요. 두 분 다 잘하고 있어요!",
     )
 
 
@@ -276,10 +276,12 @@ def compute_insights(
     fund_context: tuple[Decimal | None, Decimal | None] | None = None,
     thresholds: dict[str, float] | None = None,
     benchmark_rows: list[dict] | None = None,
+    today: date | None = None,
 ) -> list[Insight]:
     """호출부가 이미 같은 기간의 totals/breakdown/goals/thresholds/benchmark_rows를 조회·계산해둔
     경우, 넘겨받아 재조회·재계산을 피한다."""
-    year_month = year_month or year_month_str(today_kst())
+    today = today or today_kst()
+    year_month = year_month or year_month_str(today)
     month_start = parse_year_month(year_month)
     start, end = month_bounds(month_start)
 
@@ -299,7 +301,9 @@ def compute_insights(
     )
 
     insights: list[Insight] = []
-    actual_saved = actual_saved if actual_saved is not None else net_worth_service.savings_delta(db, year_month)
+    actual_saved = (
+        actual_saved if actual_saved is not None else savings_product_plan_service.deposits_total_for_month(db, year_month)
+    )
     for candidate in (
         savings_rate_insight(totals, thresholds["savings_rate_warn"], thresholds["savings_rate_critical"]),
         fixed_cost_ratio_insight(
@@ -308,7 +312,8 @@ def compute_insights(
         discretionary_ratio_insight(totals, breakdown, thresholds["discretionary_ratio_warn"]),
         debt_ratio_insight(totals, breakdown, thresholds["debt_ratio_warn"]),
         goal_pace_insight(pace_actual, pace_target),
-        savings_execution_insight(totals["savings"], actual_saved),
+        # 납입 전인 달 초에 "0원뿐" 경고가 되지 않도록 끝난 달만 본다.
+        savings_execution_insight(totals["savings"], actual_saved) if end < today else None,
     ):
         if candidate:
             insights.append(candidate)

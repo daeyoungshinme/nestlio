@@ -19,11 +19,11 @@ from app.services import (
 from app.utils.money import whole_won
 
 
-def investable_surplus(totals: dict, actual_saved: Decimal | None) -> Decimal:
-    """이번달 여유자금(수입-지출) 중 아직 저축·투자로 옮겨지지 않은 금액.
+def investable_surplus(totals: dict, actual_saved: Decimal) -> Decimal:
+    """이번달 여유자금(수입-지출) 중 아직 저축·투자로 옮겨지지 않은 금액. actual_saved는 그 달 실제 납입액이다.
     savings_execution_insight와 같은 입력을 쓰는 자매 함수 — growlio 투자 유도 카드에 쓰인다."""
     surplus = totals["savings"]
-    if actual_saved is None or surplus <= 0:
+    if surplus <= 0:
         return Decimal("0")
     return max(surplus - actual_saved, Decimal("0"))
 
