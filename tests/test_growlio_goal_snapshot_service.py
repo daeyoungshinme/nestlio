@@ -9,7 +9,7 @@ import pytest
 from app.models.financial_goal import FinancialGoal
 from app.models.growlio_goal_snapshot import GrowlioGoalSnapshot
 from app.models.user import User
-from app.services import growlio_client
+from app.services import combined_goal_service, growlio_client
 from app.services import growlio_goal_snapshot_service as svc
 
 NOW = datetime(2026, 11, 6, 9, 0)
@@ -127,7 +127,7 @@ def test_refresh_if_stale_swallows_growlio_errors(seeded_db):
     assert db.get(GrowlioGoalSnapshot, user.id) is None
 
 
-def test_snapshots_by_user_excludes_removed_spouse(seeded_db):
+def test_active_snapshots_excludes_removed_spouse(seeded_db):
     db, user = seeded_db["db"], seeded_db["user"]
     spouse = User(email="spouse2@example.com", display_name="Spouse 2", removed_at=NOW)
     db.add(spouse)
@@ -139,7 +139,7 @@ def test_snapshots_by_user_excludes_removed_spouse(seeded_db):
         ]
     )
     db.commit()
-    assert set(svc.snapshots_by_user(db)) == {user.id}
+    assert set(combined_goal_service.active_snapshots(db)) == {user.id}
 
 
 def test_refresh_endpoint_returns_own_snapshot(client, seeded_db):

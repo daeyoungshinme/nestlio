@@ -2,7 +2,7 @@
 
 nestlio는 호출자 JWT로만 growlio를 읽을 수 있어(growlio_client) 배우자의 growlio 목표를 직접 조회하지 못한다. 각자
 nestlio를 열 때 본인 값을 저장해 두고(`refresh_if_stale` — 화면 로드 후 BackgroundTasks, 또는 `refresh_own` — "지금
-동기화"), 부부 통합 목표는 두 사람의 저장값을 합산한다. 스케줄러엔 JWT가 없어 예약 갱신은 하지 않는다."""
+동기화"), 부부 통합 목표는 두 사람의 저장값을 합산한다(조회는 combined_goal_service.active_snapshots). 스케줄러엔 JWT가 없어 예약 갱신은 하지 않는다."""
 
 import logging
 import uuid
@@ -13,14 +13,11 @@ from sqlalchemy.orm import Session
 
 from app.models.financial_goal import FinancialGoal
 from app.models.growlio_goal_snapshot import GrowlioGoalSnapshot
-from app.models.user import User
-from app.services import growlio_client
+from app.services import combined_goal_service, growlio_client
 from app.utils.dates import now_kst
 
 logger = logging.getLogger(__name__)
 
-# 스냅샷을 쓰는 목표 종류 — 이 목표가 없는 가구는 화면 로드마다 growlio를 부르지 않는다.
-COMBINED_GOAL_KIND = "combined"
 # 잔액 연동의 기회주의적 갱신(net_worth_service.STALE_GROWLIO_LINK_AFTER)과 같은 주기. net_worth_service가 이 모듈을
 # 부르므로(schedule_background_refresh) 그쪽 상수를 import하면 순환이 된다.
 STALE_AFTER = timedelta(hours=12)
@@ -77,13 +74,15 @@ def refresh_own(db: Session, bearer_token: str, user_id: uuid.UUID, *, now: date
         snapshot = GrowlioGoalSnapshot(user_id=user_id)
         db.add(snapshot)
     _apply(snapshot, payload, now)
+    combined_goal_service.recompute_required(db)  # growlio 목표금액이 바뀌면 통합 목표의 목표금액도 바뀐다
     db.commit()
     db.refresh(snapshot)
     return snapshot
 
 
 def household_uses_snapshots(db: Session) -> bool:
-    return db.query(FinancialGoal.id).filter(FinancialGoal.kind == COMBINED_GOAL_KIND).first() is not None
+    """통합 목표가 없는 가구는 화면 로드마다 growlio를 부르지 않는다."""
+    return db.query(FinancialGoal.id).filter(FinancialGoal.kind == combined_goal_service.KIND).first() is not None
 
 
 def is_stale(snapshot: GrowlioGoalSnapshot | None, now: datetime) -> bool:
@@ -110,13 +109,3 @@ def refresh_if_stale(bearer_token: str, user_id: uuid.UUID, *, now: datetime | N
     finally:
         db.close()
 
-
-def snapshots_by_user(db: Session) -> dict[uuid.UUID, GrowlioGoalSnapshot]:
-    """가구에서 제거되지 않은 사용자의 저장값."""
-    rows = (
-        db.query(GrowlioGoalSnapshot)
-        .join(User, User.id == GrowlioGoalSnapshot.user_id)
-        .filter(User.removed_at.is_(None))
-        .all()
-    )
-    return {row.user_id: row for row in rows}

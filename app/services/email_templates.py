@@ -339,11 +339,13 @@ def goal_milestone_message(goal, milestone: int, current_amount: Decimal, today:
         )
         return f"[Nestlio] 챌린지 성공 - {goal.name}", body
 
+    # 순자산·통합 목표의 진행금액은 저축액이 아니라 자산(순자산, 투자자산 포함 합계)이다.
+    current_label = "현재 저축액" if goal.kind == "goal" else "현재 금액"
     congrats = "드디어 목표를 이뤘어요! 두 분이 함께 만든 결과예요." if milestone >= 100 else "두 분이 함께 여기까지 왔어요, 축하해요!"
     body = (
         f'\U0001F389 "{goal.name}" 목표 {milestone}% 달성! \U0001F389\n\n'
         f"{congrats}\n\n"
-        f"현재 저축액: {current_amount:,.0f}원 / 목표 {goal.required_amount:,.0f}원"
+        f"{current_label}: {current_amount:,.0f}원 / 목표 {goal.required_amount:,.0f}원"
     )
     if milestone < 100 and goal.target_date is not None:
         remaining_amount = max(goal.required_amount - current_amount, 0)

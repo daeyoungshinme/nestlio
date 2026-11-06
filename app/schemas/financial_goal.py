@@ -8,7 +8,8 @@ from pydantic import BaseModel, ConfigDict, Field
 from app.schemas.common import KrwAmount, KrwBalance, Pct, YearMonth, bounded_str
 
 FundingSourceType = Literal["savings_product", "account", "loan"]
-GoalKind = Literal["goal", "challenge", "net_worth"]
+GoalKind = Literal["goal", "challenge", "net_worth", "combined"]
+CombinedMemberType = Literal["goal", "growlio"]
 
 
 class FundingSourceIn(BaseModel):
@@ -55,6 +56,42 @@ class GoalMonthlyTargetAchievedIn(BaseModel):
     achieved_amount: KrwAmount
 
 
+class GrowlioGoalSnapshotOut(BaseModel):
+    """한 사람의 growlio 투자목표 마지막 저장값(GrowlioGoalSnapshot). 금액은 growlio 기준(투자자산은 부동산 제외)."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    user_id: uuid.UUID
+    is_configured: bool
+    goal_amount: Decimal | None
+    investable_assets: Decimal | None
+    monthly_deposit_amount: Decimal | None
+    annual_deposit_goal: Decimal | None
+    annual_deposit_current: Decimal | None
+    annual_dividend_goal: Decimal | None
+    estimated_annual_dividend: Decimal | None
+    goal_annual_return_pct: Decimal | None
+    actual_return_pct: Decimal | None
+    retirement_target_year: int | None
+    synced_at: datetime
+
+
+class CombinedMemberOut(BaseModel):
+    """부부 통합 목표의 구성 하나 — nestlio 장기 목표(goal) 또는 한 사람의 growlio 투자목표(growlio). growlio 값이 아직
+    저장 전이거나 growlio에 목표가 없으면 금액은 None이고 합계에서 빠진다."""
+
+    type: CombinedMemberType
+    goal_id: int | None = None
+    user_id: uuid.UUID | None = None
+    name: str
+    current_amount: Decimal | None = None
+    required_amount: Decimal | None = None
+    progress_pct: Decimal | None = None
+    # growlio 구성의 마지막 저장 시각(배우자 값은 배우자가 nestlio를 열 때만 갱신된다).
+    synced_at: datetime | None = None
+    growlio: GrowlioGoalSnapshotOut | None = None
+
+
 class FinancialGoalOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -91,6 +128,9 @@ class FinancialGoalOut(BaseModel):
     completed_at: datetime | None = None
     # kind="goal"이면서 미연동(funding_sources 없음)일 때 월별 계획을 쓰면 채워진다.
     monthly_targets: list[GoalMonthlyTargetOut] = []
+    # kind="combined"(부부 통합 목표)만: 구성과, 현재금액에서 뺀 겹침(growlio 투자자산에 이미 잡힌 구성 목표 자금원).
+    combined_members: list[CombinedMemberOut] = []
+    overlap_amount: Decimal | None = None
 
 
 class FinancialGoalCreateIn(BaseModel):
@@ -107,6 +147,9 @@ class FinancialGoalCreateIn(BaseModel):
     start_date: date | None = None
     monthly_targets: list[GoalMonthlyTargetIn] | None = None
     expected_annual_return_pct: Pct | None = Field(default=None, ge=-50, le=100)
+    # kind="combined"만: 묶을 장기 목표 id와 growlio 목표를 합산할 가구 구성원 id.
+    member_goal_ids: list[int] | None = Field(default=None, max_length=50)
+    growlio_user_ids: list[uuid.UUID] | None = Field(default=None, max_length=2)
 
 
 class FinancialGoalUpdateIn(BaseModel):
@@ -122,6 +165,9 @@ class FinancialGoalUpdateIn(BaseModel):
     start_date: date | None = None
     monthly_targets: list[GoalMonthlyTargetIn] | None = None
     expected_annual_return_pct: Pct | None = Field(default=None, ge=-50, le=100)
+    # 통합 목표의 구성 — 둘 다 None이면 구성을 바꾸지 않는다.
+    member_goal_ids: list[int] | None = Field(default=None, max_length=50)
+    growlio_user_ids: list[uuid.UUID] | None = Field(default=None, max_length=2)
 
 
 class GrowlioGoalSettingsOut(BaseModel):
@@ -139,26 +185,6 @@ class GrowlioGoalSettingsOut(BaseModel):
     goal_initial_amount: float | None = None
     annual_deposit_goal: float | None = None
     annual_dividend_goal: float | None = None
-
-
-class GrowlioGoalSnapshotOut(BaseModel):
-    """한 사람의 growlio 투자목표 마지막 저장값(GrowlioGoalSnapshot). 금액은 growlio 기준(투자자산은 부동산 제외)."""
-
-    model_config = ConfigDict(from_attributes=True)
-
-    user_id: uuid.UUID
-    is_configured: bool
-    goal_amount: Decimal | None
-    investable_assets: Decimal | None
-    monthly_deposit_amount: Decimal | None
-    annual_deposit_goal: Decimal | None
-    annual_deposit_current: Decimal | None
-    annual_dividend_goal: Decimal | None
-    estimated_annual_dividend: Decimal | None
-    goal_annual_return_pct: Decimal | None
-    actual_return_pct: Decimal | None
-    retirement_target_year: int | None
-    synced_at: datetime
 
 
 class GrowlioPerformanceOut(BaseModel):

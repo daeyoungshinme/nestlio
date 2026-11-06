@@ -7,6 +7,7 @@ from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
+from app.models.combined_goal_member import CombinedGoalMember
 from app.models.goal_funding_source import GoalFundingSource
 from app.models.goal_monthly_target import GoalMonthlyTarget
 from app.utils.dates import now_kst
@@ -18,12 +19,14 @@ class FinancialGoal(Base):
     target_date가 각각 목표금액/진행금액/종료일로 쓰이며 description·start_date·status·
     completed_at·created_by_id가 추가로 채워진다. `"net_worth"`(부부 자산증식 목표)는 가구 순자산 전체
     (net_worth_service.compute_current)가 진행금액이고 월 계획은 저축·투자 상품 월 계획 합이라 연동 자금원·
-    월별 목표·수동 진행금액을 쓰지 않는다 — 가구당 하나만 둔다(goal_service.NetWorthGoalExistsError)."""
+    월별 목표·수동 진행금액을 쓰지 않는다 — 가구당 하나만 둔다(goal_service.NetWorthGoalExistsError). `"combined"`(부부
+    통합 목표)는 구성(combined_members: nestlio 장기 목표 + 부부 각자의 growlio 투자목표)의 합이 목표금액·진행금액·월
+    계획이다 — required_amount는 구성이 바뀔 때마다 재계산해 저장한다(combined_goal_service.recompute_required). 가구당 하나."""
 
     __tablename__ = "financial_goals"
 
     id: Mapped[int] = mapped_column(primary_key=True)
-    kind: Mapped[str] = mapped_column(String(10), default="goal")  # 'goal' | 'challenge' | 'net_worth'
+    kind: Mapped[str] = mapped_column(String(10), default="goal")  # 'goal' | 'challenge' | 'net_worth' | 'combined'
     priority: Mapped[int] = mapped_column(Integer, default=1)
     name: Mapped[str] = mapped_column(String(100))
     description: Mapped[str | None] = mapped_column(String(500), nullable=True)
@@ -55,6 +58,13 @@ class FinancialGoal(Base):
     )
     monthly_targets: Mapped[list["GoalMonthlyTarget"]] = relationship(
         lazy="selectin", order_by="GoalMonthlyTarget.year_month", cascade="all, delete-orphan"
+    )
+    # kind="combined"의 구성(nestlio 장기 목표 또는 한 사람의 growlio 목표). 다른 kind는 비어 있다.
+    combined_members: Mapped[list["CombinedGoalMember"]] = relationship(
+        foreign_keys=[CombinedGoalMember.combined_goal_id],
+        lazy="selectin",
+        order_by="CombinedGoalMember.id",
+        cascade="all, delete-orphan",
     )
 
     # current_amount/progress_pct는 연동된 계좌 잔액이 거래내역 기반 파생값이라 DB 세션 없이는

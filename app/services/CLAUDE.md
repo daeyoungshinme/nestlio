@@ -47,7 +47,7 @@
 | 일정 | `event_service`(CRUD, 반복 전개 `occurrences_in_range`, 완료는 단건 `Event.completed_at`·반복 `EventOccurrenceCompletion` 회차별) · `event_reminder_service`(리마인더, 배우자 알림) | `event_service`는 알림을 모른다 — 생성·수정·삭제 뒤 배우자 알림(알림함 `event_change` + 메일, `event_reminder` 토글을 함께 씀)은 라우터가 `notify_other_spouse_best_effort`로 부른다 |
 | 할일 | `todo_service`(CRUD, 완료 토글, 반복 다음 회차 생성) · `todo_notification_service`(알림함·메일) | `todo_service`는 알림을 모른다 — 일정과 같이 라우터가 부른다. 반복은 회차마다 행이 하나(`previous_todo_id`로 연결)이고, 완료 전환은 조건부 UPDATE라 동시 체크에도 다음 회차가 하나만 생긴다 |
 | 저축상품 | `savings_product_service`(CRUD, `list_products`, `get_emergency_fund_balance`) · `savings_product_plan_service`(연간계획·실적, `PLAN_PRODUCT_TYPES`) · `savings_product_growlio_service`(growlio 동기화) | 상품 목록은 항상 `list_products(db)` 재사용 |
-| 목표 | `goal_service`(CRUD, 챌린지 상태 동기화, 자금원 연동, growlio 조회) · `goal_progress_service`(진행률·ETA·`to_out`, 커밋 없음. 목표 여러 개는 `list_out`/`current_amounts`로 — 목표마다 `to_out`/`compute_current_amount`를 돌리면 N+1) | `goal_service` → `goal_progress_service` 단방향 |
+| 목표 | `goal_service`(CRUD, 챌린지 상태 동기화, 자금원 연동, growlio 조회) · `goal_progress_service`(진행률·ETA·`to_out`, 커밋 없음. 목표 여러 개는 `list_out`/`current_amounts`로 — 목표마다 `to_out`/`compute_current_amount`를 돌리면 N+1) · `combined_goal_service`(통합 목표 구성·목표금액 재계산, 모델만 import하는 말단) · `growlio_goal_snapshot_service`(growlio 목표 저장값) | `goal_service` → `goal_progress_service` 단방향. `combined_goal_service`는 서비스를 import하지 않는다(목표·스냅샷 서비스 양쪽이 부른다) |
 | 알림 | `notification_service`(발송·판정) · `notification_inbox_service`(목록·읽음·반응·목표 응원) · `notification_log_service`(dedup) | 앞 둘은 서로 import하지 않음 |
 | 코칭 | `coaching_engine`(규칙 기반 `Insight`, `compute_insights`) · `savings_coaching_service`(여유자금 배분, 비상금, 저축 페이스·연속 달성) · `spending_review_service`(절감 점검: 규칙별 월 절감 추정 `SavingOpportunity`, 중복 합산 방지 `merge_opportunities`) | `coaching_engine` → `savings_coaching_service` 단방향. `spending_review_service` → `coaching_engine`(벤치마크 임계값) 단방향. `insurance_review_service`(보험 계약 점검, 해지 권고 안 함) → `insurance_service`·`insurance_target_service`(적정 가입금액 기준)·`spending_review_service`. 보험은 소비 점검 벤치마크에서 빠지므로 `dashboard_service.build_savings_review`가 두 총액을 그냥 더한다 |
 
@@ -83,6 +83,13 @@
 ## 순자산 목표 (FinancialGoal.kind="net_worth")
 
 부부 자산증식 목표. 가구당 하나(`goal_service.NetWorthGoalExistsError` → 409). 진행금액은 `net_worth_service.compute_current`의 순자산, 월 계획액은 모든 저축·투자 상품의 그 달 계획 합(`goal_progress_service.planned_monthly_for_goal`)이라 자금원 연동·월별 목표·수동 진행금액은 생성/수정 시 버린다. 새 kind 분기는 `goal_progress_service`의 `compute_current_amount`/`to_out`/`planned_monthly_for_goal` 세 곳을 함께 본다.
+
+## 부부 통합 목표 (FinancialGoal.kind="combined")
+
+장기 목표(`kind="goal"`만)와 부부 각자의 growlio 투자목표(`GrowlioGoalSnapshot`)를 하나로 묶은 목표. 가구당 하나(`goal_service.CombinedGoalExistsError` → 409), 구성은 `CombinedGoalMember`(목표 id 또는 사용자 id 중 하나, 최소 하나 — 없거나 잘못되면 `InvalidCombinedMemberError` 400). 순자산 목표는 구성에 넣지 않는다(가구 전체 자산이라 전부 겹친다).
+- **목표금액은 저장값**: 구성 목표 목표금액 + 합산되는 growlio 목표금액의 합을 `required_amount`에 재계산해 둔다(`combined_goal_service.recompute_required`) — 마일스톤 알림·메일이 `goal.required_amount`를 그대로 읽기 때문. 부르는 곳: 목표 생성·수정·삭제(`goal_service`, 모든 목표 수정 뒤), growlio 값 갱신(`refresh_own`). 삭제되는 구성 목표는 `detach_member_goal`로 먼저 뺀다(DB CASCADE만 믿으면 세션의 구성 컬렉션이 커밋 전까지 낡음).
+- **현재금액·월 계획은 읽을 때 계산**(`goal_progress_service._combined_parts`): 구성 목표 현재금액 합 + growlio 투자자산(부동산 제외) 합 − **겹침**. 겹침 = 구성 목표 자금원 중 `growlio_account_id`가 있는 부동산 아닌 저축·투자 상품·계좌로, 소유자의 growlio 값이 합산되는 것(그 잔액은 growlio 투자자산에 이미 있다). 월 계획 = 구성 목표 월 계획 + growlio 월 적립액 − 겹친 상품 월 계획. 응답 `combined_members`·`overlap_amount`.
+- growlio 값이 저장 전이거나 growlio에 목표가 없으면(`is_configured` false) 그 구성은 합계에서 빠지고 금액 None. 구버전 growlio(투자자산 없음)는 목표금액만 들어간다. 제거된 배우자는 `active_snapshots`에서 빠진다.
 
 ## growlio 연동 (growlio_client.py)
 

@@ -79,6 +79,8 @@ def create_goal(
         monthly_targets=[mt.model_dump() for mt in payload.monthly_targets] if payload.monthly_targets else None,
         now=now,
         expected_annual_return_pct=payload.expected_annual_return_pct,
+        member_goal_ids=payload.member_goal_ids,
+        growlio_user_ids=payload.growlio_user_ids,
     )
     notification_service.celebrate_goal_milestone_best_effort(db, goal.id, today)
     return goal_progress_service.to_out(db, goal, today)
@@ -109,6 +111,8 @@ def update_goal(
         monthly_targets=[mt.model_dump() for mt in payload.monthly_targets] if payload.monthly_targets else None,
         now=now,
         expected_annual_return_pct=payload.expected_annual_return_pct,
+        member_goal_ids=payload.member_goal_ids,
+        growlio_user_ids=payload.growlio_user_ids,
     )
     if goal is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="목표를 찾을 수 없습니다.")

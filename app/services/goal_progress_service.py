@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 
 from app.models.financial_goal import FinancialGoal
 from app.models.transaction import Transaction
-from app.services import account_service, net_worth_service, savings_product_plan_service
+from app.services import account_service, combined_goal_service, net_worth_service, savings_product_plan_service
 from app.utils.dates import month_bounds, months_between, parse_year_month, shift_month, span_bounds, year_month_str
 from app.utils.money import whole_won
 
@@ -88,6 +88,8 @@ def compute_current_amount(db: Session, goal: FinancialGoal) -> Decimal:
     kind="net_worth"는 가구 순자산 전체."""
     if goal.kind == "net_worth":
         return net_worth_now(db)
+    if goal.kind == combined_goal_service.KIND:
+        return _combined_parts(db, goal, _prefetch(db, [goal], include_linked_rows=False), {})["current_amount"]
     return current_amount_from_breakdown(goal, funding_source_breakdown(db, goal))
 
 
@@ -255,41 +257,149 @@ def planned_monthly_for_goal(goal: FinancialGoal, planned_by_product: dict[int, 
 @dataclass
 class _Prefetched:
     """목표 여러 개의 진행금액 계산에 필요한 조회를 목표 수와 무관하게 한 번씩 해 둔 것 — 계좌 잔액,
-    연동 목표의 월별 거래(목록 응답만), 순자산(순자산 목표가 있을 때만)."""
+    연동 목표의 월별 거래(목록 응답만), 순자산(순자산 목표가 있을 때만), growlio 목표 저장값(통합 목표가 있을 때만)."""
 
     account_balances: dict[int, Decimal]
     linked_rows: list = field(default_factory=list)
     net_worth: Decimal | None = None
+    snapshots: dict = field(default_factory=dict)
 
 
 def _is_linked_goal(goal: FinancialGoal) -> bool:
     return goal.kind == "goal" and bool(goal.funding_sources)
 
 
+def _member_goals(goals: list[FinancialGoal]) -> list[FinancialGoal]:
+    return [
+        m.member_goal
+        for goal in goals
+        if goal.kind == combined_goal_service.KIND
+        for m in goal.combined_members
+        if m.member_goal is not None
+    ]
+
+
 def _prefetch(db: Session, goals: list[FinancialGoal], include_linked_rows: bool) -> _Prefetched:
     linked_goals = [goal for goal in goals if _is_linked_goal(goal)] if include_linked_rows else []
+    # 통합 목표의 구성 목표 계좌도 같이 — 상세(to_out 단건)는 구성 목표가 goals에 없다.
+    balance_goals = goals + _member_goals(goals)
+    has_combined = any(goal.kind == combined_goal_service.KIND for goal in goals)
     return _Prefetched(
         account_balances=account_service.balances_for(
-            db, sorted({aid for goal in goals for aid in _linked_account_ids(goal)})
+            db, sorted({aid for goal in balance_goals for aid in _linked_account_ids(goal)})
         ),
         linked_rows=_linked_transaction_rows(
             db, linked_goals, [mt.year_month for goal in linked_goals for mt in goal.monthly_targets]
         ),
         net_worth=net_worth_now(db) if any(goal.kind == "net_worth" for goal in goals) else None,
+        snapshots=combined_goal_service.active_snapshots(db) if has_combined else {},
     )
+
+
+def _overlapping_sources(goal: FinancialGoal, growlio_user_ids: set) -> list[tuple[str, int]]:
+    """구성 목표의 자금원 중 growlio 투자자산에 이미 들어 있는 것 — growlio 계좌를 가져온 저축·투자 상품·계좌이고 그
+    growlio 목표가 통합 목표에 합산되는 사람 소유. 부동산은 growlio 목표 기준(부동산 제외)에 없으므로 겹치지 않는다."""
+    keys: list[tuple[str, int]] = []
+    for fs in goal.funding_sources:
+        product, account = fs.savings_product, fs.account
+        if (
+            product is not None
+            and product.growlio_account_id
+            and product.product_type != "real_estate"
+            and product.owner_user_id in growlio_user_ids
+        ):
+            keys.append(("savings_product", product.id))
+        elif account is not None and account.growlio_account_id and account.owner_user_id in growlio_user_ids:
+            keys.append(("account", account.id))
+    return keys
+
+
+def _combined_parts(
+    db: Session, goal: FinancialGoal, prefetched: _Prefetched, planned_by_product: dict[int, Decimal]
+) -> dict:
+    """통합 목표의 구성별 값과 합계. 현재금액 = 구성 목표 현재금액 합 + growlio 투자자산 합 − 겹침(growlio 투자자산에
+    이미 잡힌 구성 목표 자금원), 월 계획 = 구성 목표 월 계획 합 + growlio 월 적립액 합 − 겹친 상품의 월 계획.
+    growlio 값이 아직 저장 전이거나 growlio에 목표가 없으면 그 구성은 금액 None(합계에서 빠짐)."""
+    snapshots = prefetched.snapshots
+    counted = {
+        m.growlio_user_id: snap
+        for m in goal.combined_members
+        if (snap := combined_goal_service.counted_snapshot(m, snapshots)) is not None
+        and snap.investable_assets is not None
+    }
+    members: list[dict] = []
+    current = planned = overlap = overlap_planned = Decimal("0")
+    for m in goal.combined_members:
+        if m.member_goal is not None:
+            mg = m.member_goal
+            breakdown = funding_source_breakdown(db, mg, prefetched.account_balances)
+            member_current = current_amount_from_breakdown(mg, breakdown)
+            amounts = {(item["type"], item["id"]): item["amount"] for item in breakdown}
+            for key in _overlapping_sources(mg, set(counted)):
+                overlap += amounts.get(key, Decimal("0"))
+                if key[0] == "savings_product":
+                    overlap_planned += planned_by_product.get(key[1], Decimal("0"))
+            current += member_current
+            planned += planned_monthly_for_goal(mg, planned_by_product)
+            members.append(
+                {
+                    "type": "goal",
+                    "goal_id": mg.id,
+                    "user_id": None,
+                    "name": mg.name,
+                    "current_amount": member_current,
+                    "required_amount": mg.required_amount,
+                    "progress_pct": compute_progress_pct(member_current, mg.required_amount),
+                    "synced_at": None,
+                    "growlio": None,
+                }
+            )
+        elif m.growlio_user_id is not None:
+            snap = snapshots.get(m.growlio_user_id)
+            user_counted = m.growlio_user_id in counted
+            if user_counted:
+                current += snap.investable_assets
+                planned += snap.monthly_deposit_amount or Decimal("0")
+            configured = snap is not None and snap.is_configured
+            members.append(
+                {
+                    "type": "growlio",
+                    "goal_id": None,
+                    "user_id": m.growlio_user_id,
+                    "name": f"{m.growlio_user.display_name}의 growlio 투자목표",
+                    "current_amount": snap.investable_assets if user_counted else None,
+                    "required_amount": snap.goal_amount if configured else None,
+                    "progress_pct": (
+                        compute_progress_pct(snap.investable_assets, snap.goal_amount or Decimal("0"))
+                        if user_counted
+                        else None
+                    ),
+                    "synced_at": snap.synced_at if snap is not None else None,
+                    "growlio": snap,
+                }
+            )
+    return {
+        "members": members,
+        "current_amount": current - overlap,
+        "planned_monthly": max(planned - overlap_planned, Decimal("0")),
+        "overlap_amount": overlap,
+    }
 
 
 def current_amounts(db: Session, goals: list[FinancialGoal]) -> dict[int, Decimal]:
     """목표 id → compute_current_amount 값. 목표 수와 무관한 쿼리 수로 계산한다(마일스톤 일괄 확인용)."""
     prefetched = _prefetch(db, goals, include_linked_rows=False)
-    return {
-        goal.id: (
-            prefetched.net_worth
-            if goal.kind == "net_worth"
-            else current_amount_from_breakdown(goal, funding_source_breakdown(db, goal, prefetched.account_balances))
-        )
-        for goal in goals
-    }
+    amounts: dict[int, Decimal] = {}
+    for goal in goals:
+        if goal.kind == "net_worth":
+            amounts[goal.id] = prefetched.net_worth
+        elif goal.kind == combined_goal_service.KIND:
+            amounts[goal.id] = _combined_parts(db, goal, prefetched, {})["current_amount"]
+        else:
+            amounts[goal.id] = current_amount_from_breakdown(
+                goal, funding_source_breakdown(db, goal, prefetched.account_balances)
+            )
+    return amounts
 
 
 def list_out(db: Session, goals: list[FinancialGoal], today: date) -> list[dict]:
@@ -312,10 +422,16 @@ def to_out(
     breakdown = funding_source_breakdown(db, goal, prefetched.account_balances)
     if planned_by_product is None:
         planned_by_product = savings_product_plan_service.planned_by_product_for_month(db, year_month_str(today))
-    planned_monthly = planned_monthly_for_goal(goal, planned_by_product)
-    current_amount = (
-        prefetched.net_worth if goal.kind == "net_worth" else current_amount_from_breakdown(goal, breakdown)
+    combined = (
+        _combined_parts(db, goal, prefetched, planned_by_product) if goal.kind == combined_goal_service.KIND else None
     )
+    if combined is not None:
+        planned_monthly, current_amount = combined["planned_monthly"], combined["current_amount"]
+    else:
+        planned_monthly = planned_monthly_for_goal(goal, planned_by_product)
+        current_amount = (
+            prefetched.net_worth if goal.kind == "net_worth" else current_amount_from_breakdown(goal, breakdown)
+        )
     months_remaining = compute_months_remaining(today, goal.target_date)
     is_linked_goal = _is_linked_goal(goal)
     linked_monthly_achieved = (
@@ -343,6 +459,8 @@ def to_out(
         "progress_pct": compute_progress_pct(current_amount, goal.required_amount),
         "sort_order": goal.sort_order,
         "funding_sources": breakdown,
+        "combined_members": combined["members"] if combined is not None else [],
+        "overlap_amount": combined["overlap_amount"] if combined is not None else None,
         "months_remaining": months_remaining,
         "suggested_monthly_amount": compute_suggested_monthly_amount(
             current_amount, goal.required_amount, months_remaining
