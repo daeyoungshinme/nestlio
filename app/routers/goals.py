@@ -16,8 +16,15 @@ from app.schemas.financial_goal import (
     GoalMonthlyTargetAchievedIn,
     GrowlioGoalInsightOut,
     GrowlioGoalSettingsOut,
+    GrowlioGoalSnapshotOut,
 )
-from app.services import goal_progress_service, goal_service, notification_inbox_service, notification_service
+from app.services import (
+    goal_progress_service,
+    goal_service,
+    growlio_goal_snapshot_service,
+    notification_inbox_service,
+    notification_service,
+)
 from app.utils.dates import now_kst, today_kst
 
 router = APIRouter(prefix="/financial-goals", tags=["financial-goals"])
@@ -28,6 +35,17 @@ logger = logging.getLogger(__name__)
 def get_growlio_goal(bearer_token: str = Depends(get_bearer_token), _: User = Depends(get_current_user)):
     """재무목표 신규 작성 폼을 미리 채우기 위해 growlio 투자목표 설정값을 프록시로 조회한다."""
     return goal_service.fetch_growlio_goal_settings(bearer_token)
+
+
+@router.post("/growlio-snapshot/refresh", response_model=GrowlioGoalSnapshotOut)
+def refresh_growlio_snapshot(
+    db: Session = Depends(get_db),
+    bearer_token: str = Depends(get_bearer_token),
+    current_user: User = Depends(get_current_user),
+):
+    """본인의 growlio 투자목표를 지금 다시 가져와 저장한다(부부 통합 목표의 "지금 동기화"). 배우자 값은 배우자가
+    nestlio를 열 때만 갱신된다 — growlio는 호출자 JWT로만 읽힌다."""
+    return growlio_goal_snapshot_service.refresh_own(db, bearer_token, current_user.id, now=now_kst())
 
 
 @router.get("", response_model=list[FinancialGoalOut])

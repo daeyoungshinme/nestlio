@@ -15,6 +15,7 @@ from app.models.savings_product import SavingsProduct
 from app.services import (
     account_service,
     growlio_client,
+    growlio_goal_snapshot_service,
     growlio_push_service,
     loan_service,
     real_estate_service,
@@ -212,10 +213,13 @@ def schedule_background_refresh(
 
     밀린 growlio 입출금 반영(아웃박스, growlio_push_service.flush_pending)을 먼저 보내고 잔액을 새로고친다
     (refresh_stale_growlio_links) — 순서가 바뀌면 새로고친 잔액에 방금 보낸 입출금이 빠진다. BackgroundTasks는
-    등록 순서대로 실행된다. 스케줄러엔 사용자 JWT가 없어서 화면 로드를 후크로 쓴다(app/services/CLAUDE.md)."""
+    등록 순서대로 실행된다. 마지막으로 부부 통합 목표용 본인 growlio 목표 값을 저장한다
+    (growlio_goal_snapshot_service.refresh_if_stale). 스케줄러엔 사용자 JWT가 없어서 화면 로드를 후크로 쓴다(app/services/CLAUDE.md)."""
     now = now or now_kst()
     background_tasks.add_task(growlio_push_service.flush_pending, bearer_token, user_id, now=now)
     background_tasks.add_task(refresh_stale_growlio_links, bearer_token, user_id, now=now)
+    # 부부 통합 목표가 합산할 본인 growlio 목표 값(통합 목표가 없으면 growlio를 부르지 않는다).
+    background_tasks.add_task(growlio_goal_snapshot_service.refresh_if_stale, bearer_token, user_id, now=now)
 
 
 def overview(db: Session, months: int) -> dict:

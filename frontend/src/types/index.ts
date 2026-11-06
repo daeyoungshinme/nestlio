@@ -824,6 +824,23 @@ export interface GrowlioGoalSettingsOut {
   annual_dividend_goal: number | null;
 }
 
+/** 한 사람의 growlio 투자목표 마지막 저장값 — 금액은 growlio 기준(투자자산은 부동산 제외). */
+export interface GrowlioGoalSnapshotOut {
+  user_id: string;
+  is_configured: boolean;
+  goal_amount: string | null;
+  investable_assets: string | null;
+  monthly_deposit_amount: string | null;
+  annual_deposit_goal: string | null;
+  annual_deposit_current: string | null;
+  annual_dividend_goal: string | null;
+  estimated_annual_dividend: string | null;
+  goal_annual_return_pct: string | null;
+  actual_return_pct: string | null;
+  retirement_target_year: number | null;
+  synced_at: string;
+}
+
 export interface AnnualPlanItemMonthlyTargetOut {
   year_month: string;
   target_amount: string;

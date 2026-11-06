@@ -141,6 +141,26 @@ class GrowlioGoalSettingsOut(BaseModel):
     annual_dividend_goal: float | None = None
 
 
+class GrowlioGoalSnapshotOut(BaseModel):
+    """한 사람의 growlio 투자목표 마지막 저장값(GrowlioGoalSnapshot). 금액은 growlio 기준(투자자산은 부동산 제외)."""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    user_id: uuid.UUID
+    is_configured: bool
+    goal_amount: Decimal | None
+    investable_assets: Decimal | None
+    monthly_deposit_amount: Decimal | None
+    annual_deposit_goal: Decimal | None
+    annual_deposit_current: Decimal | None
+    annual_dividend_goal: Decimal | None
+    estimated_annual_dividend: Decimal | None
+    goal_annual_return_pct: Decimal | None
+    actual_return_pct: Decimal | None
+    retirement_target_year: int | None
+    synced_at: datetime
+
+
 class GrowlioPerformanceOut(BaseModel):
     """growlio `/external/performance` 프록시 — growlio 도메인이 float라 float 그대로 둔다(GrowlioGoalSettingsOut 참고)."""
 
