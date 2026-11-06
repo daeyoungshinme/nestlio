@@ -9,6 +9,7 @@ from app.models.financial_goal import FinancialGoal
 from app.models.goal_funding_source import GoalFundingSource
 from app.models.goal_monthly_target import GoalMonthlyTarget
 from app.models.google_oauth_token import GoogleOAuthToken
+from app.models.growlio_goal_snapshot import GrowlioGoalSnapshot
 from app.models.growlio_push_queue import GrowlioPushQueue
 from app.models.insurance_policy import InsurancePolicy
 from app.models.insurance_rider import InsuranceRider
@@ -39,6 +40,7 @@ __all__ = [
     "GoalFundingSource",
     "GoalMonthlyTarget",
     "GoogleOAuthToken",
+    "GrowlioGoalSnapshot",
     "GrowlioPushQueue",
     "InsurancePolicy",
     "InsuranceRider",

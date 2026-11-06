@@ -963,6 +963,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/financial-goals/growlio-snapshot/refresh": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Refresh Growlio Snapshot
+         * @description 본인의 growlio 투자목표를 지금 다시 가져와 저장한다(부부 통합 목표의 "지금 동기화"). 배우자 값은 배우자가
+         *     nestlio를 열 때만 갱신된다 — growlio는 호출자 JWT로만 읽힌다.
+         */
+        post: operations["refresh_growlio_snapshot_api_v1_financial_goals_growlio_snapshot_refresh_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/financial-goals": {
         parameters: {
             query?: never;
@@ -2949,6 +2970,44 @@ export interface components {
             annual_deposit_goal?: number | null;
             /** Annual Dividend Goal */
             annual_dividend_goal?: number | null;
+        };
+        /**
+         * GrowlioGoalSnapshotOut
+         * @description 한 사람의 growlio 투자목표 마지막 저장값(GrowlioGoalSnapshot). 금액은 growlio 기준(투자자산은 부동산 제외).
+         */
+        GrowlioGoalSnapshotOut: {
+            /**
+             * User Id
+             * Format: uuid
+             */
+            user_id: string;
+            /** Is Configured */
+            is_configured: boolean;
+            /** Goal Amount */
+            goal_amount: string | null;
+            /** Investable Assets */
+            investable_assets: string | null;
+            /** Monthly Deposit Amount */
+            monthly_deposit_amount: string | null;
+            /** Annual Deposit Goal */
+            annual_deposit_goal: string | null;
+            /** Annual Deposit Current */
+            annual_deposit_current: string | null;
+            /** Annual Dividend Goal */
+            annual_dividend_goal: string | null;
+            /** Estimated Annual Dividend */
+            estimated_annual_dividend: string | null;
+            /** Goal Annual Return Pct */
+            goal_annual_return_pct: string | null;
+            /** Actual Return Pct */
+            actual_return_pct: string | null;
+            /** Retirement Target Year */
+            retirement_target_year: number | null;
+            /**
+             * Synced At
+             * Format: date-time
+             */
+            synced_at: string;
         };
         /**
          * GrowlioImportIn
@@ -6687,6 +6746,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["GrowlioGoalSettingsOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    refresh_growlio_snapshot_api_v1_financial_goals_growlio_snapshot_refresh_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GrowlioGoalSnapshotOut"];
                 };
             };
             /** @description Validation Error */
