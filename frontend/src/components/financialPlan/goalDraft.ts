@@ -20,6 +20,9 @@ export interface Draft {
   account_ids: string[];
   loan_ids: string[];
   monthly_targets: GoalMonthlyTargetIn[];
+  /** kind==="combined"만: 묶을 장기 목표 id와 growlio 목표를 합산할 가구 구성원 id. */
+  member_goal_ids: string[];
+  growlio_user_ids: string[];
 }
 
 export const EMPTY_GOAL_DRAFT: Draft = {
@@ -38,6 +41,8 @@ export const EMPTY_GOAL_DRAFT: Draft = {
   account_ids: [],
   loan_ids: [],
   monthly_targets: [],
+  member_goal_ids: [],
+  growlio_user_ids: [],
 };
 
 /** 챌린지 기본값의 시작/종료일은 "지금" 오늘이어야 하므로 모듈 로드 시점에 고정하지 않고 매번 만든다 —
@@ -50,6 +55,11 @@ export function emptyChallengeDraft(): Draft {
 /** 순자산 목표 — 이름만 기본값을 채운다(자금원·월별 계획·현재 금액은 가구 순자산과 저축·투자 계획이 대신한다). */
 export function emptyNetWorthDraft(): Draft {
   return { ...EMPTY_GOAL_DRAFT, kind: "net_worth", name: "우리 순자산 목표" };
+}
+
+/** 부부 통합 목표 — 기본으로 가구 구성원 모두의 growlio 목표를 묶는다(자금원·월별 계획·현재 금액은 구성 합이 대신한다). */
+export function emptyCombinedDraft(userIds: string[]): Draft {
+  return { ...EMPTY_GOAL_DRAFT, kind: "combined", name: "우리 부부 통합 목표", growlio_user_ids: userIds };
 }
 
 /** "YYYY-MM-DD" -> "YYYY-MM" (GoalMonthlyTargetEditor에 넘길 시작월/종료월 계산용). */
@@ -77,12 +87,16 @@ export function draftFromGoal(goal: FinancialGoalOut): Draft {
       year_month: mt.year_month,
       target_amount: toAmountInputValue(mt.target_amount),
     })),
+    member_goal_ids: goal.combined_members.filter((m) => m.goal_id !== null).map((m) => String(m.goal_id)),
+    growlio_user_ids: goal.combined_members.filter((m) => m.user_id !== null).map((m) => m.user_id as string),
   };
 }
 
 export function toPayload(draft: Draft) {
   const isChallenge = draft.kind === "challenge";
-  const isNetWorth = draft.kind === "net_worth";
+  const isCombined = draft.kind === "combined";
+  // 순자산·통합 목표는 진행금액·월 계획을 다른 원본(가구 순자산, 구성 합)에서 가져와 자금원·월별 계획·직접 입력이 없다.
+  const isNetWorth = draft.kind === "net_worth" || isCombined;
   const funding_sources: FundingSourceIn[] = isChallenge || isNetWorth
     ? []
     : [
@@ -107,5 +121,7 @@ export function toPayload(draft: Draft) {
     // 장기목표(goal)는 필요금액을 월별 계획 합계로 덮어쓰지 않는다 — 월별 계획은 페이스 참고용
     // 그리드일 뿐이라 그대로 보낸다(FinancialGoalOut.required_amount 참고).
     monthly_targets: !isChallenge && !isNetWorth ? draft.monthly_targets : null,
+    member_goal_ids: isCombined ? draft.member_goal_ids.map(Number) : null,
+    growlio_user_ids: isCombined ? draft.growlio_user_ids : null,
   };
 }

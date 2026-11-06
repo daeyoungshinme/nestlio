@@ -26,6 +26,7 @@ import { formatKrw, toAmountInputValue } from "@/utils/format";
 import { toast } from "@/utils/toast";
 import {
   emptyChallengeDraft,
+  emptyCombinedDraft,
   emptyNetWorthDraft,
   EMPTY_GOAL_DRAFT,
   toYearMonth,
@@ -38,29 +39,36 @@ import type {
   GoalMonthlyTargetIn,
   LoanOut,
   SavingsProductOut,
+  UserOut,
 } from "@/types";
 import { amountToneClass, formErrorTextClass } from "@/utils/colors";
 import { sumAmounts } from "@/utils/amount";
 import { useSavingsProductsPlan } from "@/hooks/usePlanQueries";
 
-const GOAL_KIND_TABS = ["순자산", "장기 목표", "챌린지"] as const;
+const GOAL_KIND_TABS = ["통합", "순자산", "장기 목표", "챌린지"] as const;
 type GoalKindTab = (typeof GOAL_KIND_TABS)[number];
 const GOAL_KIND_TAB_TO_KIND: Record<GoalKindTab, GoalKind> = {
+  통합: "combined",
   순자산: "net_worth",
   "장기 목표": "goal",
   챌린지: "challenge",
 };
 const KIND_TO_GOAL_KIND_TAB: Record<GoalKind, GoalKindTab> = {
+  combined: "통합",
   net_worth: "순자산",
   goal: "장기 목표",
   challenge: "챌린지",
 };
 
-function emptyDraftFor(kind: GoalKind): Draft {
+function emptyDraftFor(kind: GoalKind, userIds: string[]): Draft {
   if (kind === "challenge") return emptyChallengeDraft();
   if (kind === "net_worth") return emptyNetWorthDraft();
+  if (kind === "combined") return emptyCombinedDraft(userIds);
   return EMPTY_GOAL_DRAFT;
 }
+
+/** 기본 이름이 있는 유형 — 유형을 바꿀 때 입력하던 이름 대신 새 유형의 기본 이름을 쓴다. */
+const DEFAULT_NAMED_KINDS: GoalKind[] = ["net_worth", "combined"];
 
 /** 장기 목표 폼의 단계 — 한 화면에 모든 입력(기본정보·자금원 3종 체크리스트·월별 계획·제안 계산)을 쌓던 긴 모달을
  * 모바일에서 한 번에 한 가지만 결정하도록 나눴다. */
@@ -76,6 +84,9 @@ export default function GoalFormModal({
   loans,
   existingGoal,
   canCreateNetWorth = true,
+  canCreateCombined = true,
+  goals = [],
+  users = [],
   onClose,
   onSubmit,
 }: {
@@ -89,6 +100,12 @@ export default function GoalFormModal({
   existingGoal: FinancialGoalOut | null;
   /** 순자산 목표는 가구당 하나 — 이미 있으면 새 목표 유형에서 뺀다(백엔드도 409). */
   canCreateNetWorth?: boolean;
+  /** 통합 목표도 가구당 하나(백엔드 409). */
+  canCreateCombined?: boolean;
+  /** 통합 목표에 묶을 수 있는 장기 목표 후보(kind==="goal"만 쓴다). */
+  goals?: FinancialGoalOut[];
+  /** growlio 목표를 합산할 가구 구성원. */
+  users?: UserOut[];
   onClose: () => void;
   onSubmit: (draft: Draft) => void;
 }) {
@@ -99,7 +116,10 @@ export default function GoalFormModal({
   const [openedAt] = useState(() => new Date());
   const isChallenge = draft.kind === "challenge";
   const isNetWorth = draft.kind === "net_worth";
-  const kindTabs = canCreateNetWorth ? GOAL_KIND_TABS : GOAL_KIND_TABS.filter((tab) => tab !== "순자산");
+  const isCombined = draft.kind === "combined";
+  const kindTabs = GOAL_KIND_TABS.filter(
+    (tab) => (tab !== "순자산" || canCreateNetWorth) && (tab !== "통합" || canCreateCombined),
+  );
   // 유형 선택은 생성 시에만 가능하다(백엔드 FinancialGoalUpdateIn에 kind 필드 자체가 없어 생성 후
   // 유형 변경이 불가능) — 수정 모드에서는 토글을 숨기고 기존 kind별 폼만 보여준다. 이름은 유형을
   // 바꿔도 다시 입력하지 않도록 보존하고, 나머지 필드는 빈 초안으로 리셋한다(필드 구성이 크게 다름).
@@ -110,9 +130,9 @@ export default function GoalFormModal({
         activeTab={KIND_TO_GOAL_KIND_TAB[draft.kind]}
         onChange={(tab) => {
           const nextKind = GOAL_KIND_TAB_TO_KIND[tab];
-          const next = emptyDraftFor(nextKind);
-          // 순자산 목표는 기본 이름이 있어 그대로 두고, 그 밖에는 입력하던 이름을 보존한다.
-          setDraft((d) => ({ ...next, name: d.kind === "net_worth" ? next.name : d.name || next.name }));
+          const next = emptyDraftFor(nextKind, users.map((u) => u.id));
+          // 순자산·통합 목표는 기본 이름이 있어 그대로 두고, 그 밖에는 입력하던 이름을 보존한다.
+          setDraft((d) => ({ ...next, name: DEFAULT_NAMED_KINDS.includes(d.kind) ? next.name : d.name || next.name }));
         }}
         variant="pill"
       />
@@ -183,7 +203,10 @@ export default function GoalFormModal({
     onError: (err) => toast(extractErrorMessage(err, "growlio 투자목표를 불러오지 못했습니다."), "error"),
   });
 
-  const toggleId = (field: "savings_product_ids" | "account_ids" | "loan_ids", id: string) => {
+  const toggleId = (
+    field: "savings_product_ids" | "account_ids" | "loan_ids" | "member_goal_ids" | "growlio_user_ids",
+    id: string,
+  ) => {
     setDraft((d) => ({
       ...d,
       [field]: d[field].includes(id) ? d[field].filter((v) => v !== id) : [...d[field], id],
@@ -199,13 +222,102 @@ export default function GoalFormModal({
       setStep(0);
       return;
     }
-    // 챌린지·순자산 목표는 한 화면 폼이라 바로 저장. 장기 목표는 마지막 단계에서만 저장하고, 그 전 Enter/다음은 다음 단계로.
-    if (!isChallenge && !isNetWorth && !isLastStep) {
+    // 챌린지·순자산·통합 목표는 한 화면 폼이라 바로 저장. 장기 목표는 마지막 단계에서만 저장하고, 그 전 Enter/다음은 다음 단계로.
+    if (!isChallenge && !isNetWorth && !isCombined && !isLastStep) {
       setStep((current) => current + 1);
       return;
     }
     onSubmit(draft);
   };
+
+  if (isCombined) {
+    const memberCandidates = goals.filter((g) => g.kind === "goal");
+    const selectedGoalsTotal = sumAmounts(
+      memberCandidates.filter((g) => draft.member_goal_ids.includes(String(g.id))),
+      (g) => g.required_amount,
+    );
+    // 이미 저장된 통합 목표면 growlio 목표금액을 알고 있다(저장 전 새 목표는 저장 후 합산).
+    const knownGrowlioTotal = sumAmounts(
+      (existingGoal?.combined_members ?? []).filter(
+        (m) => m.type === "growlio" && m.user_id !== null && draft.growlio_user_ids.includes(m.user_id),
+      ),
+      (m) => m.required_amount ?? "0",
+    );
+    const hasSelection = draft.member_goal_ids.length > 0 || draft.growlio_user_ids.length > 0;
+    return (
+      <Modal onClose={onClose} title={title}>
+        <form onSubmit={handleSubmit} className="p-6 overflow-y-auto flex flex-col gap-3">
+          {kindToggle}
+          <div className="rounded-lg border border-gray-200 dark:border-gray-700 px-3 py-2.5 text-sm text-gray-600 dark:text-gray-300 space-y-1">
+            <p>
+              고른 목표의 합계가 통합 목표예요. 지금 고른 장기 목표{" "}
+              <span className="font-semibold text-gray-900 dark:text-gray-50">{formatKrw(selectedGoalsTotal)}</span>
+              {existingGoal !== null && draft.growlio_user_ids.length > 0 && (
+                <>
+                  {" "}+ growlio 목표{" "}
+                  <span className="font-semibold text-gray-900 dark:text-gray-50">{formatKrw(knownGrowlioTotal)}</span>
+                </>
+              )}
+            </p>
+            <CollapsibleHint summary="growlio 목표는 각자 nestlio를 열 때 불러와요.">
+              growlio 목표금액·투자자산(부동산 제외)은 각자 nestlio를 열 때 저장되고, 배우자 값은 마지막으로 불러온 시점
+              기준이에요. 목표금액은 고른 목표를 단순히 더한 값이라, 같은 돈을 노리는 목표를 함께 고르면 합계가 커져요.
+              growlio에서 가져온 투자 상품처럼 growlio 투자자산과 겹치는 금액은 현재 금액에서 한 번만 세요.
+            </CollapsibleHint>
+          </div>
+          <FormInput
+            label="목표 이름"
+            value={draft.name}
+            maxLength={100}
+            onChange={(e) => setDraft((d) => ({ ...d, name: e.target.value }))}
+            className="w-full"
+            required
+          />
+          <FundingSourceChecklist
+            label="부부 각자의 growlio 투자목표"
+            items={users}
+            getId={(u) => u.id}
+            getName={(u) => `${u.display_name}의 growlio 목표`}
+            getAmountLabel={() => ""}
+            selectedIds={draft.growlio_user_ids}
+            onToggle={(id) => toggleId("growlio_user_ids", id)}
+            emptyMessage="가구 구성원이 없어요."
+          />
+          <FundingSourceChecklist
+            label="함께 묶을 장기 목표"
+            items={memberCandidates}
+            getId={(g) => g.id}
+            getName={(g) => g.name}
+            getAmountLabel={(g) => `목표 ${formatKrw(g.required_amount)}`}
+            selectedIds={draft.member_goal_ids}
+            onToggle={(id) => toggleId("member_goal_ids", id)}
+            emptyMessage="장기 목표가 아직 없어요. growlio 목표만 묶어도 돼요."
+          />
+          {!hasSelection && <p className={`text-xs ${formErrorTextClass()}`}>묶을 목표를 하나 이상 골라 주세요.</p>}
+          <FormInput
+            label="목표일 (선택)"
+            type="date"
+            value={draft.target_date}
+            onChange={(e) => setDraft((d) => ({ ...d, target_date: e.target.value }))}
+            className="w-full"
+          />
+          <FormInput
+            label="기대 연 수익률 % (선택)"
+            type="number"
+            inputMode="decimal"
+            step="0.1"
+            value={draft.expected_annual_return_pct}
+            onChange={(e) => setDraft((d) => ({ ...d, expected_annual_return_pct: e.target.value }))}
+            className="w-full"
+            hint="입력하면 월 복리로 예상 달성월을 계산해요."
+          />
+          <Button type="submit" loading={submitting} disabled={!hasSelection} className="mt-2">
+            {submitLabel}
+          </Button>
+        </form>
+      </Modal>
+    );
+  }
 
   if (isNetWorth) {
     return (

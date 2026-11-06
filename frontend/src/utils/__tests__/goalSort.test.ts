@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { pinNetWorthFirst, sortGoals } from "@/utils/goalSort";
+import { pinHouseholdGoalsFirst, sortGoals } from "@/utils/goalSort";
 import type { FinancialGoalOut } from "@/types";
 
 function makeGoal(overrides: Partial<FinancialGoalOut>): FinancialGoalOut {
@@ -30,6 +30,8 @@ function makeGoal(overrides: Partial<FinancialGoalOut>): FinancialGoalOut {
     created_by_id: null,
     completed_at: null,
     monthly_targets: [],
+    combined_members: [],
+    overlap_amount: null,
     ...overrides,
   };
 }
@@ -82,11 +84,18 @@ describe("sortGoals", () => {
   });
 });
 
-describe("pinNetWorthFirst", () => {
+describe("pinHouseholdGoalsFirst", () => {
   it("moves the household net-worth goal to the front and keeps the rest in order", () => {
     const a = makeGoal({ id: 1, priority: 1 });
     const nw = makeGoal({ id: 2, kind: "net_worth", priority: 5 });
     const b = makeGoal({ id: 3, priority: 2 });
-    expect(pinNetWorthFirst([a, nw, b]).map((g) => g.id)).toEqual([2, 1, 3]);
+    expect(pinHouseholdGoalsFirst([a, nw, b]).map((g) => g.id)).toEqual([2, 1, 3]);
+  });
+
+  it("puts the combined goal before the net-worth goal", () => {
+    const a = makeGoal({ id: 1, priority: 1 });
+    const nw = makeGoal({ id: 2, kind: "net_worth" });
+    const combined = makeGoal({ id: 3, kind: "combined", priority: 9 });
+    expect(pinHouseholdGoalsFirst([a, nw, combined]).map((g) => g.id)).toEqual([3, 2, 1]);
   });
 });

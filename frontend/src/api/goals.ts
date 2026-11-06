@@ -7,11 +7,16 @@ import type {
   GoalCheerOut,
   GrowlioGoalInsightOut,
   GrowlioGoalSettingsOut,
+  GrowlioGoalSnapshotOut,
 } from "@/types";
 
 export const fetchGoals = () => apiGet<FinancialGoalOut[]>("/financial-goals");
 
 export const fetchGrowlioGoalSettings = () => apiGet<GrowlioGoalSettingsOut>("/financial-goals/growlio-goal");
+
+/** 본인의 growlio 투자목표를 지금 다시 저장한다(부부 통합 목표). growlio 미설정 501, 접속 실패 502. */
+export const refreshGrowlioGoalSnapshot = () =>
+  apiPost<GrowlioGoalSnapshotOut>("/financial-goals/growlio-snapshot/refresh", {});
 
 export const createGoal = (payload: FinancialGoalCreateIn) =>
   apiPost<FinancialGoalOut>("/financial-goals", payload);

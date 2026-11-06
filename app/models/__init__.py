@@ -3,6 +3,7 @@ from app.models.annual_plan_item import AnnualPlanItem
 from app.models.annual_plan_item_monthly_target import AnnualPlanItemMonthlyTarget
 from app.models.card import Card
 from app.models.category import Category
+from app.models.combined_goal_member import CombinedGoalMember
 from app.models.event import Event
 from app.models.event_occurrence_completion import EventOccurrenceCompletion
 from app.models.financial_goal import FinancialGoal
@@ -34,6 +35,7 @@ __all__ = [
     "AnnualPlanItemMonthlyTarget",
     "Card",
     "Category",
+    "CombinedGoalMember",
     "Event",
     "EventOccurrenceCompletion",
     "FinancialGoal",

@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { emptyChallengeDraft, emptyNetWorthDraft, toPayload } from "@/components/financialPlan/goalDraft";
+import { emptyChallengeDraft, emptyCombinedDraft, emptyNetWorthDraft, toPayload } from "@/components/financialPlan/goalDraft";
 
 describe("emptyChallengeDraft", () => {
   afterEach(() => vi.useRealTimers());
@@ -32,5 +32,24 @@ describe("toPayload for net_worth goals", () => {
       funding_sources: [],
       monthly_targets: null,
     });
+  });
+});
+
+describe("combined goal drafts", () => {
+  it("defaults to every household member's growlio goal and sends only members", () => {
+    const draft = { ...emptyCombinedDraft(["u1", "u2"]), member_goal_ids: ["7"], savings_product_ids: ["1"] };
+    expect(toPayload(draft)).toMatchObject({
+      kind: "combined",
+      member_goal_ids: [7],
+      growlio_user_ids: ["u1", "u2"],
+      funding_sources: [],
+      monthly_targets: null,
+      current_amount: "0",
+      monthly_saving_amount: "0",
+    });
+  });
+
+  it("does not send member fields for other kinds", () => {
+    expect(toPayload(emptyNetWorthDraft())).toMatchObject({ member_goal_ids: null, growlio_user_ids: null });
   });
 });

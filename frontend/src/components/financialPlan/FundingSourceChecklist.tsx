@@ -3,7 +3,7 @@ import { FORM_LABEL } from "@/constants/inputStyles";
 interface Props<T> {
   label: string;
   items: T[];
-  getId: (item: T) => number;
+  getId: (item: T) => number | string;
   getName: (item: T) => string;
   getAmountLabel: (item: T) => string;
   amountClassName?: string;
@@ -14,7 +14,8 @@ interface Props<T> {
 }
 
 /** 목표 폼의 "연동할 저축/투자 상품·계좌·대출" 체크박스 목록 3벌이 공유하던 마크업을
- * 하나로 합친 것 — 항목 타입만 다를 뿐 레이아웃(체크박스+이름+금액, 스크롤 목록)이 동일했다. */
+ * 하나로 합친 것 — 항목 타입만 다를 뿐 레이아웃(체크박스+이름+금액, 스크롤 목록)이 동일했다.
+ * 통합 목표의 구성(장기 목표·부부 각자의 growlio 목표) 선택도 같은 목록을 쓴다. */
 export default function FundingSourceChecklist<T>({
   label,
   items,

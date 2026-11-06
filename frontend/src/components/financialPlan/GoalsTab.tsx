@@ -7,6 +7,7 @@ import CollapsibleGroup from "@/components/common/CollapsibleGroup";
 import ConfirmModal from "@/components/common/ConfirmModal";
 import EmptyState from "@/components/common/EmptyState";
 import AmountInput from "@/components/common/AmountInput";
+import CombinedMembersList from "@/components/financialPlan/CombinedMembersList";
 import GoalFormModal from "@/components/financialPlan/GoalFormModal";
 import { EMPTY_GOAL_DRAFT, draftFromGoal, toPayload, type Draft } from "@/components/financialPlan/goalDraft";
 import GoalProgressCard from "@/components/financialPlan/GoalProgressCard";
@@ -14,16 +15,16 @@ import type { GoalProgressCardBadge, GoalProgressCardExtraDetail } from "@/compo
 import GoalSectionHeader from "@/components/financialPlan/GoalSectionHeader";
 import QueryBoundary from "@/components/common/QueryBoundary";
 import Tabs from "@/components/common/Tabs";
-import { createGoal, deleteGoal, updateGoal, updateGoalMonthlyTarget } from "@/api/goals";
+import { createGoal, deleteGoal, refreshGrowlioGoalSnapshot, updateGoal, updateGoalMonthlyTarget } from "@/api/goals";
 import { INLINE_BUTTON_OFFSET } from "@/constants/inputStyles";
 import { QUERY_KEYS } from "@/constants/queryKeys";
 import { TOUCH_TARGET_MIN_HEIGHT } from "@/constants/uiSizes";
 import { useCrudMutations } from "@/hooks/useCrudMutations";
-import { useAccounts, useGoals, useLoans, useSavingsProducts } from "@/hooks/useReferenceData";
+import { useAccounts, useGoals, useLoans, useMe, useSavingsProducts, useUsers } from "@/hooks/useReferenceData";
 import { goalDetailLink, planViewLink } from "@/constants/routes";
 import { progressStatusBadgeClass, progressStatusLabel } from "@/utils/colors";
 import { computeCardStatus, daysUntil, isGoalAchieved } from "@/utils/goalStatus";
-import { GOAL_SORT_LABELS, pinNetWorthFirst, sortGoals, type GoalSortLabel } from "@/utils/goalSort";
+import { GOAL_SORT_LABELS, pinHouseholdGoalsFirst, sortGoals, type GoalSortLabel } from "@/utils/goalSort";
 import { formatDate, formatKrw, formatKrwCompact, formatYearMonth, toAmountInputValue } from "@/utils/format";
 import { toast } from "@/utils/toast";
 import type { FinancialGoalOut, FinancialGoalUpdateIn, GoalKind } from "@/types";
@@ -58,6 +59,10 @@ export default function GoalsTab() {
   const { data: savingsProducts } = useSavingsProducts();
   const { data: accounts } = useAccounts();
   const { data: loans } = useLoans();
+  const { data: users } = useUsers();
+  const { data: me } = useMe();
+  // 렌더 중 new Date()는 비순수 호출이라(oxlint) 화면을 연 시점을 한 번만 잡는다(동기화 오래됨 판정용).
+  const [openedAt] = useState(() => new Date());
   const { createMutation, updateMutation, removeMutation: deleteMutation, invalidate } = useCrudMutations({
     // 목표 연동이 바뀌면 저축상품의 linked_goal_id/linked_goal_name(자산·계획 탭 배지)도 바뀌므로 저축상품
     // 관련 쿼리도 함께 무효화한다(savingsProducts는 계획·연간계획 키의 공통 프리픽스). 대시보드 본문의 목표
@@ -70,7 +75,16 @@ export default function GoalsTab() {
     ],
     api: { create: createGoal, update: updateGoal, remove: deleteGoal },
     messages: { create: "추가했습니다.", update: "저장했습니다.", remove: "삭제했습니다." },
-    onCreateSuccess: () => setFormTarget(null),
+    onCreateSuccess: (goal) => {
+      setFormTarget(null);
+      // 통합 목표를 막 만들었으면 내 growlio 목표 값을 바로 불러와 합계에 넣는다(배우자 값은 배우자가 앱을 열 때).
+      // 실패(growlio 미설정·접속 실패)해도 목표는 이미 저장됐으니 조용히 넘어간다 — 다음 화면 로드 때 다시 시도한다.
+      if (goal.kind === "combined") {
+        refreshGrowlioGoalSnapshot()
+          .then(() => invalidate())
+          .catch(() => undefined);
+      }
+    },
     onUpdateSuccess: () => setFormTarget(null),
     onRemoveSuccess: () => setDeleteTarget(null),
   });
@@ -120,7 +134,7 @@ export default function GoalsTab() {
   // 목록을 채우는 것을 막기 위함(백엔드에 별도 archive 필드는 없음, 순수 프론트 판정).
   const activeGoalsByPriority = priorityOrderedGoals.filter((g) => !isGoalAchieved(g));
   const achievedGoals = priorityOrderedGoals.filter((g) => isGoalAchieved(g));
-  const activeGoals = pinNetWorthFirst(sortGoals(activeGoalsByPriority, sortOption));
+  const activeGoals = pinHouseholdGoalsFirst(sortGoals(activeGoalsByPriority, sortOption));
   const celebrateIfCrossed = (oldPct: number, goal: FinancialGoalOut) => {
     const milestone = crossedMilestone(oldPct, Number(goal.progress_pct), goal.kind);
     if (milestone !== null) {
@@ -161,6 +175,7 @@ export default function GoalsTab() {
   const renderGoalCard = (goal: FinancialGoalOut) => {
     const isChallenge = goal.kind === "challenge";
     const isNetWorth = goal.kind === "net_worth";
+    const isCombined = goal.kind === "combined";
     const hasLoanSource = goal.funding_sources.some((fs) => fs.type === "loan");
     const status = computeCardStatus(goal);
 
@@ -184,6 +199,7 @@ export default function GoalsTab() {
     // 순자산 목표는 자산 탭의 순자산을 그대로 따라가므로 직접 입력할 것이 없다.
     const showProgressUpdateWidget =
       !isNetWorth &&
+      !isCombined &&
       goal.funding_sources.length === 0 &&
       goal.monthly_targets.length === 0 &&
       (isChallenge ? goal.effective_status === "active" : status !== "achieved");
@@ -197,6 +213,9 @@ export default function GoalsTab() {
     if (isNetWorth) {
       badges.push({ label: "순자산 목표", toneClassName: progressStatusBadgeClass("neutral") });
     }
+    if (isCombined) {
+      badges.push({ label: "통합 목표", toneClassName: progressStatusBadgeClass("neutral") });
+    }
     if (isAutoComputed) {
       badges.push({ label: "이번 달 자동계산", toneClassName: progressStatusBadgeClass("neutral") });
     }
@@ -209,6 +228,14 @@ export default function GoalsTab() {
         content: `현재 저축 속도면 ${formatYearMonth(goal.eta_year_month)} 도달 예상${
           ab !== null ? ` · 목표일 대비 ${Math.abs(ab)}개월 ${ab >= 0 ? "빠름" : "늦음"}` : ""
         }`,
+      });
+    }
+    if (isCombined && goal.combined_members.length > 0) {
+      extraDetails.push({
+        key: "members",
+        content: (
+          <CombinedMembersList members={goal.combined_members} meId={me?.id ?? null} now={openedAt} compact />
+        ),
       });
     }
     // 빠른 입력(진행 금액/이번 달 저축액). 모바일은 "기록" 버튼을 눌러야 펼친다.
@@ -258,7 +285,9 @@ export default function GoalsTab() {
       <GoalProgressCard
         key={goal.id}
         title={goal.name}
-        metaLine={`${isNetWorth ? "가구 순자산 기준" : `${goal.priority}순위`}${
+        metaLine={`${
+          isNetWorth ? "가구 순자산 기준" : isCombined ? `구성 ${goal.combined_members.length}개` : `${goal.priority}순위`
+        }${
           goal.target_date !== null
             ? ` · D-${daysUntil(goal.target_date)}`
             : goal.target_age !== null
@@ -283,7 +312,7 @@ export default function GoalsTab() {
         pct={Number(goal.progress_pct)}
         primaryDetail={
           <>
-            {goal.funding_sources.length > 0 ? "연동 잔액" : "저축"}{" "}
+            {isCombined ? "합계" : goal.funding_sources.length > 0 ? "연동 잔액" : "저축"}{" "}
             {formatKrwCompact(Number(goal.current_amount))} / 목표 {formatKrwCompact(Number(goal.required_amount))}
             {!isChallenge && <> · 월 {formatKrwCompact(Number(goal.planned_monthly_amount))}</>}
             {hasLoanSource && " (대출 차감)"}
@@ -326,7 +355,9 @@ export default function GoalsTab() {
         ? "챌린지 수정"
         : formTarget !== null && formTarget.kind === "net_worth"
           ? "순자산 목표 수정"
-          : "재무목표 수정";
+          : formTarget !== null && formTarget.kind === "combined"
+            ? "통합 목표 수정"
+            : "재무목표 수정";
 
   return (
     <div className="space-y-6">
@@ -342,7 +373,8 @@ export default function GoalsTab() {
         description={
           <CollapsibleHint summary="목표금액·목표일을 정하면 월별 계획이 자동으로 나뉘어요.">
             저축·투자 상품이나 계좌를 연동하면 이번 달 달성 여부까지 거래내역으로 자동 확인돼요. 부부가 짧게 도전하는
-            챌린지도 목표 추가 시 유형으로 선택할 수 있어요.
+            챌린지도 목표 추가 시 유형으로 선택할 수 있어요. 통합 목표로 장기 목표와 부부 각자의 growlio 투자목표를 하나로
+            묶어 볼 수 있어요.
           </CollapsibleHint>
         }
         action={
@@ -404,6 +436,9 @@ export default function GoalsTab() {
           loans={loans ?? []}
           existingGoal={typeof formTarget === "object" ? formTarget : null}
           canCreateNetWorth={!(goalsQuery.data ?? []).some((g) => g.kind === "net_worth")}
+          canCreateCombined={!(goalsQuery.data ?? []).some((g) => g.kind === "combined")}
+          goals={goalsQuery.data ?? []}
+          users={users ?? []}
           onClose={() => setFormTarget(null)}
           onSubmit={handleSubmit}
         />

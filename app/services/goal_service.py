@@ -10,7 +10,7 @@ from app.errors import ConflictError, NotFoundError
 from app.models.financial_goal import FinancialGoal
 from app.models.goal_funding_source import GoalFundingSource
 from app.models.goal_monthly_target import GoalMonthlyTarget
-from app.services import goal_progress_service, growlio_client, plan_targets
+from app.services import combined_goal_service, goal_progress_service, growlio_client, plan_targets
 from app.utils.dates import now_kst, shift_month, year_month_str
 
 logger = logging.getLogger(__name__)
@@ -26,6 +26,14 @@ class DuplicateFundingSourceProductError(ConflictError):
 
 class NetWorthGoalExistsError(ConflictError):
     """순자산 목표는 가구 전체 자산이 대상이라 둘 이상이면 진행률이 같은 값으로 겹친다 — 가구당 하나."""
+
+
+class CombinedGoalExistsError(ConflictError):
+    """부부 통합 목표는 "하나로 묶어 보는" 목표라 가구당 하나."""
+
+
+# 자금원·월별 목표·수동 진행금액 대신 다른 원본(가구 순자산, 구성 합)을 쓰는 kind — 저장 시 그 값들을 버린다.
+_DERIVED_KINDS = ("net_worth", combined_goal_service.KIND)
 
 
 def fetch_growlio_goal_settings(bearer_token: str) -> dict:
@@ -113,10 +121,16 @@ def create_goal(
     monthly_targets: list[dict] | None = None,
     now: datetime | None = None,
     expected_annual_return_pct: Decimal | None = None,
+    member_goal_ids: list[int] | None = None,
+    growlio_user_ids: list[uuid.UUID] | None = None,
 ) -> FinancialGoal:
     if kind == "net_worth":
         if db.query(FinancialGoal.id).filter(FinancialGoal.kind == "net_worth").first() is not None:
             raise NetWorthGoalExistsError("순자산 목표는 하나만 만들 수 있어요. 기존 목표를 수정해 주세요.")
+    if kind == combined_goal_service.KIND:
+        if db.query(FinancialGoal.id).filter(FinancialGoal.kind == kind).first() is not None:
+            raise CombinedGoalExistsError("통합 목표는 하나만 만들 수 있어요. 기존 목표를 수정해 주세요.")
+    if kind in _DERIVED_KINDS:
         funding_sources, monthly_targets, current_amount = None, None, Decimal("0")
     goal = FinancialGoal(
         expected_annual_return_pct=expected_annual_return_pct,
@@ -135,11 +149,15 @@ def create_goal(
     )
     _apply_funding_sources(db, goal, funding_sources)
     plan_targets.apply_monthly_targets(goal, monthly_targets, GoalMonthlyTarget)
+    if kind == combined_goal_service.KIND:
+        combined_goal_service.apply_members(db, goal, member_goal_ids or [], growlio_user_ids or [])
     db.add(goal)
     db.flush()  # 완료 판정(compute_current_amount)이 funding_sources 관계를 조회하려면 goal/fs가
     # 먼저 세션에 반영(pending -> flushed)되어 있어야 한다 — transient 상태에서는 관계 lazy-load가
     # 동작하지 않는다.
     _apply_challenge_completion(db, goal, now)
+    if kind == combined_goal_service.KIND:
+        combined_goal_service.recompute_required(db)
     db.commit()
     db.refresh(goal)
     return goal
@@ -161,11 +179,15 @@ def update_goal(
     monthly_targets: list[dict] | None = None,
     now: datetime | None = None,
     expected_annual_return_pct: Decimal | None = None,
+    member_goal_ids: list[int] | None = None,
+    growlio_user_ids: list[uuid.UUID] | None = None,
 ) -> FinancialGoal | None:
+    """통합 목표의 구성은 member_goal_ids·growlio_user_ids가 둘 다 None이면 그대로 둔다. 어느 목표를 고쳐도 통합
+    목표의 목표금액을 다시 맞춘다(구성 목표의 목표금액이 바뀔 수 있다)."""
     goal = db.get(FinancialGoal, goal_id)
     if goal is None:
         return None
-    if goal.kind == "net_worth":
+    if goal.kind in _DERIVED_KINDS:
         funding_sources, monthly_targets, current_amount = None, None, Decimal("0")
     goal.priority = priority
     goal.name = name
@@ -179,8 +201,11 @@ def update_goal(
     goal.start_date = start_date
     _apply_funding_sources(db, goal, funding_sources)
     plan_targets.apply_monthly_targets(goal, monthly_targets, GoalMonthlyTarget)
+    if goal.kind == combined_goal_service.KIND and (member_goal_ids is not None or growlio_user_ids is not None):
+        combined_goal_service.apply_members(db, goal, member_goal_ids or [], growlio_user_ids or [])
     db.flush()
     _apply_challenge_completion(db, goal, now)
+    combined_goal_service.recompute_required(db)
     db.commit()
     db.refresh(goal)
     return goal
@@ -191,7 +216,10 @@ def delete_goal(db: Session, goal_id: int) -> bool:
     goal = db.get(FinancialGoal, goal_id)
     if goal is None:
         return False
+    combined_goal_service.detach_member_goal(db, goal.id)
     db.delete(goal)
+    db.flush()
+    combined_goal_service.recompute_required(db)
     db.commit()
     return True
 

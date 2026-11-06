@@ -28,7 +28,7 @@ import { toast } from "@/utils/toast";
 import { findGrowlioInvestmentLink } from "@/constants/growlio";
 import type { SavingsProductOut } from "@/types";
 import { latestPartnerCheer } from "@/utils/cheers";
-import { pinNetWorthFirst } from "@/utils/goalSort";
+import { pinHouseholdGoalsFirst } from "@/utils/goalSort";
 import { coupleContribution } from "@/utils/contribution";
 
 /** 월초 며칠 동안은 지난달 회고를 맨 위에 올린다 — 그 외엔 새 달의 진행이 더 중요하다. */
@@ -110,8 +110,8 @@ export default function DashboardPage() {
     );
   }
 
-  // 순자산 목표(부부 자산증식 목표)가 있으면 홈 대표 목표로 우선한다.
-  const goalsByPriority = pinNetWorthFirst((goals ?? []).slice().sort((a, b) => a.priority - b.priority));
+  // 부부 통합 목표, 그다음 순자산 목표가 있으면 홈 대표 목표로 우선한다.
+  const goalsByPriority = pinHouseholdGoalsFirst((goals ?? []).slice().sort((a, b) => a.priority - b.priority));
   const topGoal = goalsByPriority[0] ?? null;
   // 여유자금으로 앞당길 수 있는 목표는 "growlio 연동된 목표 중 1순위" — 연동 안 된 목표는 투자로 앞당길 방법이 없다.
   const accelerationGoal = goalsByPriority.find((g) => findGrowlioInvestmentLink(g, savingsProducts ?? []));
