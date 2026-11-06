@@ -7,14 +7,17 @@ import EmptyState from "@/components/common/EmptyState";
 import ProgressBar from "@/components/common/ProgressBar";
 import QueryBoundary from "@/components/common/QueryBoundary";
 import SkeletonCard from "@/components/common/SkeletonCard";
-import { cheerGoal, fetchGoalGrowlioInsight } from "@/api/goals";
+import { cheerGoal, fetchGoalGrowlioInsight, refreshGrowlioGoalSnapshot } from "@/api/goals";
+import CollapsibleHint from "@/components/common/CollapsibleHint";
+import CombinedMembersList from "@/components/financialPlan/CombinedMembersList";
 import { GROWLIO_APP_URL, findGrowlioInvestmentLink, growlioPortfolioUrl } from "@/constants/growlio";
 import { QUERY_KEYS } from "@/constants/queryKeys";
 import { STALE_TIME } from "@/constants/queryConfig";
 import { ROUTES } from "@/constants/routes";
 import { INPUT_SM } from "@/constants/inputStyles";
 import { useNotifications } from "@/hooks/useNotifications";
-import { useGoals, useSavingsProducts } from "@/hooks/useReferenceData";
+import { useGoals, useMe, useSavingsProducts } from "@/hooks/useReferenceData";
+import { invalidateKeys } from "@/utils/queryClient";
 import { monthsToGoalWithExtra } from "@/utils/goalAcceleration";
 import { computeCardStatus, daysUntil } from "@/utils/goalStatus";
 import { progressStatusBadgeClass, progressStatusLabel } from "@/utils/colors";
@@ -123,7 +126,13 @@ function GoalDetail({ goal }: { goal: FinancialGoalOut }) {
         <div className="flex items-start justify-between gap-2">
           <div className="min-w-0">
             <p className="text-xs text-gray-500 dark:text-gray-400">
-              {isChallenge ? "챌린지" : goal.kind === "net_worth" ? "순자산 목표 · 가구 순자산 기준" : `${goal.priority}순위 목표`}
+              {isChallenge
+                ? "챌린지"
+                : goal.kind === "net_worth"
+                  ? "순자산 목표 · 가구 순자산 기준"
+                  : goal.kind === "combined"
+                    ? "통합 목표 · 장기 목표 + growlio 투자목표 합계"
+                    : `${goal.priority}순위 목표`}
               {goal.target_date && ` · D-${daysUntil(goal.target_date)}`}
             </p>
             <h2 className="text-lg font-bold text-gray-900 dark:text-gray-50 truncate">{goal.name}</h2>
@@ -264,6 +273,8 @@ function GoalDetail({ goal }: { goal: FinancialGoalOut }) {
         )}
       </div>
 
+      {goal.kind === "combined" && <CombinedMembersCard goal={goal} />}
+
       {goal.monthly_targets.length > 0 && (
         <div className="card space-y-2">
           <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300">월별 달성 기록</h2>
@@ -313,6 +324,40 @@ function GoalDetail({ goal }: { goal: FinancialGoalOut }) {
             </a>
           )}
         </div>
+      )}
+    </div>
+  );
+}
+
+/** 부부 통합 목표의 구성별 진행 — growlio 구성은 입금·배당·수익률 보조값과 마지막 동기화 시각을 함께 보여주고, 본인
+ * growlio 값은 바로 다시 불러올 수 있다(배우자 값은 배우자가 nestlio를 열 때만 갱신된다). */
+function CombinedMembersCard({ goal }: { goal: FinancialGoalOut }) {
+  const queryClient = useQueryClient();
+  const { data: me } = useMe();
+  const [openedAt] = useState(() => new Date());
+  const refreshMutation = useMutation({
+    mutationFn: refreshGrowlioGoalSnapshot,
+    onSuccess: () => {
+      invalidateKeys(queryClient, [QUERY_KEYS.financialGoals, QUERY_KEYS.dashboardBootstrap]);
+      toast("growlio 목표를 다시 불러왔어요.", "success");
+    },
+  });
+  const overlap = Number(goal.overlap_amount ?? 0);
+  return (
+    <div className="card space-y-3">
+      <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-300">함께 묶은 목표</h2>
+      <CombinedMembersList
+        members={goal.combined_members}
+        meId={me?.id ?? null}
+        now={openedAt}
+        onRefreshMine={() => refreshMutation.mutate()}
+        refreshing={refreshMutation.isPending}
+      />
+      {overlap > 0 && (
+        <CollapsibleHint summary={`growlio와 겹치는 ${formatKrwCompact(overlap)}은 한 번만 셌어요.`}>
+          growlio에서 가져온 투자 상품·계좌를 장기 목표에 연동해 두면 그 잔액이 growlio 투자자산에도 들어 있어요. 합계에서는
+          {" "}{formatKrw(overlap)}을 빼서 중복으로 세지 않았어요. 부동산은 growlio 목표 기준(부동산 제외)에 없어 빼지 않아요.
+        </CollapsibleHint>
       )}
     </div>
   );

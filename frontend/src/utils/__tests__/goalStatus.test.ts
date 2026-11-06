@@ -30,6 +30,8 @@ function makeGoal(overrides: Partial<FinancialGoalOut>): FinancialGoalOut {
     created_by_id: null,
     completed_at: null,
     monthly_targets: [],
+    combined_members: [],
+    overlap_amount: null,
     ...overrides,
   };
 }

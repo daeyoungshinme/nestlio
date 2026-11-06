@@ -2467,6 +2467,33 @@ export interface components {
             /** Benchmark Insurance Warn Pct */
             benchmark_insurance_warn_pct: number;
         };
+        /**
+         * CombinedMemberOut
+         * @description 부부 통합 목표의 구성 하나 — nestlio 장기 목표(goal) 또는 한 사람의 growlio 투자목표(growlio). growlio 값이 아직
+         *     저장 전이거나 growlio에 목표가 없으면 금액은 None이고 합계에서 빠진다.
+         */
+        CombinedMemberOut: {
+            /**
+             * Type
+             * @enum {string}
+             */
+            type: "goal" | "growlio";
+            /** Goal Id */
+            goal_id?: number | null;
+            /** User Id */
+            user_id?: string | null;
+            /** Name */
+            name: string;
+            /** Current Amount */
+            current_amount?: string | null;
+            /** Required Amount */
+            required_amount?: string | null;
+            /** Progress Pct */
+            progress_pct?: string | null;
+            /** Synced At */
+            synced_at?: string | null;
+            growlio?: components["schemas"]["GrowlioGoalSnapshotOut"] | null;
+        };
         /** CoverageStatusOut */
         CoverageStatusOut: {
             /** Insured Label */
@@ -2657,7 +2684,7 @@ export interface components {
              * @default goal
              * @enum {string}
              */
-            kind: "goal" | "challenge" | "net_worth";
+            kind: "goal" | "challenge" | "net_worth" | "combined";
             /**
              * Priority
              * @default 1
@@ -2697,6 +2724,10 @@ export interface components {
             monthly_targets?: components["schemas"]["GoalMonthlyTargetIn"][] | null;
             /** Expected Annual Return Pct */
             expected_annual_return_pct?: number | string | null;
+            /** Member Goal Ids */
+            member_goal_ids?: number[] | null;
+            /** Growlio User Ids */
+            growlio_user_ids?: string[] | null;
         };
         /** FinancialGoalOut */
         FinancialGoalOut: {
@@ -2707,7 +2738,7 @@ export interface components {
              * @default goal
              * @enum {string}
              */
-            kind: "goal" | "challenge" | "net_worth";
+            kind: "goal" | "challenge" | "net_worth" | "combined";
             /** Priority */
             priority: number;
             /** Name */
@@ -2766,6 +2797,13 @@ export interface components {
              * @default []
              */
             monthly_targets: components["schemas"]["GoalMonthlyTargetOut"][];
+            /**
+             * Combined Members
+             * @default []
+             */
+            combined_members: components["schemas"]["CombinedMemberOut"][];
+            /** Overlap Amount */
+            overlap_amount?: string | null;
         };
         /** FinancialGoalUpdateIn */
         FinancialGoalUpdateIn: {
@@ -2799,6 +2837,10 @@ export interface components {
             monthly_targets?: components["schemas"]["GoalMonthlyTargetIn"][] | null;
             /** Expected Annual Return Pct */
             expected_annual_return_pct?: number | string | null;
+            /** Member Goal Ids */
+            member_goal_ids?: number[] | null;
+            /** Growlio User Ids */
+            growlio_user_ids?: string[] | null;
         };
         /** FundingSourceIn */
         FundingSourceIn: {

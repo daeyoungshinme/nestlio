@@ -690,8 +690,22 @@ export interface FundingSourceIn {
   id: number;
 }
 
-/** net_worth = 부부 자산증식 목표(가구 순자산 전체가 진행금액, 가구당 하나). */
-export type GoalKind = "goal" | "challenge" | "net_worth";
+/** net_worth = 부부 자산증식 목표(가구 순자산 전체가 진행금액, 가구당 하나).
+ * combined = 부부 통합 목표(장기 목표 + 부부 각자의 growlio 투자목표의 합, 가구당 하나). */
+export type GoalKind = "goal" | "challenge" | "net_worth" | "combined";
+
+/** 부부 통합 목표의 구성 하나. growlio 값이 저장 전이거나 growlio에 목표가 없으면 금액이 null(합계에서 빠짐). */
+export interface CombinedMemberOut {
+  type: "goal" | "growlio";
+  goal_id: number | null;
+  user_id: string | null;
+  name: string;
+  current_amount: string | null;
+  required_amount: string | null;
+  progress_pct: string | null;
+  synced_at: string | null;
+  growlio: GrowlioGoalSnapshotOut | null;
+}
 
 export interface GoalMonthlyTargetOut {
   year_month: string;
@@ -737,6 +751,9 @@ export interface FinancialGoalOut {
   completed_at: string | null;
   // kind==="goal"이면서 미연동(funding_sources 없음)일 때 월별 계획을 쓰면 채워진다.
   monthly_targets: GoalMonthlyTargetOut[];
+  // kind==="combined"만: 구성과, 현재금액에서 뺀 겹침(growlio 투자자산에 이미 잡힌 구성 목표 자금원).
+  combined_members: CombinedMemberOut[];
+  overlap_amount: string | null;
 }
 
 export interface FinancialGoalCreateIn {
@@ -753,6 +770,9 @@ export interface FinancialGoalCreateIn {
   funding_sources?: FundingSourceIn[];
   start_date?: string | null;
   monthly_targets?: GoalMonthlyTargetIn[] | null;
+  /** kind==="combined"만 — 수정 시 둘 다 생략하면 구성을 그대로 둔다. */
+  member_goal_ids?: number[] | null;
+  growlio_user_ids?: string[] | null;
 }
 
 export type FinancialGoalUpdateIn = Omit<FinancialGoalCreateIn, "kind">;
