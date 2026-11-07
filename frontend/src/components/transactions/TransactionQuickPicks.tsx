@@ -163,7 +163,7 @@ export default function TransactionQuickPicks({
                   {planGroups.map((group) => (
                     <div key={group.value}>
                       <span
-                        className={`inline-block mb-1 px-2 py-0.5 rounded text-[11px] font-medium ${categoryTypeBadgeStyle(group.value)}`}
+                        className={`inline-block mb-1 px-2 py-0.5 rounded-sm text-[11px] font-medium ${categoryTypeBadgeStyle(group.value)}`}
                       >
                         {group.label}
                       </span>
@@ -191,7 +191,7 @@ export default function TransactionQuickPicks({
                   recentGroups.map((group) => (
                     <div key={group.value}>
                       <span
-                        className={`inline-block mb-1 px-2 py-0.5 rounded text-[11px] font-medium ${categoryTypeBadgeStyle(group.value)}`}
+                        className={`inline-block mb-1 px-2 py-0.5 rounded-sm text-[11px] font-medium ${categoryTypeBadgeStyle(group.value)}`}
                       >
                         {group.label}
                       </span>

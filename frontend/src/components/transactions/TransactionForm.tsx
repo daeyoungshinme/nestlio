@@ -279,7 +279,7 @@ export default function TransactionForm({
             }}
             className={`flex-1 px-3 ${TOUCH_TARGET_MIN_HEIGHT} text-sm font-medium rounded-md transition-colors ${
               uiType === t
-                ? "bg-white dark:bg-gray-700 shadow text-gray-900 dark:text-gray-50"
+                ? "bg-white dark:bg-gray-700 shadow-sm text-gray-900 dark:text-gray-50"
                 : "text-gray-500 dark:text-gray-400"
             }`}
           >
@@ -302,7 +302,7 @@ export default function TransactionForm({
             }}
             className={`flex-1 px-3 ${TOUCH_TARGET_MIN_HEIGHT} text-sm font-medium rounded-md transition-colors ${
               uiType === "savings"
-                ? "bg-white dark:bg-gray-700 shadow text-gray-900 dark:text-gray-50"
+                ? "bg-white dark:bg-gray-700 shadow-sm text-gray-900 dark:text-gray-50"
                 : "text-gray-500 dark:text-gray-400"
             }`}
           >

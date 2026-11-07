@@ -118,7 +118,7 @@ export default function GrowlioLinkSection<T>({
             checked={autoSyncEnabled}
             disabled={linkMutation.isPending}
             onChange={() => linkMutation.mutate({ accountId: growlioAccountId, autoSync: !autoSyncEnabled })}
-            className="h-5 w-5 shrink-0 rounded border-gray-300"
+            className="h-5 w-5 shrink-0 rounded-sm border-gray-300"
           />
         </label>
       )}

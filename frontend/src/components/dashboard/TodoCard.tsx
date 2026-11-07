@@ -63,7 +63,7 @@ export default function TodoCard({ day, users }: Props) {
                     type="checkbox"
                     checked={false}
                     onChange={() => toggleComplete(todo)}
-                    className="h-5 w-5 rounded border-gray-300"
+                    className="h-5 w-5 rounded-sm border-gray-300"
                     aria-label={`${todo.title} 완료 처리`}
                   />
                 </label>

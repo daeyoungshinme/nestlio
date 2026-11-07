@@ -71,7 +71,7 @@ export default function AssetCompositionDonut({ accounts, savingsInvestment, rea
       <div className="flex flex-col gap-y-0.5 w-full mt-1">
         {data.map((entry) => (
           <div key={entry.key} className="flex items-center gap-1 min-w-0 w-full">
-            <span className="inline-block w-2.5 h-2.5 rounded-sm shrink-0" style={{ backgroundColor: entry.color }} />
+            <span className="inline-block w-2.5 h-2.5 rounded-xs shrink-0" style={{ backgroundColor: entry.color }} />
             <span className="text-xs text-gray-500 dark:text-gray-400 leading-tight truncate min-w-0">
               {entry.label} {Math.round((entry.value / total) * 100)}%
               <span className="text-gray-400 dark:text-gray-500 ml-0.5">· {formatKrwCompact(entry.value)}</span>

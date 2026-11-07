@@ -44,7 +44,7 @@ export default function FundingSourceChecklist<T>({
                     type="checkbox"
                     checked={selectedIds.includes(id)}
                     onChange={() => onToggle(id)}
-                    className="h-4 w-4 rounded border-gray-300 shrink-0"
+                    className="h-4 w-4 rounded-sm border-gray-300 shrink-0"
                   />
                   <span className="truncate text-gray-900 dark:text-gray-50">{getName(item)}</span>
                 </span>

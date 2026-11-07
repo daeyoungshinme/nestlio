@@ -107,7 +107,7 @@ export default function HomeGoalHero({
       {/* 카드도 "응원 보내기"와 같은 목표 상세로 — 목록으로 갔다가 다시 고르는 한 단계를 없앤다. */}
       <Link to={goalDetailLink(goal.id)} className="block rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800/40 transition-colors">
         <GoalProgressCard
-          className="!p-0 !border-0 !shadow-none !bg-transparent"
+          className="p-0! border-0! shadow-none! bg-transparent!"
           title={goal.name}
           badges={badges}
           pct={Number(goal.progress_pct)}

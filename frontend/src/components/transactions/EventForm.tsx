@@ -115,7 +115,7 @@ export default function EventForm({ initialValues, submitLabel, submitting, user
           type="checkbox"
           checked={form.all_day}
           onChange={(e) => setForm((f) => ({ ...f, all_day: e.target.checked }))}
-          className="h-4 w-4 rounded border-gray-300"
+          className="h-4 w-4 rounded-sm border-gray-300"
         />
         <label htmlFor={`${fieldId}-all-day`} className={LABEL_SM}>
           종일

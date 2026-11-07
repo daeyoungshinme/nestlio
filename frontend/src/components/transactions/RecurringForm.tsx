@@ -102,7 +102,7 @@ export default function RecurringForm({ categories, initial, submitLabel, submit
             onClick={() => setValues((v) => ({ ...v, type: t, category_id: "" }))}
             className={`px-3 py-2 text-sm font-medium rounded-md transition-colors ${
               values.type === t
-                ? "bg-white dark:bg-gray-700 shadow text-gray-900 dark:text-gray-50"
+                ? "bg-white dark:bg-gray-700 shadow-sm text-gray-900 dark:text-gray-50"
                 : "text-gray-500 dark:text-gray-400"
             }`}
           >

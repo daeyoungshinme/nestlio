@@ -62,7 +62,7 @@ function PillGroup<T extends string | number>({
           onClick={() => onChange(opt.value)}
           className={`shrink-0 whitespace-nowrap px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${TOUCH_TARGET_COMPACT_MOBILE_ONLY} ${
             value === opt.value
-              ? "bg-white dark:bg-gray-700 shadow text-gray-900 dark:text-gray-50"
+              ? "bg-white dark:bg-gray-700 shadow-sm text-gray-900 dark:text-gray-50"
               : "text-gray-500 dark:text-gray-400"
           }`}
         >
