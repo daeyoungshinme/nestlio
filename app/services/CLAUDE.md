@@ -82,7 +82,9 @@
 
 ## 순자산 목표 (FinancialGoal.kind="net_worth")
 
-부부 자산증식 목표. 가구당 하나(`goal_service.NetWorthGoalExistsError` → 409). 진행금액은 `net_worth_service.compute_current`의 순자산, 월 계획액은 모든 저축·투자 상품의 그 달 계획 합(`goal_progress_service.planned_monthly_for_goal`)이라 자금원 연동·월별 목표·수동 진행금액은 생성/수정 시 버린다. 새 kind 분기는 `goal_progress_service`의 `compute_current_amount`/`to_out`/`planned_monthly_for_goal` 세 곳을 함께 본다.
+부부 자산증식 목표. 가구당 하나(`goal_service.NetWorthGoalExistsError` → 409). 진행금액은 `net_worth_service.compute_current`의 순자산(`exclude_real_estate`면 부동산 상품 잔액 − 짝 담보대출 = `real_estate_service.real_estate_net`을 뺀다 — growlio 투자자산 기준. 짝은 `growlio_account_id`가 같은 대출뿐이라 손으로 만든 담보대출은 남는다. 다른 kind는 항상 False), 월 계획액은 모든 저축·투자 상품의 그 달 계획 합(`goal_progress_service.planned_monthly_for_goal`)이라 자금원 연동·월별 목표·수동 진행금액은 생성/수정 시 버린다. 새 kind 분기는 `goal_progress_service`의 `compute_current_amount`/`to_out`/`planned_monthly_for_goal` 세 곳을 함께 본다.
+
+**자금원 부동산 차단**: 부동산 상품과 그 짝 담보대출(`real_estate_service.mortgage_loan_ids`)은 어떤 목표의 자금원으로도 연동할 수 없다(`goal_service.RealEstateFundingSourceError` 400 — 시세는 "모으는 돈"이 아니다). 기존 연동은 마이그레이션 `f1b3d5a7c9e2`가 지웠다.
 
 ## 부부 통합 목표 (FinancialGoal.kind="combined")
 

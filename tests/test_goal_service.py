@@ -886,3 +886,79 @@ def test_list_out_matches_per_goal_to_out(seeded_db):
     assert goal_progress_service.current_amounts(db, goals) == {
         goal.id: goal_progress_service.compute_current_amount(db, goal) for goal in goals
     }
+
+
+def _real_estate_with_mortgage(db, value="800000000", mortgage="300000000"):
+    from app.models.loan import Loan
+    from app.models.savings_product import SavingsProduct
+
+    product = SavingsProduct(
+        name="우리집",
+        current_balance=Decimal(value),
+        monthly_saving_amount=Decimal("0"),
+        product_type="real_estate",
+        growlio_account_id="re-1",
+    )
+    loan = Loan(name="우리집 담보대출", balance=Decimal(mortgage), monthly_payment=Decimal("0"), growlio_account_id="re-1")
+    db.add_all([product, loan])
+    db.commit()
+    return product, loan
+
+
+def test_net_worth_goal_can_exclude_real_estate_and_its_mortgage(seeded_db):
+    db = seeded_db["db"]
+    savings_product_service.create_product(db, "적금", Decimal("3000000"), Decimal("0"))
+    _real_estate_with_mortgage(db)
+    goal = goal_service.create_goal(
+        db, priority=1, name="순자산", target_age=None, required_amount=Decimal("100000000"),
+        monthly_saving_amount=Decimal("0"), kind="net_worth", exclude_real_estate=True,
+    )
+    with_real_estate = goal_progress_service.net_worth_now(db)
+
+    expected = with_real_estate - Decimal("500000000")
+    assert goal.exclude_real_estate is True
+    assert goal_progress_service.compute_current_amount(db, goal) == expected
+    assert goal_progress_service.to_out(db, goal, date(2026, 11, 7))["current_amount"] == expected
+    assert goal_progress_service.current_amounts(db, [goal]) == {goal.id: expected}
+    assert goal_progress_service.list_out(db, [goal], date(2026, 11, 7))[0]["exclude_real_estate"] is True
+
+    # None이면 그대로, False로 끄면 부동산 포함.
+    goal_service.update_goal(db, goal.id, 1, "순자산", None, Decimal("100000000"), Decimal("0"))
+    assert goal.exclude_real_estate is True
+    goal_service.update_goal(db, goal.id, 1, "순자산", None, Decimal("100000000"), Decimal("0"), exclude_real_estate=False)
+    assert goal_progress_service.compute_current_amount(db, goal) == with_real_estate
+
+
+def test_exclude_real_estate_is_ignored_for_other_kinds(seeded_db):
+    db = seeded_db["db"]
+    goal = goal_service.create_goal(
+        db, priority=1, name="집", target_age=None, required_amount=Decimal("1000"),
+        monthly_saving_amount=Decimal("0"), exclude_real_estate=True,
+    )
+    assert goal.exclude_real_estate is False
+    goal_service.update_goal(db, goal.id, 1, "집", None, Decimal("1000"), Decimal("0"), exclude_real_estate=True)
+    assert goal.exclude_real_estate is False
+
+
+@pytest.mark.parametrize("source", ["product", "mortgage"])
+def test_real_estate_and_its_mortgage_cannot_fund_a_goal(seeded_db, source):
+    db = seeded_db["db"]
+    product, loan = _real_estate_with_mortgage(db)
+    funding = {"type": "savings_product", "id": product.id} if source == "product" else {"type": "loan", "id": loan.id}
+
+    with pytest.raises(goal_service.RealEstateFundingSourceError):
+        goal_service.create_goal(
+            db, priority=1, name="집", target_age=None, required_amount=Decimal("1000"),
+            monthly_saving_amount=Decimal("0"), funding_sources=[funding],
+        )
+
+
+def test_ordinary_loan_can_still_fund_a_goal(seeded_db):
+    db = seeded_db["db"]
+    _real_estate_with_mortgage(db)
+    loan = loan_service.create_loan(db, "전세대출", Decimal("1000000"), Decimal("0"), None, None, None, None)
+    goal = goal_service.create_goal(
+        db, priority=1, name="대출 상환", target_age=None, required_amount=Decimal("1000"),
+        monthly_saving_amount=Decimal("0"), funding_sources=[{"type": "loan", "id": loan.id}],
+    )
+    assert [fs.loan_id for fs in goal.funding_sources] == [loan.id]

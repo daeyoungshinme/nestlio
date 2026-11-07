@@ -6,11 +6,12 @@ from decimal import Decimal
 from sqlalchemy.orm import Session
 
 from app.constants.sort_order import DEFAULT_SORT_ORDER
-from app.errors import ConflictError, NotFoundError
+from app.errors import ConflictError, InvalidInputError, NotFoundError
 from app.models.financial_goal import FinancialGoal
 from app.models.goal_funding_source import GoalFundingSource
 from app.models.goal_monthly_target import GoalMonthlyTarget
-from app.services import combined_goal_service, goal_progress_service, growlio_client, plan_targets
+from app.models.savings_product import SavingsProduct
+from app.services import combined_goal_service, goal_progress_service, growlio_client, plan_targets, real_estate_service
 from app.utils.dates import now_kst, shift_month, year_month_str
 
 logger = logging.getLogger(__name__)
@@ -22,6 +23,14 @@ class MonthlyTargetNotFoundError(NotFoundError):
 
 class DuplicateFundingSourceProductError(ConflictError):
     pass
+
+
+class RealEstateFundingSourceError(InvalidInputError):
+    """부동산 시세는 "모으는 돈"이 아니라 목표 진행으로 세지 않는다(growlio 목표 기준과 같음) — 부동산 상품과 그 짝
+    담보대출은 자금원으로 연동하지 않는다."""
+
+
+REAL_ESTATE_FUNDING_DETAIL = "부동산과 그 담보대출은 목표 자금으로 연동할 수 없어요."
 
 
 class NetWorthGoalExistsError(ConflictError):
@@ -55,6 +64,7 @@ def _apply_funding_sources(db: Session, goal: FinancialGoal, funding_sources: li
     }
     new_sources: list[GoalFundingSource] = []
     seen: set[tuple[str, int]] = set()
+    mortgage_ids: set[int] | None = None
     for item in funding_sources or []:
         source_type, source_id = item["type"], item["id"]
         key = (source_type, source_id)
@@ -62,6 +72,9 @@ def _apply_funding_sources(db: Session, goal: FinancialGoal, funding_sources: li
             continue
         seen.add(key)
         if source_type == "savings_product":
+            product = db.get(SavingsProduct, source_id)
+            if product is not None and product.product_type == "real_estate":
+                raise RealEstateFundingSourceError(REAL_ESTATE_FUNDING_DETAIL)
             existing_key = (source_id, None, None)
             if existing_key not in existing_by_key:
                 # 다른 목표가 이미 이 상품을 연동하고 있으면 잔액이 두 목표에 중복 집계되므로 막는다
@@ -84,6 +97,10 @@ def _apply_funding_sources(db: Session, goal: FinancialGoal, funding_sources: li
             existing_key = (None, source_id, None)
             new_sources.append(existing_by_key.get(existing_key) or GoalFundingSource(account_id=source_id))
         elif source_type == "loan":
+            if mortgage_ids is None:
+                mortgage_ids = real_estate_service.mortgage_loan_ids(db)
+            if source_id in mortgage_ids:
+                raise RealEstateFundingSourceError(REAL_ESTATE_FUNDING_DETAIL)
             existing_key = (None, None, source_id)
             new_sources.append(existing_by_key.get(existing_key) or GoalFundingSource(loan_id=source_id))
     goal.funding_sources = new_sources
@@ -123,6 +140,7 @@ def create_goal(
     expected_annual_return_pct: Decimal | None = None,
     member_goal_ids: list[int] | None = None,
     growlio_user_ids: list[uuid.UUID] | None = None,
+    exclude_real_estate: bool = False,
 ) -> FinancialGoal:
     if kind == "net_worth":
         if db.query(FinancialGoal.id).filter(FinancialGoal.kind == "net_worth").first() is not None:
@@ -146,6 +164,7 @@ def create_goal(
         description=description,
         start_date=start_date,
         created_by_id=created_by_id,
+        exclude_real_estate=exclude_real_estate and kind == "net_worth",
     )
     _apply_funding_sources(db, goal, funding_sources)
     plan_targets.apply_monthly_targets(goal, monthly_targets, GoalMonthlyTarget)
@@ -181,9 +200,10 @@ def update_goal(
     expected_annual_return_pct: Decimal | None = None,
     member_goal_ids: list[int] | None = None,
     growlio_user_ids: list[uuid.UUID] | None = None,
+    exclude_real_estate: bool | None = None,
 ) -> FinancialGoal | None:
     """통합 목표의 구성은 member_goal_ids·growlio_user_ids가 둘 다 None이면 그대로 둔다. 어느 목표를 고쳐도 통합
-    목표의 목표금액을 다시 맞춘다(구성 목표의 목표금액이 바뀔 수 있다)."""
+    목표의 목표금액을 다시 맞춘다(구성 목표의 목표금액이 바뀔 수 있다). exclude_real_estate는 None이면 그대로(순자산 목표만)."""
     goal = db.get(FinancialGoal, goal_id)
     if goal is None:
         return None
@@ -199,6 +219,8 @@ def update_goal(
     goal.manual_current_amount = current_amount
     goal.description = description
     goal.start_date = start_date
+    if exclude_real_estate is not None and goal.kind == "net_worth":
+        goal.exclude_real_estate = exclude_real_estate
     _apply_funding_sources(db, goal, funding_sources)
     plan_targets.apply_monthly_targets(goal, monthly_targets, GoalMonthlyTarget)
     if goal.kind == combined_goal_service.KIND and (member_goal_ids is not None or growlio_user_ids is not None):

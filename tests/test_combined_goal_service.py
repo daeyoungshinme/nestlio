@@ -101,21 +101,21 @@ def test_sums_members_and_growlio_snapshots(household):
     assert me_row["synced_at"] == NOW
 
 
-def test_overlap_subtracts_growlio_linked_investment_but_not_real_estate(household):
-    """구성 목표의 자금원이 growlio 계좌를 가져온 투자 상품이면 그 잔액은 growlio 투자자산에 이미 들어 있다."""
+def test_overlap_subtracts_growlio_linked_investment(household):
+    """구성 목표의 자금원이 growlio 계좌를 가져온 투자 상품이면 그 잔액은 growlio 투자자산에 이미 들어 있다. 부동산은
+    목표 자금원으로 연동할 수 없다(goal_service.RealEstateFundingSourceError)."""
     db, me, spouse = household
     _snapshot(db, me)
     etf = _product(db, "ETF", "20000000", owner=me, growlio_id="g-etf")
-    apt = _product(db, "아파트", "500000000", owner=me, growlio_id="g-apt", product_type="real_estate")
     savings = _product(db, "적금", "10000000", owner=me)
     spouse_etf = _product(db, "배우자 ETF", "7000000", owner=spouse, growlio_id="g-sp")  # 배우자 growlio는 미포함
-    house = _goal(db, required="1000000000", products=[etf, apt, savings, spouse_etf])
+    house = _goal(db, required="1000000000", products=[etf, savings, spouse_etf])
     combined = _combined(db, [house], [me])
 
     out = goal_progress_service.to_out(db, combined, TODAY)
     assert out["overlap_amount"] == Decimal("20000000")
-    # 구성 목표 5.37억 + 내 growlio 1.2억 − 겹침 2천
-    assert out["current_amount"] == Decimal("537000000") + Decimal("120000000") - Decimal("20000000")
+    # 구성 목표 3700만 + 내 growlio 1.2억 − 겹침 2천
+    assert out["current_amount"] == Decimal("37000000") + Decimal("120000000") - Decimal("20000000")
 
 
 def test_unsynced_or_unconfigured_growlio_member_is_left_out(household):

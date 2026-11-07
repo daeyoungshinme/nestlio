@@ -226,3 +226,45 @@ def test_sync_all_from_growlio_background_mode_respects_auto_sync_and_owner(db_s
         )
     mock_fetch.assert_not_called()
     assert (synced_count, failed) == (0, [])
+
+
+def _real_estate(db, name, balance, growlio_id, *, active=True):
+    from app.models.savings_product import SavingsProduct
+
+    product = SavingsProduct(
+        name=name,
+        current_balance=Decimal(balance),
+        monthly_saving_amount=Decimal("0"),
+        product_type="real_estate",
+        growlio_account_id=growlio_id,
+        is_active=active,
+    )
+    db.add(product)
+    db.commit()
+    return product
+
+
+def _loan(db, name, balance, growlio_id=None):
+    loan = Loan(name=name, balance=Decimal(balance), monthly_payment=Decimal("0"), growlio_account_id=growlio_id)
+    db.add(loan)
+    db.commit()
+    return loan
+
+
+def test_real_estate_net_subtracts_only_paired_mortgages(db_session):
+    _real_estate(db_session, "우리집", "800000000", "re-1")
+    mortgage = _loan(db_session, "우리집 담보대출", "300000000", "re-1")
+    manual = _loan(db_session, "신용대출", "10000000")
+    _real_estate(db_session, "판 집", "500000000", "re-2", active=False)
+    old_mortgage = _loan(db_session, "판 집 담보대출", "0", "re-2")
+
+    assert real_estate_service.mortgage_loan_ids(db_session) == {mortgage.id, old_mortgage.id}
+    assert manual.id not in real_estate_service.mortgage_loan_ids(db_session)
+    # 비활성 부동산 잔액은 순자산에 없으므로 빼지 않는다.
+    assert real_estate_service.real_estate_net(db_session) == Decimal("500000000")
+
+
+def test_real_estate_net_is_zero_without_real_estate(db_session):
+    _loan(db_session, "신용대출", "10000000")
+    assert real_estate_service.real_estate_net(db_session) == Decimal("0")
+    assert real_estate_service.mortgage_loan_ids(db_session) == set()

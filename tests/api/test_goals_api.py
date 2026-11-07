@@ -209,6 +209,43 @@ def test_link_savings_product_already_linked_to_another_goal_returns_409(client,
     assert resp.status_code == 409
 
 
+def test_linking_real_estate_product_returns_400(client, seeded_db):
+    product = client.post(
+        "/api/v1/savings-products",
+        json={"name": "우리집", "current_balance": "800000000", "monthly_saving_amount": "0", "product_type": "real_estate"},
+    ).json()
+
+    resp = client.post(
+        "/api/v1/financial-goals",
+        json={
+            "priority": 1,
+            "name": "내집마련",
+            "required_amount": "100000000",
+            "monthly_saving_amount": "0",
+            "funding_sources": [{"type": "savings_product", "id": product["id"]}],
+        },
+    )
+
+    assert resp.status_code == 400
+    assert resp.json()["detail"] == "부동산과 그 담보대출은 목표 자금으로 연동할 수 없어요."
+
+
+def test_net_worth_goal_exclude_real_estate_round_trips(client, seeded_db):
+    created = client.post(
+        "/api/v1/financial-goals",
+        json={"kind": "net_worth", "priority": 1, "name": "순자산", "required_amount": "100000000", "monthly_saving_amount": "0", "exclude_real_estate": True},
+    )
+    assert created.status_code == 201
+    assert created.json()["exclude_real_estate"] is True
+
+    updated = client.put(
+        f"/api/v1/financial-goals/{created.json()['id']}",
+        json={"priority": 1, "name": "순자산", "target_age": None, "required_amount": "100000000", "monthly_saving_amount": "0", "exclude_real_estate": False},
+    )
+    assert updated.status_code == 200
+    assert updated.json()["exclude_real_estate"] is False
+
+
 def test_linking_savings_product_keeps_its_monthly_plan_amount(client, seeded_db):
     product = client.post(
         "/api/v1/savings-products",

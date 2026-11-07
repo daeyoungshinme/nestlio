@@ -131,6 +131,8 @@ class FinancialGoalOut(BaseModel):
     # kind="combined"(부부 통합 목표)만: 구성과, 현재금액에서 뺀 겹침(growlio 투자자산에 이미 잡힌 구성 목표 자금원).
     combined_members: list[CombinedMemberOut] = []
     overlap_amount: Decimal | None = None
+    # kind="net_worth"만: True면 진행금액에서 부동산과 그 짝 담보대출을 뺀다(growlio 투자자산 기준).
+    exclude_real_estate: bool = False
 
 
 class FinancialGoalCreateIn(BaseModel):
@@ -150,6 +152,8 @@ class FinancialGoalCreateIn(BaseModel):
     # kind="combined"만: 묶을 장기 목표 id와 growlio 목표를 합산할 가구 구성원 id.
     member_goal_ids: list[int] | None = Field(default=None, max_length=50)
     growlio_user_ids: list[uuid.UUID] | None = Field(default=None, max_length=2)
+    # kind="net_worth"만 의미가 있다(다른 kind는 False로 저장).
+    exclude_real_estate: bool = False
 
 
 class FinancialGoalUpdateIn(BaseModel):
@@ -168,6 +172,8 @@ class FinancialGoalUpdateIn(BaseModel):
     # 통합 목표의 구성 — 둘 다 None이면 구성을 바꾸지 않는다.
     member_goal_ids: list[int] | None = Field(default=None, max_length=50)
     growlio_user_ids: list[uuid.UUID] | None = Field(default=None, max_length=2)
+    # None이면 그대로 둔다. kind="net_worth"가 아니면 무시(항상 False).
+    exclude_real_estate: bool | None = None
 
 
 class GrowlioGoalSettingsOut(BaseModel):
