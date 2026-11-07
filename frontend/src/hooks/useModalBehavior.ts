@@ -115,11 +115,11 @@ export function useModalBehavior(onClose: () => void) {
     const dialog = dialogRef.current;
     if (!handle || !dialog) return;
 
-    let startY = 0;
-    let dragging = false;
+    // 지역 let을 핸들러 클로저에서 재할당하면 oxlint react(immutability)가 렌더 후 재할당으로 오탐한다.
+    const drag = { startY: 0, active: false };
 
     const settle = (dragDistance: number) => {
-      dragging = false;
+      drag.active = false;
       dialog.style.transition = "transform 0.2s ease-out";
       dialog.style.transform = "";
       if (dragDistance > DRAG_CLOSE_THRESHOLD_PX) {
@@ -128,23 +128,23 @@ export function useModalBehavior(onClose: () => void) {
     };
 
     const handleTouchStart = (e: TouchEvent) => {
-      startY = e.touches[0].clientY;
-      dragging = true;
+      drag.startY = e.touches[0].clientY;
+      drag.active = true;
       dialog.style.transition = "none";
     };
     const handleTouchMove = (e: TouchEvent) => {
-      if (!dragging) return;
-      const delta = e.touches[0].clientY - startY;
+      if (!drag.active) return;
+      const delta = e.touches[0].clientY - drag.startY;
       if (delta <= 0) return;
       e.preventDefault();
       dialog.style.transform = `translateY(${delta}px)`;
     };
     const handleTouchEnd = (e: TouchEvent) => {
-      if (!dragging) return;
-      settle(e.changedTouches[0].clientY - startY);
+      if (!drag.active) return;
+      settle(e.changedTouches[0].clientY - drag.startY);
     };
     const handleTouchCancel = () => {
-      if (!dragging) return;
+      if (!drag.active) return;
       settle(0);
     };
 
