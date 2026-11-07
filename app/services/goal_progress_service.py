@@ -7,7 +7,13 @@ from sqlalchemy.orm import Session
 
 from app.models.financial_goal import FinancialGoal
 from app.models.transaction import Transaction
-from app.services import account_service, combined_goal_service, net_worth_service, savings_product_plan_service
+from app.services import (
+    account_service,
+    combined_goal_service,
+    net_worth_service,
+    real_estate_service,
+    savings_product_plan_service,
+)
 from app.utils.dates import month_bounds, months_between, parse_year_month, shift_month, span_bounds, year_month_str
 from app.utils.money import whole_won
 
@@ -75,8 +81,10 @@ def current_amount_from_breakdown(goal: FinancialGoal, breakdown: list[dict]) ->
     return _sum_breakdown_amounts(goal, breakdown)
 
 
-def net_worth_now(db: Session) -> Decimal:
-    return net_worth_service.compute_current(db)["net_worth"]
+def net_worth_now(db: Session, exclude_real_estate: bool = False) -> Decimal:
+    """순자산 목표의 진행금액 — 가구 순자산, "부동산 제외"면 부동산과 그 짝 담보대출 순액을 뺀 값."""
+    net_worth = net_worth_service.compute_current(db)["net_worth"]
+    return net_worth - real_estate_service.real_estate_net(db) if exclude_real_estate else net_worth
 
 
 def compute_current_amount(db: Session, goal: FinancialGoal) -> Decimal:
@@ -85,9 +93,9 @@ def compute_current_amount(db: Session, goal: FinancialGoal) -> Decimal:
     achieved_amount 합을 쓴다 — 연동된 목표는 잔액이 이미 진실의 원천이라(월별 합산과 어긋날
     수 있음, 이자 등 거래 외 변동 포함) 그대로 두고, monthly_targets이 아예 없는 기존 목표(이
     기능 도입 전에 만든 목표)는 하위호환을 위해 manual_current_amount를 그대로 쓴다.
-    kind="net_worth"는 가구 순자산 전체."""
+    kind="net_worth"는 가구 순자산 전체(exclude_real_estate면 부동산 순액 제외)."""
     if goal.kind == "net_worth":
-        return net_worth_now(db)
+        return net_worth_now(db, goal.exclude_real_estate)
     if goal.kind == combined_goal_service.KIND:
         return _combined_parts(db, goal, _prefetch(db, [goal], include_linked_rows=False), {})["current_amount"]
     return current_amount_from_breakdown(goal, funding_source_breakdown(db, goal))
@@ -262,7 +270,12 @@ class _Prefetched:
     account_balances: dict[int, Decimal]
     linked_rows: list = field(default_factory=list)
     net_worth: Decimal | None = None
+    # 순자산 목표 중 "부동산 제외"가 있을 때만 — 부동산 상품 잔액 − 짝 담보대출(real_estate_service.real_estate_net).
+    real_estate_net: Decimal = Decimal("0")
     snapshots: dict = field(default_factory=dict)
+
+    def net_worth_for(self, goal: FinancialGoal) -> Decimal:
+        return self.net_worth - self.real_estate_net if goal.exclude_real_estate else self.net_worth
 
 
 def _is_linked_goal(goal: FinancialGoal) -> bool:
@@ -292,13 +305,19 @@ def _prefetch(db: Session, goals: list[FinancialGoal], include_linked_rows: bool
             db, linked_goals, [mt.year_month for goal in linked_goals for mt in goal.monthly_targets]
         ),
         net_worth=net_worth_now(db) if any(goal.kind == "net_worth" for goal in goals) else None,
+        real_estate_net=(
+            real_estate_service.real_estate_net(db)
+            if any(goal.kind == "net_worth" and goal.exclude_real_estate for goal in goals)
+            else Decimal("0")
+        ),
         snapshots=combined_goal_service.active_snapshots(db) if has_combined else {},
     )
 
 
 def _overlapping_sources(goal: FinancialGoal, growlio_user_ids: set) -> list[tuple[str, int]]:
     """구성 목표의 자금원 중 growlio 투자자산에 이미 들어 있는 것 — growlio 계좌를 가져온 저축·투자 상품·계좌이고 그
-    growlio 목표가 통합 목표에 합산되는 사람 소유. 부동산은 growlio 목표 기준(부동산 제외)에 없으므로 겹치지 않는다."""
+    growlio 목표가 통합 목표에 합산되는 사람 소유. 부동산은 growlio 목표 기준(부동산 제외)에 없으므로 겹치지 않는다(지금은
+    자금원으로 연동할 수 없지만 — goal_service.RealEstateFundingSourceError — 방어로 남긴다)."""
     keys: list[tuple[str, int]] = []
     for fs in goal.funding_sources:
         product, account = fs.savings_product, fs.account
@@ -392,7 +411,7 @@ def current_amounts(db: Session, goals: list[FinancialGoal]) -> dict[int, Decima
     amounts: dict[int, Decimal] = {}
     for goal in goals:
         if goal.kind == "net_worth":
-            amounts[goal.id] = prefetched.net_worth
+            amounts[goal.id] = prefetched.net_worth_for(goal)
         elif goal.kind == combined_goal_service.KIND:
             amounts[goal.id] = _combined_parts(db, goal, prefetched, {})["current_amount"]
         else:
@@ -430,7 +449,7 @@ def to_out(
     else:
         planned_monthly = planned_monthly_for_goal(goal, planned_by_product)
         current_amount = (
-            prefetched.net_worth if goal.kind == "net_worth" else current_amount_from_breakdown(goal, breakdown)
+            prefetched.net_worth_for(goal) if goal.kind == "net_worth" else current_amount_from_breakdown(goal, breakdown)
         )
     months_remaining = compute_months_remaining(today, goal.target_date)
     is_linked_goal = _is_linked_goal(goal)
@@ -461,6 +480,7 @@ def to_out(
         "funding_sources": breakdown,
         "combined_members": combined["members"] if combined is not None else [],
         "overlap_amount": combined["overlap_amount"] if combined is not None else None,
+        "exclude_real_estate": goal.exclude_real_estate,
         "months_remaining": months_remaining,
         "suggested_monthly_amount": compute_suggested_monthly_amount(
             current_amount, goal.required_amount, months_remaining

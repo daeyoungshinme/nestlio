@@ -129,7 +129,7 @@ function GoalDetail({ goal }: { goal: FinancialGoalOut }) {
               {isChallenge
                 ? "챌린지"
                 : goal.kind === "net_worth"
-                  ? "순자산 목표 · 가구 순자산 기준"
+                  ? `순자산 목표 · 가구 순자산${goal.exclude_real_estate ? "(부동산 제외)" : ""} 기준`
                   : goal.kind === "combined"
                     ? "통합 목표 · 장기 목표 + growlio 투자목표 합계"
                     : `${goal.priority}순위 목표`}

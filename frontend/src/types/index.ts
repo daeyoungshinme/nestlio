@@ -754,6 +754,8 @@ export interface FinancialGoalOut {
   // kind==="combined"만: 구성과, 현재금액에서 뺀 겹침(growlio 투자자산에 이미 잡힌 구성 목표 자금원).
   combined_members: CombinedMemberOut[];
   overlap_amount: string | null;
+  /** kind==="net_worth"만: true면 진행금액에서 부동산과 그 짝 담보대출을 뺀다(growlio 투자자산 기준). */
+  exclude_real_estate: boolean;
 }
 
 export interface FinancialGoalCreateIn {
@@ -773,6 +775,8 @@ export interface FinancialGoalCreateIn {
   /** kind==="combined"만 — 수정 시 둘 다 생략하면 구성을 그대로 둔다. */
   member_goal_ids?: number[] | null;
   growlio_user_ids?: string[] | null;
+  /** kind==="net_worth"만 — 다른 kind는 백엔드가 false로 저장한다. */
+  exclude_real_estate?: boolean | null;
 }
 
 export type FinancialGoalUpdateIn = Omit<FinancialGoalCreateIn, "kind">;
