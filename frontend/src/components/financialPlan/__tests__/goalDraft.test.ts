@@ -53,3 +53,10 @@ describe("combined goal drafts", () => {
     expect(toPayload(emptyNetWorthDraft())).toMatchObject({ member_goal_ids: null, growlio_user_ids: null });
   });
 });
+
+describe("exclude_real_estate", () => {
+  it("is sent only for the net worth goal", () => {
+    expect(toPayload({ ...emptyNetWorthDraft(), exclude_real_estate: true })).toMatchObject({ exclude_real_estate: true });
+    expect(toPayload({ ...emptyCombinedDraft([]), exclude_real_estate: true })).toMatchObject({ exclude_real_estate: false });
+  });
+});

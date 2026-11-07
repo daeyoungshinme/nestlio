@@ -11,6 +11,41 @@ from app.services import growlio_client
 from app.services.growlio_client import GrowlioSyncError
 
 
+def mortgage_loan_ids(db: Session) -> set[int]:
+    """부동산 상품(product_type=real_estate)과 짝인 담보대출 id — growlio에서 함께 가져와 `growlio_account_id`를 공유하는
+    대출이다(_upsert_linked_loan). 손으로 만든 대출은 짝을 알 수 없어 들어가지 않는다. 비활성 부동산의 대출도 짝으로 본다."""
+    real_estate_ids = (
+        db.query(SavingsProduct.growlio_account_id)
+        .filter(SavingsProduct.product_type == "real_estate", SavingsProduct.growlio_account_id.is_not(None))
+        .scalar_subquery()
+    )
+    return {loan_id for (loan_id,) in db.query(Loan.id).filter(Loan.growlio_account_id.in_(real_estate_ids))}
+
+
+def real_estate_net(db: Session) -> Decimal:
+    """순자산(net_worth_service.compute_current)에 들어 있는 부동산 순액 — 활성 부동산 상품 잔액 − 짝 담보대출(활성) 잔액.
+    순자산 목표의 "부동산 제외"(growlio 투자자산 기준과 같음)가 이 값을 뺀다."""
+    products_total = sum(
+        (
+            product.current_balance
+            for product in db.query(SavingsProduct).filter(
+                SavingsProduct.product_type == "real_estate", SavingsProduct.is_active.is_(True)
+            )
+        ),
+        Decimal("0"),
+    )
+    loan_ids = mortgage_loan_ids(db)
+    loans_total = (
+        sum(
+            (loan.balance for loan in db.query(Loan).filter(Loan.id.in_(loan_ids), Loan.is_active.is_(True))),
+            Decimal("0"),
+        )
+        if loan_ids
+        else Decimal("0")
+    )
+    return products_total - loans_total
+
+
 def list_growlio_real_estate(bearer_token: str) -> list[dict]:
     """연동 대상 선택 UI를 위해 growlio 부동산 계좌 목록을 전달한다."""
     return growlio_client.fetch_real_estate_items(bearer_token)

@@ -2728,6 +2728,11 @@ export interface components {
             member_goal_ids?: number[] | null;
             /** Growlio User Ids */
             growlio_user_ids?: string[] | null;
+            /**
+             * Exclude Real Estate
+             * @default false
+             */
+            exclude_real_estate: boolean;
         };
         /** FinancialGoalOut */
         FinancialGoalOut: {
@@ -2804,6 +2809,11 @@ export interface components {
             combined_members: components["schemas"]["CombinedMemberOut"][];
             /** Overlap Amount */
             overlap_amount?: string | null;
+            /**
+             * Exclude Real Estate
+             * @default false
+             */
+            exclude_real_estate: boolean;
         };
         /** FinancialGoalUpdateIn */
         FinancialGoalUpdateIn: {
@@ -2841,6 +2851,8 @@ export interface components {
             member_goal_ids?: number[] | null;
             /** Growlio User Ids */
             growlio_user_ids?: string[] | null;
+            /** Exclude Real Estate */
+            exclude_real_estate?: boolean | null;
         };
         /** FundingSourceIn */
         FundingSourceIn: {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { computeRealEstateNet, splitSavingsAndRealEstate } from "@/utils/netWorth";
+import { computeRealEstateNet, realEstateMortgages, realEstateNetForGoal, splitSavingsAndRealEstate } from "@/utils/netWorth";
 import type { LoanOut, SavingsProductOut } from "@/types";
 
 const product = (p: Partial<SavingsProductOut>) => p as SavingsProductOut;
@@ -42,5 +42,23 @@ describe("computeRealEstateNet", () => {
 
   it("대출이 시세보다 커도 0 아래로 내려가지 않는다", () => {
     expect(computeRealEstateNet(100, products, [loan({ growlio_account_id: "re-1", balance: "500" })])).toBe(0);
+  });
+});
+
+describe("realEstateNetForGoal", () => {
+  const products = [
+    product({ product_type: "real_estate", growlio_account_id: "re-1", current_balance: "800000000" }),
+    product({ product_type: "savings", growlio_account_id: "sv-1", current_balance: "3000000" }),
+  ];
+  const mortgage = loan({ id: 1, growlio_account_id: "re-1", balance: "300000000" });
+  const loans = [mortgage, loan({ id: 2, growlio_account_id: null, balance: "5000000" })];
+
+  it("부동산 잔액에서 짝 담보대출만 뺀다", () => {
+    expect(realEstateMortgages(products, loans)).toEqual([mortgage]);
+    expect(realEstateNetForGoal(products, loans)).toBe(500000000);
+  });
+
+  it("담보대출이 시세보다 크면 음수 그대로(0으로 자르지 않는다)", () => {
+    expect(realEstateNetForGoal(products, [loan({ growlio_account_id: "re-1", balance: "900000000" })])).toBe(-100000000);
   });
 });

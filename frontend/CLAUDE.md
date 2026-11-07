@@ -92,7 +92,7 @@ npm run generate:icons      # public/favicon.svg → PNG/ICO
 - 카테고리별 예산은 이번 달 뷰의 고정/변동/비정기 패널 안에 있고, 예산 대비 실적은 `GET /cashflow-plan`·`GET /annual-plan` 응답의 `category_budgets`로 온다(`/budgets` 라우터는 없다).
 - 저축·투자 섹션은 `SavingsInvestmentPlanPanel`(상품별 월 계획 대비 실적). 상품 계획액은 `SavingsProductAnnualPlan` 그리드가 있으면 그것, 없으면 `monthly_saving_amount`. 목표에 연동된 상품의 계획도 여기서 편집한다 — 연동 목표의 월 저축액은 상품 계획 합이라 목표 폼은 읽기 전용으로 보여준다. 상품 추가·수정 폼은 자산 탭과 공유하는 `accounts/SavingsProductFormModal.tsx`(`monthly_saving_amount`는 신규 등록에만). 계획 화면에는 growlio 동기화 버튼을 두지 않는다(자산 탭으로 일원화).
 - 목표 vs 계획 분리 기준: 계획은 가구 전체의 **달력월** 기준, 목표는 각자의 목표일 기준이다. 또 흡수/분리를 고민할 때는 "같은 달력월 기준으로 계획 대비 실적을 비교하는가"로 판단한다.
-- 목표 폼(`GoalFormModal`): 장기 목표는 3단계, 챌린지·순자산·통합 목표는 한 화면(순자산 목표는 진행금액=가구 순자산, 월 계획=저축·투자 상품 계획 합이라 연동·월별 계획·직접 입력이 없다. 통합 목표는 장기 목표·가구 구성원 growlio 목표 체크리스트로 구성만 고르고 금액은 백엔드가 합산 — 만든 직후 내 growlio 값을 `refreshGrowlioGoalSnapshot`으로 불러온다). 장기목표/챌린지 토글은 **신규 생성 시에만** 뜬다(백엔드 `FinancialGoalUpdateIn`에 `kind`가 없다). 연동 목표의 월 달성액은 자동 계산(`is_auto_computed`), 미연동은 직접 입력. 균등분배는 프론트의 `utils/monthRange.ts::distributeAmountEvenly`.
+- 목표 폼(`GoalFormModal`): 장기 목표는 3단계, 챌린지·순자산·통합 목표는 한 화면(순자산 목표는 진행금액=가구 순자산(“부동산 제외” 체크 시 부동산·짝 담보대출 제외, 표시값은 `utils/netWorth.ts::realEstateNetForGoal`), 월 계획=저축·투자 상품 계획 합이라 연동·월별 계획·직접 입력이 없다. 자금원 선택지에는 부동산·짝 담보대출이 없다. 통합 목표는 장기 목표·가구 구성원 growlio 목표 체크리스트로 구성만 고르고 금액은 백엔드가 합산 — 만든 직후 내 growlio 값을 `refreshGrowlioGoalSnapshot`으로 불러온다). 장기목표/챌린지 토글은 **신규 생성 시에만** 뜬다(백엔드 `FinancialGoalUpdateIn`에 `kind`가 없다). 연동 목표의 월 달성액은 자동 계산(`is_auto_computed`), 미연동은 직접 입력. 균등분배는 프론트의 `utils/monthRange.ts::distributeAmountEvenly`.
 
 ## 테스트
 

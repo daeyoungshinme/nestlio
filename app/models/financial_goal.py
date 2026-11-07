@@ -2,7 +2,7 @@ import uuid
 from datetime import date, datetime
 from decimal import Decimal
 
-from sqlalchemy import Date, DateTime, ForeignKey, Integer, Numeric, String, func
+from sqlalchemy import Boolean, Date, DateTime, ForeignKey, Integer, Numeric, String, false, func
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -43,6 +43,9 @@ class FinancialGoal(Base):
     # 실제 컬럼명은 그대로 current_amount(하위호환) — 연동된 저축상품(funding_sources)이 하나라도
     # 있으면 이 수동 입력값 대신 연동 상품들의 잔액 합이 진행률 계산에 쓰인다. 아래 current_amount 참고.
     manual_current_amount: Mapped[Decimal] = mapped_column("current_amount", Numeric(14, 2), default=0)
+    # kind="net_worth"만: True면 진행금액에서 부동산과 그 짝 담보대출을 뺀다(growlio 투자자산 기준과 같음,
+    # real_estate_service.real_estate_net). 다른 kind는 항상 False.
+    exclude_real_estate: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false())
     sort_order: Mapped[int] = mapped_column(Integer, default=0)
     # 아래 4개는 kind="challenge"일 때만 채워진다 (일반 목표에서는 미사용).
     start_date: Mapped[date | None] = mapped_column(Date, nullable=True)

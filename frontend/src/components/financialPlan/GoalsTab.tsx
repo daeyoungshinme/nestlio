@@ -286,7 +286,9 @@ export default function GoalsTab() {
         key={goal.id}
         title={goal.name}
         metaLine={`${
-          isNetWorth ? "가구 순자산 기준" : isCombined ? `구성 ${goal.combined_members.length}개` : `${goal.priority}순위`
+          isNetWorth
+            ? `가구 순자산${goal.exclude_real_estate ? "(부동산 제외)" : ""} 기준`
+            : isCombined ? `구성 ${goal.combined_members.length}개` : `${goal.priority}순위`
         }${
           goal.target_date !== null
             ? ` · D-${daysUntil(goal.target_date)}`
