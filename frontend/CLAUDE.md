@@ -32,7 +32,7 @@ npm run generate:icons      # public/favicon.svg → PNG/ICO
 ## API 타입과 드리프트 가드
 
 - **정본 타입은 손으로 쓴 `src/types/index.ts`** 다. `src/types/api.generated.ts`는 백엔드 OpenAPI에서 생성한 추적용 참조 산출물이다.
-- `app/schemas/*.py`를 바꾼 PR은 `npm run generate:api-types`(백엔드를 띄우지 않고 `app.openapi()` 덤프; `.venv`를 쓰려면 `PYTHON=../.venv/Scripts/python`)로 갱신해 함께 커밋한다 — 안 하면 CI `api-types-drift`가 `git diff --exit-code`로 실패한다. 백엔드가 떠 있으면 `generate:api-types:live`도 된다.
+- `app/schemas/*.py`를 바꾼 PR은 `npm run generate:api-types`(백엔드를 띄우지 않고 `app.openapi()` 덤프; `.venv`를 쓰려면 `PYTHON`에 **절대 경로**, 예: Git Bash에서 `PYTHON="$(cd .. && pwd -W)/.venv/Scripts/python.exe"` — 스크립트가 저장소 루트를 cwd로 python을 실행해 `../.venv` 같은 상대 경로는 ENOENT)로 갱신해 함께 커밋한다 — 안 하면 CI `api-types-drift`가 `git diff --exit-code`로 실패한다. 백엔드가 떠 있으면 `generate:api-types:live`도 된다.
 - 그다음 `types/index.ts`를 diff에 맞춰 사람이 고친다. 잊으면 `src/types/apiDrift.check.ts`가 손 타입과 생성 타입의 **필드 이름**과 **문자열 리터럴 유니온 값 집합**이 어긋날 때 `tsc`를 실패시킨다 — 백엔드 `Literal`에 값을 추가하면 손 타입 alias와 그 라벨 맵(`Record<X, string>`)까지 맞춰야 한다. 손 타입을 새로 추가하면 이 파일 목록에도 한 줄 추가한다.
 - 백엔드가 `str`로 열어 둔 필드를 손 타입에서만 좁히면 가드가 못 잡는다 — 좁히려면 백엔드 출력 스키마도 `Literal`로 맞춘다.
 

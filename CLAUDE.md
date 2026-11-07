@@ -39,6 +39,20 @@
 - 배우자 초대(`invite_service`)는 표시 이름을 미리 정하는 보조 경로다. `accept_invite`는 body의 `user_id`가 아니라 검증된 JWT의 `sub`/`email`을 초대 이메일과 대조한다.
 - 배우자 제거(`user_service.remove_user`)는 소프트 삭제(`removed_at`/`removed_by_id`) — 대부분의 도메인 테이블(+ `users.removed_by_id` 자기참조)이 `users.id`를 FK로 참조해 하드 삭제가 불가능하다(목록은 `grep -n 'ForeignKey("users.id"' app/models/*.py`). 본인은 제거 불가(`CannotRemoveSelfError`). 제거한 배우자를 다시 초대해 수락하면 정원을 확인한 뒤 같은 행을 복구한다(`invite_service.accept_invite`). 제거된 계정의 요청은 401이 아니라 **403 + `user_service.REMOVED_USER_DETAIL`** 로 거부한다(401이면 프론트가 `refreshSession()` 재시도에 성공해 로그아웃되지 않음). `frontend/src/api/client.ts`가 이 문자열을 정확히 매칭하므로 **문구를 바꾸면 프론트도 같이 바꾼다**.
 
+## 변경 체크리스트 (계층을 가로지르는 기능)
+
+새 필드·엔드포인트는 보통 아래를 한 PR에서 함께 바꾼다. 빠뜨린 항목 대부분은 CI가 잡지만 그 전에 챙긴다.
+
+1. `app/models/` 모델 → Alembic 리비전(아래 "마이그레이션")
+2. `app/schemas/` 입출력 스키마(입력 필드 타입 규칙은 위 "schemas")
+3. `app/services/` 로직 + 도메인 예외(`app/errors.py` 베이스 상속) — [app/services/CLAUDE.md](app/services/CLAUDE.md)
+4. `app/routers/` 엔드포인트, 새 라우터면 `app/main.py`의 `API_ROUTERS`에 등록
+5. 테스트: 서비스 `tests/test_<module>.py` + HTTP `tests/api/test_<router>_api.py` — [tests/CLAUDE.md](tests/CLAUDE.md)
+6. `api.generated.ts` 재생성 → 손 타입 `frontend/src/types/index.ts` 수정 → `frontend/src/api/<리소스>.ts` → 화면. 영속 캐시 대상 응답 형태를 바꿨으면 `buster`도 — [frontend/CLAUDE.md](frontend/CLAUDE.md)
+7. 하위 CLAUDE.md에 적힌 동작(모듈 지도·라우트 표·잡 표 등)을 바꿨으면 그 문서도 같이 고친다
+
+growlio API 응답을 새로 쓰거나 형태를 바꾸면 growlio(`d:\project\growlio`) PR이 따로 필요하다. 배포 순서가 어긋나도 깨지지 않게 nestlio 쪽은 구버전 growlio(404·필드 없음)를 best-effort로 견디게 만든다(기존 `fetch_*` 패턴).
+
 ## 커맨드
 
 | 목적 | 커맨드 |
@@ -47,8 +61,10 @@
 | 개발 서버 | `dev.sh` / `dev.bat` (인자 없이) — uvicorn `--reload`(8899) + Vite(5273), `http://localhost:5273` 접속. HMR |
 | 배포 스냅샷 | `dev.sh run` — `frontend/dist` 빌드 후 uvicorn 단일 프로세스(8899) |
 | 프론트만 | `cd frontend && npm run dev` (`/api` → 8899 프록시) |
-| 테스트 | `pytest` |
+| 테스트 | `pytest` (일부만: `pytest tests/test_goal_service.py -k linked`) |
 | 린트 | `ruff check .` (pyflakes·import 정렬·bugbear·pyupgrade(UP)·comprehensions(C4)만, 포매터 전면 재정렬 안 함) |
+| 마이그레이션 드리프트 | `python scripts/check_migration_drift.py` (임베디드 Postgres, 운영 DB 안 건드림 — CI `migration-drift`와 같음) |
+| API 타입 | `cd frontend && PYTHON="<절대경로>/.venv/Scripts/python.exe" npm run generate:api-types` |
 | pre-commit | `pre-commit install` (ruff `--fix`, oxlint, 위생 훅) |
 
 - `dev.sh`도 Windows(Git Bash) 전용이다. 8899/5273이 사용 중이면(대개 이미 떠 있는 사용자의 개발 서버) **기존 프로세스를 죽이지 않고** 다음 빈 포트로 넘어간다 — 실제 포트는 스크립트 출력으로 확인한다.
@@ -64,6 +80,8 @@ PR은 `changes` job(dorny/paths-filter)이 바뀐 경로의 job만 돌린다(mai
 ## 마이그레이션
 
 - 모델을 바꾸면 Alembic 리비전을 만든다. 배포가 `alembic upgrade head`라 체인이 깨지면 배포 전체가 실패한다 — `tests/test_migrations.py`가 head 1개·base 1개·`down_revision` 연결을, CI `migration-drift`가 리비전 누락을 가드한다.
+- 리비전은 손으로 쓰거나 `alembic revision --autogenerate -m "..."`로 만든다. autogenerate는 읽기만 하지만 **로컬 `DATABASE_URL`(=운영 DB)과 비교**하므로, 운영이 main head가 아니면(다른 브랜치 리비전 미배포 등) 엉뚱한 diff가 나온다 — 결과를 검토하고 `scripts/check_migration_drift.py`로 확인한다. 로컬에서 `alembic upgrade`/`downgrade`는 돌리지 않는다(위 `dev.sh migrate` 참고).
+- 데이터를 지우거나 옮기는 마이그레이션은 PR 본문에 운영에서 영향받는 행 수를 확인했는지 적는다(SELECT로 먼저 세어 본다).
 - 체인은 2026-09-01에 단일 베이스라인 `bdba3c3b3277_squashed_baseline`으로 스쿼시됐다(이전 리비전은 git 히스토리에만 있음).
 
 ## 환경 변수
