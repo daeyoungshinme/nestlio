@@ -74,7 +74,7 @@ export default function TodayScheduleCard({ day, users }: Props) {
                     type="checkbox"
                     checked={completed}
                     onChange={() => toggleComplete(event)}
-                    className="h-5 w-5 rounded border-gray-300"
+                    className="h-5 w-5 rounded-sm border-gray-300"
                     aria-label={`${event.title} 완료 처리`}
                   />
                 </label>

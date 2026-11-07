@@ -168,7 +168,7 @@ export default function YearlyReportSection({ year }: { year: number }) {
                     {pieData.map((entry, i) => (
                       <div key={i} className="flex items-center gap-1">
                         <span
-                          className="inline-block w-2.5 h-2.5 rounded-sm shrink-0"
+                          className="inline-block w-2.5 h-2.5 rounded-xs shrink-0"
                           style={{ backgroundColor: entry.color }}
                         />
                         <span className="text-xs text-gray-600 dark:text-gray-400">

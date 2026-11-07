@@ -28,7 +28,7 @@ export default function TodoRow({ todo, today, onEdit, onDelete, onToggleComplet
             type="checkbox"
             checked={completed}
             onChange={() => onToggleComplete(todo)}
-            className="h-5 w-5 rounded border-gray-300"
+            className="h-5 w-5 rounded-sm border-gray-300"
             aria-label={`${todo.title} 완료 처리`}
           />
         </label>

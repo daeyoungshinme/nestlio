@@ -1,14 +1,61 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import "tailwindcss";
 
-@layer components {
-  .card {
-    @apply bg-white dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-700 p-5;
+@custom-variant dark (&:is(.dark *));
+
+@theme {
+  /* 앱 전역 accent(emerald 계열). 인터랙티브 크롬(버튼·탭·네비·포커스 링·행 액션 hover 등)은
+     raw `emerald-*`/`blue-*`가 아니라 이 `primary` / `primary-600` … 토큰만 쓴다.
+     상태/심각도 색(info=blue, warning=amber, critical=red 등)은 `utils/colors.ts`가 관리하는
+     별개 체계이며, 거기의 blue는 "primary가 아닌 정보성"이라는 의미라 그대로 둔다. */
+  --color-primary-50: #ecfdf5;
+  --color-primary-100: #d1fae5;
+  --color-primary-200: #a7f3d0;
+  --color-primary-300: #6ee7b7;
+  --color-primary-400: #34d399;
+  --color-primary-500: #10b981;
+  --color-primary-600: #059669;
+  --color-primary-700: #047857;
+  --color-primary-800: #065f46;
+  --color-primary-900: #064e3b;
+  --color-primary-950: #022c22;
+  --color-primary: #059669;
+}
+
+/*
+  The default border color has changed to `currentcolor` in Tailwind CSS v4,
+  so we've added these compatibility styles to make sure everything still
+  looks the same as it did with Tailwind CSS v3.
+
+  If we ever want to remove these styles, we need to add an explicit border
+  color utility to any element that depends on these defaults.
+*/
+@layer base {
+  *,
+  ::after,
+  ::before,
+  ::backdrop,
+  ::file-selector-button {
+    border-color: var(--color-gray-200, currentcolor);
   }
-  .card-overflow {
-    @apply bg-white dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-700 overflow-hidden;
+
+  /* v4는 placeholder 색을 현재 글자색 50%로, 버튼 커서를 default로 바꿨다 — v3 모습을 유지한다. */
+  input::placeholder,
+  textarea::placeholder {
+    color: var(--color-gray-400);
   }
+
+  button:not(:disabled),
+  [role="button"]:not(:disabled) {
+    cursor: pointer;
+  }
+}
+
+@utility card {
+  @apply bg-white dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-700 p-5;
+}
+
+@utility card-overflow {
+  @apply bg-white dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-700 overflow-hidden;
 }
 
 .scrollbar-none {

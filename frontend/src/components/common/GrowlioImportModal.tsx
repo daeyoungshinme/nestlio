@@ -102,7 +102,7 @@ export default function GrowlioImportModal<TRow, TResult>({
         {importable.length > 0 && (
           <>
             <label className="flex items-center gap-2 pb-2 border-b border-gray-100 dark:border-gray-800 text-sm font-medium text-gray-700 dark:text-gray-300">
-              <input type="checkbox" checked={allSelected} onChange={toggleAll} className="rounded" />
+              <input type="checkbox" checked={allSelected} onChange={toggleAll} className="rounded-sm" />
               전체 선택 ({importable.length}개)
             </label>
             <div className="space-y-1.5 max-h-72 overflow-y-auto">
@@ -119,7 +119,7 @@ export default function GrowlioImportModal<TRow, TResult>({
                         type="checkbox"
                         checked={selected.has(id)}
                         onChange={() => toggleOne(id)}
-                        className="rounded shrink-0"
+                        className="rounded-sm shrink-0"
                       />
                       <span className="min-w-0">
                         <span className="flex items-center gap-1.5">

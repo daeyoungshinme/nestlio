@@ -47,8 +47,8 @@ export default function LoginPage() {
 
   return (
     // px-4: 360px에서 카드가 화면 가장자리에 붙지 않게. 모바일은 카드 안쪽 여백도 줄인다.
-    <div className="min-h-[100dvh] flex items-center justify-center bg-gray-50 dark:bg-gray-950 px-4">
-      <div className="w-full max-w-sm bg-white dark:bg-gray-900 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 p-6 sm:p-8">
+    <div className="min-h-dvh flex items-center justify-center bg-gray-50 dark:bg-gray-950 px-4">
+      <div className="w-full max-w-sm bg-white dark:bg-gray-900 rounded-2xl shadow-xs border border-gray-200 dark:border-gray-700 p-6 sm:p-8">
         <div className="flex items-center gap-2 mb-8 justify-center">
           <PiggyBank className="text-primary-600 dark:text-primary-400" size={28} />
           <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-50">Nestlio</h1>

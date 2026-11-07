@@ -50,7 +50,7 @@ function LedgerDayCell({
       key: "income-recurring",
       node: (
         <span
-          className={`inline-flex items-center gap-0.5 text-[11px] sm:text-xs font-medium px-1 rounded ${transactionTypeBadgeStyle("income")}`}
+          className={`inline-flex items-center gap-0.5 text-[11px] sm:text-xs font-medium px-1 rounded-sm ${transactionTypeBadgeStyle("income")}`}
           title={`반복 수입 예정 ${incomeRecurring.length}건: ${incomeRecurring.map((r) => r.name).join(", ")}`}
         >
           <Repeat size={9} className="shrink-0" aria-hidden="true" />
@@ -64,7 +64,7 @@ function LedgerDayCell({
       key: "expense-recurring",
       node: (
         <span
-          className={`inline-flex items-center gap-0.5 text-[11px] sm:text-xs font-medium px-1 rounded ${transactionTypeBadgeStyle("expense")}`}
+          className={`inline-flex items-center gap-0.5 text-[11px] sm:text-xs font-medium px-1 rounded-sm ${transactionTypeBadgeStyle("expense")}`}
           title={`반복 지출 예정 ${expenseRecurring.length}건: ${expenseRecurring.map((r) => r.name).join(", ")}`}
         >
           <Repeat size={9} className="shrink-0" aria-hidden="true" />
@@ -92,7 +92,7 @@ function LedgerDayCell({
       key: "events",
       node: (
         <span
-          className="inline-flex items-center gap-0.5 text-[11px] sm:text-xs font-medium px-1 rounded bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400"
+          className="inline-flex items-center gap-0.5 text-[11px] sm:text-xs font-medium px-1 rounded-sm bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400"
           title={`일정 ${events.length}건: ${events.map((e) => e.title).join(", ")}`}
         >
           <CalendarDays size={9} className="shrink-0" aria-hidden="true" />

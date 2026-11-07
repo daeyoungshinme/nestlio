@@ -13,7 +13,7 @@ interface Props {
 
 const SIZE_CLASS: Record<"pill" | "chip", string> = {
   pill: "px-2 py-0.5 rounded-full text-xs",
-  chip: "px-1.5 py-0.5 rounded text-[11px]",
+  chip: "px-1.5 py-0.5 rounded-sm text-[11px]",
 };
 
 /** 색상 배지의 공용 마크업 — `Badge`(카테고리/거래유형 전용)와 재무목표·챌린지 진행카드의

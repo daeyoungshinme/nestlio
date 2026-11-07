@@ -108,7 +108,7 @@ jobs:
       - run: npm audit --audit-level=high
         continue-on-error: true
       # 디자인 토큰 가드: 인터랙티브 크롬은 raw emerald-*/indigo-* 대신 primary 토큰이나
-      # utils/colors.ts 헬퍼를 쓴다 (tailwind.config.ts 주석). colors.ts 는 상태색 정본이라 제외.
+      # utils/colors.ts 헬퍼를 쓴다 (src/index.css @theme 주석). colors.ts 는 상태색 정본이라 제외.
       - name: no raw emerald/indigo classes
         run: |
           if git grep -nE '(emerald|indigo)-[0-9]' -- src ':!src/utils/colors.ts' ':!src/types/api.generated.ts'; then
