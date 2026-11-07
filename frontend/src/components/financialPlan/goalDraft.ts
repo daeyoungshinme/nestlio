@@ -23,6 +23,8 @@ export interface Draft {
   /** kind==="combined"만: 묶을 장기 목표 id와 growlio 목표를 합산할 가구 구성원 id. */
   member_goal_ids: string[];
   growlio_user_ids: string[];
+  /** kind==="net_worth"만: 진행금액에서 부동산과 그 짝 담보대출을 뺀다. */
+  exclude_real_estate: boolean;
 }
 
 export const EMPTY_GOAL_DRAFT: Draft = {
@@ -43,6 +45,7 @@ export const EMPTY_GOAL_DRAFT: Draft = {
   monthly_targets: [],
   member_goal_ids: [],
   growlio_user_ids: [],
+  exclude_real_estate: false,
 };
 
 /** 챌린지 기본값의 시작/종료일은 "지금" 오늘이어야 하므로 모듈 로드 시점에 고정하지 않고 매번 만든다 —
@@ -89,6 +92,8 @@ export function draftFromGoal(goal: FinancialGoalOut): Draft {
     })),
     member_goal_ids: goal.combined_members.filter((m) => m.goal_id !== null).map((m) => String(m.goal_id)),
     growlio_user_ids: goal.combined_members.filter((m) => m.user_id !== null).map((m) => m.user_id as string),
+    // 필드 추가 전의 영속 캐시 응답에는 없을 수 있다.
+    exclude_real_estate: goal.exclude_real_estate ?? false,
   };
 }
 
@@ -123,5 +128,6 @@ export function toPayload(draft: Draft) {
     monthly_targets: !isChallenge && !isNetWorth ? draft.monthly_targets : null,
     member_goal_ids: isCombined ? draft.member_goal_ids.map(Number) : null,
     growlio_user_ids: isCombined ? draft.growlio_user_ids : null,
+    exclude_real_estate: draft.kind === "net_worth" && draft.exclude_real_estate,
   };
 }

@@ -43,6 +43,7 @@ import type {
 } from "@/types";
 import { amountToneClass, formErrorTextClass } from "@/utils/colors";
 import { sumAmounts } from "@/utils/amount";
+import { realEstateMortgages, realEstateNetForGoal } from "@/utils/netWorth";
 import { useSavingsProductsPlan } from "@/hooks/usePlanQueries";
 
 const GOAL_KIND_TABS = ["통합", "순자산", "장기 목표", "챌린지"] as const;
@@ -140,10 +141,13 @@ export default function GoalFormModal({
   const isLinked =
     draft.savings_product_ids.length > 0 || draft.account_ids.length > 0 || draft.loan_ids.length > 0;
   // 다른 목표에 이미 연동된 상품은 선택지에서 제외 — 연동되면 어느 목표를 따를지 모호해지기 때문.
-  // 지금 이 목표에 이미 연동된 상품(existingGoal.id와 일치)은 계속 보여준다.
+  // 지금 이 목표에 이미 연동된 상품(existingGoal.id와 일치)은 계속 보여준다. 부동산과 그 짝 담보대출은 목표
+  // 자금원이 될 수 없다(백엔드 goal_service.RealEstateFundingSourceError — 시세는 "모으는 돈"이 아니다).
   const availableSavingsProducts = savingsProducts.filter(
-    (p) => p.linked_goal_id === null || p.linked_goal_id === existingGoal?.id,
+    (p) => p.product_type !== "real_estate" && (p.linked_goal_id === null || p.linked_goal_id === existingGoal?.id),
   );
+  const mortgageIds = new Set(realEstateMortgages(savingsProducts, loans).map((loan) => loan.id));
+  const availableLoans = loans.filter((loan) => !mortgageIds.has(loan.id));
 
   // 저축·투자 상품이 연동된 목표의 월 저축액은 목표에 입력한 값이 아니라 연동 상품들의 이번 달 계획 합계다
   // (백엔드 goal_progress_service.planned_monthly_for_goal — 계획 원본은 계획 탭의 상품별 월 계획). 폼에서도
@@ -326,13 +330,28 @@ export default function GoalFormModal({
           {kindToggle}
           <div className="rounded-lg border border-gray-200 dark:border-gray-700 px-3 py-2.5 text-sm text-gray-600 dark:text-gray-300 space-y-1">
             <p>
-              지금 우리 순자산{" "}
+              {draft.exclude_real_estate ? "지금 우리 순자산(부동산 제외)" : "지금 우리 순자산"}{" "}
               <span className="font-semibold text-gray-900 dark:text-gray-50">
-                {netWorthData ? formatKrw(netWorthData.current.net_worth) : "불러오는 중…"}
+                {netWorthData
+                  ? formatKrw(
+                      Number(netWorthData.current.net_worth) -
+                        (draft.exclude_real_estate ? realEstateNetForGoal(savingsProducts, loans) : 0),
+                    )
+                  : "불러오는 중…"}
               </span>
             </p>
+            <label className="flex items-center gap-2 cursor-pointer text-gray-900 dark:text-gray-50">
+              <input
+                type="checkbox"
+                checked={draft.exclude_real_estate}
+                onChange={(e) => setDraft((d) => ({ ...d, exclude_real_estate: e.target.checked }))}
+                className="h-4 w-4 rounded border-gray-300 shrink-0"
+              />
+              부동산 제외
+            </label>
             <CollapsibleHint summary="진행률은 자산 탭의 순자산을 따라가요.">
-              순자산 = 계좌·저축·투자·부동산 − 대출(growlio 연동 포함). 월 저축액은{" "}
+              순자산 = 계좌·저축·투자·부동산 − 대출(growlio 연동 포함). 부동산을 제외하면 부동산과 growlio에서 함께 가져온
+              담보대출을 빼요(growlio 목표의 투자자산 기준과 같아요). 월 저축액은{" "}
               <Link to={planViewLink("이번 달")} className="font-semibold underline hover:no-underline">
                 계획 탭
               </Link>{" "}
@@ -586,7 +605,7 @@ export default function GoalFormModal({
             selectedIds={draft.savings_product_ids}
             onToggle={(id) => toggleId("savings_product_ids", id)}
             emptyMessage="연동 가능한 저축/투자 상품이 없어요."
-            hint="잔액이 합산되고, 월 저축액은 연동 상품들의 월 계획 합계예요. 다른 목표에 연동된 상품은 안 보여요."
+            hint="잔액이 합산되고, 월 저축액은 연동 상품들의 월 계획 합계예요. 다른 목표에 연동된 상품과 부동산은 안 보여요."
           />
           <FundingSourceChecklist
             label="연동할 계좌 (복수 선택 가능)"
@@ -600,7 +619,7 @@ export default function GoalFormModal({
           />
           <FundingSourceChecklist
             label="연동할 대출 (연동 시 금액에서 차감돼요)"
-            items={loans}
+            items={availableLoans}
             getId={(loan) => loan.id}
             getName={(loan) => loan.name}
             getAmountLabel={(loan) => `-${formatKrw(loan.balance)}`}
