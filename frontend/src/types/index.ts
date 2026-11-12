@@ -1188,6 +1188,20 @@ export interface NetWorthGrowlioUnlinkedOut {
   item_count: number;
 }
 
+/** growlio 반영을 자동으로 포기한 저축·투자 입출금(GET /net-worth/growlio-pushes/failed) — 자산 화면 경고. */
+export interface GrowlioPushFailedOut {
+  id: number;
+  product_name: string | null;
+  transaction_type: "DEPOSIT" | "WITHDRAWAL";
+  amount: string;
+  transaction_date: string;
+  last_error: string | null;
+}
+
+export interface GrowlioPushRetryOut {
+  sent: boolean;
+}
+
 // --- 절감 점검 (GET /reports/savings-review, /insurance-policies) ---
 
 export type InsightSeverityLevel = "info" | "warning" | "critical";

@@ -45,7 +45,14 @@ class GrowlioNotConfiguredError(DomainError):
 
 
 class GrowlioRequestError(UpstreamError):
-    """growlio API 호출이 실패했을 때 (네트워크 오류, 인증 실패, 5xx 등)."""
+    """growlio API 호출이 실패했을 때 (네트워크 오류, 인증 실패, 5xx 등).
+
+    `upstream_status`는 growlio가 돌려준 HTTP 상태(접속 실패·응답 해석 실패면 None). 클래스 속성 `status_code`는
+    nestlio가 응답할 상태(502)라 이름을 나눴다 — 아웃박스가 일시 오류와 확정 오류를 가르는 데 쓴다."""
+
+    def __init__(self, message: str, upstream_status: int | None = None):
+        super().__init__(message)
+        self.upstream_status = upstream_status
 
 
 class GrowlioSyncError(ConflictError):
@@ -71,7 +78,9 @@ def _request(
         # 호출부는 GrowlioRequestError만 잡으므로 여기서 변환해야 500으로 새지 않는다.
         return response.json()
     except httpx.HTTPStatusError as exc:
-        raise GrowlioRequestError(f"growlio API 오류 (status={exc.response.status_code})") from exc
+        raise GrowlioRequestError(
+            f"growlio API 오류 (status={exc.response.status_code})", upstream_status=exc.response.status_code
+        ) from exc
     except httpx.HTTPError as exc:
         raise GrowlioRequestError("growlio 서버에 연결하지 못했습니다.") from exc
     except ValueError as exc:

@@ -230,7 +230,8 @@ def bulk_delete_transactions(
     """가져오기 되돌리기 등에서 여러 건을 한 번에 지울 때 쓴다. 단건 삭제와 같은 저축잔액 롤백·growlio 큐 행을
     전부 세션에 올린 뒤 **한 번에 커밋**한다 — 중간에 DB 오류가 나면 아무것도 지워지지 않는다(행마다
     커밋하던 시절엔 앞쪽 일부만 지워진 채 남았다). 존재하지 않는 id만 실패 목록으로 돌려주고 나머지는
-    지운다(그 경우의 부분 성공은 의도된 동작). growlio 출금은 커밋 후 best-effort로 보낸다."""
+    지운다(그 경우의 부분 성공은 의도된 동작). growlio 출금은 커밋 후 best-effort로 보내고, 한 건이라도 실패하면
+    나머지는 큐에 남긴다."""
     unique_ids = list(dict.fromkeys(tx_ids))
     found = {tx.id: tx for tx in db.query(Transaction).filter(Transaction.id.in_(unique_ids))} if unique_ids else {}
     deleted = [found[tx_id] for tx_id in unique_ids if tx_id in found]
@@ -240,8 +241,17 @@ def bulk_delete_transactions(
     except Exception:
         db.rollback()
         raise
+    # growlio가 응답하지 않으면 행마다 타임아웃을 기다리지 않게 첫 실패 뒤로는 보내지 않고 큐에 맡긴다 —
+    # 남은 행은 다음 화면 로드 때 flush_pending이 보낸다.
+    gave_up = False
     for tx, row in pushes:
+        if row is None:
+            continue
+        if gave_up:
+            tx.growlio_sync_failed = bool(bearer_token)
+            continue
         _send_staged_pushes(db, tx, [row], bearer_token)
+        gave_up = tx.growlio_sync_failed
     return len(deleted), [tx_id for tx_id in unique_ids if tx_id not in found]
 
 
