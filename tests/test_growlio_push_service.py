@@ -5,6 +5,9 @@ from datetime import date, datetime
 from decimal import Decimal
 from unittest.mock import patch
 
+import pytest
+
+from app.errors import NotFoundError
 from app.models.growlio_push_queue import GrowlioPushQueue
 from app.models.savings_product import SavingsProduct
 from app.models.user import User
@@ -75,7 +78,7 @@ def test_send_staged_keeps_failed_row_pending(seeded_db):
 
     row = db.query(GrowlioPushQueue).one()
     assert row.sent_at is None
-    assert row.attempts == 1
+    assert row.attempts == 0  # 접속 실패는 일시 오류 — 포기 횟수에 넣지 않는다
     assert row.last_error == "down"
 
 
@@ -152,3 +155,141 @@ def test_external_ref_uses_queue_id(seeded_db):
         owner_user_id=uuid.uuid4(),
     )
     assert growlio_push_service.external_ref(row) == "nestlio:q42"
+
+
+def _transient(status=None):
+    return growlio_client.GrowlioRequestError("down", upstream_status=status)
+
+
+def _permanent():
+    return growlio_client.GrowlioRequestError("growlio API 오류 (status=404)", upstream_status=404)
+
+
+@pytest.mark.parametrize(
+    "exc",
+    [
+        _transient(),
+        _transient(500),
+        _transient(503),
+        _transient(401),
+        _transient(429),
+        growlio_client.GrowlioNotConfiguredError("off"),
+    ],
+)
+def test_transient_failures_never_abandon_row(seeded_db, exc):
+    """growlio가 오래 잠들거나 토큰이 만료돼도 행을 포기하지 않는다 — 전에는 10번이면 조용히 사라졌다."""
+    db, user = seeded_db["db"], seeded_db["user"]
+    _push(db, _product(db), token=None)
+    row = db.query(GrowlioPushQueue).one()
+    with patch.object(growlio_client, "push_transaction", side_effect=exc):
+        for _ in range(growlio_push_service.MAX_ATTEMPTS + 2):
+            assert growlio_push_service.send(db, row, "token") is False
+
+    assert row.attempts == 0
+    assert growlio_push_service.pending_query(db, user.id).count() == 1
+    assert growlio_push_service.list_failed(db, user.id) == []
+
+
+def test_permanent_failure_counts_and_abandons_after_max_attempts(seeded_db):
+    db, user = seeded_db["db"], seeded_db["user"]
+    _push(db, _product(db), token=None)
+    row = db.query(GrowlioPushQueue).one()
+    with patch.object(growlio_client, "push_transaction", side_effect=_permanent()):
+        for _ in range(growlio_push_service.MAX_ATTEMPTS):
+            growlio_push_service.send(db, row, "token")
+
+    assert row.attempts == growlio_push_service.MAX_ATTEMPTS
+    assert growlio_push_service.pending_query(db, user.id).count() == 0
+    [failed] = growlio_push_service.list_failed(db, user.id)
+    assert failed["id"] == row.id
+    assert failed["product_name"] == "ETF"
+    assert failed["last_error"] == "growlio API 오류 (status=404)"
+
+
+def test_flush_skips_permanent_failure_and_sends_following_rows(seeded_db):
+    db, user = seeded_db["db"], seeded_db["user"]
+    _push(db, _product(db, "g-broken"), token=None)
+    _push(db, _product(db, "g-ok"), token=None)
+
+    def fake_push(token, account_id, *args, **kwargs):
+        if account_id == "g-broken":
+            raise _permanent()
+
+    with patch.object(growlio_client, "push_transaction", side_effect=fake_push) as push:
+        assert _flush(db, user.id) == 1
+
+    assert push.call_count == 2
+    rows = {r.growlio_account_id: r for r in db.query(GrowlioPushQueue).all()}
+    assert rows["g-ok"].sent_at == NOW
+    assert rows["g-broken"].attempts == 1
+
+
+def test_send_does_not_raise_when_recording_commit_fails(seeded_db):
+    """거래는 이미 커밋된 뒤라 결과 기록 커밋이 실패해도 요청을 500으로 만들지 않는다."""
+    db = seeded_db["db"]
+    _push(db, _product(db), token=None)
+    row = db.query(GrowlioPushQueue).one()
+    with (
+        patch.object(growlio_client, "push_transaction"),
+        patch.object(db, "commit", side_effect=RuntimeError("db gone")),
+    ):
+        assert growlio_push_service.send(db, row, "token") is True
+    with (
+        patch.object(growlio_client, "push_transaction", side_effect=_permanent()),
+        patch.object(db, "commit", side_effect=RuntimeError("db gone")),
+    ):
+        assert growlio_push_service.send(db, row, "token") is False
+
+
+def _abandoned(db, product):
+    _push(db, product, token=None)
+    row = db.query(GrowlioPushQueue).order_by(GrowlioPushQueue.id.desc()).first()
+    row.attempts = growlio_push_service.MAX_ATTEMPTS
+    row.last_error = "old"
+    db.commit()
+    return row
+
+
+def test_retry_sends_abandoned_row(seeded_db):
+    db, user = seeded_db["db"], seeded_db["user"]
+    row = _abandoned(db, _product(db))
+    with patch.object(growlio_client, "push_transaction") as push:
+        assert growlio_push_service.retry(db, row.id, user.id, "token") is True
+    push.assert_called_once()
+    assert row.sent_at is not None
+    assert growlio_push_service.list_failed(db, user.id) == []
+
+
+def test_retry_permanent_failure_keeps_row_abandoned_with_new_reason(seeded_db):
+    db, user = seeded_db["db"], seeded_db["user"]
+    row = _abandoned(db, _product(db))
+    with patch.object(growlio_client, "push_transaction", side_effect=_permanent()):
+        assert growlio_push_service.retry(db, row.id, user.id, "token") is False
+    [failed] = growlio_push_service.list_failed(db, user.id)
+    assert failed["last_error"] == "growlio API 오류 (status=404)"
+
+
+def test_retry_transient_failure_returns_row_to_auto_resend(seeded_db):
+    db, user = seeded_db["db"], seeded_db["user"]
+    row = _abandoned(db, _product(db))
+    with patch.object(growlio_client, "push_transaction", side_effect=_transient(503)):
+        assert growlio_push_service.retry(db, row.id, user.id, "token") is False
+    assert growlio_push_service.list_failed(db, user.id) == []
+    assert growlio_push_service.pending_query(db, user.id).count() == 1
+
+
+def test_retry_rejects_spouse_owned_and_sent_rows(seeded_db):
+    db, user = seeded_db["db"], seeded_db["user"]
+    spouse = User(email="spouse3@example.com", display_name="Spouse 3")
+    db.add(spouse)
+    db.commit()
+    theirs = _abandoned(db, _product(db, "g-theirs", owner_user_id=spouse.id))
+    assert growlio_push_service.list_failed(db, user.id) == []
+    with pytest.raises(NotFoundError):
+        growlio_push_service.retry(db, theirs.id, user.id, "token")
+
+    mine = _abandoned(db, _product(db, "g-mine"))
+    mine.sent_at = NOW
+    db.commit()
+    with pytest.raises(NotFoundError):
+        growlio_push_service.retry(db, mine.id, user.id, "token")

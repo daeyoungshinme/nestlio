@@ -665,6 +665,36 @@ def test_create_transaction_growlio_push_failure_does_not_raise_and_flags_tx(see
     assert tx.growlio_sync_failed is True
 
 
+def test_bulk_delete_stops_sending_after_first_growlio_failure(seeded_db):
+    """growlio가 응답하지 않으면 행마다 타임아웃을 기다리지 않는다 — 나머지는 큐에 남겨 다음 화면 로드 때 보낸다."""
+    db, user = seeded_db["db"], seeded_db["user"]
+    savings_category, product = _add_savings_category_and_product(db, growlio_account_id="growlio-acct-1")
+    with patch.object(growlio_client, "push_transaction"):
+        ids = [
+            transaction_service.create_transaction(
+                db,
+                user_id=user.id,
+                category_id=savings_category.id,
+                type_="expense",
+                amount=Decimal("10000"),
+                transaction_date=date(2026, 7, 1),
+                savings_product_id=product.id,
+                bearer_token="token-abc",
+            ).id
+            for _ in range(3)
+        ]
+
+    with patch.object(
+        growlio_client, "push_transaction", side_effect=growlio_client.GrowlioRequestError("down")
+    ) as mock_push:
+        deleted, missing = transaction_service.bulk_delete_transactions(db, ids, bearer_token="token-abc")
+
+    assert (deleted, missing) == (3, [])
+    assert mock_push.call_count == 1
+    unsent = db.query(GrowlioPushQueue).filter(GrowlioPushQueue.sent_at.is_(None)).count()
+    assert unsent == 3
+
+
 def test_update_transaction_pushes_withdrawal_then_deposit_symmetrically(seeded_db):
     db, user = seeded_db["db"], seeded_db["user"]
     savings_category, product = _add_savings_category_and_product(db, growlio_account_id="growlio-acct-1")
