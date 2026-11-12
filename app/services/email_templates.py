@@ -373,6 +373,8 @@ def invite_message(accept_url: str, expiry_days: int) -> tuple[str, str]:
 def todo_summary_text(todo, header: str) -> str:
     """배우자 할일 알림 본문. header는 "새 할일이 등록되었습니다" 같은 행위 문구."""
     lines = [header, todo.title, f"담당: {todo.assignee.display_name if todo.assignee else '공동'}"]
+    if todo.each_completes:
+        lines.append("두 사람이 각자 완료해야 하는 할일이에요.")
     if todo.due_date:
         lines.append(f"기한: {todo.due_date.isoformat()}")
     if todo.memo:

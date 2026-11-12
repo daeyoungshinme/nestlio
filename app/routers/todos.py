@@ -35,6 +35,7 @@ def create_todo(
         due_date=payload.due_date,
         frequency=payload.frequency,
         assignee_id=payload.assignee_id,
+        each_completes=payload.each_completes,
     )
     todo_notification_service.notify_created(db, todo, current_user)
     return todo
@@ -55,6 +56,7 @@ def update_todo(
         due_date=payload.due_date,
         frequency=payload.frequency,
         assignee_id=payload.assignee_id,
+        each_completes=payload.each_completes,
     )
     if result is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=_NOT_FOUND_DETAIL)
@@ -73,9 +75,11 @@ def complete_todo(
     result = todo_service.set_completed(db, todo_id, completed=payload.completed, actor_id=current_user.id)
     if result is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=_NOT_FOUND_DETAIL)
-    todo, changed = result
-    if changed and payload.completed:
+    todo, outcome = result
+    if outcome == "completed":
         todo_notification_service.notify_completed(db, todo, current_user)
+    elif outcome == "partial":
+        todo_notification_service.notify_own_part_done(db, todo, current_user)
     return todo
 
 

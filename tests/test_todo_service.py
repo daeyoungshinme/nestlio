@@ -7,6 +7,7 @@ import pytest
 from app.models.notification_log import NotificationLog
 from app.models.notification_read import NotificationRead
 from app.models.todo import Todo
+from app.models.todo_completion import TodoCompletion
 from app.models.user import User
 from app.services import notification_settings_service, todo_notification_service, todo_service
 
@@ -107,9 +108,9 @@ def test_update_missing_returns_none(seeded_db):
 def test_complete_once_records_completer_and_creates_no_next(seeded_db):
     todo = _create(seeded_db, due_date=date(2026, 7, 1))
 
-    completed, changed = _complete(seeded_db, todo.id)
+    completed, outcome = _complete(seeded_db, todo.id)
 
-    assert changed is True
+    assert outcome == "completed"
     assert completed.completed_at == datetime(2026, 7, 1, 9, 0)
     assert completed.completed_by == seeded_db["user"].id
     assert _next(seeded_db["db"], todo.id) is None
@@ -197,8 +198,8 @@ def test_completing_twice_creates_one_next_occurrence(seeded_db):
     db = seeded_db["db"]
     todo = _create(seeded_db, due_date=date(2026, 7, 1), frequency="weekly")
 
-    assert _complete(seeded_db, todo.id)[1] is True
-    assert _complete(seeded_db, todo.id, now=datetime(2026, 7, 2, 9, 0))[1] is False
+    assert _complete(seeded_db, todo.id)[1] == "completed"
+    assert _complete(seeded_db, todo.id, now=datetime(2026, 7, 2, 9, 0))[1] == "none"
 
     assert db.query(Todo).filter(Todo.previous_todo_id == todo.id).count() == 1
     # 먼저 체크한 시각이 유지된다
@@ -210,9 +211,9 @@ def test_uncomplete_removes_open_next_occurrence(seeded_db):
     todo = _create(seeded_db, due_date=date(2026, 7, 1), frequency="weekly")
     _complete(seeded_db, todo.id)
 
-    reopened, changed = _complete(seeded_db, todo.id, completed=False)
+    reopened, outcome = _complete(seeded_db, todo.id, completed=False)
 
-    assert changed is True
+    assert outcome == "reopened"
     assert reopened.completed_at is None
     assert reopened.completed_by is None
     assert _next(db, todo.id) is None
@@ -246,6 +247,126 @@ def test_stopping_recurrence_creates_no_next(seeded_db):
     _complete(seeded_db, todo.id)
 
     assert _next(db, todo.id) is None
+
+
+# --- 각자 완료 ------------------------------------------------------------------------------------
+
+
+def _complete_as(db, user, todo_id, completed=True, now=datetime(2026, 7, 1, 9, 0)):
+    return todo_service.set_completed(db, todo_id, completed=completed, actor_id=user.id, now=now)
+
+
+def test_each_completes_stays_open_until_both_check(seeded_db):
+    db, user = seeded_db["db"], seeded_db["user"]
+    spouse2 = _spouse2(db)
+    todo = _create(seeded_db, title="건강검진", each_completes=True)
+
+    partial, outcome = _complete_as(db, user, todo.id)
+    assert outcome == "partial"
+    assert partial.completed_at is None
+    assert [c.user_id for c in partial.completions] == [user.id]
+
+    done, outcome = _complete_as(db, spouse2, todo.id, now=datetime(2026, 7, 2, 9, 0))
+    assert outcome == "completed"
+    assert done.completed_at == datetime(2026, 7, 2, 9, 0)
+    assert done.completed_by == spouse2.id
+    assert {c.user_id for c in done.completions} == {user.id, spouse2.id}
+
+
+def test_each_completes_duplicate_check_is_noop(seeded_db):
+    db, user = seeded_db["db"], seeded_db["user"]
+    _spouse2(db)
+    todo = _create(seeded_db, each_completes=True)
+    _complete_as(db, user, todo.id)
+
+    again, outcome = _complete_as(db, user, todo.id)
+
+    assert outcome == "none"
+    assert len(again.completions) == 1
+
+
+def test_each_completes_recurring_creates_one_next_with_flag(seeded_db):
+    db, user = seeded_db["db"], seeded_db["user"]
+    spouse2 = _spouse2(db)
+    todo = _create(seeded_db, due_date=date(2026, 7, 1), frequency="weekly", each_completes=True)
+
+    _complete_as(db, user, todo.id)
+    assert _next(db, todo.id) is None
+    _complete_as(db, spouse2, todo.id)
+
+    next_todo = _next(db, todo.id)
+    assert next_todo.each_completes is True
+    assert next_todo.completions == []
+
+
+def test_each_completes_uncheck_after_done_reopens_and_removes_next(seeded_db):
+    db, user = seeded_db["db"], seeded_db["user"]
+    spouse2 = _spouse2(db)
+    todo = _create(seeded_db, due_date=date(2026, 7, 1), frequency="weekly", each_completes=True)
+    _complete_as(db, user, todo.id)
+    _complete_as(db, spouse2, todo.id)
+
+    reopened, outcome = _complete_as(db, user, todo.id, completed=False)
+
+    assert outcome == "reopened"
+    assert reopened.completed_at is None
+    assert [c.user_id for c in reopened.completions] == [spouse2.id]
+    assert _next(db, todo.id) is None
+
+
+def test_each_completes_uncheck_partial_only_removes_own_check(seeded_db):
+    db, user = seeded_db["db"], seeded_db["user"]
+    _spouse2(db)
+    todo = _create(seeded_db, each_completes=True)
+    _complete_as(db, user, todo.id)
+
+    unchecked, outcome = _complete_as(db, user, todo.id, completed=False)
+
+    assert outcome == "none"
+    assert unchecked.completions == []
+    assert unchecked.completed_at is None
+
+
+def test_each_completes_ignores_removed_spouse(seeded_db):
+    """혼자 남은 가구(배우자 제거·미가입)는 한 명이 체크하면 끝난다."""
+    db, user = seeded_db["db"], seeded_db["user"]
+    spouse2 = _spouse2(db)
+    spouse2.removed_at = datetime(2026, 6, 1)
+    db.commit()
+    todo = _create(seeded_db, each_completes=True)
+
+    done, outcome = _complete_as(db, user, todo.id)
+
+    assert outcome == "completed"
+    assert done.completed_at is not None
+
+
+def test_turning_off_each_completes_clears_checks(seeded_db):
+    db, user = seeded_db["db"], seeded_db["user"]
+    _spouse2(db)
+    todo = _create(seeded_db, each_completes=True)
+    _complete_as(db, user, todo.id)
+
+    updated, _ = todo_service.update_todo(
+        db, todo.id, title="분리수거", memo=None, due_date=None, frequency="once", assignee_id=None, each_completes=False
+    )
+
+    assert updated.each_completes is False
+    assert updated.completions == []
+    assert updated.completed_at is None
+    # 이제는 한 명만 체크해도 끝난다
+    assert _complete_as(db, user, todo.id)[1] == "completed"
+
+
+def test_deleting_todo_removes_its_checks(seeded_db):
+    db, user = seeded_db["db"], seeded_db["user"]
+    _spouse2(db)
+    todo = _create(seeded_db, each_completes=True)
+    _complete_as(db, user, todo.id)
+
+    todo_service.delete_todo(db, todo.id)
+
+    assert db.query(TodoCompletion).count() == 0
 
 
 # --- 알림 ---------------------------------------------------------------------------------------

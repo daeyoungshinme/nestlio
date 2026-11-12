@@ -4,20 +4,30 @@ import { TOUCH_TARGET_MIN } from "@/constants/uiSizes";
 import { cautionTextClass } from "@/utils/colors";
 import { occurrenceDate } from "@/utils/date";
 import { formatDate } from "@/utils/format";
-import { isTodoOverdue, TODO_FREQUENCY_LABEL, todoDueLabel } from "@/utils/todos";
-import type { TodoOut } from "@/types";
+import {
+  completionProgressLabel,
+  isCheckedBy,
+  isTodoOverdue,
+  TODO_FREQUENCY_LABEL,
+  todoDueLabel,
+} from "@/utils/todos";
+import type { TodoOut, UserOut } from "@/types";
 
 interface Props {
   todo: TodoOut;
   today: string;
+  /** 체크박스 상태를 내 몫 기준으로 그린다(각자 완료 할일). */
+  myId: string | undefined;
+  users: UserOut[] | undefined;
   onEdit: (todo: TodoOut) => void;
   onDelete: (todo: TodoOut) => void;
   onToggleComplete: (todo: TodoOut) => void;
 }
 
-/** `/todos`의 할일 한 줄 — 체크박스 + 제목(누르면 수정) + 반복 배지 + 기한·담당·작성자 + 삭제 버튼. */
-export default function TodoRow({ todo, today, onEdit, onDelete, onToggleComplete }: Props) {
+/** `/todos`의 할일 한 줄 — 체크박스 + 제목(누르면 수정) + 반복·각자 배지 + 기한·담당·작성자·각자 진행 + 삭제 버튼. */
+export default function TodoRow({ todo, today, myId, users, onEdit, onDelete, onToggleComplete }: Props) {
   const completed = todo.completed_at != null;
+  const checked = isCheckedBy(todo, myId);
   const dueLabel = todoDueLabel(todo, today);
 
   return (
@@ -26,7 +36,7 @@ export default function TodoRow({ todo, today, onEdit, onDelete, onToggleComplet
         <label className={`${TOUCH_TARGET_MIN} -ml-3 shrink-0 cursor-pointer`}>
           <input
             type="checkbox"
-            checked={completed}
+            checked={checked}
             onChange={() => onToggleComplete(todo)}
             className="h-5 w-5 rounded-sm border-gray-300"
             aria-label={`${todo.title} 완료 처리`}
@@ -45,6 +55,9 @@ export default function TodoRow({ todo, today, onEdit, onDelete, onToggleComplet
                 toneClassName="bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400"
               />
             )}
+            {todo.each_completes && (
+              <StatusBadge label="각자" toneClassName="bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400" />
+            )}
           </span>
           <span className="block break-keep text-xs text-gray-500 dark:text-gray-400 mt-0.5">
             {dueLabel && (
@@ -54,6 +67,7 @@ export default function TodoRow({ todo, today, onEdit, onDelete, onToggleComplet
             )}
             {[
               `담당 ${todo.assignee?.display_name ?? "공동"}`,
+              completionProgressLabel(todo, users),
               todo.assignee?.id === todo.creator.id ? null : `작성 ${todo.creator.display_name}`,
               todo.completed_at
                 ? `${todo.completer?.display_name ?? ""} 완료 ${formatDate(occurrenceDate(todo.completed_at))}`.trim()

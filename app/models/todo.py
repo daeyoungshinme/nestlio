@@ -1,11 +1,12 @@
 import uuid
 from datetime import date, datetime
 
-from sqlalchemy import Date, DateTime, ForeignKey, Integer, String, func
+from sqlalchemy import Boolean, Date, DateTime, ForeignKey, Integer, String, false, func
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
+from app.models.todo_completion import TodoCompletion
 from app.models.user import User
 from app.utils.dates import now_kst
 
@@ -22,6 +23,8 @@ class Todo(Base):
     recurrence_day: Mapped[int | None] = mapped_column(Integer, nullable=True)
     # 담당자 - None이면 "공동"(두 사람 모두 담당). Event.assignee_id처럼 접근 제어용이 아니라 귀속 표시용이다.
     assignee_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
+    # "각자 완료" - 공동 할일에서만 켠다. 두 사람이 각자 체크(TodoCompletion)해야 completed_at이 채워진다.
+    each_completes: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false())
     # 반복 할일은 회차마다 한 행이다(회차별로 완료가 갈린다). 이 행을 만든 이전 회차.
     previous_todo_id: Mapped[int | None] = mapped_column(ForeignKey("todos.id", ondelete="SET NULL"), nullable=True)
     # "nullable timestamp = 상태 마커" 패턴 - 채워지면 완료.
@@ -34,3 +37,7 @@ class Todo(Base):
     creator: Mapped["User"] = relationship(foreign_keys=[created_by], lazy="joined")
     assignee: Mapped["User | None"] = relationship(foreign_keys=[assignee_id], lazy="joined")
     completer: Mapped["User | None"] = relationship(foreign_keys=[completed_by], lazy="joined")
+    # 컬렉션이라 joined로 걸면 목록 쿼리에 unique()가 필요해진다 — selectin으로 한 번에 따로 읽는다.
+    completions: Mapped[list["TodoCompletion"]] = relationship(
+        lazy="selectin", cascade="all, delete-orphan", order_by=TodoCompletion.completed_at
+    )

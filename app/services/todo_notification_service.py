@@ -96,6 +96,11 @@ def notify_completed(db: Session, todo: Todo, actor: User, now: datetime | None 
         _notify_inbox_only(db, todo, actor, "할일을 완료했어요", now or now_kst())
 
 
+def notify_own_part_done(db: Session, todo: Todo, actor: User, now: datetime | None = None) -> None:
+    """각자 완료 할일에서 한 사람이 자기 몫만 끝냈을 때 — 남은 배우자가 알도록 알림함에만 남긴다."""
+    _notify_inbox_only(db, todo, actor, "할일에서 자기 몫을 완료했어요", now or now_kst())
+
+
 def notify_deleted(db: Session, todo: Todo, actor: User, now: datetime | None = None) -> None:
     if _involves_partner(todo.created_by, todo.assignee_id, actor):
         _notify_inbox_only(db, todo, actor, "할일을 삭제했어요", now or now_kst())

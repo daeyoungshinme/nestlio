@@ -4,6 +4,7 @@ import Button from "@/components/common/Button";
 import FormInput from "@/components/common/FormInput";
 import OwnerSelect from "@/components/common/OwnerSelect";
 import { INPUT_SM, LABEL_SM } from "@/constants/inputStyles";
+import { TOUCH_TARGET_MIN_HEIGHT } from "@/constants/uiSizes";
 import { TODO_FREQUENCY_LABEL } from "@/utils/todos";
 import type { TodoCreateIn, TodoFrequency, TodoOut, UserOut } from "@/types";
 
@@ -22,6 +23,7 @@ export default function TodoForm({ todo, submitLabel, submitting, users, onSubmi
   const fieldId = useId();
   const [title, setTitle] = useState(todo?.title ?? "");
   const [assigneeId, setAssigneeId] = useState(todo?.assignee?.id ?? "");
+  const [eachCompletes, setEachCompletes] = useState(todo?.each_completes ?? false);
   const [dueDate, setDueDate] = useState(todo?.due_date ?? "");
   const [frequency, setFrequency] = useState<TodoFrequency>(todo?.frequency ?? "once");
   const [memo, setMemo] = useState(todo?.memo ?? "");
@@ -32,6 +34,12 @@ export default function TodoForm({ todo, submitLabel, submitting, users, onSubmi
     if (!value) setFrequency("once");
   };
 
+  const changeAssignee = (value: string) => {
+    setAssigneeId(value);
+    // 각자 완료는 공동 할일에만 의미가 있다(백엔드도 422로 막는다).
+    if (value) setEachCompletes(false);
+  };
+
   const handleSubmit = (e: FormEvent) => {
     e.preventDefault();
     onSubmit({
@@ -40,13 +48,29 @@ export default function TodoForm({ todo, submitLabel, submitting, users, onSubmi
       due_date: dueDate || null,
       frequency,
       assignee_id: assigneeId || null,
+      each_completes: eachCompletes,
     });
   };
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       <FormInput label="할일" value={title} maxLength={200} onChange={(e) => setTitle(e.target.value)} required />
-      <OwnerSelect label="담당자" value={assigneeId} onChange={setAssigneeId} users={users} />
+      <div className="space-y-1">
+        <OwnerSelect label="담당자" value={assigneeId} onChange={changeAssignee} users={users} />
+        <label className={`${TOUCH_TARGET_MIN_HEIGHT} flex items-center gap-2 ${LABEL_SM} ${assigneeId ? "opacity-50" : "cursor-pointer"}`}>
+          <input
+            type="checkbox"
+            checked={eachCompletes}
+            disabled={!!assigneeId}
+            onChange={(e) => setEachCompletes(e.target.checked)}
+            className="h-4 w-4 rounded-sm border-gray-300"
+          />
+          각자 완료해야 해요
+        </label>
+        <p className="text-xs text-gray-500 dark:text-gray-400">
+          {assigneeId ? "담당자가 공통일 때만 고를 수 있어요." : "켜면 두 사람이 각자 체크해야 완료돼요."}
+        </p>
+      </div>
       <div className="flex flex-wrap gap-3">
         <FormInput
           label="기한 (선택)"
