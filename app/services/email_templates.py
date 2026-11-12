@@ -4,6 +4,8 @@
 - HTML 본문: 주간/월간 요약만. 이메일 클라이언트 호환성을 위해 테이블 기반 레이아웃 +
   인라인 스타일만 사용하고 외부 CSS에 의존하지 않는다.
 """
+import html
+import re
 from datetime import date, datetime
 from decimal import Decimal
 
@@ -30,6 +32,18 @@ _SEVERITY_LABELS = {"critical": "위험", "warning": "주의", "info": "참고"}
 # frontend/src/utils/colors.ts의 INSIGHT_SEVERITY_STYLE(light 모드)과 동일한 톤으로 맞춘다.
 _SEVERITY_COLORS = {"critical": "#B91C1C", "warning": "#B45309", "info": "#1D4ED8"}
 _SEVERITY_TINTS = {"critical": "#FEF2F2", "warning": "#FFFBEB", "info": "#EFF6FF"}
+
+# 카테고리 색은 사용자가 고른 값이 style 속성에 그대로 들어간다 — hex가 아니면 쓰지 않는다.
+_HEX_COLOR = re.compile(r"#[0-9A-Fa-f]{3,8}")
+
+
+def _esc(value: object) -> str:
+    """HTML 본문에 넣는 사용자 입력(카테고리 이름·표시 이름·인사이트 문구 — 카테고리 이름이 섞인다) 이스케이프."""
+    return html.escape(str(value))
+
+
+def _safe_color(value: str | None) -> str:
+    return value if value and _HEX_COLOR.fullmatch(value) else _MUTED
 
 
 
@@ -141,14 +155,14 @@ def _category_bars(breakdown: list[dict]) -> str:
     rows_html = []
     for row in breakdown:
         pct = max(int(row["amount"] / max_amount * 100), 4)
-        color = row.get("color") or _MUTED
+        color = _safe_color(row.get("color"))
         rows_html.append(f"""<tr>
 <td style="padding:7px 0;">
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
 <tr>
 <td style="font-size:13px; color:{_TEXT};">
 <span style="display:inline-block; width:8px; height:8px; border-radius:50%; background-color:{color}; margin-right:7px;"></span>
-{row['name']}
+{_esc(row['name'])}
 </td>
 <td align="right" style="font-size:13px; font-weight:600; color:{_TEXT}; white-space:nowrap;">{format_won(row['amount'])}</td>
 </tr>
@@ -188,7 +202,7 @@ def _contribution_section(owner_totals: list[dict] | None) -> str:
         crown = " \U0001F451" if is_leader else ""
         color = _SUCCESS if is_leader else _TEXT
         rows.append(f"""<tr>
-<td style="padding:6px 0; font-size:13px; color:{_TEXT};">{o['display_name']}{crown}</td>
+<td style="padding:6px 0; font-size:13px; color:{_TEXT};">{_esc(o['display_name'])}{crown}</td>
 <td align="right" style="padding:6px 0; font-size:13px; font-weight:700; color:{color};">{format_won(o['savings'])}</td>
 </tr>""")
     return (
@@ -210,7 +224,7 @@ def _insight_cards(insights: list[Insight]) -> str:
 <td width="4" style="background-color:{color}; border-radius:3px 0 0 3px; font-size:0;">&nbsp;</td>
 <td style="background-color:{tint}; border-radius:0 6px 6px 0; padding:10px 14px;">
 <span style="display:inline-block; font-size:11px; font-weight:700; color:{color}; border:1px solid {color}; border-radius:10px; padding:1px 8px; margin-bottom:4px;">{label}</span>
-<div style="font-size:13px; color:{_TEXT}; line-height:1.5; margin-top:4px;">{insight.message}</div>
+<div style="font-size:13px; color:{_TEXT}; line-height:1.5; margin-top:4px;">{_esc(insight.message)}</div>
 </td>
 </tr>
 </table>""")

@@ -136,3 +136,29 @@ def test_contribution_summary_text_omits_leader_line_on_tie():
 
     assert text is not None
     assert "더 모았어요" not in text
+
+
+def test_summary_html_escapes_user_input():
+    """카테고리 이름·표시 이름·인사이트 문구는 사용자가 입력한 문자열이라 HTML로 해석되면 메일 본문이 깨지거나 조작된다."""
+    from datetime import date
+
+    from app.services.coaching_engine import Insight
+
+    totals = {
+        "income": Decimal("0"),
+        "expense": Decimal("1000"),
+        "savings": Decimal("0"),
+        "fixed": Decimal("0"),
+        "variable": Decimal("1000"),
+        "irregular": Decimal("0"),
+    }
+    breakdown = [{"name": "<b>외식</b>", "amount": Decimal("1000"), "color": 'red;" onmouseover="x'}]
+    insight = Insight(rule_code="budget_overrun", severity="warning", message="<script>alert(1)</script> 초과")
+
+    html = email_templates.build_monthly_summary_html(
+        date(2026, 7, 1), date(2026, 7, 31), totals, breakdown, [insight]
+    )
+
+    assert "<b>외식</b>" not in html and "&lt;b&gt;외식&lt;/b&gt;" in html
+    assert "<script>" not in html and "&lt;script&gt;" in html
+    assert "onmouseover" not in html

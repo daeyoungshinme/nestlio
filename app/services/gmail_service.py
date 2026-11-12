@@ -2,6 +2,8 @@ import base64
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 
+import httplib2
+from google.auth.exceptions import TransportError
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
 
@@ -43,3 +45,7 @@ def send_email(
                 "Gmail API가 비활성화되어 있습니다. Google Cloud Console에서 Gmail API를 활성화한 뒤 다시 시도해주세요."
             ) from exc
         raise GmailSendError(f"Gmail 발송에 실패했습니다 (HTTP {exc.status_code}). 잠시 후 다시 시도해주세요.") from exc
+    except (TransportError, httplib2.HttpLib2Error, OSError) as exc:
+        # 네트워크 장애(타임아웃·DNS·연결 끊김, 토큰 갱신 중 통신 실패)도 GmailSendError로 — 호출부
+        # (send_email_best_effort)가 이것만 잡으므로, 새면 예약 잡·요청이 500으로 끝난다. TimeoutError·socket 오류는 OSError.
+        raise GmailSendError("Gmail 서버에 연결하지 못했습니다. 잠시 후 다시 시도해주세요.") from exc

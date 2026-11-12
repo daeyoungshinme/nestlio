@@ -373,7 +373,7 @@ def test_inbox_failure_rolls_back_and_still_mails(mock_connected, mock_send, see
     _spouse2(db)
     event = event_service.create_event(db, created_by=user.id, title="여행", start_at=datetime(2026, 8, 1, 9, 0))
 
-    with patch("app.services.event_reminder_service.NotificationRead", side_effect=RuntimeError("db down")):
+    with patch("app.services.notification_log_service.NotificationRead", side_effect=RuntimeError("db down")):
         event_reminder_service.notify_other_spouse_best_effort(db, event, user.id, "새 일정이 등록되었습니다")
 
     mock_send.assert_called_once()

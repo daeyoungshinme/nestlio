@@ -532,7 +532,7 @@ def test_inbox_failure_rolls_back_and_still_mails(mock_connected, mock_send, see
     _spouse2(db)
     todo = _create(seeded_db)
 
-    with patch("app.services.todo_notification_service.NotificationRead", side_effect=RuntimeError("db down")):
+    with patch("app.services.notification_log_service.NotificationRead", side_effect=RuntimeError("db down")):
         todo_notification_service.notify_created(db, todo, seeded_db["user"], now=datetime(2026, 7, 1, 9, 0))
 
     mock_send.assert_called_once()
@@ -543,8 +543,10 @@ def test_inbox_failure_rolls_back_and_still_mails(mock_connected, mock_send, see
 @patch("app.services.notification_service.gmail_service.send_email")
 @patch("app.services.notification_service.is_connected", return_value=True)
 def test_pref_lookup_failure_does_not_raise(mock_connected, mock_send, seeded_db):
-    """저장은 이미 끝났으므로 설정 조회 실패가 응답을 500으로 만들면 안 된다."""
+    """저장은 이미 끝났으므로 설정 조회 실패가 응답을 500으로 만들면 안 된다. 꺼져 있을 수도 있으니 메일도 보내지
+    않는다(일정 알림과 같은 규칙 — 전에는 설정을 못 읽어도 메일을 보냈다)."""
     db = seeded_db["db"]
+    _spouse2(db)
     todo = _create(seeded_db)
 
     with patch(
@@ -555,3 +557,4 @@ def test_pref_lookup_failure_does_not_raise(mock_connected, mock_send, seeded_db
         todo_notification_service.notify_completed(db, todo, seeded_db["user"])
 
     assert _inbox(db) == []
+    mock_send.assert_not_called()
