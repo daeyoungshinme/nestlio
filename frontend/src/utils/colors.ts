@@ -354,6 +354,24 @@ export function cautionTextClass(): string {
   return PLAN_STATUS_TEXT.warn;
 }
 
+export type TodoUrgency = "overdue" | "today" | "soon";
+
+const TODO_URGENCY_BADGE: Record<TodoUrgency, string> = {
+  overdue: "bg-red-50 dark:bg-red-950 text-red-700 dark:text-red-300",
+  today: "bg-amber-50 dark:bg-amber-950 text-amber-700 dark:text-amber-300",
+  soon: "bg-primary-50 dark:bg-primary-950 text-primary-600 dark:text-primary-400",
+};
+
+/** 할일 긴급도 배지(기한 지남·오늘까지·D-n). */
+export function todoUrgencyBadgeClass(urgency: TodoUrgency): string {
+  return TODO_URGENCY_BADGE[urgency];
+}
+
+/** "내 차례" 배지 — 각자 완료 할일에서 내 몫이 남았을 때. */
+export function todoMyTurnBadgeClass(): string {
+  return TRANSACTION_TYPE_STYLE.income;
+}
+
 /** 주의·제안 콜아웃 박스(amber 배경 + 진한 본문) — SuggestionHint, 비상금 보충 안내. */
 export function cautionCalloutClass(): string {
   return "bg-amber-50 dark:bg-amber-950";

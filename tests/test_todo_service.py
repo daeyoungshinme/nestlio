@@ -341,6 +341,20 @@ def test_each_completes_ignores_removed_spouse(seeded_db):
     assert done.completed_at is not None
 
 
+def test_is_important_saved_updated_and_copied_to_next(seeded_db):
+    db = seeded_db["db"]
+    todo = _create(seeded_db, due_date=date(2026, 7, 1), frequency="weekly", is_important=True)
+    assert todo.is_important is True
+
+    _complete(seeded_db, todo.id)
+    assert _next(db, todo.id).is_important is True
+
+    updated, _ = todo_service.update_todo(
+        db, todo.id, title=todo.title, memo=None, due_date=todo.due_date, frequency="weekly", assignee_id=None
+    )
+    assert updated.is_important is False
+
+
 def test_turning_off_each_completes_clears_checks(seeded_db):
     db, user = seeded_db["db"], seeded_db["user"]
     _spouse2(db)

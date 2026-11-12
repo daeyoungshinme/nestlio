@@ -3,6 +3,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { TodoOut, UserOut } from "@/types";
+import { currentDateIso, shiftDateIso } from "@/utils/date";
 
 const me = { id: "me", display_name: "민수" } as UserOut;
 const partner = { id: "partner", display_name: "지영" } as UserOut;
@@ -35,6 +36,7 @@ function todo(overrides: Partial<TodoOut>): TodoOut {
     assignee: null,
     each_completes: false,
     completions: [],
+    is_important: false,
     completed_at: null,
     completer: null,
     created_at: "2026-07-01T09:00:00",
@@ -121,6 +123,39 @@ describe("TodosPage", () => {
 
     fireEvent.click(box);
     await waitFor(() => expect(completeTodo).toHaveBeenCalledWith(9, true));
+  });
+
+  it("나 탭에 각자 완료 할일이 내 차례로 나온다", async () => {
+    fetchTodos.mockResolvedValue([
+      todo({ id: 1, title: "내 할일", assignee: me }),
+      todo({ id: 2, title: "건강검진", each_completes: true }),
+      todo({ id: 3, title: "공동 할일" }),
+    ]);
+    renderPage();
+    await screen.findByText("내 할일");
+
+    fireEvent.click(screen.getByRole("tab", { name: "나" }));
+    expect(screen.getByText("건강검진")).toBeInTheDocument();
+    expect(screen.getByText("내 차례")).toBeInTheDocument();
+    expect(screen.queryByText("공동 할일")).not.toBeInTheDocument();
+  });
+
+  it("진행 중은 기한 지남·오늘·임박·중요 순으로 위에 보인다", async () => {
+    const today = currentDateIso();
+    fetchTodos.mockResolvedValue([
+      todo({ id: 1, title: "여유", due_date: shiftDateIso(today, 10) }),
+      todo({ id: 2, title: "중요", due_date: shiftDateIso(today, 20), is_important: true }),
+      todo({ id: 3, title: "임박", due_date: shiftDateIso(today, 2) }),
+      todo({ id: 4, title: "지남", due_date: shiftDateIso(today, -1) }),
+    ]);
+    renderPage();
+    await screen.findByText("여유");
+
+    const titles = screen.getAllByLabelText(/완료 처리$/).map((el) => el.getAttribute("aria-label"));
+    expect(titles).toEqual(["지남 완료 처리", "임박 완료 처리", "중요 완료 처리", "여유 완료 처리"]);
+    expect(screen.getByText("기한 지남")).toBeInTheDocument();
+    expect(screen.getByText("D-2")).toBeInTheDocument();
+    expect(screen.getByLabelText("중요")).toBeInTheDocument();
   });
 
   it("체크하면 완료 요청을 보낸다", async () => {

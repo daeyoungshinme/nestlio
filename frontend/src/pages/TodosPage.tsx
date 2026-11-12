@@ -13,7 +13,7 @@ import { TODO_TABS, type TodoTab } from "@/constants/routes";
 import { useMe, useUsers } from "@/hooks/useReferenceData";
 import { useTodoActions } from "@/hooks/useTodoActions";
 import { currentDateIso } from "@/utils/date";
-import { filterTodosByAssignee, TODO_ASSIGNEE_FILTERS, type TodoAssigneeFilter } from "@/utils/todos";
+import { filterTodosByAssignee, sortOpenTodos, TODO_ASSIGNEE_FILTERS, type TodoAssigneeFilter } from "@/utils/todos";
 
 function isTab(value: string | null): value is TodoTab {
   return (TODO_TABS as readonly string[]).includes(value ?? "");
@@ -59,7 +59,9 @@ export default function TodosPage() {
 
       <QueryBoundary query={todosQuery} errorMessage="할일을 불러오지 못했어요.">
         {(todos) => {
-          const filtered = filterTodosByAssignee(todos, assigneeFilter, me?.id);
+          const assigned = filterTodosByAssignee(todos, assigneeFilter, me?.id);
+          // 진행 중은 무엇부터 할지(긴급도 → 중요) 순, 완료는 서버의 최근 완료순 그대로.
+          const filtered = activeTab === "완료" ? assigned : sortOpenTodos(assigned, today);
           if (filtered.length === 0) {
             return (
               <EmptyState

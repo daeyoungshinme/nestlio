@@ -57,6 +57,7 @@ def create_todo(
     frequency: str = "once",
     assignee_id: uuid.UUID | None = None,
     each_completes: bool = False,
+    is_important: bool = False,
 ) -> Todo:
     _ensure_assignable(db, assignee_id)
     todo = Todo(
@@ -67,6 +68,7 @@ def create_todo(
         recurrence_day=due_date.day if due_date else None,
         assignee_id=assignee_id,
         each_completes=each_completes,
+        is_important=is_important,
         created_by=created_by,
     )
     db.add(todo)
@@ -84,6 +86,7 @@ def update_todo(
     frequency: str,
     assignee_id: uuid.UUID | None,
     each_completes: bool = False,
+    is_important: bool = False,
 ) -> tuple[Todo, uuid.UUID | None] | None:
     """(수정한 할일, 수정 전 담당자)를 돌려준다(없으면 None) — 라우터가 담당 변경 알림을 판단하는 데 쓴다."""
     todo = db.get(Todo, todo_id)
@@ -105,6 +108,7 @@ def update_todo(
     if todo.each_completes and not each_completes:
         todo.completions.clear()
     todo.each_completes = each_completes
+    todo.is_important = is_important
     db.commit()
     db.refresh(todo)
     return todo, previous_assignee_id
@@ -218,6 +222,7 @@ def _create_next_occurrence(db: Session, todo: Todo, today: date) -> None:
             recurrence_day=todo.recurrence_day,
             assignee_id=todo.assignee_id,
             each_completes=todo.each_completes,
+            is_important=todo.is_important,
             previous_todo_id=todo.id,
             created_by=todo.created_by,
         )

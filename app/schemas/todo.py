@@ -32,6 +32,7 @@ class TodoOut(BaseModel):
     # 각자 완료 - 켜져 있으면 completions(사람별 체크)에 전원이 있어야 completed_at이 채워진다.
     each_completes: bool = False
     completions: list[TodoCompletionOut] = []
+    is_important: bool = False
     completed_at: datetime | None = None
     completer: UserOut | None = None
     created_at: datetime
@@ -44,6 +45,7 @@ class TodoCreateIn(BaseModel):
     frequency: TodoFrequency = "once"
     assignee_id: uuid.UUID | None = None
     each_completes: bool = False
+    is_important: bool = False
 
     @model_validator(mode="after")
     def _recurring_needs_due_date(self):
