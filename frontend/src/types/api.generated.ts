@@ -4291,10 +4291,11 @@ export interface components {
              */
             each_completes: boolean;
             /**
-             * Is Important
-             * @default false
+             * Priority
+             * @default normal
+             * @enum {string}
              */
-            is_important: boolean;
+            priority: "urgent" | "high" | "normal" | "low";
         };
         /** TodoOut */
         TodoOut: {
@@ -4324,10 +4325,11 @@ export interface components {
              */
             completions: components["schemas"]["TodoCompletionOut"][];
             /**
-             * Is Important
-             * @default false
+             * Priority
+             * @default normal
+             * @enum {string}
              */
-            is_important: boolean;
+            priority: "urgent" | "high" | "normal" | "low";
             /** Completed At */
             completed_at?: string | null;
             completer?: components["schemas"]["UserOut"] | null;
@@ -4359,10 +4361,11 @@ export interface components {
              */
             each_completes: boolean;
             /**
-             * Is Important
-             * @default false
+             * Priority
+             * @default normal
+             * @enum {string}
              */
-            is_important: boolean;
+            priority: "urgent" | "high" | "normal" | "low";
         };
         /** TopRiderOut */
         TopRiderOut: {

@@ -36,7 +36,7 @@ function todo(overrides: Partial<TodoOut>): TodoOut {
     assignee: null,
     each_completes: false,
     completions: [],
-    is_important: false,
+    priority: "normal",
     completed_at: null,
     completer: null,
     created_at: "2026-07-01T09:00:00",
@@ -140,22 +140,24 @@ describe("TodosPage", () => {
     expect(screen.queryByText("공동 할일")).not.toBeInTheDocument();
   });
 
-  it("진행 중은 기한 지남·오늘·임박·중요 순으로 위에 보인다", async () => {
+  it("진행 중은 긴급 → 기한 지남·임박 → 우선순위 순으로 위에 보인다", async () => {
     const today = currentDateIso();
     fetchTodos.mockResolvedValue([
       todo({ id: 1, title: "여유", due_date: shiftDateIso(today, 10) }),
-      todo({ id: 2, title: "중요", due_date: shiftDateIso(today, 20), is_important: true }),
+      todo({ id: 2, title: "높음", due_date: shiftDateIso(today, 20), priority: "high" }),
       todo({ id: 3, title: "임박", due_date: shiftDateIso(today, 2) }),
       todo({ id: 4, title: "지남", due_date: shiftDateIso(today, -1) }),
+      todo({ id: 5, title: "급한 일", priority: "urgent" }),
     ]);
     renderPage();
     await screen.findByText("여유");
 
     const titles = screen.getAllByLabelText(/완료 처리$/).map((el) => el.getAttribute("aria-label"));
-    expect(titles).toEqual(["지남 완료 처리", "임박 완료 처리", "중요 완료 처리", "여유 완료 처리"]);
+    expect(titles).toEqual(["급한 일 완료 처리", "지남 완료 처리", "임박 완료 처리", "높음 완료 처리", "여유 완료 처리"]);
+    expect(screen.getByText("긴급")).toBeInTheDocument();
+    expect(screen.getAllByText("높음")).toHaveLength(2);
     expect(screen.getByText("기한 지남")).toBeInTheDocument();
     expect(screen.getByText("D-2")).toBeInTheDocument();
-    expect(screen.getByLabelText("중요")).toBeInTheDocument();
   });
 
   it("체크하면 완료 요청을 보낸다", async () => {

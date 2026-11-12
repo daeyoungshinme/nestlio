@@ -1,13 +1,21 @@
 import type { TodoUrgency } from "@/utils/colors";
 import { shiftDateIso } from "@/utils/date";
 import { formatDate } from "@/utils/format";
-import type { TodoFrequency, TodoOut, UserOut } from "@/types";
+import type { TodoFrequency, TodoOut, TodoPriority, UserOut } from "@/types";
 
 export const TODO_FREQUENCY_LABEL: Record<TodoFrequency, string> = {
   once: "반복 안 함",
   weekly: "매주",
   monthly: "매월",
   yearly: "매년",
+};
+
+/** 폼 옵션 순서도 이 키 순서를 따른다. */
+export const TODO_PRIORITY_LABEL: Record<TodoPriority, string> = {
+  urgent: "긴급",
+  high: "높음",
+  normal: "보통",
+  low: "낮음",
 };
 
 export const TODO_ASSIGNEE_FILTERS = ["전체", "나", "배우자", "공동"] as const;
@@ -81,9 +89,11 @@ export function todoUrgencyLabel(todo: TodoOut, today: string): string | null {
 }
 
 const URGENCY_RANK: Record<TodoUrgency, number> = { overdue: 0, today: 1, soon: 2 };
+const PRIORITY_RANK: Record<TodoPriority, number> = { urgent: 0, high: 1, normal: 2, low: 3 };
 
-/** 진행 중 할일을 "무엇부터 할지" 순으로 — 긴급도(기한 지남 → 오늘 → 임박 → 나머지) → 중요 먼저 → 서버 순서
- * (기한 오름차순, 기한 없음은 뒤). 완료 탭은 최근 완료순이라 쓰지 않는다. */
+/** 진행 중 할일을 "무엇부터 할지" 순으로 — 우선순위 "긴급"은 기한과 상관없이 맨 위, 그다음 기한 긴급도(기한 지남 →
+ * 오늘 → 임박 → 나머지) → 우선순위(높음 → 보통 → 낮음) → 서버 순서(기한 오름차순, 기한 없음은 뒤).
+ * 완료 탭은 최근 완료순이라 쓰지 않는다. */
 export function sortOpenTodos(todos: TodoOut[], today: string): TodoOut[] {
   const rank = (todo: TodoOut) => {
     const urgency = todoUrgency(todo, today);
@@ -93,8 +103,9 @@ export function sortOpenTodos(todos: TodoOut[], today: string): TodoOut[] {
     .map((todo, index) => ({ todo, index }))
     .sort(
       (a, b) =>
+        Number(b.todo.priority === "urgent") - Number(a.todo.priority === "urgent") ||
         rank(a.todo) - rank(b.todo) ||
-        Number(b.todo.is_important) - Number(a.todo.is_important) ||
+        PRIORITY_RANK[a.todo.priority] - PRIORITY_RANK[b.todo.priority] ||
         a.index - b.index,
     )
     .map(({ todo }) => todo);

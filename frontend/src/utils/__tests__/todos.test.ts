@@ -25,7 +25,7 @@ function todo(overrides: Partial<TodoOut> = {}): TodoOut {
     assignee: null,
     each_completes: false,
     completions: [],
-    is_important: false,
+    priority: "normal",
     completed_at: null,
     completer: null,
     created_at: "2026-07-01T09:00:00",
@@ -127,16 +127,17 @@ describe("기한 긴급도", () => {
     expect(todoDueLabel(due(null))).toBeNull();
   });
 
-  it("정렬은 긴급도 → 중요 → 서버 순서", () => {
+  it("정렬은 긴급 우선순위 → 기한 긴급도 → 우선순위 → 서버 순서", () => {
     const later = due("2026-07-20", { id: 1 });
-    const laterImportant = due("2026-07-25", { id: 2, is_important: true });
-    const noDue = due(null, { id: 3 });
+    const laterHigh = due("2026-07-25", { id: 2, priority: "high" });
+    const noDueUrgent = due(null, { id: 3, priority: "urgent" });
     const soon = due("2026-07-12", { id: 4 });
     const overdue = due("2026-07-01", { id: 5 });
-    const todayImportant = due("2026-07-10", { id: 6, is_important: true });
-    const todayPlain = due("2026-07-10", { id: 7 });
+    const todayLow = due("2026-07-10", { id: 6, priority: "low" });
+    const todayHigh = due("2026-07-10", { id: 7, priority: "high" });
+    const laterLow = due("2026-07-15", { id: 8, priority: "low" });
 
-    const sorted = sortOpenTodos([later, laterImportant, noDue, soon, overdue, todayPlain, todayImportant], today);
-    expect(sorted.map((t) => t.id)).toEqual([5, 6, 7, 4, 2, 1, 3]);
+    const sorted = sortOpenTodos([later, laterHigh, noDueUrgent, soon, overdue, todayLow, todayHigh, laterLow], today);
+    expect(sorted.map((t) => t.id)).toEqual([3, 5, 7, 6, 4, 2, 1, 8]);
   });
 });

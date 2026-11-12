@@ -5,10 +5,11 @@ import FormInput from "@/components/common/FormInput";
 import OwnerSelect from "@/components/common/OwnerSelect";
 import { INPUT_SM, LABEL_SM } from "@/constants/inputStyles";
 import { TOUCH_TARGET_MIN_HEIGHT } from "@/constants/uiSizes";
-import { TODO_FREQUENCY_LABEL } from "@/utils/todos";
-import type { TodoCreateIn, TodoFrequency, TodoOut, UserOut } from "@/types";
+import { TODO_FREQUENCY_LABEL, TODO_PRIORITY_LABEL } from "@/utils/todos";
+import type { TodoCreateIn, TodoFrequency, TodoOut, TodoPriority, UserOut } from "@/types";
 
 const FREQUENCIES = Object.keys(TODO_FREQUENCY_LABEL) as TodoFrequency[];
+const PRIORITIES = Object.keys(TODO_PRIORITY_LABEL) as TodoPriority[];
 
 interface Props {
   /** 없으면 새 할일. */
@@ -24,7 +25,7 @@ export default function TodoForm({ todo, submitLabel, submitting, users, onSubmi
   const [title, setTitle] = useState(todo?.title ?? "");
   const [assigneeId, setAssigneeId] = useState(todo?.assignee?.id ?? "");
   const [eachCompletes, setEachCompletes] = useState(todo?.each_completes ?? false);
-  const [important, setImportant] = useState(todo?.is_important ?? false);
+  const [priority, setPriority] = useState<TodoPriority>(todo?.priority ?? "normal");
   const [dueDate, setDueDate] = useState(todo?.due_date ?? "");
   const [frequency, setFrequency] = useState<TodoFrequency>(todo?.frequency ?? "once");
   const [memo, setMemo] = useState(todo?.memo ?? "");
@@ -50,22 +51,30 @@ export default function TodoForm({ todo, submitLabel, submitting, users, onSubmi
       frequency,
       assignee_id: assigneeId || null,
       each_completes: eachCompletes,
-      is_important: important,
+      priority,
     });
   };
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       <FormInput label="할일" value={title} maxLength={200} onChange={(e) => setTitle(e.target.value)} required />
-      <label className={`${TOUCH_TARGET_MIN_HEIGHT} -mt-2 flex cursor-pointer items-center gap-2 ${LABEL_SM}`}>
-        <input
-          type="checkbox"
-          checked={important}
-          onChange={(e) => setImportant(e.target.checked)}
-          className="h-4 w-4 rounded-sm border-gray-300"
-        />
-        중요해요
-      </label>
+      <div>
+        <label htmlFor={`${fieldId}-priority`} className={`block mb-1 font-medium ${LABEL_SM}`}>
+          우선순위
+        </label>
+        <select
+          id={`${fieldId}-priority`}
+          className={`${INPUT_SM} w-32`}
+          value={priority}
+          onChange={(e) => setPriority(e.target.value as TodoPriority)}
+        >
+          {PRIORITIES.map((value) => (
+            <option key={value} value={value}>
+              {TODO_PRIORITY_LABEL[value]}
+            </option>
+          ))}
+        </select>
+      </div>
       <div className="space-y-1">
         <OwnerSelect label="담당자" value={assigneeId} onChange={changeAssignee} users={users} />
         <label className={`${TOUCH_TARGET_MIN_HEIGHT} flex items-center gap-2 ${LABEL_SM} ${assigneeId ? "opacity-50" : "cursor-pointer"}`}>
