@@ -6,8 +6,10 @@ import Modal from "@/components/common/Modal";
 import TodoForm from "@/components/todos/TodoForm";
 import { completeTodo, createTodo, deleteTodo, updateTodo } from "@/api/todos";
 import { useCrudMutations } from "@/hooks/useCrudMutations";
+import { useMe } from "@/hooks/useReferenceData";
 import { QUERY_KEYS } from "@/constants/queryKeys";
 import { toast } from "@/utils/toast";
+import { isCheckedBy } from "@/utils/todos";
 import type { TodoOut, UserOut } from "@/types";
 
 /** 부부 할일의 추가/수정/삭제/완료와 그 폼·확인 모달을 한 곳에 모은 훅. 홈 카드와 `/todos` 화면이 같은 동작을
@@ -22,6 +24,7 @@ export function useTodoActions({ users }: { users: UserOut[] | undefined }): {
   const [formTarget, setFormTarget] = useState<"new" | TodoOut | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<TodoOut | null>(null);
   const queryClient = useQueryClient();
+  const { data: me } = useMe();
   const invalidateTodos = () => queryClient.invalidateQueries({ queryKey: QUERY_KEYS.todosAll });
 
   const { createMutation, updateMutation } = useCrudMutations({
@@ -79,7 +82,8 @@ export function useTodoActions({ users }: { users: UserOut[] | undefined }): {
     openCreate: () => setFormTarget("new"),
     openEdit: setFormTarget,
     openDelete: setDeleteTarget,
-    toggleComplete: (todo) => completeMutation.mutate({ id: todo.id, completed: !todo.completed_at }),
+    // 각자 완료 할일은 내 몫 기준으로 토글한다(배우자만 체크한 상태에서 누르면 내 몫을 체크).
+    toggleComplete: (todo) => completeMutation.mutate({ id: todo.id, completed: !isCheckedBy(todo, me?.id) }),
     modals,
   };
 }

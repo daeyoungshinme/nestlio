@@ -5,12 +5,13 @@ import Button from "@/components/common/Button";
 import EmptyState from "@/components/common/EmptyState";
 import StatusBadge from "@/components/common/StatusBadge";
 import { fetchTodos } from "@/api/todos";
+import { useMe } from "@/hooks/useReferenceData";
 import { useTodoActions } from "@/hooks/useTodoActions";
 import { QUERY_KEYS } from "@/constants/queryKeys";
 import { ROUTES } from "@/constants/routes";
 import { TOUCH_TARGET_MIN, TOUCH_TARGET_MIN_HEIGHT } from "@/constants/uiSizes";
 import { cautionTextClass } from "@/utils/colors";
-import { isTodoOverdue, todoDueLabel } from "@/utils/todos";
+import { completionProgressLabel, isCheckedBy, isTodoOverdue, todoDueLabel } from "@/utils/todos";
 import type { UserOut } from "@/types";
 
 interface Props {
@@ -28,6 +29,7 @@ export default function TodoCard({ day, users }: Props) {
     queryKey: QUERY_KEYS.todos("open"),
     queryFn: () => fetchTodos("open"),
   });
+  const { data: me } = useMe();
   const { openCreate, toggleComplete, modals } = useTodoActions({ users });
 
   const todos = (data ?? []).slice(0, TODOS_LIMIT);
@@ -56,12 +58,13 @@ export default function TodoCard({ day, users }: Props) {
         <div className="space-y-2">
           {todos.map((todo) => {
             const dueLabel = todoDueLabel(todo, day);
+            const progressLabel = completionProgressLabel(todo, users);
             return (
               <div key={todo.id} className="flex items-center gap-1">
                 <label className={`${TOUCH_TARGET_MIN} -ml-3 shrink-0 cursor-pointer`}>
                   <input
                     type="checkbox"
-                    checked={false}
+                    checked={isCheckedBy(todo, me?.id)}
                     onChange={() => toggleComplete(todo)}
                     className="h-5 w-5 rounded-sm border-gray-300"
                     aria-label={`${todo.title} 완료 처리`}
@@ -76,6 +79,7 @@ export default function TodoCard({ day, users }: Props) {
                       {dueLabel}
                     </p>
                   )}
+                  {progressLabel && <p className="text-xs text-gray-500 dark:text-gray-400">{progressLabel}</p>}
                 </div>
                 <StatusBadge
                   label={`담당 ${todo.assignee?.display_name ?? "공동"}`}

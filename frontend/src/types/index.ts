@@ -447,6 +447,11 @@ export type EventUpdateIn = EventCreateIn;
 export type TodoFrequency = "once" | "weekly" | "monthly" | "yearly";
 export type TodoStatus = "open" | "done";
 
+export interface TodoCompletionOut {
+  user: UserOut;
+  completed_at: string;
+}
+
 export interface TodoOut {
   id: number;
   title: string;
@@ -456,6 +461,9 @@ export interface TodoOut {
   creator: UserOut;
   /** 담당자 - null이면 공동(두 사람 모두 담당) */
   assignee: UserOut | null;
+  /** 각자 완료 - 켜져 있으면 completions(사람별 체크)에 전원이 있어야 completed_at이 채워진다. */
+  each_completes: boolean;
+  completions: TodoCompletionOut[];
   completed_at: string | null;
   completer: UserOut | null;
   created_at: string;
@@ -467,6 +475,7 @@ export interface TodoCreateIn {
   due_date?: string | null;
   frequency?: TodoFrequency;
   assignee_id?: string | null;
+  each_completes?: boolean;
 }
 
 export type TodoUpdateIn = TodoCreateIn;

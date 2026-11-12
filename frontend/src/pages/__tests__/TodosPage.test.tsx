@@ -33,6 +33,8 @@ function todo(overrides: Partial<TodoOut>): TodoOut {
     frequency: "once",
     creator: me,
     assignee: null,
+    each_completes: false,
+    completions: [],
     completed_at: null,
     completer: null,
     created_at: "2026-07-01T09:00:00",
@@ -99,6 +101,26 @@ describe("TodosPage", () => {
 
     expect(await screen.findByText(/지영 완료 2026\.07\.02/)).toBeInTheDocument();
     expect(fetchTodos).toHaveBeenCalledWith("done");
+  });
+
+  it("각자 완료 할일은 진행 상황을 보여주고 내 몫 기준으로 체크한다", async () => {
+    fetchTodos.mockResolvedValue([
+      todo({
+        id: 9,
+        title: "건강검진",
+        each_completes: true,
+        completions: [{ user: partner, completed_at: "2026-07-01T09:00:00" }],
+      }),
+    ]);
+    completeTodo.mockResolvedValue(todo({ id: 9 }));
+    renderPage();
+
+    expect(await screen.findByText(/민수 대기 · 지영 완료/)).toBeInTheDocument();
+    const box = screen.getByLabelText("건강검진 완료 처리");
+    expect(box).not.toBeChecked();
+
+    fireEvent.click(box);
+    await waitFor(() => expect(completeTodo).toHaveBeenCalledWith(9, true));
   });
 
   it("체크하면 완료 요청을 보낸다", async () => {

@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { filterTodosByAssignee, isTodoOverdue, todoDueLabel } from "@/utils/todos";
+import {
+  completionProgressLabel,
+  filterTodosByAssignee,
+  isCheckedBy,
+  isTodoOverdue,
+  todoDueLabel,
+} from "@/utils/todos";
 import type { TodoOut, UserOut } from "@/types";
 
 const me = { id: "me", display_name: "나" } as UserOut;
@@ -14,6 +20,8 @@ function todo(overrides: Partial<TodoOut> = {}): TodoOut {
     frequency: "once",
     creator: me,
     assignee: null,
+    each_completes: false,
+    completions: [],
     completed_at: null,
     completer: null,
     created_at: "2026-07-01T09:00:00",
@@ -41,6 +49,35 @@ describe("filterTodosByAssignee", () => {
     expect(filterTodosByAssignee(all, "나", undefined)).toEqual([]);
     expect(filterTodosByAssignee(all, "배우자", undefined)).toEqual([]);
     expect(filterTodosByAssignee(all, "공동", undefined)).toEqual([shared]);
+  });
+});
+
+describe("각자 완료", () => {
+  const each = (doneBy: UserOut[], completed_at: string | null = null) =>
+    todo({
+      each_completes: true,
+      completions: doneBy.map((user) => ({ user, completed_at: "2026-07-01T09:00:00" })),
+      completed_at,
+    });
+
+  it("체크박스는 내 몫 기준이고, 다 끝난 할일은 모두에게 체크로 보인다", () => {
+    expect(isCheckedBy(each([partner]), me.id)).toBe(false);
+    expect(isCheckedBy(each([me]), me.id)).toBe(true);
+    expect(isCheckedBy(each([me, partner], "2026-07-02T09:00:00"), partner.id)).toBe(true);
+    expect(isCheckedBy(each([me]), undefined)).toBe(false);
+  });
+
+  it("보통 할일은 전체 완료 여부만 본다", () => {
+    expect(isCheckedBy(todo(), me.id)).toBe(false);
+    expect(isCheckedBy(todo({ completed_at: "2026-07-02T09:00:00" }), me.id)).toBe(true);
+  });
+
+  it("진행 라벨은 진행 중인 각자 완료 할일에만, 두 사람일 때만 붙는다", () => {
+    expect(completionProgressLabel(each([me]), [me, partner])).toBe("나 완료 · 배우자 대기");
+    expect(completionProgressLabel(each([]), [me, partner])).toBe("나 대기 · 배우자 대기");
+    expect(completionProgressLabel(each([me, partner], "2026-07-02T09:00:00"), [me, partner])).toBeNull();
+    expect(completionProgressLabel(each([me]), [me])).toBeNull();
+    expect(completionProgressLabel(todo(), [me, partner])).toBeNull();
   });
 });
 

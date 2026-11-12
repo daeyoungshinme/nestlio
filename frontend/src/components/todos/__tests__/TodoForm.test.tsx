@@ -35,6 +35,7 @@ describe("TodoForm", () => {
       due_date: null,
       frequency: "once",
       assignee_id: null,
+      each_completes: false,
     });
   });
 
@@ -59,6 +60,24 @@ describe("TodoForm", () => {
       due_date: "2026-07-10",
       frequency: "yearly",
       assignee_id: spouse.id,
+      each_completes: false,
     });
+  });
+
+  it("각자 완료는 공통 담당일 때만 켤 수 있고 담당자를 고르면 꺼진다", () => {
+    const onSubmit = renderForm();
+    fireEvent.change(screen.getByLabelText(/^할일/), { target: { value: "건강검진" } });
+    const each = screen.getByLabelText("각자 완료해야 해요");
+    fireEvent.click(each);
+    expect(each).toBeChecked();
+
+    fireEvent.change(screen.getByLabelText("담당자"), { target: { value: spouse.id } });
+    expect(each).not.toBeChecked();
+    expect(each).toBeDisabled();
+
+    fireEvent.change(screen.getByLabelText("담당자"), { target: { value: "" } });
+    fireEvent.click(each);
+    fireEvent.click(screen.getByRole("button", { name: "저장" }));
+    expect(onSubmit).toHaveBeenCalledWith(expect.objectContaining({ assignee_id: null, each_completes: true }));
   });
 });

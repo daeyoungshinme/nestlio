@@ -81,6 +81,8 @@ export default function TodosPage() {
                   key={todo.id}
                   todo={todo}
                   today={today}
+                  myId={me?.id}
+                  users={users}
                   onEdit={openEdit}
                   onDelete={openDelete}
                   onToggleComplete={toggleComplete}

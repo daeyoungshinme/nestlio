@@ -1,5 +1,5 @@
 import { formatDate } from "@/utils/format";
-import type { TodoFrequency, TodoOut } from "@/types";
+import type { TodoFrequency, TodoOut, UserOut } from "@/types";
 
 export const TODO_FREQUENCY_LABEL: Record<TodoFrequency, string> = {
   once: "반복 안 함",
@@ -26,6 +26,20 @@ export function filterTodosByAssignee(
     if (!todo.assignee) return false;
     return filter === "나" ? todo.assignee.id === myId : todo.assignee.id !== myId;
   });
+}
+
+/** 이 사람 기준 체크박스 상태 — 할일 전체가 끝났으면 체크, 각자 완료 할일이면 내 몫을 체크했는지. */
+export function isCheckedBy(todo: TodoOut, userId: string | undefined): boolean {
+  if (todo.completed_at != null) return true;
+  if (!todo.each_completes || !userId) return false;
+  return todo.completions.some((c) => c.user.id === userId);
+}
+
+/** 각자 완료 할일의 진행 상황("민수 완료 · 지영 대기"). 끝났거나 혼자인 가구면 표시하지 않는다. */
+export function completionProgressLabel(todo: TodoOut, users: UserOut[] | undefined): string | null {
+  if (!todo.each_completes || todo.completed_at != null || !users || users.length < 2) return null;
+  const done = new Set(todo.completions.map((c) => c.user.id));
+  return users.map((u) => `${u.display_name} ${done.has(u.id) ? "완료" : "대기"}`).join(" · ");
 }
 
 export function isTodoOverdue(todo: TodoOut, today: string): boolean {

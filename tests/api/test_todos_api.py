@@ -134,6 +134,36 @@ def test_notification_flow_across_crud(mock_connected, mock_send, client, seeded
     assert _todo_logs(db)[-1].detail == "Spouse 1님이 할일을 삭제했어요: 세금 신고 준비"
 
 
+def test_each_completes_requires_shared_todo(client, spouse2):
+    resp = client.post(BASE, json={"title": "운동", "assignee_id": str(spouse2.id), "each_completes": True})
+    assert resp.status_code == 422
+
+
+def test_each_completes_flow_and_partner_inbox(client, seeded_db, spouse2, as_spouse2):
+    db = seeded_db["db"]
+    created = client.post(BASE, json={"title": "건강검진", "each_completes": True}).json()
+    assert created["each_completes"] is True
+    assert created["completions"] == []
+    logs_before = len(_todo_logs(db))
+
+    # spouse1 몫만 체크 — 진행 중에 남고 배우자 알림함에 남는다
+    app.dependency_overrides[get_current_user] = lambda: seeded_db["user"]
+    partial = client.patch(f"{BASE}/{created['id']}/complete", json={"completed": True}).json()
+    assert partial["completed_at"] is None
+    assert [c["user"]["id"] for c in partial["completions"]] == [str(seeded_db["user"].id)]
+    assert _todo_logs(db)[-1].detail == "Spouse 1님이 할일에서 자기 몫을 완료했어요: 건강검진"
+    assert [t["id"] for t in client.get(BASE).json()] == [created["id"]]
+
+    # spouse2가 체크하면 완료
+    app.dependency_overrides[get_current_user] = lambda: spouse2
+    done = client.patch(f"{BASE}/{created['id']}/complete", json={"completed": True}).json()
+    assert done["completed_at"] is not None
+    assert done["completer"]["id"] == str(spouse2.id)
+    assert _todo_logs(db)[-1].detail == "Spouse 2님이 할일을 완료했어요: 건강검진"
+    assert len(_todo_logs(db)) == logs_before + 2
+    assert client.get(BASE).json() == []
+
+
 @patch("app.services.notification_service.gmail_service.send_email")
 @patch("app.services.notification_service.is_connected", return_value=True)
 def test_recurring_next_occurrence_leaves_no_extra_notification(mock_connected, mock_send, client, seeded_db, spouse2):

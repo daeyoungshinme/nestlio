@@ -4260,6 +4260,15 @@ export interface components {
             /** Completed */
             completed: boolean;
         };
+        /** TodoCompletionOut */
+        TodoCompletionOut: {
+            user: components["schemas"]["UserOut"];
+            /**
+             * Completed At
+             * Format: date-time
+             */
+            completed_at: string;
+        };
         /** TodoCreateIn */
         TodoCreateIn: {
             /** Title */
@@ -4276,6 +4285,11 @@ export interface components {
             frequency: "once" | "weekly" | "monthly" | "yearly";
             /** Assignee Id */
             assignee_id?: string | null;
+            /**
+             * Each Completes
+             * @default false
+             */
+            each_completes: boolean;
         };
         /** TodoOut */
         TodoOut: {
@@ -4294,6 +4308,16 @@ export interface components {
             frequency: "once" | "weekly" | "monthly" | "yearly";
             creator: components["schemas"]["UserOut"];
             assignee?: components["schemas"]["UserOut"] | null;
+            /**
+             * Each Completes
+             * @default false
+             */
+            each_completes: boolean;
+            /**
+             * Completions
+             * @default []
+             */
+            completions: components["schemas"]["TodoCompletionOut"][];
             /** Completed At */
             completed_at?: string | null;
             completer?: components["schemas"]["UserOut"] | null;
@@ -4319,6 +4343,11 @@ export interface components {
             frequency: "once" | "weekly" | "monthly" | "yearly";
             /** Assignee Id */
             assignee_id?: string | null;
+            /**
+             * Each Completes
+             * @default false
+             */
+            each_completes: boolean;
         };
         /** TopRiderOut */
         TopRiderOut: {
