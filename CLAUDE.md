@@ -58,7 +58,7 @@ growlio API 응답을 새로 쓰거나 형태를 바꾸면 growlio(`d:\project\g
 | 목적 | 커맨드 |
 |---|---|
 | 의존성 | `pip install -r requirements.txt -r requirements-dev.txt` (테스트 전용 의존성은 dev 파일에만) |
-| 개발 서버 | `dev.sh` / `dev.bat` (인자 없이) — uvicorn `--reload`(8899) + Vite(5273), `http://localhost:5273` 접속. HMR |
+| 개발 서버 | `dev.sh` / `dev.bat` (인자 없이) — uvicorn `--reload`(8899) + Vite(5273), `http://localhost:5273` 접속. HMR. 한쪽이 종료되면 나머지도 정리하고 끝난다(dev.bat은 `scripts/dev_supervisor.ps1`가 한 창에서 감시) |
 | 배포 스냅샷 | `dev.sh run` — `frontend/dist` 빌드 후 uvicorn 단일 프로세스(8899) |
 | 프론트만 | `cd frontend && npm run dev` (`/api` → 8899 프록시) |
 | 테스트 | `pytest` (일부만: `pytest tests/test_goal_service.py -k linked`) |
