@@ -31,9 +31,16 @@ describe("filterTodosByAssignee", () => {
     expect(filterTodosByAssignee(all, "전체", me.id)).toEqual(all);
   });
 
-  it("나와 배우자 양쪽에 공동 할일이 포함된다", () => {
-    expect(filterTodosByAssignee(all, "나", me.id)).toEqual([mine, shared]);
-    expect(filterTodosByAssignee(all, "배우자", me.id)).toEqual([theirs, shared]);
+  it("나·배우자·공동은 서로 겹치지 않는다", () => {
+    expect(filterTodosByAssignee(all, "나", me.id)).toEqual([mine]);
+    expect(filterTodosByAssignee(all, "배우자", me.id)).toEqual([theirs]);
+    expect(filterTodosByAssignee(all, "공동", me.id)).toEqual([shared]);
+  });
+
+  it("내 id를 모르면 나·배우자는 비우고 공동은 보여준다", () => {
+    expect(filterTodosByAssignee(all, "나", undefined)).toEqual([]);
+    expect(filterTodosByAssignee(all, "배우자", undefined)).toEqual([]);
+    expect(filterTodosByAssignee(all, "공동", undefined)).toEqual([shared]);
   });
 });
 
