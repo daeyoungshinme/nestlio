@@ -25,8 +25,8 @@ class Todo(Base):
     assignee_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
     # "각자 완료" - 공동 할일에서만 켠다. 두 사람이 각자 체크(TodoCompletion)해야 completed_at이 채워진다.
     each_completes: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false())
-    # 중요 표시 - 목록에서 같은 기한 긴급도 안에서 먼저 보인다(정렬은 프론트 utils/todos.ts sortOpenTodos).
-    is_important: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false())
+    # 우선순위 'urgent' | 'high' | 'normal' | 'low' - 정렬은 프론트(utils/todos.ts sortOpenTodos)가 한다.
+    priority: Mapped[str] = mapped_column(String(10), default="normal", server_default="normal")
     # 반복 할일은 회차마다 한 행이다(회차별로 완료가 갈린다). 이 행을 만든 이전 회차.
     previous_todo_id: Mapped[int | None] = mapped_column(ForeignKey("todos.id", ondelete="SET NULL"), nullable=True)
     # "nullable timestamp = 상태 마커" 패턴 - 채워지면 완료.

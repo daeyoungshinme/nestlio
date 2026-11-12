@@ -36,7 +36,7 @@ describe("TodoForm", () => {
       frequency: "once",
       assignee_id: null,
       each_completes: false,
-      is_important: false,
+      priority: "normal",
     });
   });
 
@@ -62,7 +62,7 @@ describe("TodoForm", () => {
       frequency: "yearly",
       assignee_id: spouse.id,
       each_completes: false,
-      is_important: false,
+      priority: "normal",
     });
   });
 
@@ -83,11 +83,12 @@ describe("TodoForm", () => {
     expect(onSubmit).toHaveBeenCalledWith(expect.objectContaining({ assignee_id: null, each_completes: true }));
   });
 
-  it("중요 표시를 담아 저장한다", () => {
+  it("우선순위를 담아 저장한다", () => {
     const onSubmit = renderForm();
     fireEvent.change(screen.getByLabelText(/^할일/), { target: { value: "보험 갱신" } });
-    fireEvent.click(screen.getByLabelText("중요해요"));
+    expect(screen.getByLabelText("우선순위")).toHaveValue("normal");
+    fireEvent.change(screen.getByLabelText("우선순위"), { target: { value: "urgent" } });
     fireEvent.click(screen.getByRole("button", { name: "저장" }));
-    expect(onSubmit).toHaveBeenCalledWith(expect.objectContaining({ is_important: true }));
+    expect(onSubmit).toHaveBeenCalledWith(expect.objectContaining({ priority: "urgent" }));
   });
 });

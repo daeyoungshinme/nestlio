@@ -370,11 +370,14 @@ def invite_message(accept_url: str, expiry_days: int) -> tuple[str, str]:
     return "[Nestlio] 배우자 초대", body
 
 
+TODO_PRIORITY_LABEL = {"urgent": "긴급", "high": "높음", "normal": "보통", "low": "낮음"}
+
+
 def todo_summary_text(todo, header: str) -> str:
     """배우자 할일 알림 본문. header는 "새 할일이 등록되었습니다" 같은 행위 문구."""
     lines = [header, todo.title, f"담당: {todo.assignee.display_name if todo.assignee else '공동'}"]
-    if todo.is_important:
-        lines.append("중요 표시된 할일이에요.")
+    if todo.priority != "normal":
+        lines.append(f"우선순위: {TODO_PRIORITY_LABEL.get(todo.priority, todo.priority)}")
     if todo.each_completes:
         lines.append("두 사람이 각자 완료해야 하는 할일이에요.")
     if todo.due_date:

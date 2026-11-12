@@ -1,9 +1,10 @@
 import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { ListChecks, Plus, Star } from "lucide-react";
+import { ListChecks, Plus } from "lucide-react";
 import Button from "@/components/common/Button";
 import EmptyState from "@/components/common/EmptyState";
 import StatusBadge from "@/components/common/StatusBadge";
+import TodoPriorityBadge from "@/components/todos/TodoPriorityBadge";
 import { fetchTodos } from "@/api/todos";
 import { useMe } from "@/hooks/useReferenceData";
 import { useTodoActions } from "@/hooks/useTodoActions";
@@ -82,10 +83,8 @@ export default function TodoCard({ day, users }: Props) {
                 </label>
                 <div className="min-w-0 flex-1">
                   <p className="flex items-center gap-1 text-sm text-gray-900 dark:text-gray-50">
-                    {todo.is_important && (
-                      <Star size={12} aria-label="중요" className="shrink-0 fill-amber-400 text-amber-400" />
-                    )}
                     <span className="truncate">{todo.title}</span>
+                    <TodoPriorityBadge priority={todo.priority} />
                   </p>
                   {dueLabel && (
                     <p className="flex items-center gap-1 text-xs text-gray-500 dark:text-gray-400">

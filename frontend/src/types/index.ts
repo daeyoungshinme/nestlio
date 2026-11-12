@@ -452,6 +452,8 @@ export interface TodoCompletionOut {
   completed_at: string;
 }
 
+export type TodoPriority = "urgent" | "high" | "normal" | "low";
+
 export interface TodoOut {
   id: number;
   title: string;
@@ -464,8 +466,8 @@ export interface TodoOut {
   /** 각자 완료 - 켜져 있으면 completions(사람별 체크)에 전원이 있어야 completed_at이 채워진다. */
   each_completes: boolean;
   completions: TodoCompletionOut[];
-  /** 중요 표시 - 같은 긴급도 안에서 먼저 보인다(utils/todos.ts sortOpenTodos). */
-  is_important: boolean;
+  /** 우선순위 - 정렬·배지는 utils/todos.ts(sortOpenTodos, TODO_PRIORITY_LABEL). */
+  priority: TodoPriority;
   completed_at: string | null;
   completer: UserOut | null;
   created_at: string;
@@ -478,7 +480,7 @@ export interface TodoCreateIn {
   frequency?: TodoFrequency;
   assignee_id?: string | null;
   each_completes?: boolean;
-  is_important?: boolean;
+  priority?: TodoPriority;
 }
 
 export type TodoUpdateIn = TodoCreateIn;

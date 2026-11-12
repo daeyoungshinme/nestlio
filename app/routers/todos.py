@@ -36,7 +36,7 @@ def create_todo(
         frequency=payload.frequency,
         assignee_id=payload.assignee_id,
         each_completes=payload.each_completes,
-        is_important=payload.is_important,
+        priority=payload.priority,
     )
     todo_notification_service.notify_created(db, todo, current_user)
     return todo
@@ -58,7 +58,7 @@ def update_todo(
         frequency=payload.frequency,
         assignee_id=payload.assignee_id,
         each_completes=payload.each_completes,
-        is_important=payload.is_important,
+        priority=payload.priority,
     )
     if result is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=_NOT_FOUND_DETAIL)

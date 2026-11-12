@@ -367,6 +367,17 @@ export function todoUrgencyBadgeClass(urgency: TodoUrgency): string {
   return TODO_URGENCY_BADGE[urgency];
 }
 
+const TODO_PRIORITY_BADGE: Record<"urgent" | "high" | "low", string> = {
+  urgent: "bg-red-600 dark:bg-red-500 text-white",
+  high: "bg-amber-50 dark:bg-amber-950 text-amber-700 dark:text-amber-300",
+  low: "bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400",
+};
+
+/** 할일 우선순위 배지(보통은 배지 없음). 긴급은 채운 빨강이라 연한 빨강 "기한 지남" 배지와 구분된다. */
+export function todoPriorityBadgeClass(priority: "urgent" | "high" | "low"): string {
+  return TODO_PRIORITY_BADGE[priority];
+}
+
 /** "내 차례" 배지 — 각자 완료 할일에서 내 몫이 남았을 때. */
 export function todoMyTurnBadgeClass(): string {
   return TRANSACTION_TYPE_STYLE.income;

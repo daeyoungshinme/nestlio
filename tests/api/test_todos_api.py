@@ -44,15 +44,15 @@ def test_create_returns_201_with_creator_and_shared_assignee(client):
     assert body["assignee"] is None
     assert body["completed_at"] is None
     assert body["completer"] is None
-    assert body["is_important"] is False
+    assert body["priority"] == "normal"
 
 
-def test_is_important_round_trips(client):
-    todo_id = client.post(BASE, json={"title": "보험 갱신", "is_important": True}).json()["id"]
-    assert client.get(f"{BASE}?status=open").json()[0]["is_important"] is True
+def test_priority_round_trips(client):
+    todo_id = client.post(BASE, json={"title": "보험 갱신", "priority": "high"}).json()["id"]
+    assert client.get(f"{BASE}?status=open").json()[0]["priority"] == "high"
 
-    resp = client.put(f"{BASE}/{todo_id}", json={"title": "보험 갱신", "is_important": False})
-    assert resp.json()["is_important"] is False
+    resp = client.put(f"{BASE}/{todo_id}", json={"title": "보험 갱신", "priority": "low"})
+    assert resp.json()["priority"] == "low"
 
 
 @pytest.mark.parametrize(
@@ -64,6 +64,7 @@ def test_is_important_round_trips(client):
         {"title": "ok", "memo": "x" * 1001},
         {"title": "ok", "frequency": "daily", "due_date": "2026-07-10"},
         {"title": "반복인데 기한 없음", "frequency": "weekly"},
+        {"title": "ok", "priority": "critical"},
     ],
 )
 def test_create_invalid_returns_422(client, payload):
