@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import DateTime, Integer, String, func
+from sqlalchemy import DateTime, Index, Integer, String, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.database import Base
@@ -9,6 +9,9 @@ from app.utils.dates import now_kst
 
 class NotificationLog(Base):
     __tablename__ = "notification_log"
+    # 알림 중복 방지 조회(notification_log_service.already_sent: 종류 + 기간 키 + 대상)가 매 예약 잡·거래 저장마다
+    # 돈다 — 기록은 계속 쌓이기만 하므로 전체 스캔이 되지 않게.
+    __table_args__ = (Index("ix_household_notification_log_dedup", "notif_type", "year_month", "related_id"),)
 
     id: Mapped[int] = mapped_column(primary_key=True)
     notif_type: Mapped[str] = mapped_column(String(30))

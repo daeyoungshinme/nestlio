@@ -5,7 +5,7 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict, field_validator
 
 from app.schemas.category import CategoryOut
-from app.schemas.common import KrwAmount, bounded_str
+from app.schemas.common import DbInt, KrwAmount, bounded_str
 
 
 def _validate_days_of_month(days: list[int] | None) -> list[int] | None:
@@ -46,27 +46,27 @@ class RecurringListOut(BaseModel):
 
 class RecurringCreateIn(BaseModel):
     name: bounded_str(150)
-    category_id: int
+    category_id: DbInt
     amount: KrwAmount
     type: Literal["income", "expense"] = "expense"
     frequency: Literal["weekly", "monthly", "yearly"]
-    days_of_month: list[int] | None = None
+    days_of_month: list[DbInt] | None = None
     start_date: date
     end_date: date | None = None
-    reminder_days_before: int = 3
+    reminder_days_before: DbInt = 3
 
     _validate_days_of_month = field_validator("days_of_month")(_validate_days_of_month)
 
 
 class RecurringUpdateIn(BaseModel):
     name: bounded_str(150) | None = None
-    category_id: int | None = None
+    category_id: DbInt | None = None
     amount: KrwAmount | None = None
     type: Literal["income", "expense"] | None = None
     frequency: Literal["weekly", "monthly", "yearly"] | None = None
-    days_of_month: list[int] | None = None
+    days_of_month: list[DbInt] | None = None
     start_date: date | None = None
     end_date: date | None = None
-    reminder_days_before: int | None = None
+    reminder_days_before: DbInt | None = None
 
     _validate_days_of_month = field_validator("days_of_month")(_validate_days_of_month)

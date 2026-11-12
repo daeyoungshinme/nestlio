@@ -6,7 +6,7 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict
 
 from app.schemas.cashflow_plan import CashflowSection
-from app.schemas.common import CategoryType, KrwAmount, YearMonth, bounded_str
+from app.schemas.common import CategoryType, DbInt, KrwAmount, YearMonth, bounded_str
 from app.utils.plan_status import PlanStatus
 
 
@@ -44,13 +44,13 @@ class AnnualPlanItemOut(BaseModel):
 
 
 class AnnualPlanItemUpsertIn(BaseModel):
-    id: int | None = None
-    year: int
+    id: DbInt | None = None
+    year: DbInt
     section: CashflowSection
     owner_user_id: uuid.UUID | None = None
     name: bounded_str(100)
-    category_id: int | None = None
-    sort_order: int = 0
+    category_id: DbInt | None = None
+    sort_order: DbInt = 0
     start_month: YearMonth
     end_month: YearMonth
     monthly_targets: list[AnnualPlanItemMonthlyTargetIn] = []
@@ -104,5 +104,5 @@ class AnnualPlanListOut(BaseModel):
 
 
 class AnnualPlanSeedIn(BaseModel):
-    year: int
+    year: DbInt
     source: Literal["previous_year", "recurring", "recent_average"]

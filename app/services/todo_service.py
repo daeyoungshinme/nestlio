@@ -107,6 +107,13 @@ def update_todo(
     # 각자 완료를 끄면 사람별 체크는 의미가 없어진다 — 할일은 진행 중 그대로 두고 체크만 지운다.
     if todo.each_completes and not each_completes:
         todo.completions.clear()
+    # 이미 완료된 할일에 각자 완료를 켜면 "완료인데 아무도 체크 안 함"이 된다 — 완료를 유지하고 전원 체크로 맞춘다
+    # (다시 열면 이미 만든 다음 회차까지 지워야 해서 더 놀랍다).
+    if not todo.each_completes and each_completes and todo.completed_at is not None:
+        checked = {c.user_id for c in todo.completions}
+        for user in user_service.list_users(db):
+            if user.id not in checked:
+                todo.completions.append(TodoCompletion(user_id=user.id, completed_at=todo.completed_at))
     todo.each_completes = each_completes
     todo.priority = priority
     db.commit()

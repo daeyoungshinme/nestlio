@@ -145,9 +145,11 @@ def _leaves(tp, meta):
 
 _STR_BOUND = re.compile(r"max_length=\d|pattern='")
 _DECIMAL_BOUND = re.compile(r"\blt=")
+_INT_LOWER = re.compile(r"\bg[et]=")
+_INT_UPPER = re.compile(r"\bl[et]=")
 
 def test_every_input_decimal_and_str_field_is_bounded():
-    """새 *In 스키마에 Decimal/str 필드를 추가할 때 KrwAmount·bounded_str 등을 잊지 않도록 하는 가드.
+    """새 *In 스키마에 Decimal/str/int 필드를 추가할 때 KrwAmount·bounded_str·DbInt 등을 잊지 않도록 하는 가드.
     Literal·패턴(YearMonth)으로 이미 값이 좁혀진 필드는 통과시킨다."""
     unbounded = []
     for cls in _input_models():
@@ -158,4 +160,17 @@ def test_every_input_decimal_and_str_field_is_bounded():
                     unbounded.append(f"{cls.__name__}.{fname}")
                 if base is Decimal and not _DECIMAL_BOUND.search(bounds):
                     unbounded.append(f"{cls.__name__}.{fname}")
+                # int는 Postgres INTEGER 범위를 넘으면 DataError(500) — DbInt 등 상·하한이 있어야 한다.
+                if base is int and not (_INT_LOWER.search(bounds) and _INT_UPPER.search(bounds)):
+                    unbounded.append(f"{cls.__name__}.{fname}")
     assert unbounded == []
+
+
+def test_db_int_rejects_values_outside_postgres_integer():
+    """id 99999999999 같은 값은 Postgres에서 DataError(500)가 된다 — 스키마가 422로 막는다."""
+    from app.schemas.transaction import TransactionCreateIn
+
+    base = {"category_id": 1, "type": "expense", "amount": "1000", "transaction_date": "2026-07-01"}
+    with pytest.raises(ValidationError):
+        TransactionCreateIn.model_validate({**base, "category_id": 2**31})
+    assert TransactionCreateIn.model_validate({**base, "category_id": 2**31 - 1}).category_id == 2**31 - 1

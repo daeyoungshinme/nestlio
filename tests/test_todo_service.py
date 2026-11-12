@@ -558,3 +558,18 @@ def test_pref_lookup_failure_does_not_raise(mock_connected, mock_send, seeded_db
 
     assert _inbox(db) == []
     mock_send.assert_not_called()
+
+
+def test_enabling_each_completes_on_a_completed_todo_keeps_it_done_for_everyone(seeded_db):
+    """전에는 "완료인데 아무도 체크하지 않은" 상태가 돼 체크박스와 완료 표시가 어긋났다."""
+    db = seeded_db["db"]
+    spouse2 = _spouse2(db)
+    todo = _create(seeded_db)
+    _complete(seeded_db, todo.id)
+
+    updated, _ = todo_service.update_todo(
+        db, todo.id, title=todo.title, memo=None, due_date=None, frequency="once", assignee_id=None, each_completes=True
+    )
+
+    assert updated.completed_at is not None
+    assert {c.user_id for c in updated.completions} == {seeded_db["user"].id, spouse2.id}

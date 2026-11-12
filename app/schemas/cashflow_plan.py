@@ -4,7 +4,7 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict
 
-from app.schemas.common import CategoryType, KrwAmount, YearMonth, bounded_str
+from app.schemas.common import CategoryType, DbInt, KrwAmount, YearMonth, bounded_str
 from app.utils.plan_status import PlanStatus
 
 CashflowSection = Literal["income", CategoryType]
@@ -34,14 +34,14 @@ class CashflowPlanItemOut(BaseModel):
 
 
 class CashflowPlanItemUpsertIn(BaseModel):
-    id: int | None = None
+    id: DbInt | None = None
     section: CashflowSection
     year_month: YearMonth
     owner_user_id: uuid.UUID | None = None
     name: bounded_str(100)
     amount: KrwAmount
-    category_id: int | None = None
-    sort_order: int = 0
+    category_id: DbInt | None = None
+    sort_order: DbInt = 0
 
 
 class CashflowPlanItemSplitIn(BaseModel):
@@ -50,8 +50,8 @@ class CashflowPlanItemSplitIn(BaseModel):
     name: bounded_str(100)
     total_amount: KrwAmount
     start_year_month: YearMonth
-    category_id: int | None = None
-    sort_order: int = 0
+    category_id: DbInt | None = None
+    sort_order: DbInt = 0
 
 
 class CashflowPlanSplitResultOut(BaseModel):
@@ -108,6 +108,6 @@ class CashflowPlanCopyResultOut(BaseModel):
 
 
 class CashflowPlanLinkRecurringIn(BaseModel):
-    recurring_expense_id: int
+    recurring_expense_id: DbInt
     # 응답으로 돌려줄 이번 달 계획의 월 — 항목 자체는 여러 달에 걸칠 수 있어 요청자가 보던 달을 받는다.
     year_month: YearMonth

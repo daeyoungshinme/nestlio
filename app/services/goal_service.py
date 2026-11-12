@@ -106,15 +106,18 @@ def _apply_funding_sources(db: Session, goal: FinancialGoal, funding_sources: li
     goal.funding_sources = new_sources
 
 
-def _apply_challenge_completion(db: Session, goal: FinancialGoal, now: datetime | None = None) -> None:
+def _apply_challenge_completion(
+    db: Session, goal: FinancialGoal, now: datetime | None = None, current_amount: Decimal | None = None
+) -> None:
     """kind="challenge"에서만 동작 — 진행금액(goal_progress_service.compute_current_amount,
     funding_sources 연동 시 연동 잔액 합, 미연동 시 manual_current_amount)이 목표금액에 도달하면
     succeeded로 전환하고 완료 시각을 기록한다(실제 축하 알림 발송 여부는 notification_service가
-    별도로 판단한다)."""
+    별도로 판단한다). current_amount는 여러 챌린지를 한꺼번에 볼 때 미리 계산해 넘기는 값이다."""
     if goal.kind != "challenge":
         return
     now = now or now_kst()
-    current_amount = goal_progress_service.compute_current_amount(db, goal)
+    if current_amount is None:
+        current_amount = goal_progress_service.compute_current_amount(db, goal)
     if goal.status == "active" and goal.required_amount > 0 and current_amount >= goal.required_amount:
         goal.status = "succeeded"
         goal.completed_at = now
@@ -274,8 +277,10 @@ def sync_challenge_statuses(db: Session, now: datetime) -> list[FinancialGoal]:
         .filter(FinancialGoal.kind == "challenge", FinancialGoal.status == "active")
         .all()
     )
+    # 챌린지마다 compute_current_amount를 돌리면 N+1 — 목표 목록과 같은 일괄 계산을 쓴다.
+    amounts = goal_progress_service.current_amounts(db, challenges)
     for goal in challenges:
-        _apply_challenge_completion(db, goal, now)
+        _apply_challenge_completion(db, goal, now, amounts[goal.id])
         if goal.status == "succeeded":
             transitioned.append(goal)
     if transitioned:

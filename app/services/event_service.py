@@ -84,9 +84,10 @@ def list_events(db: Session, range_start: date, range_end: date) -> list[dict]:
         .options(selectinload(Event.occurrence_completions))
         .filter(Event.start_at <= datetime.combine(range_end, datetime.max.time()))
         .filter(
-            (Event.frequency == "once")
-            | (Event.recurrence_end_date.is_(None))
-            | (Event.recurrence_end_date >= range_start)
+            # 단건은 시작일로만 펼친다(occurrences_in_range) — 지난 단건 일정을 전부 읽어 파이썬에서 버리지 않게.
+            ((Event.frequency == "once") & (Event.start_at >= datetime.combine(range_start, datetime.min.time())))
+            | ((Event.frequency != "once") & Event.recurrence_end_date.is_(None))
+            | ((Event.frequency != "once") & (Event.recurrence_end_date >= range_start))
         )
         .all()
     )
@@ -139,11 +140,29 @@ def update_event(db: Session, event_id: int, **fields) -> Event | None:
     # 이미 지정돼 있던 담당자는 제거됐어도 일정의 다른 칸을 고칠 수 있게 둔다.
     if "assignee_id" in fields and fields["assignee_id"] != event.assignee_id:
         _ensure_assignable(db, fields["assignee_id"])
+    schedule_changed = any(
+        key in fields and fields[key] != getattr(event, key) for key in ("frequency", "start_at", "recurrence_end_date")
+    )
     for key, value in fields.items():
         setattr(event, key, value)
+    if schedule_changed:
+        _drop_stale_completions(event)
     db.commit()
     db.refresh(event)
     return event
+
+
+def _drop_stale_completions(event: Event) -> None:
+    """반복 규칙·시작일·종료일이 바뀐 뒤 새 일정에 없는 날짜의 회차 완료 기록을 지운다 — 남겨 두면 나중에 그 날짜가
+    다시 회차가 될 때(예: 매주 → 매월로 바꿨다가 되돌림) 하지 않은 회차가 완료로 보인다. 단건↔반복 전환이면 상대
+    쪽 완료 상태(단건 `completed_at`, 반복 회차 기록)도 비운다."""
+    if event.frequency == "once":
+        event.occurrence_completions.clear()
+        return
+    event.completed_at = None
+    event.occurrence_completions[:] = [
+        c for c in event.occurrence_completions if occurrences_in_range(event, c.occurrence_date, c.occurrence_date)
+    ]
 
 
 def delete_event(db: Session, event_id: int) -> Event | None:
