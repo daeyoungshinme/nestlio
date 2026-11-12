@@ -2,6 +2,7 @@ import logging
 import uuid
 from datetime import datetime, timedelta
 
+from fastapi import BackgroundTasks
 from sqlalchemy import and_, func, or_
 from sqlalchemy.orm import Session, selectinload
 
@@ -143,7 +144,12 @@ def _log_change(db: Session, event: Event, actor_id: uuid.UUID, action_label: st
 
 
 def notify_other_spouse_best_effort(
-    db: Session, event: Event, actor_id: uuid.UUID, action_label: str, now: datetime | None = None
+    db: Session,
+    event: Event,
+    actor_id: uuid.UUID,
+    action_label: str,
+    now: datetime | None = None,
+    background_tasks: BackgroundTasks | None = None,
 ) -> None:
     """일정 생성·수정·삭제 직후 라우터가 호출한다. 알림함에 남겨 Gmail이 끊겨도 배우자가 알 수 있게 하고(행위자는
     바로 읽음), 메일은 설정된 수신자 중 행위자 본인 이메일을 빼고 보낸다 — 자기 자신에게 "방금 내가 한 행동"
@@ -161,8 +167,8 @@ def notify_other_spouse_best_effort(
     try:
         recipients = notification_settings_service.recipients_excluding(db, actor_id)
         body = email_templates.event_summary_text(event, event.start_at, header=action_label)
-        notification_service.send_email_best_effort(
-            db, f"[Nestlio] {action_label}: {event.title}", body, to=recipients
+        notification_service.queue_email_best_effort(
+            db, f"[Nestlio] {action_label}: {event.title}", body, to=recipients, background_tasks=background_tasks
         )
     except Exception:
         logger.exception("일정 알림 이메일 처리 실패 (일정은 정상 저장됨): %s", event.title)

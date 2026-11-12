@@ -1,6 +1,6 @@
 from datetime import date
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.database import get_db
@@ -37,6 +37,7 @@ def list_events(
 
 @router.post("", response_model=EventOut, status_code=status.HTTP_201_CREATED)
 def create_event(
+    background_tasks: BackgroundTasks,
     payload: EventCreateIn,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
@@ -55,12 +56,15 @@ def create_event(
         reminder_minutes_before=payload.reminder_minutes_before,
         assignee_id=payload.assignee_id,
     )
-    event_reminder_service.notify_other_spouse_best_effort(db, event, current_user.id, "새 일정이 등록되었습니다")
+    event_reminder_service.notify_other_spouse_best_effort(
+        db, event, current_user.id, "새 일정이 등록되었습니다", background_tasks=background_tasks
+    )
     return event_service.to_out_dict(event)
 
 
 @router.put("/{event_id}", response_model=EventOut)
 def update_event(
+    background_tasks: BackgroundTasks,
     event_id: int,
     payload: EventUpdateIn,
     db: Session = Depends(get_db),
@@ -82,7 +86,9 @@ def update_event(
     )
     if event is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="일정을 찾을 수 없습니다.")
-    event_reminder_service.notify_other_spouse_best_effort(db, event, current_user.id, "일정이 변경되었습니다")
+    event_reminder_service.notify_other_spouse_best_effort(
+        db, event, current_user.id, "일정이 변경되었습니다", background_tasks=background_tasks
+    )
     return event_service.to_out_dict(event)
 
 
@@ -103,6 +109,7 @@ def complete_event(
 
 @router.delete("/{event_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_event(
+    background_tasks: BackgroundTasks,
     event_id: int,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
@@ -110,4 +117,6 @@ def delete_event(
     deleted = event_service.delete_event(db, event_id)
     if deleted is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="일정을 찾을 수 없습니다.")
-    event_reminder_service.notify_other_spouse_best_effort(db, deleted, current_user.id, "일정이 삭제되었습니다")
+    event_reminder_service.notify_other_spouse_best_effort(
+        db, deleted, current_user.id, "일정이 삭제되었습니다", background_tasks=background_tasks
+    )

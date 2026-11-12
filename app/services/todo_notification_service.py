@@ -9,6 +9,7 @@ import logging
 import uuid
 from datetime import datetime
 
+from fastapi import BackgroundTasks
 from sqlalchemy.orm import Session
 
 from app.models.todo import Todo
@@ -38,7 +39,15 @@ def _log_inbox(db: Session, todo: Todo, actor: User, detail: str, now: datetime)
     )
 
 
-def _notify_assigned(db: Session, todo: Todo, actor: User, inbox_text: str, mail_label: str, now: datetime) -> None:
+def _notify_assigned(
+    db: Session,
+    todo: Todo,
+    actor: User,
+    inbox_text: str,
+    mail_label: str,
+    now: datetime,
+    background_tasks: BackgroundTasks | None,
+) -> None:
     """알림함 + 메일. 인앱 기록이 실패해도 메일은 시도한다(둘은 서로 다른 전달 경로다). 설정 조회가 실패하면
     꺼져 있을 수도 있으니 둘 다 보내지 않는다(일정 알림과 같은 규칙)."""
     title = todo.title
@@ -53,11 +62,12 @@ def _notify_assigned(db: Session, todo: Todo, actor: User, inbox_text: str, mail
     except Exception:
         logger.exception("할일 인앱 알림 기록 실패 (할일은 정상 저장됨): %s", title)
     try:
-        notification_service.send_email_best_effort(
+        notification_service.queue_email_best_effort(
             db,
             f"[Nestlio] {mail_label}: {title}",
             email_templates.todo_summary_text(todo, header=mail_label),
             to=notification_settings_service.recipients_excluding(db, actor.id),
+            background_tasks=background_tasks,
         )
     except Exception:
         logger.exception("할일 알림 이메일 처리 실패 (할일은 정상 저장됨): %s", title)
@@ -76,18 +86,33 @@ def _notify_inbox_only(db: Session, todo: Todo, actor: User, inbox_text: str, no
         logger.exception("할일 인앱 알림 기록 실패 (할일은 정상 저장됨): todo_id=%s", todo.id)
 
 
-def notify_created(db: Session, todo: Todo, actor: User, now: datetime | None = None) -> None:
+def notify_created(
+    db: Session,
+    todo: Todo,
+    actor: User,
+    now: datetime | None = None,
+    background_tasks: BackgroundTasks | None = None,
+) -> None:
     if todo.assignee_id == actor.id:
         return
-    _notify_assigned(db, todo, actor, "새 할일을 등록했어요", "새 할일이 등록되었습니다", now or now_kst())
+    _notify_assigned(
+        db, todo, actor, "새 할일을 등록했어요", "새 할일이 등록되었습니다", now or now_kst(), background_tasks
+    )
 
 
 def notify_assignee_changed(
-    db: Session, todo: Todo, previous_assignee_id: uuid.UUID | None, actor: User, now: datetime | None = None
+    db: Session,
+    todo: Todo,
+    previous_assignee_id: uuid.UUID | None,
+    actor: User,
+    now: datetime | None = None,
+    background_tasks: BackgroundTasks | None = None,
 ) -> None:
     if todo.assignee_id == previous_assignee_id or todo.assignee_id == actor.id:
         return
-    _notify_assigned(db, todo, actor, "할일 담당을 바꿨어요", "할일 담당이 변경되었습니다", now or now_kst())
+    _notify_assigned(
+        db, todo, actor, "할일 담당을 바꿨어요", "할일 담당이 변경되었습니다", now or now_kst(), background_tasks
+    )
 
 
 def notify_completed(db: Session, todo: Todo, actor: User, now: datetime | None = None) -> None:

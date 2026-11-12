@@ -609,3 +609,58 @@ def test_monthly_summary_checks_pref_and_dedup_before_aggregating(mock_build, se
     assert notification_service.send_monthly_summary(db, today=date(2026, 9, 3)) is False
 
     mock_build.assert_not_called()
+
+
+@patch("app.services.notification_service.is_connected", return_value=True)
+@patch("app.services.notification_service.gmail_service.send_email")
+def test_queue_email_defers_gmail_until_after_response(mock_send, mock_connected, seeded_db):
+    """요청 처리 중에는 Gmail을 부르지 않는다 — 수신자만 정해 BackgroundTasks에 올리고, 응답 뒤 자체 세션으로 보낸다."""
+    from fastapi import BackgroundTasks
+
+    db = seeded_db["db"]
+    tasks = BackgroundTasks()
+
+    notification_service.queue_email_best_effort(db, "제목", "본문", to=["a@example.com"], background_tasks=tasks)
+
+    mock_send.assert_not_called()
+    assert len(tasks.tasks) == 1
+    task = tasks.tasks[0]
+    with patch("app.database.SessionLocal", return_value=db), patch.object(db, "close"):
+        task.func(*task.args, **task.kwargs)
+    mock_send.assert_called_once_with("제목", "본문", to=["a@example.com"], html_body=None)
+
+
+def test_queue_email_skips_when_no_recipients(seeded_db):
+    from fastapi import BackgroundTasks
+
+    tasks = BackgroundTasks()
+    notification_service.queue_email_best_effort(seeded_db["db"], "제목", "본문", to=[], background_tasks=tasks)
+    assert tasks.tasks == []
+
+
+def test_detached_email_never_raises(seeded_db):
+    db = seeded_db["db"]
+    with (
+        patch("app.database.SessionLocal", return_value=db),
+        patch.object(db, "close"),
+        patch.object(notification_service, "send_email_best_effort", side_effect=RuntimeError("bug")),
+    ):
+        notification_service._send_email_detached("제목", "본문", None, ["a@example.com"])
+
+
+@patch("app.services.notification_service.is_connected", return_value=True)
+@patch("app.services.notification_service.gmail_service.send_email")
+def test_budget_alert_with_background_tasks_defers_mail(mock_send, mock_connected, seeded_db):
+    from fastapi import BackgroundTasks
+
+    db, food = seeded_db["db"], seeded_db["food"]
+    row = {"category_id": food.id, "status": "critical", "budget": Decimal("100000"), "actual": Decimal("120000"),
+           "category_name": "식비", "pct": 120.0}
+    tasks = BackgroundTasks()
+    with patch.object(notification_service.email_templates, "threshold_alert_message", return_value=("제목", "본문")):
+        assert notification_service._send_threshold_alert(db, row, "2026-07", tasks) is True
+
+    mock_send.assert_not_called()
+    assert len(tasks.tasks) == 1
+    # 인앱 기록은 요청 안에서 남는다(dedup도 즉시 적용)
+    assert notification_log_service.already_sent(db, "threshold_alert", "2026-07:critical", related_id=food.id)
