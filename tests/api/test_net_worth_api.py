@@ -91,3 +91,67 @@ def test_get_growlio_unlinked_net_worth_request_failure_returns_zero(client):
     body = resp.json()
     assert body["item_count"] == 0
     assert Decimal(body["net_total"]) == Decimal("0")
+
+
+def _abandoned_push(db, owner_user_id=None):
+    from datetime import date
+
+    from app.models.growlio_push_queue import GrowlioPushQueue
+    from app.models.savings_product import SavingsProduct
+    from app.services import growlio_push_service
+
+    db.add(
+        SavingsProduct(
+            name="ETF",
+            current_balance=Decimal("0"),
+            monthly_saving_amount=Decimal("0"),
+            growlio_account_id="g-1",
+            owner_user_id=owner_user_id,
+        )
+    )
+    row = GrowlioPushQueue(
+        growlio_account_id="g-1",
+        owner_user_id=owner_user_id,
+        transaction_type="DEPOSIT",
+        amount=Decimal("300000"),
+        transaction_date=date(2026, 10, 8),
+        attempts=growlio_push_service.MAX_ATTEMPTS,
+        last_error="growlio API 오류 (status=404)",
+    )
+    db.add(row)
+    db.commit()
+    return row
+
+
+def test_failed_growlio_pushes_lists_abandoned_rows(client, seeded_db):
+    row = _abandoned_push(seeded_db["db"])
+
+    resp = client.get("/api/v1/net-worth/growlio-pushes/failed")
+
+    assert resp.status_code == 200
+    assert resp.json() == [
+        {
+            "id": row.id,
+            "product_name": "ETF",
+            "transaction_type": "DEPOSIT",
+            "amount": "300000.00",
+            "transaction_date": "2026-10-08",
+            "last_error": "growlio API 오류 (status=404)",
+        }
+    ]
+
+
+def test_retry_growlio_push_sends_with_caller_token(client, seeded_db):
+    row = _abandoned_push(seeded_db["db"])
+
+    with patch("app.services.growlio_push_service.growlio_client.push_transaction") as push:
+        resp = client.post(f"/api/v1/net-worth/growlio-pushes/{row.id}/retry")
+
+    assert resp.status_code == 200
+    assert resp.json() == {"sent": True}
+    assert push.call_args.args[0] == "test-bearer-token"
+    assert client.get("/api/v1/net-worth/growlio-pushes/failed").json() == []
+
+
+def test_retry_growlio_push_unknown_id_is_404(client):
+    assert client.post("/api/v1/net-worth/growlio-pushes/9999/retry").status_code == 404

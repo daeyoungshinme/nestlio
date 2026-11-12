@@ -74,7 +74,7 @@ npm run generate:icons      # public/favicon.svg → PNG/ICO
 | `/transactions` | 가계부 | 월간 캘린더 + `[내역 \| 일정]` 세그먼트(`?view=`). 날짜 클릭 → `LedgerDayModal`(거래·일정 함께). 일정 CRUD는 `hooks/useEventActions.tsx`. 반복 거래 관리는 `RecurringManageSheet`. `?date=YYYY-MM-DD`로 모달 열기 |
 | `/transactions/import` | 거래 데이터 | CSV 내보내기·가져오기. 진입은 설정 › 고급뿐 |
 | `/categories` | 카테고리 관리 | 메뉴에 없음 — 설정 › 고급·계획 섹션의 "카테고리" 버튼에서만 진입 |
-| `/accounts` | 자산 | 계좌/저축·투자/부동산/대출 4개 `CollapsibleGroup`(접힌 섹션은 마운트·쿼리 안 함). `?section=`. 상단 `AccountsSnapshotCard`의 "전체 동기화"가 **growlio 잔액 동기화의 유일한 수동 진입점** |
+| `/accounts` | 자산 | 계좌/저축·투자/부동산/대출 4개 `CollapsibleGroup`(접힌 섹션은 마운트·쿼리 안 함). `?section=`. 맨 위 `GrowlioPushFailuresBanner`(growlio 반영을 포기한 저축·투자 입출금이 있을 때만, 다시 보내기). 상단 `AccountsSnapshotCard`의 "전체 동기화"가 **growlio 잔액 동기화의 유일한 수동 진입점** |
 | `/plan` | `PlanPage` | `[이번 달 \| 연간]`(`?view=`). 아래 "계획 화면" 참고 |
 | `/goals`, `/goals/:id` | `GoalsPage`(→ `financialPlan/GoalsTab`), `GoalDetailPage` | 재무목표·챌린지·순자산 목표·통합 목표. 상세에 응원·시나리오·growlio 인사이트. 순자산·통합 목표는 가구당 하나, 목록·홈 Hero에서 항상 맨 앞(`pinHouseholdGoalsFirst` — 통합 > 순자산). 통합 목표 구성은 `financialPlan/CombinedMembersList`(카드 compact·상세 공용, growlio 구성은 동기화 시각 표시, 상세에서 내 값 "지금 동기화") |
 | `/review` | `SavingsReviewPage` | 절감 점검 `[소비 \| 보험]`(`?tab=`). 주 메뉴에 없음 — 홈·계획 "실적 분석"의 `SavingsReviewLinkCard`로 진입. 컴포넌트는 `components/review/`(보험 계약 폼 `InsurancePolicyFormModal` + 순수 변환 `insurancePolicyDraft.ts`, 특약 `RiderListEditor`, 보장 현황 `CoverageStatusTable`·적정 기준 `InsuranceTargetsModal`). 쿼리 키 `savingsReview`는 `dashboardAll` 하위라 거래·계획·반복·카테고리·이름·임계값 변경에 자동 갱신되고, 보험 계약·적정 기준 저장만 `savingsReviewAll`을 직접 무효화한다 |

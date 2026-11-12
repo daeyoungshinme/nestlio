@@ -71,6 +71,8 @@ export const QUERY_KEYS = {
   /** Prefix for invalidating every net-worth months variant at once. */
   netWorthAll: ["net-worth"] as const,
   netWorthGrowlioUnlinked: ["net-worth", "growlio-unlinked"] as const,
+  /** netWorthAll 하위 — 자산 변경·전체 동기화 때 함께 다시 조회된다. */
+  growlioPushFailures: ["net-worth", "growlio-pushes", "failed"] as const,
   recurring: ["recurring"] as const,
   /** 절감 점검 — dashboardAll 하위. 거래·계획·예산·반복거래·카테고리·사용자 이름·코칭 임계값을 모두 읽는데,
    * 그 변경들은 이미 dashboardAll을 무효화하므로 자동으로 함께 갱신된다(monthlyRetrospective와 같은 이유).

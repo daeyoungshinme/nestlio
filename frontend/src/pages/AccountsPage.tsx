@@ -4,6 +4,7 @@ import CollapsibleGroup from "@/components/common/CollapsibleGroup";
 import AccountsSection from "@/components/accounts/AccountsSection";
 import CardsSection from "@/components/accounts/CardsSection";
 import AccountsSnapshotCard from "@/components/accounts/AccountsSnapshotCard";
+import GrowlioPushFailuresBanner from "@/components/accounts/GrowlioPushFailuresBanner";
 import SavingsProductsSection from "@/components/accounts/SavingsProductsSection";
 import RealEstateSection from "@/components/accounts/RealEstateSection";
 import LoansSection from "@/components/accounts/LoansSection";
@@ -56,6 +57,7 @@ export default function AccountsPage() {
 
   return (
     <div className="space-y-6">
+      <GrowlioPushFailuresBanner />
       <AccountsSnapshotCard />
 
       <div id={sectionId("계좌")} className="scroll-mt-4">

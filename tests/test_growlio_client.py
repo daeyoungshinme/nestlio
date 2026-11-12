@@ -90,6 +90,38 @@ def test_request_wraps_non_json_body_as_growlio_request_error(monkeypatch):
         growlio_client.fetch_account_balances("token")
 
 
+@pytest.mark.parametrize("status", [404, 503])
+def test_request_error_keeps_upstream_status(monkeypatch, status):
+    """아웃박스가 일시 오류(5xx)와 확정 오류(4xx)를 가를 수 있게 growlio 응답 상태를 남긴다. 응답 상태(502)는 그대로."""
+    import httpx
+
+    monkeypatch.setattr(growlio_client.settings, "growlio_api_base_url", "https://growlio.example.com")
+    monkeypatch.setattr(
+        growlio_client.httpx,
+        "request",
+        lambda *a, **k: httpx.Response(status, request=httpx.Request("GET", "https://growlio.example.com")),
+    )
+
+    with pytest.raises(growlio_client.GrowlioRequestError) as excinfo:
+        growlio_client.fetch_account_balances("token")
+    assert excinfo.value.upstream_status == status
+    assert excinfo.value.status_code == 502
+
+
+def test_request_error_without_response_has_no_upstream_status(monkeypatch):
+    import httpx
+
+    def boom(*a, **k):
+        raise httpx.ConnectError("refused")
+
+    monkeypatch.setattr(growlio_client.settings, "growlio_api_base_url", "https://growlio.example.com")
+    monkeypatch.setattr(growlio_client.httpx, "request", boom)
+
+    with pytest.raises(growlio_client.GrowlioRequestError) as excinfo:
+        growlio_client.fetch_account_balances("token")
+    assert excinfo.value.upstream_status is None
+
+
 def test_push_transaction_sends_external_ref_only_when_given(monkeypatch):
     from datetime import date
     from decimal import Decimal

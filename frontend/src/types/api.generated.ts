@@ -1580,6 +1580,43 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/net-worth/growlio-pushes/failed": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Failed Growlio Pushes
+         * @description growlio 반영을 자동으로 포기한 저축·투자 입출금(호출자·공동 소유) — 자산 화면 경고용.
+         */
+        get: operations["list_failed_growlio_pushes_api_v1_net_worth_growlio_pushes_failed_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/net-worth/growlio-pushes/{push_id}/retry": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Retry Growlio Push */
+        post: operations["retry_growlio_push_api_v1_net_worth_growlio_pushes__push_id__retry_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/notifications": {
         parameters: {
             query?: never;
@@ -3095,6 +3132,35 @@ export interface components {
             annual_deposit_current?: number | null;
             /** Deposit Achievement Pct */
             deposit_achievement_pct?: number | null;
+        };
+        /**
+         * GrowlioPushFailedOut
+         * @description growlio 반영을 자동으로 포기한 저축·투자 입출금 한 건 — 자산 화면 경고에서 다시 보내기 대상.
+         */
+        GrowlioPushFailedOut: {
+            /** Id */
+            id: number;
+            /** Product Name */
+            product_name: string | null;
+            /**
+             * Transaction Type
+             * @enum {string}
+             */
+            transaction_type: "DEPOSIT" | "WITHDRAWAL";
+            /** Amount */
+            amount: string;
+            /**
+             * Transaction Date
+             * Format: date
+             */
+            transaction_date: string;
+            /** Last Error */
+            last_error: string | null;
+        };
+        /** GrowlioPushRetryOut */
+        GrowlioPushRetryOut: {
+            /** Sent */
+            sent: boolean;
         };
         /**
          * GrowlioRealEstateOut
@@ -8185,6 +8251,70 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["NetWorthGrowlioUnlinkedOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_failed_growlio_pushes_api_v1_net_worth_growlio_pushes_failed_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GrowlioPushFailedOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    retry_growlio_push_api_v1_net_worth_growlio_pushes__push_id__retry_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                push_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GrowlioPushRetryOut"];
                 };
             };
             /** @description Validation Error */
