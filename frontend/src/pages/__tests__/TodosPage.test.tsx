@@ -56,7 +56,7 @@ describe("TodosPage", () => {
     completeTodo.mockReset();
   });
 
-  it("담당 필터는 공동 할일을 양쪽에 보여준다", async () => {
+  it("담당 필터는 나·배우자·공동을 나눠 보여준다", async () => {
     fetchTodos.mockResolvedValue([
       todo({ id: 1, title: "내 할일", assignee: me }),
       todo({ id: 2, title: "배우자 할일", assignee: partner }),
@@ -69,12 +69,26 @@ describe("TodosPage", () => {
     fireEvent.click(screen.getByRole("tab", { name: "나" }));
     expect(screen.getByText("내 할일")).toBeInTheDocument();
     expect(screen.queryByText("배우자 할일")).not.toBeInTheDocument();
-    expect(screen.getByText("공동 할일")).toBeInTheDocument();
+    expect(screen.queryByText("공동 할일")).not.toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("tab", { name: "배우자" }));
     expect(screen.queryByText("내 할일")).not.toBeInTheDocument();
     expect(screen.getByText("배우자 할일")).toBeInTheDocument();
+    expect(screen.queryByText("공동 할일")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("tab", { name: "공동" }));
+    expect(screen.queryByText("내 할일")).not.toBeInTheDocument();
+    expect(screen.queryByText("배우자 할일")).not.toBeInTheDocument();
     expect(screen.getByText("공동 할일")).toBeInTheDocument();
+  });
+
+  it("담당 필터 결과가 비면 필터를 반영한 빈 상태를 보여준다", async () => {
+    fetchTodos.mockResolvedValue([todo({ id: 1, title: "공동 할일" })]);
+    renderPage();
+    await screen.findByText("공동 할일");
+
+    fireEvent.click(screen.getByRole("tab", { name: "배우자" }));
+    expect(screen.getByText("배우자 담당 할일이 없어요")).toBeInTheDocument();
   });
 
   it("완료 탭은 완료 목록을 불러오고 완료한 사람을 보여준다", async () => {

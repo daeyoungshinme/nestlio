@@ -64,7 +64,13 @@ export default function TodosPage() {
             return (
               <EmptyState
                 icon={ListChecks}
-                title={activeTab === "완료" ? "완료한 할일이 없어요" : "진행 중인 할일이 없어요"}
+                title={
+                  assigneeFilter === "전체"
+                    ? activeTab === "완료"
+                      ? "완료한 할일이 없어요"
+                      : "진행 중인 할일이 없어요"
+                    : `${assigneeFilter} 담당 할일이 없어요`
+                }
               />
             );
           }
