@@ -10,7 +10,7 @@ from app.models.notification_reaction import NotificationReaction
 from app.models.notification_read import NotificationRead
 from app.models.transaction import Transaction
 from app.models.user import User
-from app.services import notification_settings_service
+from app.services import notification_log_service, notification_settings_service
 from app.utils.dates import now_kst
 
 logger = logging.getLogger(__name__)
@@ -173,22 +173,16 @@ def send_goal_cheer(
     detail = f'{sender_name}님이 "{goal_name}" 목표에 {emoji} 응원을 보냈어요'
     if message:
         detail += f": {message}"
-    log = NotificationLog(
+    return notification_log_service.log_event(
+        db,
         notif_type="goal_cheer",
         related_type="goal",
         related_id=goal_id,
-        # 응원은 dedupe 대상이 아니라 키가 필요 없지만 인박스가 year_month를 그대로 내려주므로 채워 둔다 —
-        # 컬럼이 String(20)이라 마이크로초까지 붙은 isoformat()(26자)은 Postgres에서 거부된다.
-        year_month=now.isoformat(timespec="seconds"),
-        status="sent",
-        detail=detail[:500],
+        detail=detail,
+        actor_id=sender_id,
+        now=now,
+        reaction=(emoji, message),
     )
-    db.add(log)
-    db.flush()
-    db.add(NotificationReaction(notification_log_id=log.id, user_id=sender_id, emoji=emoji, message=message))
-    db.add(NotificationRead(notification_log_id=log.id, user_id=sender_id, read_at=now))
-    db.commit()
-    return log.id
 
 
 PARTNER_SAVING_NOTIF_TYPE = "partner_saving"
@@ -206,26 +200,16 @@ def log_partner_saving(
     if not notification_settings_service.is_enabled(db, PARTNER_SAVING_NOTIF_TYPE):
         return None
     now = now or now_kst()
-    log = NotificationLog(
+    # 호출자(거래 저장 라우터)는 실패를 로그로만 흡수하고 같은 세션으로 응답을 직렬화한다 — log_event가 실패 시 롤백한다.
+    return notification_log_service.log_event(
+        db,
         notif_type=PARTNER_SAVING_NOTIF_TYPE,
         related_type="savings_product",
         related_id=tx.savings_product_id,
-        # dedupe 대상이 아니다 — 컬럼이 String(20)이라 초 단위까지만(send_goal_cheer 참고).
-        year_month=now.isoformat(timespec="seconds"),
-        status="sent",
-        detail=f"{actor_name}님이 \"{tx.savings_product.name}\"에 {tx.amount:,.0f}원 저축했어요"[:500],
+        detail=f"{actor_name}님이 \"{tx.savings_product.name}\"에 {tx.amount:,.0f}원 저축했어요",
+        actor_id=actor_id,
+        now=now,
     )
-    # 호출자(거래 저장 라우터)는 실패를 로그로만 흡수하고 같은 세션으로 응답을 직렬화하므로, 실패하면 여기서
-    # 롤백해 세션을 쓸 수 있는 상태로 돌려 놓는다(notification_service.check_and_alert_budget_threshold와 같은 규칙).
-    try:
-        db.add(log)
-        db.flush()
-        db.add(NotificationRead(notification_log_id=log.id, user_id=actor_id, read_at=now))
-        db.commit()
-    except Exception:
-        db.rollback()
-        raise
-    return log.id
 
 
 def log_partner_saving_best_effort(db: Session, actor: User, tx: Transaction) -> None:

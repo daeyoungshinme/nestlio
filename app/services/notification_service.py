@@ -74,16 +74,16 @@ def _savings_streak(db: Session, end: date) -> int:
     return savings_coaching_service.savings_streak_months(savings_coaching_service.savings_pace_history(db, trend, goals))
 
 
-def send_weekly_summary(db: Session, today: date | None = None, force: bool = False) -> bool:
-    today = today or today_kst()
+def _weekly_period(today: date) -> tuple[date, date, str]:
     # 잡은 월요일 아침에 돈다 — 막 시작한 이번 주가 아니라 방금 끝난 지난주를 요약한다. dedup 키는 발송한 주의
     # 월요일이다(요약 대상인 지난주 월요일로 바꾸면 그날 옛 코드가 남긴 기록과 겹쳐 한 주가 빠진다).
     start, end = week_bounds(today - timedelta(days=7))
-    period_key = week_bounds(today)[0].isoformat()
-    if not force and not notification_settings_service.is_enabled(db, "email_weekly"):
-        return False
-    if not force and notification_log_service.already_sent(db, "email_weekly", period_key):
-        return False
+    return start, end, week_bounds(today)[0].isoformat()
+
+
+def _weekly_mail(db: Session, today: date) -> tuple[str, str, str]:
+    """주간 요약 메일의 (제목, 텍스트 본문, HTML 본문)."""
+    start, end, _ = _weekly_period(today)
     snapshot = transaction_report_service.period_snapshot(db, start, end)
     totals, breakdown, owner_totals = snapshot["totals"], snapshot["breakdown"], snapshot["owner_totals"]
     streak = _savings_streak(db, end)
@@ -93,21 +93,13 @@ def send_weekly_summary(db: Session, today: date | None = None, force: bool = Fa
     html = email_templates.build_weekly_summary_html(
         start, end, totals, breakdown, owner_totals=owner_totals, streak=streak
     )
-    send_email_best_effort(db, f"[Nestlio] 주간 요약 ({start} ~ {end})", body, html_body=html)
-    notification_log_service.log_sent(db, "email_weekly", period_key, detail=body[:500])
-    return True
+    return f"[Nestlio] 주간 요약 ({start} ~ {end})", body, html
 
 
-def send_monthly_summary(db: Session, today: date | None = None, force: bool = False) -> bool:
-    today = today or today_kst()
-    # 켜짐·중복 여부를 먼저 본다 — 회고 집계(코칭 인사이트 포함)는 매일 도는 예약 잡에서 대부분 버려진다.
-    _, _, period_key = dashboard_service.retrospective_period(today)
-    if not force and not notification_settings_service.is_enabled(db, "email_monthly"):
-        return False
-    if not force and notification_log_service.already_sent(db, "email_monthly", period_key):
-        return False
+def _monthly_mail(db: Session, today: date) -> tuple[str, str, str]:
+    """월간 요약 메일의 (제목, 텍스트 본문, HTML 본문)."""
     r = dashboard_service.build_retrospective(db, today)
-    start, end = r["start"], r["end"]
+    start, end, period_key = r["start"], r["end"], r["year_month"]
     totals, breakdown, owner_totals, insights = r["totals"], r["breakdown"], r["owner_totals"], r["insights"]
     streak = _savings_streak(db, end)
     body = email_templates.summary_text(
@@ -116,7 +108,32 @@ def send_monthly_summary(db: Session, today: date | None = None, force: bool = F
     html = email_templates.build_monthly_summary_html(
         start, end, totals, breakdown, insights, owner_totals=owner_totals, streak=streak
     )
-    send_email_best_effort(db, f"[Nestlio] {period_key} 월간 요약", body, html_body=html)
+    return f"[Nestlio] {period_key} 월간 요약", body, html
+
+
+def send_weekly_summary(db: Session, today: date | None = None) -> bool:
+    today = today or today_kst()
+    _, _, period_key = _weekly_period(today)
+    if not notification_settings_service.is_enabled(db, "email_weekly"):
+        return False
+    if notification_log_service.already_sent(db, "email_weekly", period_key):
+        return False
+    subject, body, html = _weekly_mail(db, today)
+    send_email_best_effort(db, subject, body, html_body=html)
+    notification_log_service.log_sent(db, "email_weekly", period_key, detail=body[:500])
+    return True
+
+
+def send_monthly_summary(db: Session, today: date | None = None) -> bool:
+    today = today or today_kst()
+    # 켜짐·중복 여부를 먼저 본다 — 회고 집계(코칭 인사이트 포함)는 매일 도는 예약 잡에서 대부분 버려진다.
+    _, _, period_key = dashboard_service.retrospective_period(today)
+    if not notification_settings_service.is_enabled(db, "email_monthly"):
+        return False
+    if notification_log_service.already_sent(db, "email_monthly", period_key):
+        return False
+    subject, body, html = _monthly_mail(db, today)
+    send_email_best_effort(db, subject, body, html_body=html)
     notification_log_service.log_sent(db, "email_monthly", period_key, detail=body[:500])
     return True
 
@@ -280,19 +297,24 @@ def celebrate_goal_milestone_best_effort(db: Session, goal_id: int, today: date 
 
 
 _TEST_SUMMARY = {
-    "weekly": ("email_weekly", "주간", send_weekly_summary),
-    "monthly": ("email_monthly", "월간", send_monthly_summary),
+    "weekly": ("email_weekly", "주간", _weekly_mail),
+    "monthly": ("email_monthly", "월간", _monthly_mail),
 }
 
 
-def send_test_summary(db: Session, kind: Literal["weekly", "monthly"]) -> dict:
+def send_test_summary(db: Session, kind: Literal["weekly", "monthly"], today: date | None = None) -> dict:
     """설정 화면의 테스트 발송 버튼. "Google 연동이 실제로 동작하는지" 확인하는 QA용이라, 일반 알림
-    파이프라인과 달리 미연동/꺼짐 상태에서는 조용히 건너뛰지 않고 ConflictError(409)로 알린다. Gmail 실패·토큰
-    만료도 흡수하지 않고 올린다(전역 핸들러가 502/409로 변환)."""
-    setting_key, label, send = _TEST_SUMMARY[kind]
+    파이프라인과 달리 미연동/꺼짐/수신자 없음은 ConflictError(409)로 알리고, Gmail 실패·토큰 만료도 흡수하지 않고
+    올린다(전역 핸들러가 502/409로 변환). 정규 발송 기록(log_sent)을 남기지 않는다 — 남기면 그 주·그 달의 예약
+    발송이 dedup에 막힌다."""
+    setting_key, label, build = _TEST_SUMMARY[kind]
     if not is_connected():
         raise ConflictError("Google 계정이 연결되어 있지 않습니다.")
     if not notification_settings_service.is_enabled(db, setting_key):
         raise ConflictError(f"{label} 요약 알림이 꺼져 있습니다. 설정에서 켜주세요.")
-    sent = send(db, force=True)
-    return {"sent": sent, "message": f"{label} 요약 이메일을 발송했습니다." if sent else "발송하지 못했습니다."}
+    recipients = notification_settings_service.get_recipients(db)
+    if not recipients:
+        raise ConflictError("알림 메일을 받을 사람이 없습니다. 설정에서 수신자를 확인해주세요.")
+    subject, body, html = build(db, today or today_kst())
+    gmail_service.send_email(subject, body, to=recipients, html_body=html)
+    return {"sent": True, "message": f"{label} 요약 이메일을 발송했습니다."}

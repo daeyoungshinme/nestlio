@@ -78,3 +78,55 @@ def test_log_sent_stamps_sent_at_in_kst(seeded_db):
 
     log = db.query(NotificationLog).one()
     assert abs(log.sent_at - now_kst()) < timedelta(minutes=1)
+
+
+def test_log_event_marks_actor_read_and_attaches_reaction(seeded_db):
+    from datetime import datetime
+
+    from app.models.notification_log import NotificationLog
+    from app.models.notification_reaction import NotificationReaction
+    from app.models.notification_read import NotificationRead
+
+    db, user = seeded_db["db"], seeded_db["user"]
+    now = datetime(2026, 7, 1, 9, 0, 0, 123456)
+
+    log_id = notification_log_service.log_event(
+        db,
+        notif_type="goal_cheer",
+        related_type="goal",
+        related_id=1,
+        detail="x" * 600,
+        actor_id=user.id,
+        now=now,
+        reaction=("👏", "화이팅"),
+    )
+
+    log = db.get(NotificationLog, log_id)
+    assert log.year_month == "2026-07-01T09:00:00"  # String(20) — 마이크로초를 붙이지 않는다
+    assert len(log.detail) == 500
+    assert db.query(NotificationRead).filter_by(notification_log_id=log_id, user_id=user.id).count() == 1
+    reaction = db.query(NotificationReaction).filter_by(notification_log_id=log_id).one()
+    assert (reaction.emoji, reaction.message) == ("👏", "화이팅")
+
+
+def test_log_event_rolls_back_on_failure(seeded_db):
+    from datetime import datetime
+    from unittest.mock import patch
+
+    from app.models.notification_log import NotificationLog
+
+    db, user = seeded_db["db"], seeded_db["user"]
+    with (
+        patch("app.services.notification_log_service.NotificationRead", side_effect=RuntimeError("db down")),
+        pytest.raises(RuntimeError),
+    ):
+        notification_log_service.log_event(
+            db,
+            notif_type="todo",
+            related_type="todo",
+            related_id=1,
+            detail="d",
+            actor_id=user.id,
+            now=datetime(2026, 7, 1, 9, 0),
+        )
+    assert db.query(NotificationLog).count() == 0

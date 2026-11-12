@@ -59,3 +59,23 @@ def test_send_email_maps_access_not_configured_to_friendly_error(mock_service):
 
     with pytest.raises(gmail_service.GmailSendError):
         gmail_service.send_email("제목", "본문", to="a@example.com")
+
+
+@pytest.mark.parametrize(
+    "exc_factory",
+    [
+        lambda: TimeoutError("timed out"),
+        lambda: OSError("connection reset"),
+        lambda: __import__("httplib2").ServerNotFoundError("dns"),
+        lambda: __import__("google.auth.exceptions", fromlist=["TransportError"]).TransportError("refresh failed"),
+    ],
+)
+@patch("app.services.gmail_service._service")
+def test_send_email_wraps_network_errors(mock_service, exc_factory):
+    """네트워크 장애가 GmailSendError 밖으로 새면 send_email_best_effort가 못 잡아 잡·요청이 500으로 끝난다."""
+    mock_service.return_value.users.return_value.messages.return_value.send.return_value.execute.side_effect = (
+        exc_factory()
+    )
+
+    with pytest.raises(gmail_service.GmailSendError):
+        gmail_service.send_email("제목", "본문", to="a@example.com")

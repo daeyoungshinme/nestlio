@@ -1,12 +1,17 @@
 """NotificationLog 기반 알림 중복 발송 방지 — "이 (종류, 기간/마일스톤 키, 대상)으로 이미 보냈는가"
 확인과 발송 기록. notification_service(주간/월간 요약·예산 경고·목표 달성 축하)가 같은 테이블·같은 키
-규칙을 쓰므로 여기 한 곳에 둔다. 다른 서비스를 import하지 않는 말단 모듈이라 어디서든 순환 없이 쓸 수 있다."""
+규칙을 쓰므로 여기 한 곳에 둔다. dedup 없는 "사건" 알림 기록(`log_event`)도 여기 있다. 다른 서비스를 import하지
+않는 말단 모듈이라 어디서든 순환 없이 쓸 수 있다."""
 
+import uuid
+from datetime import datetime
 from decimal import Decimal
 
 from sqlalchemy.orm import Session
 
 from app.models.notification_log import NotificationLog
+from app.models.notification_reaction import NotificationReaction
+from app.models.notification_read import NotificationRead
 
 
 def already_sent(db: Session, notif_type: str, period_key: str, related_id: int | None = None) -> bool:
@@ -41,6 +46,45 @@ def log_sent(
         )
     )
     db.commit()
+
+
+def log_event(
+    db: Session,
+    *,
+    notif_type: str,
+    related_type: str,
+    related_id: int,
+    detail: str,
+    actor_id: uuid.UUID,
+    now: datetime,
+    reaction: tuple[str, str | None] | None = None,
+) -> int:
+    """dedup 없는 "사건" 알림(일정 변경·할일·목표 응원·배우자 저축)을 알림함에 남기고 행동한 본인은 바로 읽음 처리한다.
+    `year_month`는 기간 키가 아니라 초 단위 시각이다(String(20) — 마이크로초까지 붙으면 Postgres가 거부).
+    `reaction`(이모지, 메시지)을 주면 보낸 사람의 반응을 함께 붙인다(목표 응원).
+
+    호출자는 같은 세션으로 응답을 직렬화하므로, 실패하면 롤백해 세션을 쓸 수 있는 상태로 돌려 놓고 예외를 올린다.
+    새 알림 id를 반환한다."""
+    log = NotificationLog(
+        notif_type=notif_type,
+        related_type=related_type,
+        related_id=related_id,
+        year_month=now.isoformat(timespec="seconds"),
+        status="sent",
+        detail=detail[:500],
+    )
+    try:
+        db.add(log)
+        db.flush()
+        if reaction is not None:
+            emoji, message = reaction
+            db.add(NotificationReaction(notification_log_id=log.id, user_id=actor_id, emoji=emoji, message=message))
+        db.add(NotificationRead(notification_log_id=log.id, user_id=actor_id, read_at=now))
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise
+    return log.id
 
 
 # 목표 달성 축하 메일을 보내는 진행률(%) 기준, 오름차순

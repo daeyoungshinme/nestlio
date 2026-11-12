@@ -117,6 +117,51 @@ def test_test_weekly_email_sends_when_connected(mock_send_email, mock_service_co
     mock_send_email.assert_called_once()
 
 
+@patch("app.services.notification_service.is_connected", return_value=True)
+@patch("app.services.notification_service.gmail_service.send_email")
+def test_test_email_does_not_block_scheduled_summary(mock_send_email, mock_connected, client, seeded_db):
+    """테스트 발송이 정규 발송 기록(log_sent)을 남기면 그 주·그 달 예약 발송이 dedup에 막힌다."""
+    from datetime import date
+
+    from app.models.notification_log import NotificationLog
+    from app.services import notification_service
+
+    assert client.post("/api/v1/settings/test-weekly-email").status_code == 200
+    assert client.post("/api/v1/settings/test-monthly-email").status_code == 200
+    db = seeded_db["db"]
+    assert db.query(NotificationLog).count() == 0
+
+    assert notification_service.send_weekly_summary(db, today=date(2026, 7, 27)) is True
+    assert notification_service.send_monthly_summary(db, today=date(2026, 8, 3)) is True
+    assert mock_send_email.call_count == 4
+
+
+@pytest.mark.parametrize("path", ["/api/v1/settings/test-weekly-email", "/api/v1/settings/test-monthly-email"])
+@patch("app.services.notification_service.is_connected", return_value=True)
+def test_test_email_reports_gmail_failure(mock_connected, client, path):
+    """전에는 Gmail이 실패해도 "발송했습니다"로 응답했다 — 연동 확인용 버튼이라 실패를 그대로 보여 준다."""
+    from app.services.gmail_service import GmailSendError
+
+    with patch(
+        "app.services.notification_service.gmail_service.send_email",
+        side_effect=GmailSendError("Gmail 서버에 연결하지 못했습니다. 잠시 후 다시 시도해주세요."),
+    ):
+        resp = client.post(path)
+
+    assert resp.status_code == 502
+    assert "Gmail 서버에 연결하지 못했습니다" in resp.json()["detail"]
+
+
+@patch("app.services.notification_service.is_connected", return_value=True)
+@patch("app.services.notification_service.gmail_service.send_email")
+def test_test_email_without_recipients_returns_409(mock_send_email, mock_connected, client):
+    with patch("app.services.notification_service.notification_settings_service.get_recipients", return_value=[]):
+        resp = client.post("/api/v1/settings/test-weekly-email")
+
+    assert resp.status_code == 409
+    mock_send_email.assert_not_called()
+
+
 @patch("app.services.settings_service.is_connected", return_value=False)
 def test_get_settings_notification_prefs_default_all_on(mock_is_connected, client):
     resp = client.get("/api/v1/settings")

@@ -7,7 +7,6 @@ from sqlalchemy.orm import Session, selectinload
 
 from app.models.event import Event
 from app.models.notification_log import NotificationLog
-from app.models.notification_read import NotificationRead
 from app.models.user import User
 from app.services import (
     email_templates,
@@ -132,24 +131,15 @@ def _already_notified_pairs(db: Session, event_ids: set[int]) -> set[tuple[int, 
 def _log_change(db: Session, event: Event, actor_id: uuid.UUID, action_label: str, now: datetime) -> None:
     actor = db.get(User, actor_id)
     actor_name = f" ({actor.display_name})" if actor else ""
-    log = NotificationLog(
+    notification_log_service.log_event(
+        db,
         notif_type=CHANGE_NOTIF_TYPE,
         related_type="event",
         related_id=event.id,
-        # dedupe 대상이 아니다 — 컬럼이 String(20)이라 초 단위까지만(send_goal_cheer 참고).
-        year_month=now.isoformat(timespec="seconds"),
-        status="sent",
-        detail=f"{action_label}: {event.title}{actor_name}"[:500],
+        detail=f"{action_label}: {event.title}{actor_name}",
+        actor_id=actor_id,
+        now=now,
     )
-    # 호출자는 같은 세션으로 응답을 직렬화하므로, 실패하면 롤백해 세션을 쓸 수 있는 상태로 돌려 놓는다.
-    try:
-        db.add(log)
-        db.flush()
-        db.add(NotificationRead(notification_log_id=log.id, user_id=actor_id, read_at=now))
-        db.commit()
-    except Exception:
-        db.rollback()
-        raise
 
 
 def notify_other_spouse_best_effort(

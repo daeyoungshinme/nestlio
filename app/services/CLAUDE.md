@@ -29,13 +29,13 @@
 ## Google 연동 가드
 
 - Google 연동은 Gmail 알림 메일 발송뿐이다(구글 캘린더 동기화·시트 가져오기는 토큰 유지비 대비 쓰임이 적어 2026-10 제거). `gmail_service`를 부르기 전에 `google_auth.is_connected()`를 확인한다. 미연결이면 `GoogleNotConnectedError`.
-- 알림 메일은 `gmail_service.send_email`을 직접 부르지 않고 `notification_service.send_email_best_effort`를 거친다 — 가드 + `GoogleAuthError`/`GmailSendError`를 경고 로그로 흡수해 메일 실패가 인앱 알림이나 예약 잡을 막지 않게 한다. 결과는 `"sent"`/`"skipped"`(미연결·토큰 만료 — 재시도 무의미)/`"failed"`(일시 오류)로 돌려주고, 대부분의 호출부는 무시하고 `notification_log_service.log_sent`를 남긴다. 수신자를 좁힐 땐 `to=`(배우자 일정 알림이 행위자 제외). 제목·본문 문자열은 `email_templates`에서 만든다(텍스트 본문은 인앱 `detail`로도 쓰인다). 사용자가 직접 누른 발송(테스트 메일, 초대장)은 반대로 예외를 라우터까지 올린다.
+- 알림 메일은 `gmail_service.send_email`을 직접 부르지 않고 `notification_service.send_email_best_effort`를 거친다 — 가드 + `GoogleAuthError`/`GmailSendError`를 경고 로그로 흡수해 메일 실패가 인앱 알림이나 예약 잡을 막지 않게 한다. 결과는 `"sent"`/`"skipped"`(미연결·토큰 만료 — 재시도 무의미)/`"failed"`(일시 오류)로 돌려주고, 대부분의 호출부는 무시하고 `notification_log_service.log_sent`를 남긴다. 수신자를 좁힐 땐 `to=`(배우자 일정 알림이 행위자 제외). 제목·본문 문자열은 `email_templates`에서 만든다(텍스트 본문은 인앱 `detail`로도 쓰인다). 사용자가 직접 누른 발송(테스트 메일, 초대장)은 반대로 `gmail_service.send_email`을 직접 불러 예외를 라우터까지 올린다. 테스트 메일은 정규 발송 기록(`log_sent`)을 남기지 않는다(남기면 그 주기 예약 발송이 dedup에 막힌다). 메일 본문 HTML에 넣는 사용자 입력은 `email_templates._esc`로 이스케이프한다.
 - 순환 의존·부팅 비용을 피하려고 함수 내부 지연 import를 쓰는 곳이 있다.
 
 ## 알림 dedup
 
 - 같은 알림의 중복 발송은 `NotificationLog`(`notif_type` + 기간 키) 기록으로 막는다. 헬퍼(`already_sent`/`log_sent`, 목표 마일스톤용 `highest_crossed_milestone`/`milestone_already_logged`/`log_milestone`)는 다른 서비스를 import하지 않는 말단 모듈 `notification_log_service.py`에 있다(`notification_service`를 import하면 순환이 되는 모듈도 쓸 수 있게). 새 알림 종류도 이 패턴을 따른다.
-- dedup이 없는 "사건" 알림(`goal_cheer`, `partner_saving`, `todo`, `event_change`)은 `year_month`에 초 단위 ISO 시각을 넣고(String(20)), 행동한 본인에게는 `NotificationRead`로 바로 읽음 처리한다. `partner_saving`은 사용자가 직접 입력한 저축 거래(`POST /transactions`)에서만 남긴다 — 반복거래 자동 생성·CSV 가져오기는 알림함을 덮으므로 제외.
+- dedup이 없는 "사건" 알림(`goal_cheer`, `partner_saving`, `todo`, `event_change`)은 `notification_log_service.log_event`로 남긴다 — `year_month`에 초 단위 ISO 시각(String(20)), 행동한 본인은 `NotificationRead`로 바로 읽음, 실패하면 롤백 후 raise(호출자가 best-effort로 흡수). `partner_saving`은 사용자가 직접 입력한 저축 거래(`POST /transactions`)에서만 남긴다 — 반복거래 자동 생성·CSV 가져오기는 알림함을 덮으므로 제외.
 
 ## 모듈 분할 지도
 
