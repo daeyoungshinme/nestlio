@@ -30,7 +30,7 @@ def test_daily_due_date_check_posts_due_recurring_without_google(seeded_db, monk
     )
     monkeypatch.setattr(jobs, "today_kst", lambda: date(2026, 7, 5))
 
-    jobs.daily_due_date_check()  # Google 미연결 → 캘린더 동기화만 건너뛰고 성공해야 한다
+    jobs.daily_due_date_check()  # Google 미연결이어도 반복거래 자동 기록은 성공해야 한다
 
     db.expire_all()
     posted = db.query(Transaction).filter(Transaction.recurring_expense_id.isnot(None)).all()

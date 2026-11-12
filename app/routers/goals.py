@@ -1,4 +1,3 @@
-import logging
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
@@ -28,7 +27,6 @@ from app.services import (
 from app.utils.dates import now_kst, today_kst
 
 router = APIRouter(prefix="/financial-goals", tags=["financial-goals"])
-logger = logging.getLogger(__name__)
 
 
 @router.get("/growlio-goal", response_model=GrowlioGoalSettingsOut)

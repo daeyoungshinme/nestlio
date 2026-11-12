@@ -315,7 +315,6 @@ def check_savings_pace_reminder(db: Session, today: date | None = None) -> bool:
     subject, body = email_templates.savings_pace_reminder_message(planned, remaining, streak)
     send_email_best_effort(db, subject, body)
     notification_log_service.log_sent(db, "savings_pace_reminder", year_month, detail=body)
-    db.commit()
     return True
 
 

@@ -13,8 +13,8 @@ from app.schemas.event import (
     EventOut,
     EventUpdateIn,
 )
-from app.services import event_reminder_service, event_service, recurring_service
-from app.utils.dates import month_bounds, today_kst
+from app.services import event_reminder_service, event_service
+from app.utils.dates import today_kst
 
 router = APIRouter(prefix="/events", tags=["events"])
 
@@ -26,13 +26,7 @@ def list_events(
     db: Session = Depends(get_db),
     _: User = Depends(get_current_user),
 ):
-    default_from, default_to = month_bounds(today_kst())
-    df = date_from or default_from
-    dt = date_to or default_to
-    return {
-        "items": event_service.list_events(db, df, dt),
-        "recurring_due": recurring_service.due_in_range(db, df, dt),
-    }
+    return event_service.list_view(db, date_from, date_to, today_kst())
 
 
 @router.post("", response_model=EventOut, status_code=status.HTTP_201_CREATED)

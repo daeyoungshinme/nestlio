@@ -14,27 +14,10 @@ from app.schemas.cashflow_plan import (
     CashflowPlanSplitResultOut,
 )
 from app.schemas.common import YearMonth
-from app.services import budget_service, cashflow_plan_service, coaching_settings_service
-from app.utils.dates import parse_year_month, shift_month, today_kst, year_month_str
+from app.services import cashflow_plan_service
+from app.utils.dates import today_kst
 
 router = APIRouter(prefix="/cashflow-plan", tags=["cashflow-plan"])
-
-
-def _plan_list(db: Session, year_month: str | None) -> dict:
-    ym = year_month or year_month_str(today_kst())
-    month_start = parse_year_month(ym)
-    items = cashflow_plan_service.list_items(db, ym)
-    actuals = cashflow_plan_service.actuals_for_month(db, ym)
-    suggested = cashflow_plan_service.suggested_totals(db, ym)
-    warn_pct, critical_pct = coaching_settings_service.budget_thresholds(db)
-    return {
-        "year_month": ym,
-        "prev_month": year_month_str(shift_month(month_start, -1)),
-        "next_month": year_month_str(shift_month(month_start, 1)),
-        "items": items,
-        "summary": cashflow_plan_service.compute_summary(items, actuals, suggested, warn_pct, critical_pct),
-        "category_budgets": budget_service.budget_vs_actual(db, ym, warn_pct, critical_pct),
-    }
 
 
 @router.get("", response_model=CashflowPlanListOut)
@@ -43,7 +26,7 @@ def list_plan(
     db: Session = Depends(get_db),
     _: User = Depends(get_current_user),
 ):
-    return _plan_list(db, year_month)
+    return cashflow_plan_service.plan_view(db, year_month, today_kst())
 
 
 @router.put("/items", response_model=CashflowPlanListOut)
@@ -66,7 +49,7 @@ def upsert_plan_item(
     )
     if item is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="계획 항목을 찾을 수 없습니다.")
-    return _plan_list(db, payload.year_month)
+    return cashflow_plan_service.plan_view(db, payload.year_month, today_kst())
 
 
 @router.post("/items/split", response_model=CashflowPlanSplitResultOut)
@@ -99,7 +82,7 @@ def link_recurring(
     item = cashflow_plan_service.link_recurring(db, item_id, payload.recurring_expense_id)
     if item is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="계획 항목을 찾을 수 없습니다.")
-    return _plan_list(db, payload.year_month)
+    return cashflow_plan_service.plan_view(db, payload.year_month, today_kst())
 
 
 @router.delete("/items/{item_id}", status_code=status.HTTP_204_NO_CONTENT)

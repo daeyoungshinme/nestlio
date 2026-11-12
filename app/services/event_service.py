@@ -7,8 +7,8 @@ from sqlalchemy.orm import Session, selectinload
 from app.errors import InvalidInputError
 from app.models.event import Event
 from app.models.event_occurrence_completion import EventOccurrenceCompletion
-from app.services import user_service
-from app.utils.dates import advance_due_date, now_kst
+from app.services import recurring_service, user_service
+from app.utils.dates import advance_due_date, month_bounds, now_kst
 
 _MAX_OCCURRENCE_STEPS = 2000
 
@@ -196,3 +196,15 @@ def _set_occurrence_completed(db: Session, event: Event, occurrence_date: date, 
     except IntegrityError:
         # 두 사람이 같은 회차를 동시에 체크 — 이미 완료됐으니 먼저 저장된 기록을 그대로 쓴다.
         db.rollback()
+
+
+def list_view(db: Session, date_from: date | None, date_to: date | None, today: date) -> dict:
+    """일정 화면 응답(`EventListOut`) — 기간 안의 일정(반복 전개 포함)과 그 기간에 예정된 반복 거래. 기간을 비우면
+    이번 달."""
+    default_from, default_to = month_bounds(today)
+    df = date_from or default_from
+    dt = date_to or default_to
+    return {
+        "items": list_events(db, df, dt),
+        "recurring_due": recurring_service.due_in_range(db, df, dt),
+    }

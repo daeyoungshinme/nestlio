@@ -104,17 +104,25 @@ def get_bearer_token(authorization: str | None = Header(default=None)) -> str:
     return token
 
 
+def _user_id_from_payload(payload: dict) -> uuid.UUID:
+    """검증된 JWT의 `sub`(Supabase 사용자 id). 누락·비UUID는 서명이 맞아도 이 앱이 쓸 수 없는 토큰이라 401이다
+    (500이 아니라)."""
+    try:
+        return uuid.UUID(payload.get("sub") or "")
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token payload") from exc
+
+
+def get_token_user_id(payload: dict = Depends(get_token_payload)) -> uuid.UUID:
+    """로컬 User 미러링 없이 JWT의 사용자 id만 필요한 엔드포인트(초대 수락)용 의존성."""
+    return _user_id_from_payload(payload)
+
+
 def get_current_user(
     payload: dict = Depends(get_token_payload),
     db: Session = Depends(get_db),
 ) -> User:
-    sub = payload.get("sub")
-    if not sub:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token payload")
-    try:
-        user_id = uuid.UUID(sub)
-    except ValueError as exc:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token payload") from exc
+    user_id = _user_id_from_payload(payload)
     user = db.get(User, user_id)
     if user is not None and user.removed_at is not None:
         # 배우자에게서 제거된 계정 - Supabase 세션 자체는 여전히 유효하므로 401이 아니라

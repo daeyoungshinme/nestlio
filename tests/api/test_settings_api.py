@@ -237,6 +237,18 @@ def test_versioned_couple_photo_is_cacheable(client):
     assert "immutable" not in bare.headers.get("cache-control", "")
 
 
+def test_couple_photo_storage_outage_is_502_and_missing_is_404(client):
+    """라우터가 PhotoStorageError를 직접 잡지 않고 전역 핸들러(UpstreamError → 502)에 맡긴다."""
+    from app.services import couple_photo_service
+
+    with patch.object(
+        couple_photo_service, "get_photo_bytes", side_effect=couple_photo_service.PhotoStorageError("스토리지 오류")
+    ):
+        assert client.get("/media/couple-photo").status_code == 502
+    with patch.object(couple_photo_service, "get_photo_bytes", return_value=None):
+        assert client.get("/media/couple-photo").status_code == 404
+
+
 @patch("app.services.settings_service.is_connected", return_value=False)
 def test_insurance_targets_default_and_update(mock_is_connected, client):
     from decimal import Decimal
