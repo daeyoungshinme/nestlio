@@ -14,6 +14,8 @@ interface Props {
   deactivateMessage: string;
   deactivateOpen: boolean;
   onConfirmDeactivate: () => void;
+  /** 비활성화 요청 진행 중 — 확인 버튼을 잠근다. */
+  deactivating?: boolean;
   onCancelDeactivate: () => void;
   /** 목록(합계 바·그룹·행) — 비어 있지 않을 때만 렌더된다. */
   children: ReactNode;
@@ -33,6 +35,7 @@ export default function AssetSectionShell({
   deactivateMessage,
   deactivateOpen,
   onConfirmDeactivate,
+  deactivating = false,
   onCancelDeactivate,
   children,
   overlays,
@@ -54,7 +57,12 @@ export default function AssetSectionShell({
       {overlays}
 
       {deactivateOpen && (
-        <ConfirmModal message={deactivateMessage} onConfirm={onConfirmDeactivate} onCancel={onCancelDeactivate} />
+        <ConfirmModal
+          message={deactivateMessage}
+          loading={deactivating}
+          onConfirm={onConfirmDeactivate}
+          onCancel={onCancelDeactivate}
+        />
       )}
     </div>
   );

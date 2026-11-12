@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { DEFAULT_GC_TIME, PERSIST_MAX_AGE } from "@/constants/queryConfig";
-import { CATEGORY_RELATED_KEYS, QUERY_KEYS, USER_RELATED_KEYS } from "@/constants/queryKeys";
+import { ASSET_RELATED_KEYS, CATEGORY_RELATED_KEYS, QUERY_KEYS, USER_RELATED_KEYS } from "@/constants/queryKeys";
 
 // 응답에 카테고리/사용자 정보를 박아 두는 캐시가 무효화 묶음에서 빠지면, 이름·색을 바꿔도 해당 화면이
 // 옛 값을 계속 보여준다(고정지출 시트·추이 차트·월간 회고가 그랬다). 알려진 소비처를 고정해 둔다.
@@ -30,6 +30,11 @@ describe("query key groups", () => {
         QUERY_KEYS.dashboardBootstrap,
       ]),
     );
+  });
+
+  // 거래 행이 계좌·카드 이름을 싣는다 — 계좌·카드를 바꿔도 가계부 목록이 옛 이름을 보여주던 문제.
+  it("asset changes refresh the transaction list", () => {
+    expect(ASSET_RELATED_KEYS).toEqual(expect.arrayContaining([QUERY_KEYS.transactionsAll, QUERY_KEYS.cards]));
   });
 
   // 지난달 회고 인사이트는 계획·목표·자산·코칭 임계값을 모두 읽는다 — 그 변경들이 무효화하는 dashboardAll

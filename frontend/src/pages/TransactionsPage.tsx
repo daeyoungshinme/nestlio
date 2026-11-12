@@ -246,13 +246,23 @@ export default function TransactionsPage() {
         <Tabs tabs={LEDGER_VIEWS} activeTab={view} onChange={changeView} variant="pill" fullWidth />
 
         {view === "일정" ? (
-          <LedgerScheduleList
-            events={month.eventsQuery.data?.items ?? []}
-            users={users}
-            onEdit={eventActions.openEdit}
-            onDelete={eventActions.openDelete}
-            onToggleComplete={eventActions.toggleComplete}
-          />
+          // 목록은 쿼리별로 경계를 둔다 — 실패를 "일정 없음"으로 보이지 않게(캘린더는 둘 다 있어야 그린다).
+          <QueryBoundary
+            query={month.eventsQuery}
+            compact
+            errorMessage="일정을 불러오지 못했습니다."
+            loadingFallback={<SkeletonCard rows={3} />}
+          >
+            {(events) => (
+              <LedgerScheduleList
+                events={events.items}
+                users={users}
+                onEdit={eventActions.openEdit}
+                onDelete={eventActions.openDelete}
+                onToggleComplete={eventActions.toggleComplete}
+              />
+            )}
+          </QueryBoundary>
         ) : (
           <>
             <LedgerListControls
@@ -270,28 +280,37 @@ export default function TransactionsPage() {
               onChangeUserFilter={filters.onChangeUserFilter}
             />
 
-            <LedgerResults
-              dateFrom={month.dateFrom}
-              dateTo={month.dateTo}
-              topFilter={filters.topFilter}
-              expenseTypeFilter={filters.expenseTypeFilter}
-              userFilter={filters.userFilter}
-              showExpenseGroups={filters.showExpenseGroups}
-              filteredTransactions={filters.filteredTransactions}
-              transactionsByCategory={filters.transactionsByCategory}
-              totalExpense={month.totals?.expense ?? "0"}
-              users={users}
-              showUser={showUser}
-              onEdit={setFormTarget}
-              onResetFilters={
-                filters.isFiltered || searchInput
-                  ? () => {
-                      filters.resetFilters();
-                      setSearchInput("");
-                    }
-                  : undefined
-              }
-            />
+            <QueryBoundary
+              query={month.transactionsQuery}
+              compact
+              errorMessage="내역을 불러오지 못했습니다."
+              loadingFallback={<SkeletonCard rows={4} />}
+            >
+              {() => (
+                <LedgerResults
+                  dateFrom={month.dateFrom}
+                  dateTo={month.dateTo}
+                  topFilter={filters.topFilter}
+                  expenseTypeFilter={filters.expenseTypeFilter}
+                  userFilter={filters.userFilter}
+                  showExpenseGroups={filters.showExpenseGroups}
+                  filteredTransactions={filters.filteredTransactions}
+                  transactionsByCategory={filters.transactionsByCategory}
+                  totalExpense={month.totals?.expense ?? "0"}
+                  users={users}
+                  showUser={showUser}
+                  onEdit={setFormTarget}
+                  onResetFilters={
+                    filters.isFiltered || searchInput
+                      ? () => {
+                          filters.resetFilters();
+                          setSearchInput("");
+                        }
+                      : undefined
+                  }
+                />
+              )}
+            </QueryBoundary>
           </>
         )}
 
@@ -329,6 +348,7 @@ export default function TransactionsPage() {
         {deleteTarget && (
           <ConfirmModal
             message="이 내역을 삭제할까요? 되돌릴 수 없습니다."
+            loading={deleteMutation.isPending}
             onConfirm={() => deleteMutation.mutate(deleteTarget.id)}
             onCancel={() => setDeleteTarget(null)}
           />

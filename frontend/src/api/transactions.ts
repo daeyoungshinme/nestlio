@@ -47,4 +47,20 @@ export const importTransactionsCsv = (file: File, fallbackCategoryId?: number) =
 export const fetchTransactionsCsv = (filters: TransactionFilters) =>
   api
     .get<Blob>("/transactions/export.csv", { params: filters, responseType: "blob" })
-    .then((r) => r.data);
+    .then((r) => r.data)
+    .catch(async (err: unknown) => {
+      throw await withJsonErrorBody(err);
+    });
+
+/** `responseType: "blob"` 요청은 에러 응답 본문도 Blob으로 온다 — `extractErrorMessage`가 `detail`을 읽을 수 있게
+ * JSON으로 풀어 둔다. 풀 수 없으면 원래 에러를 그대로 돌려준다. */
+export async function withJsonErrorBody(err: unknown): Promise<unknown> {
+  const response = (err as { response?: { data?: unknown } })?.response;
+  if (!(response?.data instanceof Blob)) return err;
+  try {
+    response.data = JSON.parse(await response.data.text());
+  } catch {
+    // JSON이 아닌 본문(프록시 HTML 등)은 그대로 둔다 — extractErrorMessage가 상태 코드별 문구로 대체한다.
+  }
+  return err;
+}

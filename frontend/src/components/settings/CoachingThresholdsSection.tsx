@@ -6,6 +6,7 @@ import FormInput from "@/components/common/FormInput";
 import { SettingsLinkRow, SettingsSectionCard } from "@/components/settings/shared";
 import { setCoachingThresholds } from "@/api/settings";
 import { QUERY_KEYS } from "@/constants/queryKeys";
+import { invalidateKeys } from "@/utils/queryClient";
 import { ROUTES } from "@/constants/routes";
 import { COACHING_THRESHOLD_PRESETS } from "@/constants/coachingPresets";
 import { toast } from "@/utils/toast";
@@ -30,6 +31,18 @@ const THRESHOLD_FIELDS: { key: keyof CoachingThresholdsOut; label: string }[] = 
   { key: "benchmark_insurance_warn_pct", label: "보험 가이드라인" },
 ];
 
+/** 임계값으로 상태(ok/warn/critical)를 계산하는 응답 — 대시보드·연간 리포트 벤치마크(routers/reports.py)와
+ * 계획 화면의 예산 대비 실적(category_budgets)·저축·투자 상품 계획 대비 실적까지. */
+const COACHING_THRESHOLD_KEYS = [
+  QUERY_KEYS.settings,
+  QUERY_KEYS.dashboardAll,
+  QUERY_KEYS.dashboardBootstrap,
+  QUERY_KEYS.yearlyReportAll,
+  QUERY_KEYS.cashflowPlanAll,
+  QUERY_KEYS.annualPlanAll,
+  QUERY_KEYS.savingsProducts,
+];
+
 export default function CoachingThresholdsSection({ thresholds }: { thresholds: CoachingThresholdsOut }) {
   const queryClient = useQueryClient();
   const [thresholdEdits, setThresholdEdits] = useState<Partial<CoachingThresholdsOut>>({});
@@ -39,11 +52,7 @@ export default function CoachingThresholdsSection({ thresholds }: { thresholds: 
   const thresholdsMutation = useMutation({
     mutationFn: setCoachingThresholds,
     onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.settings });
-      void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.dashboardAll });
-      void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.dashboardBootstrap });
-      // 연간 리포트의 벤치마크 비교도 이 임계값으로 계산된다(routers/reports.py).
-      void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.yearlyReportAll });
+      invalidateKeys(queryClient, COACHING_THRESHOLD_KEYS);
       setThresholdEdits({});
       setActivePresetKey(null);
       toast("코칭 임계값을 저장했습니다.", "success");

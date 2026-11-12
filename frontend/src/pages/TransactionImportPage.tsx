@@ -126,7 +126,11 @@ export default function TransactionImportPage() {
     setError("");
     invalidateTransactionRelated();
   };
-  const onImportError = (err: unknown) => setError(extractErrorMessage(err));
+  // 이전 업로드 결과를 지운다 — 남아 있으면 실패한 파일의 결과처럼 보이고, "되돌리기"가 이전 거래를 지운다.
+  const onImportError = (err: unknown) => {
+    setResult(null);
+    setError(extractErrorMessage(err));
+  };
 
   const undoMutation = useMutation({
     mutationFn: (ids: number[]) => bulkDeleteTransactions(ids),
@@ -268,6 +272,7 @@ export default function TransactionImportPage() {
         <ConfirmModal
           message={`방금 가져온 ${result.created_ids.length}건을 모두 삭제할까요? 되돌릴 수 없습니다.`}
           confirmLabel="되돌리기"
+          loading={undoMutation.isPending}
           onConfirm={() => undoMutation.mutate(result.created_ids)}
           onCancel={() => setShowUndoConfirm(false)}
         />

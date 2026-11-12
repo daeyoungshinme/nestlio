@@ -253,6 +253,7 @@ export default function AnnualPlanPanel() {
       {deleteTarget !== null && (
         <ConfirmModal
           message="이 항목을 삭제할까요?"
+          loading={deleteMutation.isPending}
           onConfirm={() => deleteMutation.mutate(deleteTarget)}
           onCancel={() => setDeleteTarget(null)}
         />

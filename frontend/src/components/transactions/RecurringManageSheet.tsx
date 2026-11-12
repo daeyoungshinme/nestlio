@@ -195,6 +195,7 @@ export default function RecurringManageSheet({ categories, onClose }: Props) {
         <ConfirmModal
           message={`"${deactivateTarget.name}" 반복 내역을 비활성화할까요? 더 이상 새 내역이 자동 생성되지 않습니다.`}
           confirmLabel="비활성화"
+          loading={deactivateMutation.isPending}
           onConfirm={() => deactivateMutation.mutate(deactivateTarget.id)}
           onCancel={() => setDeactivateTarget(null)}
         />

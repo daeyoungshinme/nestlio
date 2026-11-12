@@ -1,6 +1,8 @@
 import { Link } from "react-router-dom";
 import { ChevronRight, Crown, Flame, Heart, Landmark, Target } from "lucide-react";
 import EmptyState from "@/components/common/EmptyState";
+import ErrorState from "@/components/common/ErrorState";
+import SkeletonCard from "@/components/common/SkeletonCard";
 import GoalProgressCard, { type GoalProgressCardBadge } from "@/components/financialPlan/GoalProgressCard";
 import SavingsTrendSparkline from "@/components/dashboard/SavingsTrendSparkline";
 import { ROUTES, goalDetailLink } from "@/constants/routes";
@@ -18,6 +20,9 @@ import type { FinancialGoalOut, NotificationReactionOut } from "@/types";
 
 interface Props {
   goal: FinancialGoalOut | null;
+  /** 목표 목록(bootstrap) 상태 — 불러오는 중·실패를 "아직 목표가 없어요"로 보이지 않게 따로 그린다. */
+  goalsStatus: "loading" | "error" | "ready";
+  onRetryGoals: () => void;
   streakMonths: number;
   /** 이번 달 목표 페이스 코칭 문구(goal_pace) — 목표 맥락 안에서 보여주는 게 가장 자연스러워 여기로 모았다. */
   paceMessage: string | null;
@@ -35,6 +40,8 @@ interface Props {
  * 가장 크게 보여준다. */
 export default function HomeGoalHero({
   goal,
+  goalsStatus,
+  onRetryGoals,
   streakMonths,
   paceMessage,
   netWorth,
@@ -70,6 +77,19 @@ export default function HomeGoalHero({
       )}
     </div>
   );
+
+  if (goalsStatus !== "ready") {
+    return (
+      <div className="card">
+        {header}
+        {goalsStatus === "loading" ? (
+          <SkeletonCard rows={3} bare />
+        ) : (
+          <ErrorState message="목표를 불러오지 못했어요." compact onRetry={onRetryGoals} />
+        )}
+      </div>
+    );
+  }
 
   if (!goal) {
     return (

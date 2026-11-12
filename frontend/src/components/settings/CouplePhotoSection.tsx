@@ -70,6 +70,7 @@ export default function CouplePhotoSection({ photoUrl }: { photoUrl: string | nu
         <ConfirmModal
           message="부부 사진을 삭제할까요?"
           confirmLabel="삭제"
+          loading={deletePhotoMutation.isPending}
           onConfirm={() => deletePhotoMutation.mutate()}
           onCancel={() => setConfirmDelete(false)}
         />

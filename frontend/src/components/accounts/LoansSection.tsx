@@ -154,6 +154,7 @@ export default function LoansSection({ users }: Props) {
             {deactivateTarget !== null && (
               <ConfirmModal
                 message="이 대출을 비활성화할까요?"
+                loading={deactivateMutation.isPending}
                 onConfirm={() => deactivateMutation.mutate(deactivateTarget)}
                 onCancel={() => setDeactivateTarget(null)}
               />

@@ -134,6 +134,8 @@ export default function DashboardPage() {
 
       <HomeGoalHero
         goal={topGoal}
+        goalsStatus={goals !== undefined ? "ready" : bootstrap.isError ? "error" : "loading"}
+        onRetryGoals={() => void bootstrap.refetch()}
         streakMonths={data.savings_streak_months}
         paceMessage={paceMessage}
         netWorth={netWorth ? Number(netWorth.current.net_worth) : null}

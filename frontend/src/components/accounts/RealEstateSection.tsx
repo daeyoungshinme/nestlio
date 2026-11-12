@@ -103,6 +103,7 @@ export default function RealEstateSection({ users }: Props) {
             deactivateMessage="이 부동산을 비활성화할까요?"
             deactivateOpen={section.deactivateTarget !== null}
             onConfirmDeactivate={section.confirmDeactivate}
+            deactivating={section.deactivating}
             onCancelDeactivate={section.cancelDeactivate}
             overlays={
               <>

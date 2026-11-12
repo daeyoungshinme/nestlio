@@ -71,6 +71,7 @@ export function useTodoActions({ users }: { users: UserOut[] | undefined }): {
       {deleteTarget && (
         <ConfirmModal
           message={`"${deleteTarget.title}" 할일을 삭제할까요?`}
+          loading={deleteMutation.isPending}
           onConfirm={() => deleteMutation.mutate(deleteTarget.id)}
           onCancel={() => setDeleteTarget(null)}
         />

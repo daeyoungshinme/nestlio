@@ -166,6 +166,7 @@ export default function InsuranceReviewSection({ data }: { data: InsuranceReview
         <ConfirmModal
           message="해지했거나 만기된 보험인가요? 목록과 점검에서 빠져요."
           confirmLabel="해지·만기 처리"
+          loading={removeMutation.isPending}
           onConfirm={() => removeMutation.mutate(deactivateTarget)}
           onCancel={() => setDeactivateTarget(null)}
         />

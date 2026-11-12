@@ -364,6 +364,7 @@ export default function CashflowPlanTab({ view }: { view: "monthly" | "annual" }
       {deleteTarget !== null && (
         <ConfirmModal
           message="이번 달 금액을 삭제할까요? 다른 달에 입력된 금액은 그대로 남아요."
+          loading={deleteMutation.isPending}
           onConfirm={() => deleteMutation.mutate({ id: deleteTarget, yearMonth })}
           onCancel={() => setDeleteTarget(null)}
         />

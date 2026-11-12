@@ -303,6 +303,7 @@ export default function CategoriesSection() {
       {deactivateTarget && (
         <ConfirmModal
           message={`"${deactivateTarget.name}" 카테고리를 비활성화할까요?`}
+          loading={deactivateMutation.isPending}
           onConfirm={() => deactivateMutation.mutate(deactivateTarget.id)}
           onCancel={() => setDeactivateTarget(null)}
         />
