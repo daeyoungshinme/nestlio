@@ -1,6 +1,7 @@
 import { useState } from "react";
 import type { ReactNode } from "react";
 import { ChevronDown } from "lucide-react";
+import { TOUCH_TARGET_MIN_HEIGHT } from "@/constants/uiSizes";
 
 interface Props {
   header: ReactNode;
@@ -20,7 +21,7 @@ export default function CollapsibleGroup({ header, amount, defaultOpen = true, c
         type="button"
         onClick={() => setOpen((prev) => !prev)}
         aria-expanded={open}
-        className="w-full flex items-center justify-between gap-2 px-1 min-h-[44px]"
+        className={`w-full flex items-center justify-between gap-2 px-1 ${TOUCH_TARGET_MIN_HEIGHT}`}
       >
         <div className="flex items-center gap-2 min-w-0">{header}</div>
         <div className="flex items-center gap-1.5 shrink-0">

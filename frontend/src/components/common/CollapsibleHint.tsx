@@ -1,5 +1,6 @@
 import { useState } from "react";
 import type { ReactNode } from "react";
+import { TOUCH_TARGET_MIN_HEIGHT } from "@/constants/uiSizes";
 
 interface Props {
   /** 항상 보이는 한 줄 요약. */
@@ -20,7 +21,7 @@ export default function CollapsibleHint({ summary, children, className }: Props)
           type="button"
           onClick={() => setOpen((v) => !v)}
           aria-expanded={open}
-          className="sm:hidden font-semibold underline underline-offset-2 min-h-[44px] -my-3 px-1"
+          className={`sm:hidden font-semibold underline underline-offset-2 ${TOUCH_TARGET_MIN_HEIGHT} -my-3 px-1`}
         >
           {open ? "접기" : "자세히"}
         </button>

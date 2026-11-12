@@ -9,6 +9,7 @@ import { extractErrorMessage } from "@/utils/error";
 import { formatKrw } from "@/utils/format";
 import { toast } from "@/utils/toast";
 import { formErrorTextClass } from "@/utils/colors";
+import { TOUCH_TARGET_MIN_HEIGHT } from "@/constants/uiSizes";
 
 interface Props<T> {
   productId: number;
@@ -106,7 +107,7 @@ export default function GrowlioLinkSection<T>({
         </Button>
       )}
       {growlioAccountId && (
-        <label className="mt-2 flex items-center justify-between gap-3 min-h-[44px] text-sm text-gray-700 dark:text-gray-300">
+        <label className={`mt-2 flex items-center justify-between gap-3 ${TOUCH_TARGET_MIN_HEIGHT} text-sm text-gray-700 dark:text-gray-300`}>
           <span>
             자동 동기화
             <span className="block text-xs text-gray-400 dark:text-gray-500">

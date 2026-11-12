@@ -7,6 +7,7 @@ import { planViewLink } from "@/constants/routes";
 import { formatKrwCompact, formatPercent, pctOf } from "@/utils/format";
 import { planStatusBarClass, planStatusTextClass, worseStatus, type PlanStatus } from "@/utils/colors";
 import type { CashflowPlanListOut, SavingsProductPlanListOut } from "@/types";
+import { TOUCH_TARGET_MIN_HEIGHT } from "@/constants/uiSizes";
 
 interface Row {
   label: string;
@@ -53,7 +54,7 @@ export default function MonthFlowCard({ plan, savingsPlan, footer }: Props) {
     <div className="card space-y-3">
       <Link
         to={planViewLink("이번 달")}
-        className="flex items-center justify-between min-h-[44px] -my-2 hover:text-primary-600 dark:hover:text-primary-400"
+        className={`flex items-center justify-between ${TOUCH_TARGET_MIN_HEIGHT} -my-2 hover:text-primary-600 dark:hover:text-primary-400`}
       >
         <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300">이번 달 흐름</h3>
         <span className="flex items-center gap-0.5 text-xs text-gray-500 dark:text-gray-400">

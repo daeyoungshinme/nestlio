@@ -340,7 +340,8 @@ const DANGER_CLASS = {
   outline:
     "border border-red-300 dark:border-red-700 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950",
   solid: "bg-red-600 text-white hover:bg-red-700",
-  hover: "hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-950",
+  hover:
+    "hover:text-red-600 dark:hover:text-red-400 hover:bg-red-50 dark:hover:bg-red-950 hover:border-red-300 dark:hover:border-red-700",
   menu: "text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950",
   icon: "text-red-500",
 } as const;

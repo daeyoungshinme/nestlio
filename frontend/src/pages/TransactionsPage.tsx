@@ -32,6 +32,7 @@ import { currentDateIso, currentYearMonth, shiftYearMonth } from "@/utils/date";
 import { formatKrwCompact } from "@/utils/format";
 import { toast } from "@/utils/toast";
 import type { EventOut, TransactionOut } from "@/types";
+import { TOUCH_TARGET_MIN_HEIGHT } from "@/constants/uiSizes";
 
 const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -212,7 +213,7 @@ export default function TransactionsPage() {
             <button
               type="button"
               onClick={() => setShowRecurringSheet(true)}
-              className="flex items-center gap-1.5 px-3 min-h-[44px] text-sm font-medium text-gray-600 dark:text-gray-300 border border-gray-200 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+              className={`flex items-center gap-1.5 px-3 ${TOUCH_TARGET_MIN_HEIGHT} text-sm font-medium text-gray-600 dark:text-gray-300 border border-gray-200 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors`}
             >
               <Repeat size={16} aria-hidden="true" />
               {/* 월급·고정비 자동 기록의 유일한 진입점이라 모바일에서도 글자로 보인다(아이콘만으로는 찾기 어려움). */}

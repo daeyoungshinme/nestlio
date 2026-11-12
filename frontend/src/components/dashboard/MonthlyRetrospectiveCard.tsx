@@ -6,6 +6,7 @@ import { fetchMonthlyRetrospective } from "@/api/dashboard";
 import { QUERY_KEYS } from "@/constants/queryKeys";
 import { coupleContribution } from "@/utils/contribution";
 import { formatKrw, formatYearMonth } from "@/utils/format";
+import { TOUCH_TARGET_MIN_HEIGHT } from "@/constants/uiSizes";
 
 function MonthlyRetrospectiveCard() {
   const [open, setOpen] = useState(false);
@@ -30,7 +31,7 @@ function MonthlyRetrospectiveCard() {
         type="button"
         onClick={() => setOpen((v) => !v)}
         aria-expanded={open}
-        className="w-full flex items-center justify-between gap-2 min-h-[44px]"
+        className={`w-full flex items-center justify-between gap-2 ${TOUCH_TARGET_MIN_HEIGHT}`}
       >
         <div className="text-left">
           <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300">

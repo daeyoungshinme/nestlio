@@ -48,7 +48,7 @@ export default function SettingsPage() {
       <div className="border-t border-gray-200 dark:border-gray-700 pt-4">
         <Button
           variant="secondary"
-          className={`w-full sm:w-auto text-gray-500 hover:border-red-300 dark:hover:border-red-700 ${dangerActionClass("hover")}`}
+          className={`w-full sm:w-auto text-gray-500 ${dangerActionClass("hover")}`}
           onClick={() => void logout()}
         >
           로그아웃

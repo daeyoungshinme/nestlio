@@ -6,6 +6,7 @@ import { SettingsSectionCard, ToggleRow } from "@/components/settings/shared";
 import { updateMe, updateUser } from "@/api/users";
 import { useMe, useSpouse } from "@/hooks/useReferenceData";
 import { USER_RELATED_KEYS } from "@/constants/queryKeys";
+import { invalidateKeys } from "@/utils/queryClient";
 import { useThemeStore } from "@/stores/themeStore";
 import { toast } from "@/utils/toast";
 
@@ -20,7 +21,7 @@ export default function AccountSection() {
 
   // 표시 이름은 거래·일정·알림·대시보드·회고 응답에도 박혀 있다(USER_RELATED_KEYS).
   const invalidateUserRelated = () =>
-    USER_RELATED_KEYS.forEach((key) => void queryClient.invalidateQueries({ queryKey: key }));
+    invalidateKeys(queryClient, USER_RELATED_KEYS);
 
   const updateDisplayNameMutation = useMutation({
     mutationFn: updateMe,

@@ -8,6 +8,7 @@ import QueryBoundary from "@/components/common/QueryBoundary";
 import { setInsuranceTargets } from "@/api/settings";
 import { COVERAGE_LABEL, TARGETED_COVERAGES } from "@/constants/insurance";
 import { QUERY_KEYS } from "@/constants/queryKeys";
+import { invalidateKeys } from "@/utils/queryClient";
 import { useSettings } from "@/hooks/useReferenceData";
 import { toAmountInputValue } from "@/utils/format";
 import { toast } from "@/utils/toast";
@@ -49,9 +50,7 @@ function TargetsForm({
   const mutation = useMutation({
     mutationFn: setInsuranceTargets,
     onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.settings });
-      void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.dashboardBootstrap });
-      void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.savingsReviewAll });
+      invalidateKeys(queryClient, [QUERY_KEYS.settings, QUERY_KEYS.dashboardBootstrap, QUERY_KEYS.savingsReviewAll]);
       toast("기준을 저장했어요.", "success");
       onDone();
     },
