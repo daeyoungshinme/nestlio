@@ -131,6 +131,7 @@ export default function SavingsProductsSection({ users }: Props) {
             deactivateMessage="이 저축/투자 상품을 비활성화할까요?"
             deactivateOpen={section.deactivateTarget !== null}
             onConfirmDeactivate={section.confirmDeactivate}
+            deactivating={section.deactivating}
             onCancelDeactivate={section.cancelDeactivate}
             overlays={
               <>

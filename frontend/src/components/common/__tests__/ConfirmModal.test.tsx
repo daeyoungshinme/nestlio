@@ -28,4 +28,14 @@ describe("ConfirmModal", () => {
     expect(onCancel).toHaveBeenCalledOnce();
     expect(onModalClose).not.toHaveBeenCalled();
   });
+
+  it("locks the confirm button while the request is in flight", () => {
+    const onConfirm = vi.fn();
+    render(<ConfirmModal message="삭제할까요?" loading onConfirm={onConfirm} onCancel={vi.fn()} />);
+
+    const confirm = screen.getByRole("button", { name: "확인" });
+    expect(confirm).toBeDisabled();
+    fireEvent.click(confirm);
+    expect(onConfirm).not.toHaveBeenCalled();
+  });
 });

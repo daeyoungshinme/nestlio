@@ -3,6 +3,8 @@ import { useQuery } from "@tanstack/react-query";
 import { CalendarDays, Plus } from "lucide-react";
 import Button from "@/components/common/Button";
 import EmptyState from "@/components/common/EmptyState";
+import QueryBoundary from "@/components/common/QueryBoundary";
+import SkeletonCard from "@/components/common/SkeletonCard";
 import StatusBadge from "@/components/common/StatusBadge";
 import { fetchEvents } from "@/api/events";
 import { useEventActions } from "@/hooks/useEventActions";
@@ -28,10 +30,11 @@ const TODAY_EVENTS_LIMIT = 3;
  * occurrence 날짜로 거르고, 반복 거래 예정은 같은 응답의 recurring_due를 쓴다(별도 요청 없음). */
 export default function TodayScheduleCard({ day, users }: Props) {
   const rangeEnd = shiftDateIso(day, UPCOMING_DAYS - 1);
-  const { data, isError, refetch } = useQuery({
+  const eventsQuery = useQuery({
     queryKey: QUERY_KEYS.events(day, rangeEnd),
     queryFn: () => fetchEvents(day, rangeEnd),
   });
+  const data = eventsQuery.data;
 
   // 추가 폼·완료 토글은 가계부의 일정 보기와 같은 훅을 쓴다(토스트·무효화 규칙 공유).
   const { openCreate, toggleComplete, modals } = useEventActions({ users });
@@ -53,45 +56,46 @@ export default function TodayScheduleCard({ day, users }: Props) {
         </Button>
       </div>
 
-      {isError ? (
-        <button
-          type="button"
-          onClick={() => void refetch()}
-          className="w-full text-left text-sm text-gray-500 dark:text-gray-400 hover:underline min-h-[44px]"
-        >
-          일정을 불러오지 못했어요. 다시 시도하려면 눌러주세요.
-        </button>
-      ) : events.length === 0 ? (
-        <EmptyState icon={CalendarDays} title="오늘 등록된 일정이 없어요" compact />
-      ) : (
-        <div className="space-y-2">
-          {events.map((event) => {
-            const completed = event.completed_at != null;
-            return (
-              <div key={event.id} className="flex items-center gap-1">
-                <label className={`${TOUCH_TARGET_MIN} -ml-3 shrink-0 cursor-pointer`}>
-                  <input
-                    type="checkbox"
-                    checked={completed}
-                    onChange={() => toggleComplete(event)}
-                    className="h-5 w-5 rounded-sm border-gray-300"
-                    aria-label={`${event.title} 완료 처리`}
-                  />
-                </label>
-                <p
-                  className={`min-w-0 flex-1 truncate text-sm text-gray-900 dark:text-gray-50 ${completed ? "line-through text-gray-400 dark:text-gray-500" : ""}`}
-                >
-                  {event.title}
-                </p>
-                <StatusBadge
-                  label={`담당 ${event.assignee?.display_name ?? "공동"}`}
-                  toneClassName="bg-primary-50 dark:bg-primary-950 text-primary-600 dark:text-primary-400"
-                />
-              </div>
-            );
-          })}
-        </div>
-      )}
+      <QueryBoundary
+        query={eventsQuery}
+        compact
+        errorMessage="일정을 불러오지 못했어요."
+        loadingFallback={<SkeletonCard rows={2} bare />}
+      >
+        {() =>
+          events.length === 0 ? (
+            <EmptyState icon={CalendarDays} title="오늘 등록된 일정이 없어요" compact />
+          ) : (
+            <div className="space-y-2">
+              {events.map((event) => {
+                const completed = event.completed_at != null;
+                return (
+                  <div key={event.id} className="flex items-center gap-1">
+                    <label className={`${TOUCH_TARGET_MIN} -ml-3 shrink-0 cursor-pointer`}>
+                      <input
+                        type="checkbox"
+                        checked={completed}
+                        onChange={() => toggleComplete(event)}
+                        className="h-5 w-5 rounded-sm border-gray-300"
+                        aria-label={`${event.title} 완료 처리`}
+                      />
+                    </label>
+                    <p
+                      className={`min-w-0 flex-1 truncate text-sm text-gray-900 dark:text-gray-50 ${completed ? "line-through text-gray-400 dark:text-gray-500" : ""}`}
+                    >
+                      {event.title}
+                    </p>
+                    <StatusBadge
+                      label={`담당 ${event.assignee?.display_name ?? "공동"}`}
+                      toneClassName="bg-primary-50 dark:bg-primary-950 text-primary-600 dark:text-primary-400"
+                    />
+                  </div>
+                );
+              })}
+            </div>
+          )
+        }
+      </QueryBoundary>
 
       {upcomingRecurring.length > 0 && (
         <div className="pt-3 border-t border-gray-100 dark:border-gray-800 space-y-1.5">

@@ -89,6 +89,8 @@ export const QUERY_KEYS = {
  * 잔액을 따라가므로 자산 섹션마다 따로 고르지 않고 이 목록을 그대로 쓴다. 대시보드 본문
  * (`dashboardAll`)도 목표 페이스·비상금 잔액·잉여자금 배분 코칭이 이 값들을 읽으므로 포함한다. */
 export const ASSET_RELATED_KEYS: QueryKey[] = [
+  // 거래 행이 계좌·카드 이름과 결제계좌를 싣는다 — 이름을 바꾸거나 비활성화하면 가계부 목록도 새로 받는다.
+  QUERY_KEYS.transactionsAll,
   QUERY_KEYS.accounts,
   QUERY_KEYS.cards,
   QUERY_KEYS.loans,

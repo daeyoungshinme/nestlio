@@ -64,6 +64,7 @@ export function useAssetSection<TItem, TCreate, TUpdate>({
       if (deactivateTarget !== null) deactivateMutation.mutate(deactivateTarget);
     },
     cancelDeactivate: () => setDeactivateTarget(null),
+    deactivating: deactivateMutation.isPending,
     importOpen,
     openImport: () => setImportOpen(true),
     closeImport: () => setImportOpen(false),

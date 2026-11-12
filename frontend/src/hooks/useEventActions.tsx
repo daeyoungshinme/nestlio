@@ -87,6 +87,7 @@ export function useEventActions({
       {deleteTarget && (
         <ConfirmModal
           message={`"${deleteTarget.title}" 일정을 삭제할까요?`}
+          loading={deleteMutation.isPending}
           onConfirm={() => deleteMutation.mutate(deleteTarget.id)}
           onCancel={() => setDeleteTarget(null)}
         />

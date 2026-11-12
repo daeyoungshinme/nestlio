@@ -12,6 +12,7 @@ import type { UiType } from "@/components/transactions/TransactionQuickPicks";
 import { INLINE_BUTTON_OFFSET, INPUT_SM, LABEL_SM } from "@/constants/inputStyles";
 import { CARD_TYPE_LABEL, NON_CARD_PAYMENT_METHODS, PAYMENT_METHOD_LABEL } from "@/constants/transactions";
 import { useCards } from "@/hooks/useReferenceData";
+import { errorMessageTextClass } from "@/utils/colors";
 import { currentDateIso } from "@/utils/date";
 import { toAmountInputValue } from "@/utils/format";
 import type {
@@ -84,7 +85,7 @@ export default function TransactionForm({
   editingCard,
 }: Props) {
   const fieldId = useId();
-  const { data: cardRows } = useCards();
+  const { data: cardRows, isError: cardsError } = useCards();
   const activeCards = (cardRows ?? []).map((row) => row.card);
   const cardOptions =
     editingCard && !activeCards.some((c) => c.id === editingCard.id) ? [...activeCards, editingCard] : activeCards;
@@ -251,6 +252,9 @@ export default function TransactionForm({
           </option>
         ))}
       </select>
+      {cardsError && (
+        <p className={`mt-1 text-xs ${errorMessageTextClass()}`}>결제카드 목록을 불러오지 못했어요. 카드는 나중에 다시 골라 주세요.</p>
+      )}
     </div>
   );
 

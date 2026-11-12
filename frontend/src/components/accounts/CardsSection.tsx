@@ -117,6 +117,7 @@ export default function CardsSection({ users }: Props) {
       {deactivateTarget !== null && (
         <ConfirmModal
           message="이 카드를 비활성화할까요? 지난 거래의 카드 표시는 남아요."
+          loading={removeMutation.isPending}
           onConfirm={() => removeMutation.mutate(deactivateTarget)}
           onCancel={() => setDeactivateTarget(null)}
         />

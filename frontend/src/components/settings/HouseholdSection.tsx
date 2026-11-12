@@ -164,7 +164,8 @@ export default function HouseholdSection() {
         <ConfirmModal
           message={`"${spouse.display_name}"님을 가구에서 제외할까요? 거래내역 등 기존 기록은 그대로 남지만, 이후 다른 계정으로 그 자리를 채울 수 있어요.`}
           confirmLabel="제거"
-          confirmDisabled={removeSpouseConfirmText !== spouse.display_name || removeSpouseMutation.isPending}
+          confirmDisabled={removeSpouseConfirmText !== spouse.display_name}
+          loading={removeSpouseMutation.isPending}
           onConfirm={() => removeSpouseMutation.mutate()}
           onCancel={() => {
             setRemoveSpouseOpen(false);

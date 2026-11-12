@@ -1,4 +1,4 @@
-import { AlertTriangle } from "lucide-react";
+import { AlertTriangle, Loader2 } from "lucide-react";
 import { useId } from "react";
 import type { ReactNode } from "react";
 import { useModalBehavior } from "@/hooks/useModalBehavior";
@@ -15,6 +15,9 @@ interface Props {
   danger?: boolean;
   /** 타이핑 확인 등 추가 조건을 만족하기 전까지 확인 버튼을 잠글 때 사용한다. */
   confirmDisabled?: boolean;
+  /** 확인 요청이 진행 중 — 확인 버튼을 잠그고 스피너를 보인다. 두 번 눌러 요청이 두 번 가지 않게 뮤테이션의
+   * `isPending`을 넘긴다. */
+  loading?: boolean;
   children?: ReactNode;
 }
 
@@ -26,6 +29,7 @@ export default function ConfirmModal({
   onCancel,
   danger = true,
   confirmDisabled = false,
+  loading = false,
   children,
 }: Props) {
   const msgId = useId();
@@ -66,11 +70,13 @@ export default function ConfirmModal({
           <button
             type="button"
             onClick={onConfirm}
-            disabled={confirmDisabled}
-            className={`${TOUCH_TARGET_MIN} flex-1 sm:flex-none px-4 text-sm font-medium rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${
+            disabled={confirmDisabled || loading}
+            aria-busy={loading || undefined}
+            className={`${TOUCH_TARGET_MIN} flex-1 sm:flex-none inline-flex items-center justify-center gap-1.5 px-4 text-sm font-medium rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${
               danger ? dangerActionClass("solid") : "bg-primary text-white hover:bg-primary-700"
             }`}
           >
+            {loading && <Loader2 size={14} className="animate-spin" aria-hidden="true" />}
             {confirmLabel}
           </button>
         </div>

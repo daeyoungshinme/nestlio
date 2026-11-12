@@ -449,6 +449,7 @@ export default function GoalsTab() {
       {deleteTarget !== null && (
         <ConfirmModal
           message="삭제할까요?"
+          loading={deleteMutation.isPending}
           onConfirm={() => deleteMutation.mutate(deleteTarget)}
           onCancel={() => setDeleteTarget(null)}
         />

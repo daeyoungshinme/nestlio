@@ -117,6 +117,7 @@ export default function AccountsSection({ users }: Props) {
             deactivateMessage="이 계좌를 비활성화할까요?"
             deactivateOpen={section.deactivateTarget !== null}
             onConfirmDeactivate={section.confirmDeactivate}
+            deactivating={section.deactivating}
             onCancelDeactivate={section.cancelDeactivate}
             overlays={
               <>
