@@ -3,6 +3,17 @@ set -euo pipefail
 
 cd "$(dirname "${BASH_SOURCE[0]}")"
 
+# 로그인 셸이 아닌 bash.exe로 직접 실행되면 /usr/bin이 PATH에 없어 curl/sleep과 npm 래퍼
+# 스크립트(dirname/sed/uname)가 실패한다(growlio dev.sh와 같은 보정).
+for _BIN in /usr/bin /mingw64/bin; do
+  case ":$PATH:" in
+    *":$_BIN:"*) ;;
+    *) [ -d "$_BIN" ] && PATH="$_BIN:$PATH" ;;
+  esac
+done
+export PATH
+unset _BIN
+
 MODE="dev"
 MIGRATE=0
 for arg in "$@"; do
@@ -112,9 +123,16 @@ FRONTEND_PID=""
 
 cleanup() {
   echo "[dev.sh] stopping dev servers..."
+  local pid winpid
   for pid in "$BACKEND_PID" "$FRONTEND_PID"; do
     if [ -n "$pid" ]; then
-      taskkill //PID "$pid" //F //T > /dev/null 2>&1 || true
+      # $!는 MSYS PID라 taskkill에 그대로 주면 엉뚱한(또는 없는) 프로세스를 가리킨다 — Windows PID로
+      # 바꿔야 venv 런처 → python → reload 워커 / npm → node 트리 전체가 정리된다.
+      winpid=$(cat "/proc/$pid/winpid" 2>/dev/null || true)
+      if [ -n "$winpid" ]; then
+        taskkill //PID "$winpid" //F //T > /dev/null 2>&1 || true
+      fi
+      kill "$pid" 2>/dev/null || true
     fi
   done
 }
@@ -127,12 +145,41 @@ echo "[dev.sh] starting backend (uvicorn --reload) on http://127.0.0.1:$BACKEND_
 "$PYTHON" -m uvicorn app.main:app --host 127.0.0.1 --port "$BACKEND_PORT" --reload --reload-dir app &
 BACKEND_PID=$!
 
+# wait_until_up <pid> <url> <label>: 응답이 올 때까지 최대 ~30초 폴링. 그 전에 프로세스가
+# 사라지면(import 에러, npm 실패 등) 반쪽만 살아 있는 상태로 두지 않고 즉시 실패한다.
+wait_until_up() {
+  local pid="$1" url="$2" label="$3" i
+  for i in $(seq 1 60); do
+    if ! kill -0 "$pid" 2>/dev/null; then
+      echo "[dev.sh] ERROR: $label exited right after start — see the log above." >&2
+      exit 1
+    fi
+    if curl -s -o /dev/null "$url" 2>/dev/null; then
+      return 0
+    fi
+    sleep 0.5
+  done
+  echo "[dev.sh] WARNING: $label did not respond at $url within 30s, still waiting."
+}
+
+wait_until_up "$BACKEND_PID" "http://127.0.0.1:$BACKEND_PORT/openapi.json" "backend"
+
 echo "[dev.sh] starting frontend (vite dev server) on http://localhost:$FRONTEND_PORT"
 export VITE_DEV_PORT="$FRONTEND_PORT"
 export VITE_BACKEND_PORT="$BACKEND_PORT"
 (cd frontend && npm run dev) &
 FRONTEND_PID=$!
 
-echo "[dev.sh] ready — open http://localhost:$FRONTEND_PORT (frontend/backend edits reload automatically)"
+wait_until_up "$FRONTEND_PID" "http://localhost:$FRONTEND_PORT/" "frontend"
 
-wait "$BACKEND_PID" "$FRONTEND_PID"
+echo "[dev.sh] ready — open http://localhost:$FRONTEND_PORT (frontend/backend edits reload automatically)"
+echo "[dev.sh] Ctrl+C stops both servers; if either one exits, the other is stopped too."
+
+# 한쪽만 종료돼도 나머지를 정리하고 끝낸다 — 반쪽만 살아 있는 상태 방지(정리는 trap cleanup).
+wait -n "$BACKEND_PID" "$FRONTEND_PID" || true
+if ! kill -0 "$FRONTEND_PID" 2>/dev/null; then
+  echo "[dev.sh] frontend exited — stopping backend too."
+else
+  echo "[dev.sh] backend exited — stopping frontend too."
+fi
+exit 1
