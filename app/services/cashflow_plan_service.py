@@ -4,6 +4,7 @@ AnnualPlanItemMonthlyTarget)을 한 달 단면으로 읽고 쓴다 — 계획 �
 
 import uuid
 from dataclasses import dataclass
+from datetime import date
 from decimal import ROUND_DOWN, Decimal
 
 from sqlalchemy.orm import Session
@@ -13,7 +14,14 @@ from app.errors import ConflictError, InvalidInputError, NotFoundError
 from app.models.annual_plan_item import AnnualPlanItem
 from app.models.annual_plan_item_monthly_target import AnnualPlanItemMonthlyTarget
 from app.models.recurring_expense import RecurringExpense
-from app.services import annual_plan_service, plan_targets, transaction_report_service, transaction_trend_service
+from app.services import (
+    annual_plan_service,
+    budget_service,
+    coaching_settings_service,
+    plan_targets,
+    transaction_report_service,
+    transaction_trend_service,
+)
 from app.utils.dates import month_bounds, months_remaining_in_year, parse_year_month, shift_month, year_month_str
 from app.utils.plan_status import pct_of
 
@@ -345,4 +353,24 @@ def compute_summary(
         },
         "expense_total": expense_total,
         "available": totals["income"] - expense_total,
+    }
+
+
+def plan_view(db: Session, year_month: str | None, today: date) -> dict:
+    """이번 달 계획 화면 응답(`CashflowPlanListOut`) — 항목·요약·카테고리 예산 대비 실적과 앞뒤 달.
+    조회와 저장 응답이 같은 모양이라 라우터의 모든 엔드포인트가 이것을 돌려준다. 예산 상태는 가구가 바꾼
+    임계값(`coaching_settings_service.budget_thresholds`)으로 계산한다."""
+    ym = year_month or year_month_str(today)
+    month_start = parse_year_month(ym)
+    items = list_items(db, ym)
+    actuals = actuals_for_month(db, ym)
+    suggested = suggested_totals(db, ym)
+    warn_pct, critical_pct = coaching_settings_service.budget_thresholds(db)
+    return {
+        "year_month": ym,
+        "prev_month": year_month_str(shift_month(month_start, -1)),
+        "next_month": year_month_str(shift_month(month_start, 1)),
+        "items": items,
+        "summary": compute_summary(items, actuals, suggested, warn_pct, critical_pct),
+        "category_budgets": budget_service.budget_vs_actual(db, ym, warn_pct, critical_pct),
     }

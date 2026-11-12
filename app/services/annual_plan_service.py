@@ -12,6 +12,7 @@ from app.models.annual_plan_item_monthly_target import AnnualPlanItemMonthlyTarg
 from app.models.category import Category
 from app.services import (
     budget_service,
+    coaching_settings_service,
     plan_targets,
     recurring_service,
     transaction_report_service,
@@ -355,3 +356,16 @@ def seed_year(db: Session, year: int, source: str, updated_by: uuid.UUID, today:
     db.add_all(created)
     db.commit()
     return len(created)
+
+
+def plan_view(db: Session, year: int, today: date) -> dict:
+    """연간 계획 화면 응답(`AnnualPlanListOut`) — 항목·연간 요약·카테고리 예산 대비 실적. 예산 상태는 가구가 바꾼
+    임계값(`coaching_settings_service.budget_thresholds`)으로 계산한다."""
+    items = list_items(db, year)
+    warn_pct, critical_pct = coaching_settings_service.budget_thresholds(db)
+    return {
+        "year": year,
+        "items": [item_to_out(item) for item in items],
+        "summary": summary_for_year(db, year, today, warn_pct, critical_pct),
+        "category_budgets": category_budget_vs_actual(db, year, warn_pct, critical_pct),
+    }

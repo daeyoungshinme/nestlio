@@ -1,4 +1,3 @@
-import logging
 import uuid
 from datetime import date
 from typing import Literal
@@ -30,7 +29,6 @@ from app.services import (
 from app.utils.dates import today_kst
 
 router = APIRouter(prefix="/transactions", tags=["transactions"])
-logger = logging.getLogger("transactions")
 # 검색어는 거래 내역·카테고리명 LIKE 검색에만 쓴다 — 무제한이면 긴 문자열이 그대로 쿼리에 실린다.
 SEARCH_QUERY_MAX_LENGTH = 100
 
