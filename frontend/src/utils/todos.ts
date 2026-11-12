@@ -1,3 +1,5 @@
+import type { TodoUrgency } from "@/utils/colors";
+import { shiftDateIso } from "@/utils/date";
 import { formatDate } from "@/utils/format";
 import type { TodoFrequency, TodoOut, UserOut } from "@/types";
 
@@ -13,7 +15,8 @@ export type TodoAssigneeFilter = (typeof TODO_ASSIGNEE_FILTERS)[number];
 
 /** 담당 필터 — "나"·"배우자"는 담당자가 정확히 그 사람인 할일만, "공동"은 담당자가 없는 할일만 보여준다.
  * 공동 할일을 나·배우자 양쪽에 넣으면 기본값이 공동이라 두 탭이 거의 같아져 필터가 안 먹는 것처럼 보인다.
- * 내 id를 아직 모르면(로딩 중) 나·배우자는 비워 둔다 — 엉뚱한 항목이 잠깐 섞이지 않게. */
+ * 예외: 각자 완료 할일은 두 사람이 각각 해야 하는 일이라 나·배우자·공동 모두에 넣는다(안 그러면 "나" 탭만 보는
+ * 사람이 놓친다). 내 id를 아직 모르면(로딩 중) 나·배우자는 비워 둔다 — 엉뚱한 항목이 잠깐 섞이지 않게. */
 export function filterTodosByAssignee(
   todos: TodoOut[],
   filter: TodoAssigneeFilter,
@@ -23,6 +26,7 @@ export function filterTodosByAssignee(
   if (filter === "공동") return todos.filter((todo) => !todo.assignee);
   if (!myId) return [];
   return todos.filter((todo) => {
+    if (todo.each_completes) return true;
     if (!todo.assignee) return false;
     return filter === "나" ? todo.assignee.id === myId : todo.assignee.id !== myId;
   });
@@ -42,12 +46,56 @@ export function completionProgressLabel(todo: TodoOut, users: UserOut[] | undefi
   return users.map((u) => `${u.display_name} ${done.has(u.id) ? "완료" : "대기"}`).join(" · ");
 }
 
-export function isTodoOverdue(todo: TodoOut, today: string): boolean {
-  return todo.completed_at == null && todo.due_date != null && todo.due_date < today;
+/** 각자 완료 할일인데 아직 진행 중이고 내 몫이 남았으면 true — "내 차례" 배지. */
+export function isMyTurn(todo: TodoOut, myId: string | undefined): boolean {
+  return todo.each_completes && todo.completed_at == null && !!myId && !isCheckedBy(todo, myId);
 }
 
-export function todoDueLabel(todo: TodoOut, today: string): string | null {
-  if (!todo.due_date) return null;
-  if (isTodoOverdue(todo, today)) return `기한 지남 ${formatDate(todo.due_date)}`;
-  return todo.due_date === today ? "오늘까지" : `${formatDate(todo.due_date)}까지`;
+/** 메타 줄의 기한 문구("2026.07.10까지"). 기한 지남·오늘·임박 강조는 todoUrgencyLabel 배지가 맡는다. */
+export function todoDueLabel(todo: TodoOut): string | null {
+  return todo.due_date ? `${formatDate(todo.due_date)}까지` : null;
+}
+
+/** 기한이 오늘부터 이 일수 안이면 "임박"(D-n 배지). */
+export const TODO_SOON_DAYS = 3;
+
+/** 진행 중 할일의 기한 긴급도 — 기한 지남 / 오늘 / TODO_SOON_DAYS일 이내. 완료됐거나 기한이 없거나 여유 있으면 null. */
+export function todoUrgency(todo: TodoOut, today: string): TodoUrgency | null {
+  if (todo.completed_at != null || !todo.due_date) return null;
+  if (todo.due_date < today) return "overdue";
+  if (todo.due_date === today) return "today";
+  return todo.due_date <= shiftDateIso(today, TODO_SOON_DAYS) ? "soon" : null;
+}
+
+/** 긴급도 배지 문구. soon이면 "D-2"처럼 남은 날수. */
+export function todoUrgencyLabel(todo: TodoOut, today: string): string | null {
+  const urgency = todoUrgency(todo, today);
+  if (urgency === "overdue") return "기한 지남";
+  if (urgency === "today") return "오늘까지";
+  if (urgency === "soon" && todo.due_date) {
+    for (let d = 1; d <= TODO_SOON_DAYS; d += 1) {
+      if (shiftDateIso(today, d) === todo.due_date) return `D-${d}`;
+    }
+  }
+  return null;
+}
+
+const URGENCY_RANK: Record<TodoUrgency, number> = { overdue: 0, today: 1, soon: 2 };
+
+/** 진행 중 할일을 "무엇부터 할지" 순으로 — 긴급도(기한 지남 → 오늘 → 임박 → 나머지) → 중요 먼저 → 서버 순서
+ * (기한 오름차순, 기한 없음은 뒤). 완료 탭은 최근 완료순이라 쓰지 않는다. */
+export function sortOpenTodos(todos: TodoOut[], today: string): TodoOut[] {
+  const rank = (todo: TodoOut) => {
+    const urgency = todoUrgency(todo, today);
+    return urgency ? URGENCY_RANK[urgency] : 3;
+  };
+  return todos
+    .map((todo, index) => ({ todo, index }))
+    .sort(
+      (a, b) =>
+        rank(a.todo) - rank(b.todo) ||
+        Number(b.todo.is_important) - Number(a.todo.is_important) ||
+        a.index - b.index,
+    )
+    .map(({ todo }) => todo);
 }

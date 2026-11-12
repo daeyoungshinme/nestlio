@@ -1,6 +1,6 @@
 import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { ListChecks, Plus } from "lucide-react";
+import { ListChecks, Plus, Star } from "lucide-react";
 import Button from "@/components/common/Button";
 import EmptyState from "@/components/common/EmptyState";
 import StatusBadge from "@/components/common/StatusBadge";
@@ -10,8 +10,16 @@ import { useTodoActions } from "@/hooks/useTodoActions";
 import { QUERY_KEYS } from "@/constants/queryKeys";
 import { ROUTES } from "@/constants/routes";
 import { TOUCH_TARGET_MIN, TOUCH_TARGET_MIN_HEIGHT } from "@/constants/uiSizes";
-import { cautionTextClass } from "@/utils/colors";
-import { completionProgressLabel, isCheckedBy, isTodoOverdue, todoDueLabel } from "@/utils/todos";
+import { todoMyTurnBadgeClass, todoUrgencyBadgeClass } from "@/utils/colors";
+import {
+  completionProgressLabel,
+  isCheckedBy,
+  isMyTurn,
+  sortOpenTodos,
+  todoDueLabel,
+  todoUrgency,
+  todoUrgencyLabel,
+} from "@/utils/todos";
 import type { UserOut } from "@/types";
 
 interface Props {
@@ -19,11 +27,11 @@ interface Props {
   users: UserOut[] | undefined;
 }
 
-/** 홈은 요약만 — 기한이 빠른 순으로 3개까지만 보이고 나머지는 `/todos`로 보낸다. */
+/** 홈은 요약만 — 급하고 중요한 순(sortOpenTodos)으로 3개까지만 보이고 나머지는 `/todos`로 보낸다. */
 const TODOS_LIMIT = 3;
 
 /** 홈의 "우리 할일" 위젯 — 진행 중인 할일의 완료 체크와 빠른 추가. 기한 임박 알림을 따로 보내지 않는 대신 여기서
- * 기한이 지났거나 오늘까지인 할일이 맨 위에 보인다. */
+ * 기한이 지났거나 오늘·임박인 할일, 중요 할일이 맨 위에 보인다. */
 export default function TodoCard({ day, users }: Props) {
   const { data, isError, refetch } = useQuery({
     queryKey: QUERY_KEYS.todos("open"),
@@ -32,7 +40,7 @@ export default function TodoCard({ day, users }: Props) {
   const { data: me } = useMe();
   const { openCreate, toggleComplete, modals } = useTodoActions({ users });
 
-  const todos = (data ?? []).slice(0, TODOS_LIMIT);
+  const todos = sortOpenTodos(data ?? [], day).slice(0, TODOS_LIMIT);
   const hiddenCount = (data?.length ?? 0) - todos.length;
 
   return (
@@ -57,7 +65,9 @@ export default function TodoCard({ day, users }: Props) {
       ) : (
         <div className="space-y-2">
           {todos.map((todo) => {
-            const dueLabel = todoDueLabel(todo, day);
+            const dueLabel = todoDueLabel(todo);
+            const urgency = todoUrgency(todo, day);
+            const urgencyLabel = todoUrgencyLabel(todo, day);
             const progressLabel = completionProgressLabel(todo, users);
             return (
               <div key={todo.id} className="flex items-center gap-1">
@@ -71,20 +81,30 @@ export default function TodoCard({ day, users }: Props) {
                   />
                 </label>
                 <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm text-gray-900 dark:text-gray-50">{todo.title}</p>
+                  <p className="flex items-center gap-1 text-sm text-gray-900 dark:text-gray-50">
+                    {todo.is_important && (
+                      <Star size={12} aria-label="중요" className="shrink-0 fill-amber-400 text-amber-400" />
+                    )}
+                    <span className="truncate">{todo.title}</span>
+                  </p>
                   {dueLabel && (
-                    <p
-                      className={`text-xs ${isTodoOverdue(todo, day) ? `font-medium ${cautionTextClass()}` : "text-gray-500 dark:text-gray-400"}`}
-                    >
+                    <p className="flex items-center gap-1 text-xs text-gray-500 dark:text-gray-400">
+                      {urgency && urgencyLabel && (
+                        <StatusBadge label={urgencyLabel} toneClassName={todoUrgencyBadgeClass(urgency)} />
+                      )}
                       {dueLabel}
                     </p>
                   )}
                   {progressLabel && <p className="text-xs text-gray-500 dark:text-gray-400">{progressLabel}</p>}
                 </div>
-                <StatusBadge
-                  label={`담당 ${todo.assignee?.display_name ?? "공동"}`}
-                  toneClassName="bg-primary-50 dark:bg-primary-950 text-primary-600 dark:text-primary-400"
-                />
+                {isMyTurn(todo, me?.id) ? (
+                  <StatusBadge label="내 차례" toneClassName={todoMyTurnBadgeClass()} />
+                ) : (
+                  <StatusBadge
+                    label={`담당 ${todo.assignee?.display_name ?? "공동"}`}
+                    toneClassName="bg-primary-50 dark:bg-primary-950 text-primary-600 dark:text-primary-400"
+                  />
+                )}
               </div>
             );
           })}

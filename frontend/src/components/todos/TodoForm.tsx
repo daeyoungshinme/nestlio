@@ -24,6 +24,7 @@ export default function TodoForm({ todo, submitLabel, submitting, users, onSubmi
   const [title, setTitle] = useState(todo?.title ?? "");
   const [assigneeId, setAssigneeId] = useState(todo?.assignee?.id ?? "");
   const [eachCompletes, setEachCompletes] = useState(todo?.each_completes ?? false);
+  const [important, setImportant] = useState(todo?.is_important ?? false);
   const [dueDate, setDueDate] = useState(todo?.due_date ?? "");
   const [frequency, setFrequency] = useState<TodoFrequency>(todo?.frequency ?? "once");
   const [memo, setMemo] = useState(todo?.memo ?? "");
@@ -49,12 +50,22 @@ export default function TodoForm({ todo, submitLabel, submitting, users, onSubmi
       frequency,
       assignee_id: assigneeId || null,
       each_completes: eachCompletes,
+      is_important: important,
     });
   };
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       <FormInput label="할일" value={title} maxLength={200} onChange={(e) => setTitle(e.target.value)} required />
+      <label className={`${TOUCH_TARGET_MIN_HEIGHT} -mt-2 flex cursor-pointer items-center gap-2 ${LABEL_SM}`}>
+        <input
+          type="checkbox"
+          checked={important}
+          onChange={(e) => setImportant(e.target.checked)}
+          className="h-4 w-4 rounded-sm border-gray-300"
+        />
+        중요해요
+      </label>
       <div className="space-y-1">
         <OwnerSelect label="담당자" value={assigneeId} onChange={changeAssignee} users={users} />
         <label className={`${TOUCH_TARGET_MIN_HEIGHT} flex items-center gap-2 ${LABEL_SM} ${assigneeId ? "opacity-50" : "cursor-pointer"}`}>

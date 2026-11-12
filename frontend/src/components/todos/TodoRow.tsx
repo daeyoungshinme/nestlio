@@ -1,15 +1,18 @@
+import { Star } from "lucide-react";
 import RowActionButtons from "@/components/common/RowActionButtons";
 import StatusBadge from "@/components/common/StatusBadge";
 import { TOUCH_TARGET_MIN } from "@/constants/uiSizes";
-import { cautionTextClass } from "@/utils/colors";
+import { todoMyTurnBadgeClass, todoUrgencyBadgeClass } from "@/utils/colors";
 import { occurrenceDate } from "@/utils/date";
 import { formatDate } from "@/utils/format";
 import {
   completionProgressLabel,
   isCheckedBy,
-  isTodoOverdue,
+  isMyTurn,
   TODO_FREQUENCY_LABEL,
   todoDueLabel,
+  todoUrgency,
+  todoUrgencyLabel,
 } from "@/utils/todos";
 import type { TodoOut, UserOut } from "@/types";
 
@@ -24,11 +27,13 @@ interface Props {
   onToggleComplete: (todo: TodoOut) => void;
 }
 
-/** `/todos`의 할일 한 줄 — 체크박스 + 제목(누르면 수정) + 반복·각자 배지 + 기한·담당·작성자·각자 진행 + 삭제 버튼. */
+/** `/todos`의 할일 한 줄 — 체크박스 + 중요 별 + 제목(누르면 수정) + 긴급도·내 차례·반복·각자 배지 + 기한·담당·작성자·각자 진행 + 삭제 버튼. */
 export default function TodoRow({ todo, today, myId, users, onEdit, onDelete, onToggleComplete }: Props) {
   const completed = todo.completed_at != null;
   const checked = isCheckedBy(todo, myId);
-  const dueLabel = todoDueLabel(todo, today);
+  const dueLabel = todoDueLabel(todo);
+  const urgency = todoUrgency(todo, today);
+  const urgencyLabel = todoUrgencyLabel(todo, today);
 
   return (
     <div className="card flex items-center justify-between gap-3">
@@ -44,11 +49,18 @@ export default function TodoRow({ todo, today, myId, users, onEdit, onDelete, on
         </label>
         <button type="button" onClick={() => onEdit(todo)} className="min-w-0 flex-1 text-left min-h-[44px]">
           <span className="flex items-center gap-2 flex-wrap">
+            {todo.is_important && (
+              <Star size={14} aria-label="중요" className="shrink-0 fill-amber-400 text-amber-400" />
+            )}
             <span
               className={`text-sm font-medium text-gray-900 dark:text-gray-50 ${completed ? "line-through text-gray-400 dark:text-gray-500" : ""}`}
             >
               {todo.title}
             </span>
+            {urgency && urgencyLabel && (
+              <StatusBadge label={urgencyLabel} toneClassName={todoUrgencyBadgeClass(urgency)} />
+            )}
+            {isMyTurn(todo, myId) && <StatusBadge label="내 차례" toneClassName={todoMyTurnBadgeClass()} />}
             {todo.frequency !== "once" && (
               <StatusBadge
                 label={TODO_FREQUENCY_LABEL[todo.frequency]}
@@ -60,12 +72,8 @@ export default function TodoRow({ todo, today, myId, users, onEdit, onDelete, on
             )}
           </span>
           <span className="block break-keep text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-            {dueLabel && (
-              <span className={isTodoOverdue(todo, today) ? `font-medium ${cautionTextClass()}` : undefined}>
-                {dueLabel} ·{" "}
-              </span>
-            )}
             {[
+              dueLabel,
               `담당 ${todo.assignee?.display_name ?? "공동"}`,
               completionProgressLabel(todo, users),
               todo.assignee?.id === todo.creator.id ? null : `작성 ${todo.creator.display_name}`,

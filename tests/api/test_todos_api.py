@@ -44,6 +44,15 @@ def test_create_returns_201_with_creator_and_shared_assignee(client):
     assert body["assignee"] is None
     assert body["completed_at"] is None
     assert body["completer"] is None
+    assert body["is_important"] is False
+
+
+def test_is_important_round_trips(client):
+    todo_id = client.post(BASE, json={"title": "보험 갱신", "is_important": True}).json()["id"]
+    assert client.get(f"{BASE}?status=open").json()[0]["is_important"] is True
+
+    resp = client.put(f"{BASE}/{todo_id}", json={"title": "보험 갱신", "is_important": False})
+    assert resp.json()["is_important"] is False
 
 
 @pytest.mark.parametrize(

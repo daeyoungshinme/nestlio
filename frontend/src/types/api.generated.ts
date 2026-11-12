@@ -4290,6 +4290,11 @@ export interface components {
              * @default false
              */
             each_completes: boolean;
+            /**
+             * Is Important
+             * @default false
+             */
+            is_important: boolean;
         };
         /** TodoOut */
         TodoOut: {
@@ -4318,6 +4323,11 @@ export interface components {
              * @default []
              */
             completions: components["schemas"]["TodoCompletionOut"][];
+            /**
+             * Is Important
+             * @default false
+             */
+            is_important: boolean;
             /** Completed At */
             completed_at?: string | null;
             completer?: components["schemas"]["UserOut"] | null;
@@ -4348,6 +4358,11 @@ export interface components {
              * @default false
              */
             each_completes: boolean;
+            /**
+             * Is Important
+             * @default false
+             */
+            is_important: boolean;
         };
         /** TopRiderOut */
         TopRiderOut: {
