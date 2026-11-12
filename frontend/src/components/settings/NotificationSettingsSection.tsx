@@ -8,6 +8,7 @@ import StatusBadge from "@/components/common/StatusBadge";
 import { SettingsSectionCard, ToggleRow } from "@/components/settings/shared";
 import { setNotificationPrefs, setNotifyEmails, testMonthlyEmail, testWeeklyEmail } from "@/api/settings";
 import { QUERY_KEYS } from "@/constants/queryKeys";
+import { invalidateKeys } from "@/utils/queryClient";
 import { MAX_NOTIFY_RECIPIENTS } from "@/constants/settings";
 import { cautionTextClass, connectionStatusBadgeClass, connectionStatusLabel, dangerActionClass } from "@/utils/colors";
 import { toast } from "@/utils/toast";
@@ -49,8 +50,7 @@ export default function NotificationSettingsSection({ prefs, notifyEmails, gmail
   const queryClient = useQueryClient();
   const [newNotifyEmail, setNewNotifyEmail] = useState("");
   const invalidateSettings = () => {
-    void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.settings });
-    void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.dashboardBootstrap });
+    invalidateKeys(queryClient, [QUERY_KEYS.settings, QUERY_KEYS.dashboardBootstrap]);
   };
 
   const weeklyEmailMutation = useMutation({

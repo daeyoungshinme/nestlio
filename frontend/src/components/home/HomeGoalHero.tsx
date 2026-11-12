@@ -17,6 +17,7 @@ import { computeCardStatus, daysUntil } from "@/utils/goalStatus";
 import { formatKrw, formatKrwCompact } from "@/utils/format";
 import type { CoupleContribution } from "@/utils/contribution";
 import type { FinancialGoalOut, NotificationReactionOut } from "@/types";
+import { TOUCH_TARGET_MIN_HEIGHT } from "@/constants/uiSizes";
 
 interface Props {
   goal: FinancialGoalOut | null;
@@ -181,7 +182,7 @@ export default function HomeGoalHero({
         </p>
         <Link
           to={goalDetailLink(goal.id)}
-          className="shrink-0 inline-flex items-center gap-1 rounded-full bg-primary-50 dark:bg-primary-950 px-3 min-h-[44px] text-xs font-semibold text-primary-600 dark:text-primary-400 hover:bg-primary-100 dark:hover:bg-primary-900"
+          className={`shrink-0 inline-flex items-center gap-1 rounded-full bg-primary-50 dark:bg-primary-950 px-3 ${TOUCH_TARGET_MIN_HEIGHT} text-xs font-semibold text-primary-600 dark:text-primary-400 hover:bg-primary-100 dark:hover:bg-primary-900`}
         >
           <Heart size={12} aria-hidden="true" />
           응원 보내기

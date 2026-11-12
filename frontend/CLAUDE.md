@@ -43,12 +43,13 @@ npm run generate:icons      # public/favicon.svg → PNG/ICO
 - **금액**: 백엔드 응답의 `Decimal` 문자열 그대로 다루고, 표시 시점에만 `utils/format.ts`의 `formatKrw`/`formatKrwCompact`. 중간에 `parseFloat` 등으로 반올림하지 않는다. 표기 기준: 요약·헤더·차트 범례처럼 규모만 보면 되는 곳은 `formatKrwCompact`(아주 좁은 캘린더 셀·축은 `formatKrwAxis`), 항목 행·폼·툴팁처럼 정확한 값이 필요한 곳은 `formatKrw` — 만원 단위 반올림이라 "65,000원"이 "7만원"이 된다. 입력은 `common/AmountInput`(격자형은 `amountInputProps`).
 - **긴 안내 문단**: 화면 하단 설명은 `common/CollapsibleHint`(모바일 한 줄 + "자세히").
 - **터치 타깃**: 단독 액션 버튼은 `constants/uiSizes.ts`의 `TOUCH_TARGET_MIN`(44px), 조밀한 배지/탭은 `TOUCH_TARGET_COMPACT_MOBILE_ONLY`(36px). `Button`에 `!min-h-0 !py-1` 같은 override로 깎지 않는다. 글자는 `text-[11px]` 미만 금지 — 좁은 곳은 `formatKrwCompact`로 줄인다.
+- **로딩·실패 vs 없음**: 쿼리 데이터가 아직 없거나 실패한 상태를 빈 상태("~이 없어요")로 그리지 않는다 — `common/QueryBoundary`(카드 안이면 `compact` + `SkeletonCard bare`)로 감싼다. 확인 모달은 뮤테이션 `isPending`을 `ConfirmModal`의 `loading`으로 넘겨 연타를 막는다.
 - **페이지 제목**: `Header.tsx`가 `<h1>`로 보여준다(`pageTitleFor`). 페이지 컴포넌트에 제목 `h1`을 두지 않는다.
 - **label 연결**: `FormInput`은 알아서 한다. 직접 쓰는 `<label>` + `<select>`/`<textarea>`는 `useId()`로 `htmlFor`/`id`를 건다(정적 id 금지). 칩 묶음은 `role="group"` + `aria-labelledby`.
 - **입력 스타일**: `constants/inputStyles.ts`의 `INPUT_SM`/`INPUT_MD`/`LABEL_SM`/`LABEL_MD`를 재사용한다.
 - **쿼리 키**: `constants/queryKeys.ts`의 `QUERY_KEYS`만 쓴다(배열 리터럴 금지 — 무효화 누락 방지).
 - **무효화·에러 토스트**: 여러 키는 `utils/queryClient.ts`의 `invalidateKeys(qc, keys)`로, 묶음은 `*_RELATED_KEYS`(`ASSET`·`CATEGORY`·`USER`·`TRANSACTION`·`PLAN`)를 쓴다. 뮤테이션 실패 토스트는 전역 `createMutationCache`가 띄우므로 `onError: (err) => toast(extractErrorMessage(err), "error")` 같은 같은-문구 핸들러는 두지 않는다(문구가 다르거나 부수효과가 있을 때만). `staleTime`은 전역 기본값이 `STALE_TIME.SHORT`라 다를 때만 적는다. 계획 쿼리는 `hooks/usePlanQueries`.
-- **참조 데이터**: 계좌·카테고리·저축상품·유저는 `hooks/useReferenceData.ts`의 `useAccounts`/`useCategories`/`useSavingsProducts`/`useUsers`/`useMe`로만 조회한다.
+- **참조 데이터**: 계좌·결제카드·카테고리·저축상품·유저는 `hooks/useReferenceData.ts`의 `useAccounts`/`useCards`/`useCategories`/`useSavingsProducts`/`useUsers`/`useMe`로만 조회한다.
 - **영속 쿼리 캐시**: `main.tsx`의 `PersistQueryClientProvider`가 `PERSIST_QUERY_KEYS`(`constants/queryConfig.ts`) 응답을 localStorage에 24시간 보관해 재방문 시 즉시 그린다. 이 키들의 **응답 형태를 호환되지 않게 바꾸면**(필드 이름·타입 변경, 필수 필드 추가) `main.tsx`의 `buster`를 올린다 — 안 올리면 구 캐시가 최대 24시간 렌더돼 깨진다(필드 삭제만이면 보통 불필요). `DEFAULT_GC_TIME`은 `PERSIST_MAX_AGE` 이상으로 둔다.
 - **다크모드**: `<html>`의 `.dark` 클래스(`darkMode: "class"`), `stores/themeStore.ts` — 저장값이 없으면 `prefers-color-scheme`.
 
@@ -74,7 +75,7 @@ npm run generate:icons      # public/favicon.svg → PNG/ICO
 | `/transactions` | 가계부 | 월간 캘린더 + `[내역 \| 일정]` 세그먼트(`?view=`). 날짜 클릭 → `LedgerDayModal`(거래·일정 함께). 일정 CRUD는 `hooks/useEventActions.tsx`. 반복 거래 관리는 `RecurringManageSheet`. `?date=YYYY-MM-DD`로 모달 열기 |
 | `/transactions/import` | 거래 데이터 | CSV 내보내기·가져오기. 진입은 설정 › 고급뿐 |
 | `/categories` | 카테고리 관리 | 메뉴에 없음 — 설정 › 고급·계획 섹션의 "카테고리" 버튼에서만 진입 |
-| `/accounts` | 자산 | 계좌/저축·투자/부동산/대출 4개 `CollapsibleGroup`(접힌 섹션은 마운트·쿼리 안 함). `?section=`. 맨 위 `GrowlioPushFailuresBanner`(growlio 반영을 포기한 저축·투자 입출금이 있을 때만, 다시 보내기). 상단 `AccountsSnapshotCard`의 "전체 동기화"가 **growlio 잔액 동기화의 유일한 수동 진입점** |
+| `/accounts` | 자산 | 계좌(결제카드 `CardsSection` 포함)/저축·투자/부동산/대출 4개 `CollapsibleGroup`(접힌 섹션은 마운트·쿼리 안 함). `?section=`. 맨 위 `GrowlioPushFailuresBanner`(growlio 반영을 포기한 저축·투자 입출금이 있을 때만, 다시 보내기). 상단 `AccountsSnapshotCard`의 "전체 동기화"가 **growlio 잔액 동기화의 유일한 수동 진입점** |
 | `/plan` | `PlanPage` | `[이번 달 \| 연간]`(`?view=`). 아래 "계획 화면" 참고 |
 | `/goals`, `/goals/:id` | `GoalsPage`(→ `financialPlan/GoalsTab`), `GoalDetailPage` | 재무목표·챌린지·순자산 목표·통합 목표. 상세에 응원·시나리오·growlio 인사이트. 순자산·통합 목표는 가구당 하나, 목록·홈 Hero에서 항상 맨 앞(`pinHouseholdGoalsFirst` — 통합 > 순자산). 통합 목표 구성은 `financialPlan/CombinedMembersList`(카드 compact·상세 공용, growlio 구성은 동기화 시각 표시, 상세에서 내 값 "지금 동기화") |
 | `/review` | `SavingsReviewPage` | 절감 점검 `[소비 \| 보험]`(`?tab=`). 주 메뉴에 없음 — 홈·계획 "실적 분석"의 `SavingsReviewLinkCard`로 진입. 컴포넌트는 `components/review/`(보험 계약 폼 `InsurancePolicyFormModal` + 순수 변환 `insurancePolicyDraft.ts`, 특약 `RiderListEditor`, 보장 현황 `CoverageStatusTable`·적정 기준 `InsuranceTargetsModal`). 쿼리 키 `savingsReview`는 `dashboardAll` 하위라 거래·계획·반복·카테고리·이름·임계값 변경에 자동 갱신되고, 보험 계약·적정 기준 저장만 `savingsReviewAll`을 직접 무효화한다 |
@@ -96,4 +97,4 @@ npm run generate:icons      # public/favicon.svg → PNG/ICO
 
 ## 테스트
 
-Vitest + Testing Library, `src/test/setup.ts`(jsdom `matchMedia` 폴리필). `utils/`·공용 컴포넌트·store 위주이며 커버리지 임계값은 아직 없다.
+Vitest + Testing Library, `src/test/setup.ts`(jsdom `matchMedia` 폴리필). `utils/`·공용 컴포넌트·store 위주이고, 일부 화면은 `__tests__`에 컴포넌트·페이지 테스트가 있다(API 모듈은 `vi.mock("@/api/...")`, 클릭은 `fireEvent` — `@testing-library/user-event`는 설치돼 있지 않다). 커버리지 임계값은 아직 없다.

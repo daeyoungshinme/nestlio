@@ -53,7 +53,7 @@ function AppRoutes() {
       <Route path={ROUTES.inviteAccept} element={<LazyRoute Component={InviteAcceptPage} />} />
       <Route path={ROUTES.authCallback} element={<LazyRoute Component={AuthCallbackPage} />} />
       <Route
-        path="/"
+        path={ROUTES.dashboard}
         element={
           <ErrorBoundary>
             <PrivateRoute>
@@ -63,26 +63,26 @@ function AppRoutes() {
         }
       >
         <Route index element={<LazyRoute Component={DashboardPage} />} />
-        <Route path="transactions" element={<LazyRoute Component={TransactionsPage} />} />
-        <Route path="transactions/import" element={<LazyRoute Component={TransactionImportPage} />} />
+        <Route path={ROUTES.transactions} element={<LazyRoute Component={TransactionsPage} />} />
+        <Route path={ROUTES.transactionImport} element={<LazyRoute Component={TransactionImportPage} />} />
         <Route path="transactions/:id/edit" element={<Navigate to={ROUTES.transactions} replace />} />
         <Route path="calendar" element={<Navigate to={ROUTES.transactions} replace />} />
         <Route path="budgets" element={<Navigate to={ROUTES.transactions} replace />} />
         <Route path="recurring" element={<Navigate to={ROUTES.transactions} replace />} />
-        <Route path="accounts" element={<LazyRoute Component={AccountsPage} />} />
-        <Route path="categories" element={<LazyRoute Component={CategoriesPage} />} />
-        {/* 구 경로 호환 리다이렉트 — 일정은 가계부 "일정" 보기로, 연간리포트는 계획 › 연간 › 실적 분석으로,
+        <Route path={ROUTES.accounts} element={<LazyRoute Component={AccountsPage} />} />
+        <Route path={ROUTES.categories} element={<LazyRoute Component={CategoriesPage} />} />
+        {/* 구 경로 호환 리다이렉트(ROUTES에 없는 레거시 경로라 문자열 그대로) — 일정은 가계부 "일정" 보기로, 연간리포트는 계획 › 연간 › 실적 분석으로,
             "계획·목표" 통합 페이지는 /plan·/goals로 나뉘었다. */}
         <Route path="schedule" element={<LegacyScheduleRedirect />} />
         <Route path="reports/yearly" element={<Navigate to={planAnalysisLink()} replace />} />
-        <Route path="plan" element={<LazyRoute Component={PlanPage} />} />
-        <Route path="goals" element={<LazyRoute Component={GoalsPage} />} />
-        <Route path="goals/:id" element={<LazyRoute Component={GoalDetailPage} />} />
+        <Route path={ROUTES.plan} element={<LazyRoute Component={PlanPage} />} />
+        <Route path={ROUTES.goals} element={<LazyRoute Component={GoalsPage} />} />
+        <Route path={`${ROUTES.goals}/:id`} element={<LazyRoute Component={GoalDetailPage} />} />
         <Route path="financial-plan" element={<LazyRoute Component={LegacyFinancialPlanRedirect} />} />
-        <Route path="settings" element={<LazyRoute Component={SettingsPage} />} />
-        <Route path="review" element={<LazyRoute Component={SavingsReviewPage} />} />
-        <Route path="todos" element={<LazyRoute Component={TodosPage} />} />
-        <Route path="*" element={<Navigate to="/" replace />} />
+        <Route path={ROUTES.settings} element={<LazyRoute Component={SettingsPage} />} />
+        <Route path={ROUTES.savingsReview} element={<LazyRoute Component={SavingsReviewPage} />} />
+        <Route path={ROUTES.todos} element={<LazyRoute Component={TodosPage} />} />
+        <Route path="*" element={<Navigate to={ROUTES.dashboard} replace />} />
       </Route>
       <Route path="*" element={<Navigate to={ROUTES.login} replace />} />
     </Routes>

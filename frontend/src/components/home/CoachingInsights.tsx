@@ -5,6 +5,7 @@ import { ROUTES, accountsSectionLink, planAnalysisLink, planViewLink } from "@/c
 import { insightSeverityStyle } from "@/utils/colors";
 import { formatKrw } from "@/utils/format";
 import type { InsightOut, OwnerOverspendHighlightOut } from "@/types";
+import { TOUCH_TARGET_MIN_HEIGHT } from "@/constants/uiSizes";
 
 const INSIGHT_LINKS: Partial<Record<string, { to: string; label: string }>> = {
   savings_rate: { to: ROUTES.transactions, label: "가계부 보기" },
@@ -77,7 +78,7 @@ export default function CoachingInsights({
               <Link
                 to={link.to}
                 aria-label={link.label}
-                className="shrink-0 text-xs font-semibold underline hover:no-underline min-h-[44px] flex items-center"
+                className={`shrink-0 text-xs font-semibold underline hover:no-underline ${TOUCH_TARGET_MIN_HEIGHT} flex items-center`}
               >
                 보기
               </Link>
@@ -90,7 +91,7 @@ export default function CoachingInsights({
           type="button"
           onClick={() => setExpanded((v) => !v)}
           aria-expanded={expanded}
-          className="w-full flex items-center justify-center gap-1 min-h-[44px] text-sm font-medium text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
+          className={`w-full flex items-center justify-center gap-1 ${TOUCH_TARGET_MIN_HEIGHT} text-sm font-medium text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200`}
         >
           {expanded ? "접기" : `코칭 ${visible.length - VISIBLE_COUNT}개 더 보기`}
           <ChevronDown size={16} className={`transition-transform ${expanded ? "rotate-180" : ""}`} aria-hidden="true" />

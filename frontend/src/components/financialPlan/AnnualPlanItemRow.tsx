@@ -2,6 +2,7 @@ import RowActionButtons from "@/components/common/RowActionButtons";
 import { formatKrw, resolveOwnerLabel } from "@/utils/format";
 import type { AnnualPlanItemOut, UserOut } from "@/types";
 import { cautionTextClass } from "@/utils/colors";
+import { TOUCH_TARGET_MIN_HEIGHT } from "@/constants/uiSizes";
 
 interface Props {
   item: AnnualPlanItemOut;
@@ -27,7 +28,7 @@ export default function AnnualPlanItemRow({ item, users, showCategory = true, sh
         type="button"
         onClick={onEdit}
         aria-label={`${item.name} 수정`}
-        className="min-w-0 flex-1 text-left min-h-[44px] rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800/40 -mx-1 px-1"
+        className={`min-w-0 flex-1 text-left ${TOUCH_TARGET_MIN_HEIGHT} rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800/40 -mx-1 px-1`}
       >
         <span className="block text-sm font-medium text-gray-900 dark:text-gray-50 truncate">{item.name}</span>
         {item.category_name ? (

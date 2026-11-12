@@ -5,6 +5,7 @@ import { formatKrw, resolveOwnerLabel } from "@/utils/format";
 import { installmentProgressLabel } from "@/utils/installment";
 import { cautionTextClass, recurringLinkBadgeLabel, recurringLinkBadgeStyle } from "@/utils/colors";
 import type { CashflowPlanItemOut, CashflowSection, UserOut } from "@/types";
+import { TOUCH_TARGET_MIN_HEIGHT } from "@/constants/uiSizes";
 
 interface Props {
   item: CashflowPlanItemOut;
@@ -56,7 +57,7 @@ export default function CashflowPlanItemRow({
         type="button"
         onClick={onEdit}
         aria-label={`${item.name} 수정`}
-        className="min-w-0 flex-1 text-left min-h-[44px] rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800/40 -mx-1 px-1"
+        className={`min-w-0 flex-1 text-left ${TOUCH_TARGET_MIN_HEIGHT} rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800/40 -mx-1 px-1`}
       >
         <span className="block text-sm font-medium text-gray-900 dark:text-gray-50 truncate">
           {item.name}

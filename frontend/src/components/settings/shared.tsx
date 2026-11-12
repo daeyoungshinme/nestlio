@@ -2,7 +2,7 @@ import { useId } from "react";
 import type { ReactNode } from "react";
 import { ChevronRight } from "lucide-react";
 import { Link } from "react-router-dom";
-import { TOUCH_TARGET_ROW } from "@/constants/uiSizes";
+import { TOUCH_TARGET_MIN_HEIGHT, TOUCH_TARGET_ROW } from "@/constants/uiSizes";
 import { cn } from "@/utils/cn";
 
 /** 설정탭 카드의 공용 래퍼 — 기존에 섹션마다 반복하던 `.card` + 손으로 스타일링한 제목을 대체한다. */
@@ -74,7 +74,7 @@ export function ToggleRow({
       aria-describedby={hint ? hintId : undefined}
       disabled={disabled}
       onClick={() => onChange(!checked)}
-      className="w-full min-h-[44px] flex items-center justify-between gap-3 px-3 py-2 rounded-lg bg-gray-50 dark:bg-gray-800 text-left disabled:opacity-60"
+      className={`w-full ${TOUCH_TARGET_MIN_HEIGHT} flex items-center justify-between gap-3 px-3 py-2 rounded-lg bg-gray-50 dark:bg-gray-800 text-left disabled:opacity-60`}
     >
       <span className="min-w-0">
         <span className="block text-sm text-gray-700 dark:text-gray-300">{label}</span>

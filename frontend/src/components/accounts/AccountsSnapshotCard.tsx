@@ -11,6 +11,7 @@ import { syncAllSavingsProducts } from "@/api/savingsProducts";
 import { syncAllAccounts } from "@/api/accounts";
 import { syncAllRealEstate } from "@/api/realEstate";
 import { ASSET_RELATED_KEYS, QUERY_KEYS } from "@/constants/queryKeys";
+import { invalidateKeys } from "@/utils/queryClient";
 import { useLoans, useNetWorth, useSavingsProducts } from "@/hooks/useReferenceData";
 import { formatKrw, formatKrwCompact } from "@/utils/format";
 import { computeRealEstateNet, splitSavingsAndRealEstate } from "@/utils/netWorth";
@@ -56,7 +57,7 @@ export default function AccountsSnapshotCard() {
     mutationFn: () =>
       Promise.allSettled([syncAllAccounts(), syncAllSavingsProducts(), syncAllRealEstate()]),
     onSuccess: (results) => {
-      ASSET_RELATED_KEYS.forEach((key) => void queryClient.invalidateQueries({ queryKey: key }));
+      invalidateKeys(queryClient, ASSET_RELATED_KEYS);
 
       const fulfilled = results.filter(
         (r): r is PromiseFulfilledResult<GrowlioSyncAllOut> => r.status === "fulfilled",

@@ -45,6 +45,7 @@ import { amountToneClass, formErrorTextClass } from "@/utils/colors";
 import { sumAmounts } from "@/utils/amount";
 import { realEstateMortgages, realEstateNetForGoal } from "@/utils/netWorth";
 import { useSavingsProductsPlan } from "@/hooks/usePlanQueries";
+import { TOUCH_TARGET_MIN_HEIGHT } from "@/constants/uiSizes";
 
 const GOAL_KIND_TABS = ["통합", "순자산", "장기 목표", "챌린지"] as const;
 type GoalKindTab = (typeof GOAL_KIND_TABS)[number];
@@ -515,7 +516,7 @@ export default function GoalFormModal({
                 disabled={existingGoal === null && index > step}
                 onClick={() => setStep(index)}
                 aria-current={index === step ? "step" : undefined}
-                className={`w-full min-h-[44px] rounded-lg px-1 text-xs font-medium border transition-colors disabled:opacity-50 ${
+                className={`w-full ${TOUCH_TARGET_MIN_HEIGHT} rounded-lg px-1 text-xs font-medium border transition-colors disabled:opacity-50 ${
                   index === step
                     ? "border-primary-300 dark:border-primary-700 bg-primary-50 dark:bg-primary-950 text-primary-600 dark:text-primary-400"
                     : "border-gray-200 dark:border-gray-700 text-gray-500 dark:text-gray-400"

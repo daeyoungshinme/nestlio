@@ -116,7 +116,7 @@ function GoalDetail({ goal }: { goal: FinancialGoalOut }) {
     <div className="space-y-4">
       <Link
         to={ROUTES.goals}
-        className="inline-flex items-center gap-1 min-h-[44px] text-sm text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
+        className={`inline-flex items-center gap-1 ${TOUCH_TARGET_MIN_HEIGHT} text-sm text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200`}
       >
         <ArrowLeft size={16} aria-hidden="true" />
         목표 목록
@@ -317,7 +317,7 @@ function GoalDetail({ goal }: { goal: FinancialGoalOut }) {
               href={growlioPortfolioUrl(growlioAccountId)}
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex items-center gap-1 min-h-[44px] text-sm font-medium text-primary-600 dark:text-primary-400 hover:underline"
+              className={`inline-flex items-center gap-1 ${TOUCH_TARGET_MIN_HEIGHT} text-sm font-medium text-primary-600 dark:text-primary-400 hover:underline`}
             >
               <ExternalLink size={14} aria-hidden="true" />
               growlio에서 이 목표의 포트폴리오 보기

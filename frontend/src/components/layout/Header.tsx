@@ -14,7 +14,7 @@ import { useMe } from "@/hooks/useReferenceData";
 import { QUERY_KEYS } from "@/constants/queryKeys";
 import { pageTitleFor } from "@/constants/nav";
 import { ROUTES } from "@/constants/routes";
-import { TOUCH_TARGET_COMPACT_MOBILE_ONLY, TOUCH_TARGET_MIN } from "@/constants/uiSizes";
+import { TOUCH_TARGET_COMPACT_MOBILE_ONLY, TOUCH_TARGET_MIN, TOUCH_TARGET_MIN_HEIGHT } from "@/constants/uiSizes";
 import { formatDate } from "@/utils/format";
 import type { NotificationOut, NotifType } from "@/types";
 // 축하·저축 알림에만 응원 반응을 남길 수 있다 — 예산 경고 등은 축하할 대상이 아니라 반응 UI를 노출하지 않는다.
@@ -113,7 +113,7 @@ export default function Header() {
                 <button
                   type="button"
                   onClick={() => readAllMutation.mutate()}
-                  className="min-h-[44px] px-2 text-xs font-medium text-primary-600 dark:text-primary-400 hover:underline"
+                  className={`${TOUCH_TARGET_MIN_HEIGHT} px-2 text-xs font-medium text-primary-600 dark:text-primary-400 hover:underline`}
                 >
                   모두 읽음
                 </button>

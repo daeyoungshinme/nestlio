@@ -9,7 +9,7 @@ import TransactionFilterBar, {
 } from "@/components/transactions/TransactionFilterBar";
 import { INPUT_SM } from "@/constants/inputStyles";
 import type { CategoryOut } from "@/types";
-import { TOUCH_TARGET_MIN } from "@/constants/uiSizes";
+import { TOUCH_TARGET_MIN, TOUCH_TARGET_MIN_HEIGHT } from "@/constants/uiSizes";
 
 interface Props {
   searchInput: string;
@@ -89,7 +89,7 @@ export default function LedgerListControls({
         type="button"
         onClick={() => setShowSheet(true)}
         aria-label={activeCount > 0 ? `필터, ${activeCount}개 적용됨` : "필터"}
-        className={`relative flex items-center gap-1.5 shrink-0 min-h-[44px] px-3 rounded-lg border text-sm font-medium transition-colors ${
+        className={`relative flex items-center gap-1.5 shrink-0 ${TOUCH_TARGET_MIN_HEIGHT} px-3 rounded-lg border text-sm font-medium transition-colors ${
           activeCount > 0
             ? "border-primary-300 dark:border-primary-700 bg-primary-50 dark:bg-primary-950 text-primary-600 dark:text-primary-400"
             : "border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800"

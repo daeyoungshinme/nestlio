@@ -5,6 +5,7 @@ import ConfirmModal from "@/components/common/ConfirmModal";
 import { SettingsSectionCard } from "@/components/settings/shared";
 import { deleteCouplePhoto, uploadCouplePhoto } from "@/api/settings";
 import { QUERY_KEYS } from "@/constants/queryKeys";
+import { invalidateKeys } from "@/utils/queryClient";
 import { TOUCH_TARGET_MIN_MOBILE_ONLY } from "@/constants/uiSizes";
 import { toast } from "@/utils/toast";
 
@@ -14,9 +15,7 @@ export default function CouplePhotoSection({ photoUrl }: { photoUrl: string | nu
   const [confirmDelete, setConfirmDelete] = useState(false);
 
   const invalidate = () => {
-    void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.settings });
-    void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.dashboardAll });
-    void queryClient.invalidateQueries({ queryKey: QUERY_KEYS.dashboardBootstrap });
+    invalidateKeys(queryClient, [QUERY_KEYS.settings, QUERY_KEYS.dashboardAll, QUERY_KEYS.dashboardBootstrap]);
   };
 
   const uploadPhotoMutation = useMutation({

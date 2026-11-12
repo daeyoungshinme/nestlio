@@ -5,6 +5,7 @@ import ProgressBar from "@/components/common/ProgressBar";
 import RowActionButtons from "@/components/common/RowActionButtons";
 import StatusBadge from "@/components/common/StatusBadge";
 import { formatPercent } from "@/utils/format";
+import { TOUCH_TARGET_MIN_HEIGHT } from "@/constants/uiSizes";
 
 export interface GoalProgressCardBadge {
   label: string;
@@ -92,7 +93,7 @@ export default function GoalProgressCard({
             type="button"
             onClick={() => setExpanded((v) => !v)}
             aria-expanded={expanded}
-            className="w-full flex items-center justify-between gap-2 min-h-[44px] text-xs font-medium text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
+            className={`w-full flex items-center justify-between gap-2 ${TOUCH_TARGET_MIN_HEIGHT} text-xs font-medium text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200`}
           >
             <span>더보기</span>
             <ChevronDown

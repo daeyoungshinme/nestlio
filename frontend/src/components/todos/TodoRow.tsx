@@ -1,7 +1,7 @@
 import RowActionButtons from "@/components/common/RowActionButtons";
 import StatusBadge from "@/components/common/StatusBadge";
 import TodoPriorityBadge from "@/components/todos/TodoPriorityBadge";
-import { TOUCH_TARGET_MIN } from "@/constants/uiSizes";
+import { TOUCH_TARGET_MIN, TOUCH_TARGET_MIN_HEIGHT } from "@/constants/uiSizes";
 import { todoMyTurnBadgeClass, todoUrgencyBadgeClass } from "@/utils/colors";
 import { occurrenceDate } from "@/utils/date";
 import { formatDate } from "@/utils/format";
@@ -47,7 +47,7 @@ export default function TodoRow({ todo, today, myId, users, onEdit, onDelete, on
             aria-label={`${todo.title} 완료 처리`}
           />
         </label>
-        <button type="button" onClick={() => onEdit(todo)} className="min-w-0 flex-1 text-left min-h-[44px]">
+        <button type="button" onClick={() => onEdit(todo)} className={`min-w-0 flex-1 text-left ${TOUCH_TARGET_MIN_HEIGHT}`}>
           <span className="flex items-center gap-2 flex-wrap">
             <span
               className={`text-sm font-medium text-gray-900 dark:text-gray-50 ${completed ? "line-through text-gray-400 dark:text-gray-500" : ""}`}
