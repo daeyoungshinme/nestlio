@@ -3,7 +3,7 @@ import uuid
 from datetime import date
 from typing import Literal
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Response, UploadFile, status
+from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, HTTPException, Query, Response, UploadFile, status
 from sqlalchemy.orm import Session
 
 from app.config import settings
@@ -53,6 +53,7 @@ def list_transactions(
 
 @router.post("", response_model=TransactionOut, status_code=status.HTTP_201_CREATED)
 def create_transaction(
+    background_tasks: BackgroundTasks,
     payload: TransactionCreateIn,
     response: Response,
     db: Session = Depends(get_db),
@@ -74,7 +75,7 @@ def create_transaction(
         owner_user_id=payload.owner_user_id,
         bearer_token=bearer_token,
     )
-    notification_service.alert_budget_after_transaction_save(db, tx)
+    notification_service.alert_budget_after_transaction_save(db, tx, background_tasks)
     notification_inbox_service.log_partner_saving_best_effort(db, current_user, tx)
     if tx.growlio_sync_failed:
         response.headers["X-Growlio-Sync-Warning"] = "1"
@@ -154,6 +155,7 @@ def bulk_delete_transactions(
 
 @router.put("/{tx_id}", response_model=TransactionOut)
 def update_transaction(
+    background_tasks: BackgroundTasks,
     tx_id: int,
     payload: TransactionUpdateIn,
     response: Response,
@@ -179,7 +181,7 @@ def update_transaction(
     if tx is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="거래 내역을 찾을 수 없습니다.")
     # 금액을 올리거나 다른 카테고리로 옮기는 수정도 임계치를 넘길 수 있다 — 생성과 같은 즉시 알림.
-    notification_service.alert_budget_after_transaction_save(db, tx)
+    notification_service.alert_budget_after_transaction_save(db, tx, background_tasks)
     if tx.growlio_sync_failed:
         response.headers["X-Growlio-Sync-Warning"] = "1"
     return tx

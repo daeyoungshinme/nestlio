@@ -99,7 +99,8 @@ def test_update_transaction_checks_budget_threshold_for_edited_category_and_mont
         )
 
     assert resp.status_code == 200
-    alert.assert_called_once_with(db, rent.id, "2026-06")
+    alert.assert_called_once()
+    assert alert.call_args.args == (db, rent.id, "2026-06")
 
 
 def test_update_transaction_to_income_skips_budget_threshold(client, seeded_db):

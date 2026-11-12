@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.database import get_db
@@ -23,6 +23,7 @@ def list_todos(
 
 @router.post("", response_model=TodoOut, status_code=status.HTTP_201_CREATED)
 def create_todo(
+    background_tasks: BackgroundTasks,
     payload: TodoCreateIn,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
@@ -38,12 +39,13 @@ def create_todo(
         each_completes=payload.each_completes,
         priority=payload.priority,
     )
-    todo_notification_service.notify_created(db, todo, current_user)
+    todo_notification_service.notify_created(db, todo, current_user, background_tasks=background_tasks)
     return todo
 
 
 @router.put("/{todo_id}", response_model=TodoOut)
 def update_todo(
+    background_tasks: BackgroundTasks,
     todo_id: int,
     payload: TodoUpdateIn,
     db: Session = Depends(get_db),
@@ -63,7 +65,9 @@ def update_todo(
     if result is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=_NOT_FOUND_DETAIL)
     todo, previous_assignee_id = result
-    todo_notification_service.notify_assignee_changed(db, todo, previous_assignee_id, current_user)
+    todo_notification_service.notify_assignee_changed(
+        db, todo, previous_assignee_id, current_user, background_tasks=background_tasks
+    )
     return todo
 
 

@@ -3,6 +3,7 @@ from datetime import date, timedelta
 from decimal import Decimal
 from typing import Literal
 
+from fastapi import BackgroundTasks
 from sqlalchemy.orm import Session
 
 from app.errors import ConflictError
@@ -57,6 +58,41 @@ def send_email_best_effort(
         logger.warning("알림 메일 발송 실패: %s", subject, exc_info=True)
         return "failed"
     return "sent"
+
+
+def queue_email_best_effort(
+    db: Session,
+    subject: str,
+    body: str,
+    *,
+    background_tasks: BackgroundTasks | None,
+    html_body: str | None = None,
+    to: list[str] | None = None,
+) -> None:
+    """요청 처리 중에 부르는 알림 메일 — 수신자만 지금 정하고 Gmail 호출은 응답 뒤로 미룬다(BackgroundTasks).
+    Gmail이 느리거나 응답하지 않아도 저장 요청이 그만큼 붙잡히지 않게. 응답 뒤에는 요청 세션이 닫히므로
+    발송은 자체 세션으로 한다(`_send_email_detached`). background_tasks가 없으면(예약 잡·직접 호출) 바로 보낸다."""
+    if background_tasks is None:
+        send_email_best_effort(db, subject, body, html_body=html_body, to=to)
+        return
+    recipients = to if to is not None else notification_settings_service.get_recipients(db)
+    if not recipients:
+        return
+    background_tasks.add_task(_send_email_detached, subject, body, html_body, recipients)
+
+
+def _send_email_detached(subject: str, body: str, html_body: str | None, recipients: list[str]) -> None:
+    """응답 뒤 BackgroundTasks로 도는 발송 — 자체 세션(토큰 만료 시 인앱 알림 기록용)을 열고 절대 raise하지 않는다."""
+    from app.database import SessionLocal
+
+    db = SessionLocal()
+    try:
+        send_email_best_effort(db, subject, body, html_body=html_body, to=recipients)
+    except Exception:
+        db.rollback()
+        logger.exception("알림 메일 백그라운드 발송 실패: %s", subject)
+    finally:
+        db.close()
 
 
 def _log_google_reauth_needed(db: Session, message: str) -> None:
@@ -138,7 +174,9 @@ def send_monthly_summary(db: Session, today: date | None = None) -> bool:
     return True
 
 
-def _send_threshold_alert(db: Session, row: dict, year_month: str) -> bool:
+def _send_threshold_alert(
+    db: Session, row: dict, year_month: str, background_tasks: BackgroundTasks | None = None
+) -> bool:
     """Send an alert for this already-computed budget_vs_actual row if it just crossed the
     warn/critical threshold, deduped so each status level fires at most once per category per month."""
     category_id = row["category_id"]
@@ -150,12 +188,17 @@ def _send_threshold_alert(db: Session, row: dict, year_month: str) -> bool:
     if notification_log_service.already_sent(db, "threshold_alert", period_key, related_id=category_id):
         return False
     subject, body = email_templates.threshold_alert_message(row)
-    send_email_best_effort(db, subject, body)
+    queue_email_best_effort(db, subject, body, background_tasks=background_tasks)
     notification_log_service.log_sent(db, "threshold_alert", period_key, related_id=category_id, detail=body[:200])
     return True
 
 
-def check_and_alert_budget_threshold(db: Session, category_id: int, year_month: str | None = None) -> bool:
+def check_and_alert_budget_threshold(
+    db: Session,
+    category_id: int,
+    year_month: str | None = None,
+    background_tasks: BackgroundTasks | None = None,
+) -> bool:
     """Send an alert if this category just crossed the warn/critical budget threshold this month.
 
     거래 저장 직후 라우터가 호출하는 부가 작업이라, 실패하면 세션을 롤백한 뒤 다시 던진다 —
@@ -168,7 +211,7 @@ def check_and_alert_budget_threshold(db: Session, category_id: int, year_month: 
         row = next((r for r in rows if r["category_id"] == category_id), None)
         if row is None:
             return False
-        return _send_threshold_alert(db, row, year_month)
+        return _send_threshold_alert(db, row, year_month, background_tasks)
     except Exception:
         db.rollback()
         raise
@@ -276,14 +319,16 @@ def check_savings_pace_reminder(db: Session, today: date | None = None) -> bool:
     return True
 
 
-def alert_budget_after_transaction_save(db: Session, tx) -> None:
+def alert_budget_after_transaction_save(db: Session, tx, background_tasks: BackgroundTasks | None = None) -> None:
     """지출 거래 저장 직후 그 카테고리 예산 임계치 알림 — 실패해도 거래는 이미 저장됐으니 로그만 남긴다
     (check_and_alert_budget_threshold가 실패 시 롤백까지 하므로 호출자는 같은 세션으로 응답을 만들 수 있다).
-    과거 날짜 지출이면 그 달 예산을 본다(이번 달 기준이면 엉뚱한 달을 검사한다)."""
+    과거 날짜 지출이면 그 달 예산을 본다(이번 달 기준이면 엉뚱한 달을 검사한다). 메일은 응답 뒤에 보낸다."""
     if tx.type != "expense":
         return
     try:
-        check_and_alert_budget_threshold(db, tx.category_id, year_month_str(tx.transaction_date))
+        check_and_alert_budget_threshold(
+            db, tx.category_id, year_month_str(tx.transaction_date), background_tasks=background_tasks
+        )
     except Exception:
         logger.exception("예산 초과 알림 발송 실패 (거래는 정상 저장됨)")
 
