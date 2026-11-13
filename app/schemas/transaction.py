@@ -5,6 +5,7 @@ from typing import Annotated, Literal
 
 from pydantic import BaseModel, BeforeValidator, ConfigDict, Field
 
+from app.constants.payment_methods import PAYMENT_METHODS, PaymentMethod
 from app.schemas.account import AccountOut
 from app.schemas.card import CardOut
 from app.schemas.category import CategoryOut
@@ -12,11 +13,9 @@ from app.schemas.common import DbInt, KrwAmount, TotalsOut, bounded_str
 from app.schemas.savings_product import SavingsProductOut
 from app.schemas.user import UserOut
 
-PaymentMethod = Literal["cash", "credit_card", "debit_card", "transfer", "other"]
-
 
 def _unknown_payment_method_to_other(v: object) -> object:
-    if isinstance(v, str) and v not in ("cash", "credit_card", "debit_card", "transfer", "other"):
+    if isinstance(v, str) and v not in PAYMENT_METHODS:
         return "other"
     return v
 

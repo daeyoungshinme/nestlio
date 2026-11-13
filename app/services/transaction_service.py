@@ -5,6 +5,7 @@ from decimal import Decimal
 from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
+from app.constants.payment_methods import PAYMENT_METHOD_BY_CARD_TYPE
 from app.errors import InvalidInputError
 from app.models.account import Account
 from app.models.category import Category
@@ -71,7 +72,7 @@ def _apply_card(db: Session, card_id: int) -> tuple[int | None, str]:
     """새로 지정한 결제카드 → 거래에 저장할 (account_id, payment_method). 클라이언트가 보낸 계좌·결제수단보다
     우선한다 — 가계부 화면·CSV 가져오기 어디서 넣든 카드의 결제계좌로 잔액이 빠지게."""
     card = card_service.get_active_card(db, card_id)
-    return card.payment_account_id, card_service.PAYMENT_METHOD_BY_CARD_TYPE[card.card_type]
+    return card.payment_account_id, PAYMENT_METHOD_BY_CARD_TYPE[card.card_type]
 
 
 def _send_staged_pushes(
