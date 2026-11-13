@@ -1,5 +1,4 @@
 import { useEffect } from "react";
-import { useSearchParams } from "react-router-dom";
 import CollapsibleGroup from "@/components/common/CollapsibleGroup";
 import AccountsSection from "@/components/accounts/AccountsSection";
 import CardsSection from "@/components/accounts/CardsSection";
@@ -12,13 +11,10 @@ import { useNetWorth, useSavingsProducts, useUsers } from "@/hooks/useReferenceD
 import { formatKrwCompact } from "@/utils/format";
 import { splitSavingsAndRealEstate } from "@/utils/netWorth";
 import { ACCOUNTS_SECTIONS, type AccountsSection as AccountsSectionName } from "@/constants/routes";
+import { useTabParam } from "@/hooks/useTabParam";
 
 const SECTIONS = ACCOUNTS_SECTIONS;
 type Section = AccountsSectionName;
-
-function isSection(value: string | null): value is Section {
-  return (SECTIONS as readonly string[]).includes(value ?? "");
-}
 
 function sectionId(name: Section): string {
   return `section-${name.replace(/·/g, "")}`;
@@ -28,9 +24,7 @@ function sectionId(name: Section): string {
  * pill 탭을 대체). 접힌 섹션은 마운트되지 않아 해당 쿼리도 열 때 처음 실행된다. `?section=`
  * (구 `?tab=` 딥링크도 호환)으로 진입하면 그 섹션만 펼치고 스크롤한다. */
 export default function AccountsPage() {
-  const [searchParams] = useSearchParams();
-  const requested = searchParams.get("section") ?? searchParams.get("tab");
-  const openSection: Section = isSection(requested) ? requested : "계좌";
+  const [openSection, , fromDeepLink] = useTabParam("section", SECTIONS, "계좌", { legacyKeys: ["tab"] });
 
   const { data: users } = useUsers();
   // 스냅샷 카드와 같은 쿼리(캐시 공유)로 섹션 헤더에 합계를 붙인다 — 접힌 섹션도 펼치지 않고 규모를 본다.
@@ -49,8 +43,8 @@ export default function AccountsPage() {
   }
 
   useEffect(() => {
-    if (isSection(requested)) {
-      document.getElementById(sectionId(requested))?.scrollIntoView({ block: "start" });
+    if (fromDeepLink) {
+      document.getElementById(sectionId(openSection))?.scrollIntoView({ block: "start" });
     }
     // eslint-disable-next-line react/exhaustive-deps -- 마운트 시 1회만 딥링크(?section=)로 스크롤
   }, []);

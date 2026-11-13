@@ -1,7 +1,7 @@
 import { useMemo } from "react";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { fetchTransactions } from "@/api/transactions";
-import { fetchEvents } from "@/api/events";
+import { useEvents } from "@/hooks/useScheduleQueries";
 import { QUERY_KEYS } from "@/constants/queryKeys";
 import { monthBounds, occurrenceDate } from "@/utils/date";
 import type { EventOut, RecurringOut, TransactionOut } from "@/types";
@@ -19,11 +19,7 @@ export function useLedgerMonth(yearMonth: string, debouncedQuery: string) {
     placeholderData: keepPreviousData,
   });
 
-  const eventsQuery = useQuery({
-    queryKey: QUERY_KEYS.events(date_from, date_to),
-    queryFn: () => fetchEvents(date_from, date_to),
-    placeholderData: keepPreviousData,
-  });
+  const eventsQuery = useEvents(date_from, date_to, { keepPrevious: true });
 
   const items = transactionsQuery.data?.items ?? EMPTY_TRANSACTIONS;
   const eventData = eventsQuery.data;

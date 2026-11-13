@@ -1,5 +1,5 @@
+import CompleteCheckbox from "@/components/common/CompleteCheckbox";
 import { Link } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
 import { ListChecks, Plus } from "lucide-react";
 import Button from "@/components/common/Button";
 import EmptyState from "@/components/common/EmptyState";
@@ -7,12 +7,11 @@ import QueryBoundary from "@/components/common/QueryBoundary";
 import SkeletonCard from "@/components/common/SkeletonCard";
 import StatusBadge from "@/components/common/StatusBadge";
 import TodoPriorityBadge from "@/components/todos/TodoPriorityBadge";
-import { fetchTodos } from "@/api/todos";
+import { useTodos } from "@/hooks/useScheduleQueries";
 import { useMe } from "@/hooks/useReferenceData";
 import { useTodoActions } from "@/hooks/useTodoActions";
-import { QUERY_KEYS } from "@/constants/queryKeys";
 import { ROUTES } from "@/constants/routes";
-import { TOUCH_TARGET_MIN, TOUCH_TARGET_MIN_HEIGHT } from "@/constants/uiSizes";
+import { TOUCH_TARGET_MIN_HEIGHT } from "@/constants/uiSizes";
 import { todoMyTurnBadgeClass, todoUrgencyBadgeClass } from "@/utils/colors";
 import {
   completionProgressLabel,
@@ -36,10 +35,7 @@ const TODOS_LIMIT = 3;
 /** 홈의 "우리 할일" 위젯 — 진행 중인 할일의 완료 체크와 빠른 추가. 기한 임박 알림을 따로 보내지 않는 대신 여기서
  * 기한이 지났거나 오늘·임박인 할일, 중요 할일이 맨 위에 보인다. */
 export default function TodoCard({ day, users }: Props) {
-  const todosQuery = useQuery({
-    queryKey: QUERY_KEYS.todos("open"),
-    queryFn: () => fetchTodos("open"),
-  });
+  const todosQuery = useTodos("open");
   const { data: me } = useMe();
   const { openCreate, toggleComplete, modals } = useTodoActions({ users });
 
@@ -74,15 +70,7 @@ export default function TodoCard({ day, users }: Props) {
                 const progressLabel = completionProgressLabel(todo, users);
                 return (
                   <div key={todo.id} className="flex items-center gap-1">
-                    <label className={`${TOUCH_TARGET_MIN} -ml-3 shrink-0 cursor-pointer`}>
-                      <input
-                        type="checkbox"
-                        checked={isCheckedBy(todo, me?.id)}
-                        onChange={() => toggleComplete(todo)}
-                        className="h-5 w-5 rounded-sm border-gray-300"
-                        aria-label={`${todo.title} 완료 처리`}
-                      />
-                    </label>
+                    <CompleteCheckbox checked={isCheckedBy(todo, me?.id)} onToggle={() => toggleComplete(todo)} title={todo.title} />
                     <div className="min-w-0 flex-1">
                       <p className="flex items-center gap-1 text-sm text-gray-900 dark:text-gray-50">
                         <span className="truncate">{todo.title}</span>

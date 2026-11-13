@@ -1,4 +1,3 @@
-import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
 import { Download } from "lucide-react";
 import AmountInput from "@/components/common/AmountInput";
@@ -7,9 +6,7 @@ import CollapsibleHint from "@/components/common/CollapsibleHint";
 import FormInput from "@/components/common/FormInput";
 import ExpectedReturnInput from "@/components/financialPlan/goalForm/ExpectedReturnInput";
 import { useGrowlioGoalImport, type GoalFieldsProps } from "@/components/financialPlan/goalForm/goalFormShared";
-import { fetchNetWorth } from "@/api/netWorth";
-import { STALE_TIME } from "@/constants/queryConfig";
-import { QUERY_KEYS } from "@/constants/queryKeys";
+import { useNetWorth } from "@/hooks/useReferenceData";
 import { planViewLink } from "@/constants/routes";
 import type { LoanOut, SavingsProductOut } from "@/types";
 import { formatKrw } from "@/utils/format";
@@ -31,11 +28,7 @@ export default function NetWorthGoalFields({
   availableSavingsProducts: SavingsProductOut[];
   loans: LoanOut[];
 }) {
-  const { data: netWorthData } = useQuery({
-    queryKey: QUERY_KEYS.netWorth(),
-    queryFn: () => fetchNetWorth(),
-    staleTime: STALE_TIME.MEDIUM,
-  });
+  const { data: netWorthData } = useNetWorth();
   const growlioGoalMutation = useGrowlioGoalImport(availableSavingsProducts, setDraft);
   return (
     <>

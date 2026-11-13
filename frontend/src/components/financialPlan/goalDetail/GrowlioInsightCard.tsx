@@ -2,7 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { fetchGoalGrowlioInsight } from "@/api/goals";
 import { STALE_TIME } from "@/constants/queryConfig";
 import { QUERY_KEYS } from "@/constants/queryKeys";
-import { formatKrw, formatPercent, formatYearMonth } from "@/utils/format";
+import { formatKrw, formatReturnPct, formatYearMonth } from "@/utils/format";
 
 /** "투자 수익을 반영하면?" — growlio가 계산한 이 목표의 필요 연수익률과 실제 투자 수익률(XIRR)을 나란히 보여주고,
  * 가정 수익률별로 매달 얼마를 모아야 하는지 안내한다. growlio 미설정·접속 실패·목표일 없음이면 숨긴다. */
@@ -28,7 +28,7 @@ export default function GrowlioInsightCard({ goalId }: { goalId: number }) {
         <div>
           <dt className="text-xs text-gray-500 dark:text-gray-400">이 목표에 필요한 연 수익률</dt>
           <dd className="font-semibold text-gray-900 dark:text-gray-50">
-            {feasibility?.required_return_pct != null ? formatPercent(feasibility.required_return_pct, 1) : "–"}
+            {feasibility?.required_return_pct != null ? formatReturnPct(feasibility.required_return_pct) : "–"}
           </dd>
         </div>
         <div>
@@ -36,7 +36,7 @@ export default function GrowlioInsightCard({ goalId }: { goalId: number }) {
             {linkedReturn !== null ? "연동 계좌 실제 수익률" : "우리 실제 투자 수익률"}
           </dt>
           <dd className="font-semibold text-gray-900 dark:text-gray-50">
-            {actualReturn !== null ? formatPercent(actualReturn, 1) : "–"}
+            {actualReturn !== null ? formatReturnPct(actualReturn) : "–"}
           </dd>
         </div>
       </dl>

@@ -1,10 +1,10 @@
 import { useState } from "react";
 import type { ReactNode } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import ConfirmModal from "@/components/common/ConfirmModal";
 import Modal from "@/components/common/Modal";
 import TodoForm from "@/components/todos/TodoForm";
 import { completeTodo, createTodo, deleteTodo, updateTodo } from "@/api/todos";
+import { useConfirmDelete } from "@/hooks/useConfirmDelete";
 import { useCrudMutations } from "@/hooks/useCrudMutations";
 import { useMe } from "@/hooks/useReferenceData";
 import { QUERY_KEYS } from "@/constants/queryKeys";
@@ -22,7 +22,6 @@ export function useTodoActions({ users }: { users: UserOut[] | undefined }): {
   modals: ReactNode;
 } {
   const [formTarget, setFormTarget] = useState<"new" | TodoOut | null>(null);
-  const [deleteTarget, setDeleteTarget] = useState<TodoOut | null>(null);
   const queryClient = useQueryClient();
   const { data: me } = useMe();
   const invalidateTodos = () => queryClient.invalidateQueries({ queryKey: QUERY_KEYS.todosAll });
@@ -35,11 +34,11 @@ export function useTodoActions({ users }: { users: UserOut[] | undefined }): {
     onUpdateSuccess: () => setFormTarget(null),
   });
 
-  const deleteMutation = useMutation({
-    mutationFn: (id: number) => deleteTodo(id),
-    onSuccess: () => {
+  const { openDelete, modal: deleteModal } = useConfirmDelete<TodoOut>({
+    remove: deleteTodo,
+    message: (todo) => `"${todo.title}" 할일을 삭제할까요?`,
+    onDeleted: () => {
       invalidateTodos();
-      setDeleteTarget(null);
       toast("할일을 삭제했습니다.", "success");
     },
   });
@@ -68,21 +67,14 @@ export function useTodoActions({ users }: { users: UserOut[] | undefined }): {
           </div>
         </Modal>
       )}
-      {deleteTarget && (
-        <ConfirmModal
-          message={`"${deleteTarget.title}" 할일을 삭제할까요?`}
-          loading={deleteMutation.isPending}
-          onConfirm={() => deleteMutation.mutate(deleteTarget.id)}
-          onCancel={() => setDeleteTarget(null)}
-        />
-      )}
+      {deleteModal}
     </>
   );
 
   return {
     openCreate: () => setFormTarget("new"),
     openEdit: setFormTarget,
-    openDelete: setDeleteTarget,
+    openDelete,
     // 각자 완료 할일은 내 몫 기준으로 토글한다(배우자만 체크한 상태에서 누르면 내 몫을 체크).
     toggleComplete: (todo) => completeMutation.mutate({ id: todo.id, completed: !isCheckedBy(todo, me?.id) }),
     modals,

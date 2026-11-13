@@ -54,6 +54,12 @@ export function formatPercent(value: number, digits = 0): string {
   return `${value.toFixed(digits)}%`;
 }
 
+/** 수익률 표기 — 소수 첫째 자리 %. `signed`면 양수에 "+"를 붙인다(자산 행의 평가 수익률). 백엔드 Decimal 문자열도 받는다. */
+export function formatReturnPct(value: number | string, signed = false): string {
+  const n = Number(value);
+  return `${signed && n > 0 ? "+" : ""}${formatPercent(n, 1)}`;
+}
+
 /** 백엔드 app/utils/plan_status.py::pct_of와 동일한 규칙 — 계획(planned)이 0이어도 실적이 있으면
  * 0%/null이 아니라 100%로 간주한다("목표 없이 썼다/모았다"). 여러 그룹의 planned/actual을 합산해
  * 통합 pct를 만드는 화면(예: 저축·투자 = savings + investment)에서 백엔드와 어긋나지 않도록 쓴다. */

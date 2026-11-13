@@ -24,7 +24,7 @@ import { useAssetSection } from "@/hooks/useAssetSection";
 import { useGoals, useSavingsProducts } from "@/hooks/useReferenceData";
 import {
   formatKrw,
-  formatPercent,
+  formatReturnPct,
   formatSyncedAt,
   resolveOwnerLabel,
 } from "@/utils/format";
@@ -230,8 +230,7 @@ function RealEstateRow({
             )}
             {product.return_rate_pct !== null && (
               <span className={`shrink-0 text-[11px] font-semibold ${returnRateTextColor(Number(product.return_rate_pct))}`}>
-                {Number(product.return_rate_pct) > 0 ? "+" : ""}
-                {formatPercent(Number(product.return_rate_pct), 1)}
+                {formatReturnPct(product.return_rate_pct, true)}
               </span>
             )}
           </div>

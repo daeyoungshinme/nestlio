@@ -6,6 +6,7 @@ import {
   formatKrwCompact,
   formatKrwPreview,
   formatPercent,
+  formatReturnPct,
   formatYearMonth,
   pctOf,
   resolveOwnerLabel,
@@ -59,6 +60,15 @@ describe("formatKrwPreview", () => {
 describe("formatPercent", () => {
   it("rounds to 0 decimal digits by default", () => {
     expect(formatPercent(42.6)).toBe("43%");
+  });
+});
+
+describe("formatReturnPct", () => {
+  it("소수 첫째 자리 %, signed면 양수에만 +", () => {
+    expect(formatReturnPct("7.26")).toBe("7.3%");
+    expect(formatReturnPct(7.26, true)).toBe("+7.3%");
+    expect(formatReturnPct("-2.04", true)).toBe("-2.0%");
+    expect(formatReturnPct(0, true)).toBe("0.0%");
   });
 });
 

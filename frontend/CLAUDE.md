@@ -40,7 +40,7 @@ npm run generate:icons      # public/favicon.svg → PNG/ICO
 
 - **색상/상태**: 상태(`ok`/`warn`/`critical`, `info`/`warning`/`critical`), 카테고리 fixed/variable, 수입/지출 색은 항상 `utils/colors.ts` 함수로 가져온다. 컴포넌트에 `status === "critical" ? "text-red-600" : ...`를 직접 쓰지 않는다. 금액 부호 색 `amountToneClass`, 단독 에러 문구 `errorMessageTextClass`, amber 주의/제안 `cautionTextClass`/`cautionCalloutClass`/`cautionCalloutTextClass`. 성공·에러 콜아웃 `successCallout*`/`errorCallout*`, 삭제·제거 같은 파괴적 동작 `dangerActionClass("outline"|"solid"|"hover"|"menu"|"icon")`, recharts 툴팁 `chartTooltipStyle(isDark)`.
 - **accent**: `src/index.css` `@theme`의 `primary` 토큰(emerald 계열). 버튼·링크·hover·아이콘·배지에 raw `emerald-*`/`indigo-*`를 쓰지 않는다 — CI grep 가드가 `colors.ts` 밖의 사용을 실패시킨다.
-- **금액**: 백엔드 응답의 `Decimal` 문자열 그대로 다루고, 표시 시점에만 `utils/format.ts`의 `formatKrw`/`formatKrwCompact`. 중간에 `parseFloat` 등으로 반올림하지 않는다. 표기 기준: 요약·헤더·차트 범례처럼 규모만 보면 되는 곳은 `formatKrwCompact`(아주 좁은 캘린더 셀·축은 `formatKrwAxis`), 항목 행·폼·툴팁처럼 정확한 값이 필요한 곳은 `formatKrw` — 만원 단위 반올림이라 "65,000원"이 "7만원"이 된다. 입력은 `common/AmountInput`(격자형은 `amountInputProps`).
+- **금액**: 백엔드 응답의 `Decimal` 문자열 그대로 다루고, 표시 시점에만 `utils/format.ts`의 `formatKrw`/`formatKrwCompact`. 중간에 `parseFloat` 등으로 반올림하지 않는다. 표기 기준: 요약·헤더·차트 범례처럼 규모만 보면 되는 곳은 `formatKrwCompact`(아주 좁은 캘린더 셀·축은 `formatKrwAxis`), 항목 행·폼·툴팁처럼 정확한 값이 필요한 곳은 `formatKrw` — 만원 단위 반올림이라 "65,000원"이 "7만원"이 된다. 입력은 `common/AmountInput`(격자형은 `amountInputProps`). 수익률은 `formatReturnPct`(소수 첫째 자리, `signed`면 양수에 +).
 - **긴 안내 문단**: 화면 하단 설명은 `common/CollapsibleHint`(모바일 한 줄 + "자세히").
 - **터치 타깃**: 단독 액션 버튼은 `constants/uiSizes.ts`의 `TOUCH_TARGET_MIN`(44px), 조밀한 배지/탭은 `TOUCH_TARGET_COMPACT_MOBILE_ONLY`(36px). `Button`에 `!min-h-0 !py-1` 같은 override로 깎지 않는다. 글자는 `text-[11px]` 미만 금지 — 좁은 곳은 `formatKrwCompact`로 줄인다.
 - **로딩·실패 vs 없음**: 쿼리 데이터가 아직 없거나 실패한 상태를 빈 상태("~이 없어요")로 그리지 않는다 — `common/QueryBoundary`(카드 안이면 `compact` + `SkeletonCard bare`)로 감싼다. 확인 모달은 뮤테이션 `isPending`을 `ConfirmModal`의 `loading`으로 넘겨 연타를 막는다.
@@ -49,14 +49,15 @@ npm run generate:icons      # public/favicon.svg → PNG/ICO
 - **입력 스타일**: `constants/inputStyles.ts`의 `INPUT_SM`/`INPUT_MD`/`LABEL_SM`/`LABEL_MD`를 재사용한다.
 - **쿼리 키**: `constants/queryKeys.ts`의 `QUERY_KEYS`만 쓴다(배열 리터럴 금지 — 무효화 누락 방지).
 - **무효화·에러 토스트**: 여러 키는 `utils/queryClient.ts`의 `invalidateKeys(qc, keys)`로, 묶음은 `*_RELATED_KEYS`(`ASSET`·`CATEGORY`·`USER`·`TRANSACTION`·`PLAN`)를 쓴다. 뮤테이션 실패 토스트는 전역 `createMutationCache`가 띄우므로 `onError: (err) => toast(extractErrorMessage(err), "error")` 같은 같은-문구 핸들러는 두지 않는다(문구가 다르거나 부수효과가 있을 때만). `staleTime`은 전역 기본값이 `STALE_TIME.SHORT`라 다를 때만 적는다. 계획 쿼리는 `hooks/usePlanQueries`.
-- **참조 데이터**: 계좌·결제카드·카테고리·저축상품·유저는 `hooks/useReferenceData.ts`의 `useAccounts`/`useCards`/`useCategories`/`useSavingsProducts`/`useUsers`/`useMe`로만 조회한다.
+- **참조 데이터**: 계좌·결제카드·카테고리·저축상품·유저는 `hooks/useReferenceData.ts`의 `useAccounts`/`useCards`/`useCategories`/`useSavingsProducts`/`useUsers`/`useMe`로만 조회한다. 순자산은 같은 파일의 `useNetWorth`, 할일·일정 목록은 `hooks/useScheduleQueries.ts`의 `useTodos`/`useEvents`.
+- **탭 파라미터**: `?tab=`·`?view=`·`?section=`으로 고르는 탭은 `hooks/useTabParam`(유효성·기본값·replace, `pinDefault`·`legacyKeys`)으로 읽고 바꾼다.
 - **영속 쿼리 캐시**: `main.tsx`의 `PersistQueryClientProvider`가 `PERSIST_QUERY_KEYS`(`constants/queryConfig.ts`) 응답을 localStorage에 24시간 보관해 재방문 시 즉시 그린다. 이 키들의 **응답 형태를 호환되지 않게 바꾸면**(필드 이름·타입 변경, 필수 필드 추가) `main.tsx`의 `buster`를 올린다 — 안 올리면 구 캐시가 최대 24시간 렌더돼 깨진다(필드 삭제만이면 보통 불필요). `DEFAULT_GC_TIME`은 `PERSIST_MAX_AGE` 이상으로 둔다.
 - **다크모드**: `<html>`의 `.dark` 클래스(`darkMode: "class"`), `stores/themeStore.ts` — 저장값이 없으면 `prefers-color-scheme`.
 
 ## 구조 (`src/`)
 
 - Import는 `@/` alias(`@/* → src/*`).
-- 데이터 흐름: `api/client.ts`(axios + JWT 인터셉터) → `api/<리소스>.ts`(백엔드 라우터와 대체로 1:1) → 컴포넌트의 `useQuery`/`useMutation`. 여러 화면이 공유하는 것만 `hooks/`로 감싼다(`useCrudMutations`, `useRecurringMutations`, `useInvalidateTransactionRelated`, `useEventActions` 등). Zustand(`stores/authStore`, `themeStore`)는 서버 캐시와 무관한 클라이언트 상태만.
+- 데이터 흐름: `api/client.ts`(axios + JWT 인터셉터) → `api/<리소스>.ts`(백엔드 라우터와 대체로 1:1) → 컴포넌트의 `useQuery`/`useMutation`. 여러 화면이 공유하는 것만 `hooks/`로 감싼다(`useCrudMutations`, `useRecurringMutations`, `useInvalidateTransactionRelated`, `useEventActions`·`useTodoActions`·`useTransactionActions`(삭제 확인은 공용 `useConfirmDelete`) 등). 할일·일정 완료 체크는 `common/CompleteCheckbox`, 연간계획 폼의 기간·월별 금액은 `financialPlan/PlanPeriodFields`(`MonthRangeSelect`) + `usePlanPeriodTargets`. Zustand(`stores/authStore`, `themeStore`)는 서버 캐시와 무관한 클라이언트 상태만.
 - 컴포넌트: 페이지별 디렉토리(`home/`, `dashboard/`, `transactions/`, `plan/`, `financialPlan/`, `accounts/`, `categories/`, `settings/`, `schedule/`, `review/`, `todos/`)는 대체로 그 페이지 전용이다. 공용은 `common/`(growlio에서 옮긴 `Button`/`Modal`/`ConfirmModal`/`Tabs`/`FormInput`/`EmptyState` 등 + `CategoryPicker`, `GrowlioImportModal`, `QuickAddFab`, `MonthPicker`, `CollapsibleGroup`, `StatusBadge`), 셸은 `layout/`(`AppLayout`/`Sidebar`/`Header`/`BottomNav`). 최상위 `ErrorBoundary`·`Toaster`(`nestlio:toast` 이벤트).
 
 ### 인증

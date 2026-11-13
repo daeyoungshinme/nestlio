@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { useSearchParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import MonthPicker from "@/components/common/MonthPicker";
 import QueryBoundary from "@/components/common/QueryBoundary";
@@ -10,7 +9,8 @@ import SpendingReviewSection from "@/components/review/SpendingReviewSection";
 import { fetchSavingsReview } from "@/api/reports";
 import { STALE_TIME } from "@/constants/queryConfig";
 import { QUERY_KEYS } from "@/constants/queryKeys";
-import { SAVINGS_REVIEW_TABS, type SavingsReviewTab } from "@/constants/routes";
+import { SAVINGS_REVIEW_TABS } from "@/constants/routes";
+import { useTabParam } from "@/hooks/useTabParam";
 import { useUsers } from "@/hooks/useReferenceData";
 import { currentYearMonth, shiftYearMonth } from "@/utils/date";
 import { formatKrw, formatKrwCompact, formatYearMonth } from "@/utils/format";
@@ -18,16 +18,10 @@ import { formatKrw, formatKrwCompact, formatYearMonth } from "@/utils/format";
 const ALL_OWNERS_TAB = "전체";
 const SHARED_OWNER_TAB = "공통";
 
-function isTab(value: string | null): value is SavingsReviewTab {
-  return (SAVINGS_REVIEW_TABS as readonly string[]).includes(value ?? "");
-}
-
 /** 절감 점검 — 소비 절감 후보(지난달 기준, 최근 평균과 비교)와 보험 계약 점검. 규칙 기반이며 백엔드
  * spending_review_service / insurance_review_service가 계산한다. 기준월 기본값은 지난달(마감된 달). */
 export default function SavingsReviewPage() {
-  const [searchParams, setSearchParams] = useSearchParams();
-  const tabParam = searchParams.get("tab");
-  const activeTab: SavingsReviewTab = isTab(tabParam) ? tabParam : "소비";
+  const [activeTab, changeTab] = useTabParam("tab", SAVINGS_REVIEW_TABS, "소비");
   const [yearMonth, setYearMonth] = useState(() => shiftYearMonth(currentYearMonth(), -1));
   const [ownerTab, setOwnerTab] = useState(ALL_OWNERS_TAB);
   const { data: users } = useUsers();
@@ -45,16 +39,6 @@ export default function SavingsReviewPage() {
     queryFn: () => fetchSavingsReview(yearMonth, ownerParam),
     staleTime: STALE_TIME.MEDIUM,
   });
-
-  const changeTab = (tab: SavingsReviewTab) =>
-    setSearchParams(
-      (prev) => {
-        const next = new URLSearchParams(prev);
-        next.set("tab", tab);
-        return next;
-      },
-      { replace: true },
-    );
 
   return (
     <div className="space-y-4">
