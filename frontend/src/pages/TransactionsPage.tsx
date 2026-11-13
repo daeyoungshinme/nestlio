@@ -1,14 +1,11 @@
 import { useMemo, useRef, useState } from "react";
-import { useMutation } from "@tanstack/react-query";
 import { Repeat } from "lucide-react";
 import { useSearchParams } from "react-router-dom";
 import { LEDGER_VIEWS, type LedgerView } from "@/constants/routes";
 import Tabs from "@/components/common/Tabs";
 import LedgerScheduleList from "@/components/transactions/LedgerScheduleList";
 import { useEventActions } from "@/hooks/useEventActions";
-import ConfirmModal from "@/components/common/ConfirmModal";
 import InlineStatsBar from "@/components/common/InlineStatsBar";
-import Modal from "@/components/common/Modal";
 import MonthPicker from "@/components/common/MonthPicker";
 import QueryBoundary from "@/components/common/QueryBoundary";
 import SkeletonCard from "@/components/common/SkeletonCard";
@@ -17,20 +14,17 @@ import LedgerCalendar from "@/components/transactions/LedgerCalendar";
 import LedgerListControls from "@/components/transactions/LedgerListControls";
 import LedgerResults from "@/components/transactions/LedgerResults";
 import LedgerDayModal from "@/components/transactions/LedgerDayModal";
-import TransactionForm from "@/components/transactions/TransactionForm";
 import RecurringManageSheet from "@/components/transactions/RecurringManageSheet";
-import { deleteTransaction, updateTransaction } from "@/api/transactions";
 import { useSwipeMonth } from "@/hooks/useSwipeMonth";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
-import { useCreateTransaction, useInvalidateTransactionRelated } from "@/hooks/useInvalidateTransactionRelated";
 import { useLedgerFilters } from "@/hooks/useLedgerFilters";
 import { useLedgerMonth } from "@/hooks/useLedgerMonth";
 import { useConsumeSearchParam } from "@/hooks/useConsumeSearchParam";
 import { useRecurringDeepLink } from "@/hooks/useRecurringDeepLink";
+import { useTransactionActions } from "@/hooks/useTransactionActions";
 import { useAccounts, useCategories, useMe, useSavingsProducts, useUsers } from "@/hooks/useReferenceData";
 import { currentDateIso, currentYearMonth, shiftYearMonth } from "@/utils/date";
 import { formatKrwCompact } from "@/utils/format";
-import { toast } from "@/utils/toast";
 import type { EventOut, TransactionOut } from "@/types";
 import { TOUCH_TARGET_MIN_HEIGHT } from "@/constants/uiSizes";
 
@@ -59,9 +53,6 @@ export default function TransactionsPage() {
   });
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [dayPanel, setDayPanel] = useState<DayPanel | null>(null);
-  const [formTarget, setFormTarget] = useState<"new" | TransactionOut | null>(null);
-  const [createDate, setCreateDate] = useState(currentDateIso());
-  const [deleteTarget, setDeleteTarget] = useState<TransactionOut | null>(null);
   const [searchInput, setSearchInput] = useState("");
   const [showRecurringSheet, setShowRecurringSheet] = useRecurringDeepLink();
   const debouncedQuery = useDebouncedValue(searchInput.trim(), 300);
@@ -77,6 +68,14 @@ export default function TransactionsPage() {
 
   const month = useLedgerMonth(yearMonth, debouncedQuery);
   const eventActions = useEventActions({ users, onSaved: () => setDayPanel(null) });
+  const txActions = useTransactionActions({
+    categories: categoriesQuery.data,
+    accounts: accountsQuery.data,
+    savingsProducts: savingsProductsQuery.data,
+    users,
+    currentUserId: me?.id,
+    onSaved: () => setDayPanel(null),
+  });
 
   // ?date=YYYY-MM-DD로 들어오면(옛 일정 경로 리다이렉트 등) 그 달로 이동해 그 날 모달을 열고 파라미터를
   // 지운다. 이미 마운트된 상태에서 파라미터만 바뀌어도 맞는 달의 거래를 보이도록 달도 함께 맞춘다.
@@ -106,93 +105,17 @@ export default function TransactionsPage() {
   }, [me, users]);
   const showUser = userOptions.length > 2;
 
-  const invalidateAll = useInvalidateTransactionRelated();
-
-  const updateMutation = useMutation({
-    mutationFn: ({ id, payload }: { id: number; payload: Parameters<typeof updateTransaction>[1] }) =>
-      updateTransaction(id, payload),
-    onSuccess: () => {
-      invalidateAll();
-      setFormTarget(null);
-      setDayPanel(null);
-      toast("내역을 수정했습니다.", "success");
-    },
-  });
-
-  const deleteMutation = useMutation({
-    mutationFn: deleteTransaction,
-    onSuccess: () => {
-      invalidateAll();
-      setDeleteTarget(null);
-      // 삭제는 수정 폼 안에서만 시작하므로 그 폼도 닫는다(시트는 그날 목록으로 돌아간다).
-      setFormTarget(null);
-      setDayPanel(null);
-      toast("내역을 삭제했습니다.", "success");
-    },
-  });
-
-  const createMutation = useCreateTransaction((created) => {
-    setFormTarget(null);
-    setDayPanel(null);
-    toast("내역을 추가했습니다.", "success", {
-      label: "취소",
-      onClick: () => deleteMutation.mutate(created.id),
-    });
-  });
-
-  const openCreate = (dateHint?: string) => {
-    setCreateDate(dateHint ?? defaultDateHint(yearMonth));
-    setFormTarget("new");
-  };
-
   const closeDay = () => {
     setSelectedDate(null);
     setDayPanel(null);
   };
-
-  const isSaving = createMutation.isPending || updateMutation.isPending;
-
-  const renderTransactionForm = (target: "new" | TransactionOut, dateHint: string) => (
-    <TransactionForm
-      categories={categoriesQuery.data!}
-      accounts={accountsQuery.data!}
-      savingsProducts={savingsProductsQuery.data!}
-      users={users ?? []}
-      currentUserId={me?.id}
-      layout="stack"
-      isNew={target === "new"}
-      onDelete={target === "new" ? undefined : () => setDeleteTarget(target)}
-      submitLabel={target === "new" ? "추가" : "저장"}
-      submitting={isSaving}
-      initialValues={
-        target === "new"
-          ? { transaction_date: dateHint }
-          : {
-              amount: target.amount,
-              type: target.type,
-              category_id: String(target.category.id),
-              transaction_date: target.transaction_date,
-              description: target.description ?? "",
-              payment_method: target.payment_method ?? "",
-              account_id: target.account ? String(target.account.id) : "",
-              savings_product_id: target.savings_product_id ? String(target.savings_product_id) : "",
-              owner_user_id: target.owner_user_id ?? "",
-              card_id: target.card_id ? String(target.card_id) : "",
-            }
-      }
-      editingCard={target === "new" ? null : target.card}
-      onSubmit={(payload) =>
-        target === "new" ? createMutation.mutate(payload) : updateMutation.mutate({ id: target.id, payload })
-      }
-    />
-  );
 
   const dayPanelView =
     selectedDate && dayPanel
       ? dayPanel.kind === "tx"
         ? {
             title: dayPanel.target === "new" ? "내역 추가" : "내역 수정",
-            content: renderTransactionForm(dayPanel.target, selectedDate),
+            content: txActions.renderForm(dayPanel.target, selectedDate),
           }
         : {
             title: dayPanel.target === "new" ? "새 일정" : "일정 수정",
@@ -300,7 +223,7 @@ export default function TransactionsPage() {
                   totalExpense={month.totals?.expense ?? "0"}
                   users={users}
                   showUser={showUser}
-                  onEdit={setFormTarget}
+                  onEdit={txActions.openEdit}
                   onResetFilters={
                     filters.isFiltered || searchInput
                       ? () => {
@@ -316,7 +239,7 @@ export default function TransactionsPage() {
         )}
 
         <QuickAddFab
-          onClick={() => (view === "일정" ? eventActions.openCreate(defaultDateHint(yearMonth)) : openCreate())}
+          onClick={() => (view === "일정" ? eventActions : txActions).openCreate(defaultDateHint(yearMonth))}
         />
         {eventActions.modals}
 
@@ -340,20 +263,7 @@ export default function TransactionsPage() {
           />
         )}
 
-        {formTarget && (
-          <Modal onClose={() => setFormTarget(null)} title={formTarget === "new" ? "내역 추가" : "내역 수정"}>
-            <div className="p-6 overflow-y-auto">{renderTransactionForm(formTarget, createDate)}</div>
-          </Modal>
-        )}
-
-        {deleteTarget && (
-          <ConfirmModal
-            message="이 내역을 삭제할까요? 되돌릴 수 없습니다."
-            loading={deleteMutation.isPending}
-            onConfirm={() => deleteMutation.mutate(deleteTarget.id)}
-            onCancel={() => setDeleteTarget(null)}
-          />
-        )}
+        {txActions.modals}
 
         {showRecurringSheet && (
           <RecurringManageSheet

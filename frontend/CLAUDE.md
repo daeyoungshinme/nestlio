@@ -72,7 +72,7 @@ npm run generate:icons      # public/favicon.svg → PNG/ICO
 | 경로 | 페이지 | 메모 |
 |---|---|---|
 | `/` | `DashboardPage` | 항상 이번 달 기준: (월초 1~7일) `MonthlyRetrospectiveCard` → `HomeGoalHero`(대표 목표 — 통합 목표, 없으면 순자산 목표가 있으면 그것, 함께 모은 돈·저축 리더·응원 보내기, 카드·응원 모두 목표 상세로, 스파크라인은 sm 이상만) → `MonthFlowCard`(계획 대비 미니 막대 + `InvestSurplusCard embedded`) → `CoachingInsights`(상위 2개, 위 카드와 겹치는 `budget_overrun`·`savings_execution`은 숨김) → `SavingsReviewLinkCard` → `TodayScheduleCard` → `TodoCard`. 배우자 응원은 `utils/cheers.ts::latestPartnerCheer` |
-| `/transactions` | 가계부 | 월간 캘린더 + `[내역 \| 일정]` 세그먼트(`?view=`). 날짜 클릭 → `LedgerDayModal`(거래·일정 함께). 일정 CRUD는 `hooks/useEventActions.tsx`. 반복 거래 관리는 `RecurringManageSheet`. `?date=YYYY-MM-DD`로 모달 열기 |
+| `/transactions` | 가계부 | 월간 캘린더 + `[내역 \| 일정]` 세그먼트(`?view=`). 날짜 클릭 → `LedgerDayModal`(거래·일정 함께). 일정 CRUD는 `hooks/useEventActions.tsx`, 거래 CRUD(추가 되돌리기 토스트 포함)는 같은 모양의 `hooks/useTransactionActions.tsx`. 거래 폼은 `TransactionForm`(배치) + `useTransactionForm`(상태·결제↔계좌 연동) + `TransactionFormFields`(선택 칸). 반복 거래 관리는 `RecurringManageSheet`. `?date=YYYY-MM-DD`로 모달 열기 |
 | `/transactions/import` | 거래 데이터 | CSV 내보내기·가져오기. 진입은 설정 › 고급뿐 |
 | `/categories` | 카테고리 관리 | 메뉴에 없음 — 설정 › 고급·계획 섹션의 "카테고리" 버튼에서만 진입 |
 | `/accounts` | 자산 | 계좌(결제카드 `CardsSection` 포함)/저축·투자/부동산/대출 4개 `CollapsibleGroup`(접힌 섹션은 마운트·쿼리 안 함). `?section=`. 맨 위 `GrowlioPushFailuresBanner`(growlio 반영을 포기한 저축·투자 입출금이 있을 때만, 다시 보내기). 상단 `AccountsSnapshotCard`의 "전체 동기화"가 **growlio 잔액 동기화의 유일한 수동 진입점** |

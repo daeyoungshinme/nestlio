@@ -1,52 +1,21 @@
-import { useId, useState } from "react";
-import type { FormEvent } from "react";
+import { useState } from "react";
 import { Plus } from "lucide-react";
-import Badge from "@/components/common/Badge";
 import Button from "@/components/common/Button";
 import ConfirmModal from "@/components/common/ConfirmModal";
 import EmptyState from "@/components/common/EmptyState";
-import FormInput from "@/components/common/FormInput";
-import Modal from "@/components/common/Modal";
-import RowActionButtons from "@/components/common/RowActionButtons";
 import SkeletonCard from "@/components/common/SkeletonCard";
-import { COLOR_INPUT_SM, INPUT_SM, LABEL_SM } from "@/constants/inputStyles";
+import CategoryCard from "@/components/categories/CategoryCard";
+import CategoryFormModal from "@/components/categories/CategoryFormModal";
+import { CATEGORY_TYPE_LABEL, CATEGORY_TYPE_ORDER } from "@/components/categories/categoryTypes";
 import { createCategory, deactivateCategory, updateCategory } from "@/api/categories";
 import { CATEGORY_RELATED_KEYS } from "@/constants/queryKeys";
-import { BENCHMARK_GROUP_LABELS, BENCHMARK_GROUP_ORDER } from "@/constants/benchmarkGroups";
 import { useCrudMutations } from "@/hooks/useCrudMutations";
 import { useCategories } from "@/hooks/useReferenceData";
-import { DEFAULT_CATEGORY_COLOR } from "@/utils/colors";
-import type { BenchmarkGroup, CategoryOut, CategoryType } from "@/types";
-
-const TYPE_LABEL: Record<CategoryType, string> = {
-  fixed: "고정지출",
-  variable: "변동지출",
-  irregular: "비정기지출",
-};
-
-const TYPE_ORDER: CategoryType[] = ["fixed", "variable", "irregular"];
-
-interface FormState {
-  name: string;
-  kind: "income" | "expense";
-  type: CategoryType;
-  color: string;
-  benchmark_group: BenchmarkGroup | "";
-}
-
-const emptyForm: FormState = {
-  name: "",
-  kind: "expense",
-  type: "variable",
-  color: DEFAULT_CATEGORY_COLOR,
-  benchmark_group: "",
-};
+import type { CategoryOut } from "@/types";
 
 export default function CategoriesSection() {
-  const fieldId = useId();
-  const [form, setForm] = useState<FormState>(emptyForm);
-  const [showCreate, setShowCreate] = useState(false);
-  const [editing, setEditing] = useState<CategoryOut | null>(null);
+  /** 열린 폼 — "new"면 추가, 카테고리면 수정. */
+  const [formTarget, setFormTarget] = useState<"new" | CategoryOut | null>(null);
   const [deactivateTarget, setDeactivateTarget] = useState<CategoryOut | null>(null);
 
   const { data, isLoading } = useCategories();
@@ -60,49 +29,30 @@ export default function CategoriesSection() {
       update: "카테고리를 수정했습니다.",
       remove: "카테고리를 비활성화했습니다.",
     },
-    onCreateSuccess: () => {
-      setForm(emptyForm);
-      setShowCreate(false);
-    },
-    onUpdateSuccess: () => setEditing(null),
+    onCreateSuccess: () => setFormTarget(null),
+    onUpdateSuccess: () => setFormTarget(null),
     onRemoveSuccess: () => setDeactivateTarget(null),
   });
-
-  const handleSubmit = (e: FormEvent) => {
-    e.preventDefault();
-    createMutation.mutate({ ...form, benchmark_group: form.benchmark_group || null });
-  };
-
-  const handleEditSubmit = (e: FormEvent) => {
-    e.preventDefault();
-    if (!editing) return;
-    updateMutation.mutate({
-      id: editing.id,
-      payload: {
-        name: editing.name,
-        kind: editing.kind,
-        type: editing.type,
-        color: editing.color,
-        benchmark_group: editing.benchmark_group,
-      },
-    });
-  };
 
   if (isLoading || !data) {
     return <SkeletonCard rows={4} />;
   }
 
-  const expenseByType = TYPE_ORDER.map((type) => ({
+  const expenseByType = CATEGORY_TYPE_ORDER.map((type) => ({
     type,
     items: data.filter((c) => c.kind === "expense" && c.type === type && !c.is_savings),
   }));
   const incomeCategories = data.filter((c) => c.kind === "income" && !c.is_savings);
+  const groups = [
+    ...expenseByType.map(({ type, items }) => ({ key: type, label: CATEGORY_TYPE_LABEL[type], items })),
+    { key: "income", label: "수입", items: incomeCategories },
+  ];
 
   return (
     <div className="space-y-6">
       {/* 예전엔 6칸짜리 추가 폼이 목록 위에 늘 펼쳐져 있어 모바일에서 목록이 한 화면 아래로 밀렸다. */}
       <div className="flex justify-end">
-        <Button size="sm" icon={<Plus size={14} />} onClick={() => setShowCreate(true)}>
+        <Button size="sm" icon={<Plus size={14} />} onClick={() => setFormTarget("new")}>
           카테고리 추가
         </Button>
       </div>
@@ -111,16 +61,16 @@ export default function CategoriesSection() {
         <EmptyState title="등록된 카테고리가 없어요" compact />
       ) : (
         <div className="space-y-5">
-          {expenseByType.map(({ type, items }) =>
+          {groups.map(({ key, label, items }) =>
             items.length === 0 ? null : (
-              <div key={type} className="space-y-2">
-                <h4 className="text-xs font-semibold text-gray-500 dark:text-gray-400">{TYPE_LABEL[type]}</h4>
+              <div key={key} className="space-y-2">
+                <h4 className="text-xs font-semibold text-gray-500 dark:text-gray-400">{label}</h4>
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                   {items.map((category) => (
                     <CategoryCard
                       key={category.id}
                       category={category}
-                      onEdit={() => setEditing(category)}
+                      onEdit={() => setFormTarget(category)}
                       onDeactivate={() => setDeactivateTarget(category)}
                     />
                   ))}
@@ -128,176 +78,20 @@ export default function CategoriesSection() {
               </div>
             ),
           )}
-
-          {incomeCategories.length > 0 && (
-            <div className="space-y-2">
-              <h4 className="text-xs font-semibold text-gray-500 dark:text-gray-400">수입</h4>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                {incomeCategories.map((category) => (
-                  <CategoryCard
-                    key={category.id}
-                    category={category}
-                    onEdit={() => setEditing(category)}
-                    onDeactivate={() => setDeactivateTarget(category)}
-                  />
-                ))}
-              </div>
-            </div>
-          )}
         </div>
       )}
 
-      {showCreate && (
-        <Modal onClose={() => setShowCreate(false)} title="카테고리 추가">
-          <div className="p-6 overflow-y-auto">
-              <form onSubmit={handleSubmit} className="flex flex-col gap-3">
-                <div>
-                  <FormInput
-                    label="이름"
-                    value={form.name}
-                    maxLength={100}
-                    onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
-                    required
-                  />
-                </div>
-                <div>
-                  <label htmlFor={`${fieldId}-0`} className={`block mb-1 font-medium ${LABEL_SM}`}>종류</label>
-                  <select
-                    id={`${fieldId}-0`}
-                    className={`${INPUT_SM} w-full`}
-                    value={form.kind}
-                    onChange={(e) => setForm((f) => ({ ...f, kind: e.target.value as "income" | "expense" }))}
-                  >
-                    <option value="expense">지출</option>
-                    <option value="income">수입</option>
-                  </select>
-                </div>
-                {/* 고정/변동/비정기 구분은 지출에만 뜻이 있다. */}
-                {form.kind === "expense" && (
-                  <div>
-                    <label htmlFor={`${fieldId}-1`} className={`block mb-1 font-medium ${LABEL_SM}`}>구분</label>
-                    <select
-                      id={`${fieldId}-1`}
-                      className={`${INPUT_SM} w-full`}
-                      value={form.type}
-                      onChange={(e) => setForm((f) => ({ ...f, type: e.target.value as CategoryType }))}
-                    >
-                      {TYPE_ORDER.map((type) => (
-                        <option key={type} value={type}>
-                          {TYPE_LABEL[type]}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                )}
-                <div>
-                  <label htmlFor={`${fieldId}-2`} className={`block mb-1 font-medium ${LABEL_SM}`}>표준 카테고리(선택)</label>
-                  <select
-                    id={`${fieldId}-2`}
-                    className={`${INPUT_SM} w-full`}
-                    value={form.benchmark_group}
-                    onChange={(e) => setForm((f) => ({ ...f, benchmark_group: e.target.value as BenchmarkGroup | "" }))}
-                  >
-                    <option value="">지정 안 함</option>
-                    {BENCHMARK_GROUP_ORDER.map((group) => (
-                      <option key={group} value={group}>
-                        {BENCHMARK_GROUP_LABELS[group]}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div className="shrink-0">
-                  <label htmlFor={`${fieldId}-3`} className={`block mb-1 font-medium ${LABEL_SM}`}>색상</label>
-                  <input
-                    id={`${fieldId}-3`}
-                    type="color"
-                    value={form.color}
-                    onChange={(e) => setForm((f) => ({ ...f, color: e.target.value }))}
-                    className={COLOR_INPUT_SM}
-                  />
-                </div>
-                <Button type="submit" loading={createMutation.isPending} className="mt-2">
-                  추가
-                </Button>
-              </form>
-          </div>
-        </Modal>
-      )}
-
-      {editing && (
-        <Modal onClose={() => setEditing(null)} title="카테고리 수정">
-          <div className="p-6 overflow-y-auto">
-            <form onSubmit={handleEditSubmit} className="flex flex-col gap-3 max-w-sm">
-              <FormInput
-                label="이름"
-                value={editing.name}
-                maxLength={100}
-                onChange={(e) => setEditing((c) => (c ? { ...c, name: e.target.value } : c))}
-                required
-              />
-              <div>
-                <label htmlFor={`${fieldId}-4`} className={`block mb-1 font-medium ${LABEL_SM}`}>종류</label>
-                <select
-                  id={`${fieldId}-4`}
-                  className={`${INPUT_SM} w-full`}
-                  value={editing.kind}
-                  onChange={(e) => setEditing((c) => (c ? { ...c, kind: e.target.value as "income" | "expense" } : c))}
-                >
-                  <option value="expense">지출</option>
-                  <option value="income">수입</option>
-                </select>
-              </div>
-              {editing.kind === "expense" && (
-                <div>
-                  <label htmlFor={`${fieldId}-5`} className={`block mb-1 font-medium ${LABEL_SM}`}>구분</label>
-                  <select
-                    id={`${fieldId}-5`}
-                    className={`${INPUT_SM} w-full`}
-                    value={editing.type}
-                    onChange={(e) => setEditing((c) => (c ? { ...c, type: e.target.value as CategoryType } : c))}
-                  >
-                    {TYPE_ORDER.map((type) => (
-                      <option key={type} value={type}>
-                        {TYPE_LABEL[type]}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              )}
-              <div>
-                <label htmlFor={`${fieldId}-6`} className={`block mb-1 font-medium ${LABEL_SM}`}>표준 카테고리(선택)</label>
-                <select
-                  id={`${fieldId}-6`}
-                  className={`${INPUT_SM} w-full`}
-                  value={editing.benchmark_group ?? ""}
-                  onChange={(e) =>
-                    setEditing((c) => (c ? { ...c, benchmark_group: (e.target.value || null) as BenchmarkGroup | null } : c))
-                  }
-                >
-                  <option value="">지정 안 함</option>
-                  {BENCHMARK_GROUP_ORDER.map((group) => (
-                    <option key={group} value={group}>
-                      {BENCHMARK_GROUP_LABELS[group]}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label htmlFor={`${fieldId}-7`} className={`block mb-1 font-medium ${LABEL_SM}`}>색상</label>
-                <input
-                  id={`${fieldId}-7`}
-                  type="color"
-                  value={editing.color}
-                  onChange={(e) => setEditing((c) => (c ? { ...c, color: e.target.value } : c))}
-                  className={COLOR_INPUT_SM}
-                />
-              </div>
-              <Button type="submit" loading={updateMutation.isPending}>
-                저장
-              </Button>
-            </form>
-          </div>
-        </Modal>
+      {formTarget && (
+        <CategoryFormModal
+          category={formTarget === "new" ? null : formTarget}
+          submitting={formTarget === "new" ? createMutation.isPending : updateMutation.isPending}
+          onClose={() => setFormTarget(null)}
+          onSubmit={(payload) =>
+            formTarget === "new"
+              ? createMutation.mutate(payload)
+              : updateMutation.mutate({ id: formTarget.id, payload })
+          }
+        />
       )}
 
       {deactivateTarget && (
@@ -308,40 +102,6 @@ export default function CategoriesSection() {
           onCancel={() => setDeactivateTarget(null)}
         />
       )}
-    </div>
-  );
-}
-
-function CategoryCard({
-  category,
-  onEdit,
-  onDeactivate,
-}: {
-  category: CategoryOut;
-  onEdit: () => void;
-  onDeactivate: () => void;
-}) {
-  return (
-    <div className="card flex items-center justify-between gap-3">
-      <div className="min-w-0 flex items-center gap-2">
-        <span
-          className="w-3 h-3 rounded-full shrink-0"
-          style={{ backgroundColor: category.color }}
-          aria-hidden="true"
-        />
-        <div className="min-w-0">
-          <p className="text-sm font-medium text-gray-900 dark:text-gray-50 truncate">{category.name}</p>
-          <div className="flex items-center gap-1 flex-wrap">
-            <Badge type={category.type} label={category.kind === "income" ? "수입" : TYPE_LABEL[category.type]} />
-            {category.benchmark_group && (
-              <span className="text-[11px] text-gray-400 dark:text-gray-500">
-                {BENCHMARK_GROUP_LABELS[category.benchmark_group]}
-              </span>
-            )}
-          </div>
-        </div>
-      </div>
-      <RowActionButtons onEdit={onEdit} onDelete={onDeactivate} deleteLabel="비활성화" />
     </div>
   );
 }
