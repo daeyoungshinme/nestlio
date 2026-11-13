@@ -1,45 +1,34 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
-import { useMutation } from "@tanstack/react-query";
 import { Plus, Target, Trophy } from "lucide-react";
 import Button from "@/components/common/Button";
 import CollapsibleGroup from "@/components/common/CollapsibleGroup";
+import CollapsibleHint from "@/components/common/CollapsibleHint";
 import ConfirmModal from "@/components/common/ConfirmModal";
 import EmptyState from "@/components/common/EmptyState";
-import AmountInput from "@/components/common/AmountInput";
-import CombinedMembersList from "@/components/financialPlan/CombinedMembersList";
-import GoalFormModal from "@/components/financialPlan/GoalFormModal";
-import { EMPTY_GOAL_DRAFT, draftFromGoal, toPayload, type Draft } from "@/components/financialPlan/goalDraft";
-import GoalProgressCard from "@/components/financialPlan/GoalProgressCard";
-import type { GoalProgressCardBadge, GoalProgressCardExtraDetail } from "@/components/financialPlan/GoalProgressCard";
-import GoalSectionHeader from "@/components/financialPlan/GoalSectionHeader";
 import QueryBoundary from "@/components/common/QueryBoundary";
 import Tabs from "@/components/common/Tabs";
-import { createGoal, deleteGoal, refreshGrowlioGoalSnapshot, updateGoal, updateGoalMonthlyTarget } from "@/api/goals";
-import { INLINE_BUTTON_OFFSET } from "@/constants/inputStyles";
+import GoalFormModal from "@/components/financialPlan/GoalFormModal";
+import GoalListCard from "@/components/financialPlan/GoalListCard";
+import GoalSectionHeader from "@/components/financialPlan/GoalSectionHeader";
+import { EMPTY_GOAL_DRAFT, draftFromGoal, toPayload, type Draft } from "@/components/financialPlan/goalDraft";
+import { createGoal, deleteGoal, refreshGrowlioGoalSnapshot, updateGoal } from "@/api/goals";
 import { QUERY_KEYS } from "@/constants/queryKeys";
-import { TOUCH_TARGET_MIN_HEIGHT } from "@/constants/uiSizes";
+import { planViewLink } from "@/constants/routes";
 import { useCrudMutations } from "@/hooks/useCrudMutations";
 import { useAccounts, useGoals, useLoans, useMe, useSavingsProducts, useUsers } from "@/hooks/useReferenceData";
-import { goalDetailLink, planViewLink } from "@/constants/routes";
-import { progressStatusBadgeClass, progressStatusLabel } from "@/utils/colors";
-import { computeCardStatus, daysUntil, isGoalAchieved } from "@/utils/goalStatus";
+import { celebrateIfCrossed } from "@/utils/goalMilestone";
+import { isGoalAchieved } from "@/utils/goalStatus";
 import { GOAL_SORT_LABELS, pinHouseholdGoalsFirst, sortGoals, type GoalSortLabel } from "@/utils/goalSort";
-import { formatDate, formatKrw, formatKrwCompact, formatYearMonth, toAmountInputValue } from "@/utils/format";
-import { toast } from "@/utils/toast";
-import type { FinancialGoalOut, FinancialGoalUpdateIn, GoalKind } from "@/types";
-import CollapsibleHint from "@/components/common/CollapsibleHint";
+import type { FinancialGoalOut } from "@/types";
 
-const GOAL_MILESTONES = [25, 50, 75, 100];
-
-
-/** 저장 전후 진행률을 비교해 이번 저장으로 새로 넘어선 가장 높은 마일스톤을 반환한다 (없으면 null).
- * 챌린지는 실제 축하 이메일이 100%에서만 나가므로(app/services/notification_service.py) 프론트
- * 토스트도 100%만 축하한다 — 목표는 25/50/75/100% 전부 축하한다. */
-function crossedMilestone(oldPct: number, newPct: number, kind: GoalKind): number | null {
-  const milestones = kind === "challenge" ? [100] : GOAL_MILESTONES;
-  const crossed = milestones.filter((m) => oldPct < m && newPct >= m);
-  return crossed.length > 0 ? Math.max(...crossed) : null;
+/** 수정 모달 제목 — 목표 유형마다 다르다. */
+function goalFormTitle(formTarget: "new-goal" | FinancialGoalOut): string {
+  if (formTarget === "new-goal") return "목표 추가";
+  if (formTarget.kind === "challenge") return "챌린지 수정";
+  if (formTarget.kind === "net_worth") return "순자산 목표 수정";
+  if (formTarget.kind === "combined") return "통합 목표 수정";
+  return "재무목표 수정";
 }
 
 /** 목표 탭 — 장기목표/챌린지를 함께 관리한다. 현금흐름 계획(가계 전체 달력월 기준 수입·지출
@@ -49,11 +38,6 @@ export default function GoalsTab() {
   const [formTarget, setFormTarget] = useState<"new-goal" | FinancialGoalOut | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<number | null>(null);
   const [sortOption, setSortOption] = useState<GoalSortLabel>("우선순위순");
-  const [progressDraft, setProgressDraft] = useState<Record<number, string>>({});
-  const [monthlyTargetDraft, setMonthlyTargetDraft] = useState<Record<string, string>>({});
-  /** 모바일에서 카드의 빠른 입력을 펼친 목표 id — 카드마다 입력칸이 늘 떠 있으면 목록이 길어진다. */
-  const [entryOpenIds, setEntryOpenIds] = useState<Set<number>>(() => new Set());
-  const openEntry = (goalId: number) => setEntryOpenIds((prev) => new Set(prev).add(goalId));
 
   const goalsQuery = useGoals();
   const { data: savingsProducts } = useSavingsProducts();
@@ -89,42 +73,6 @@ export default function GoalsTab() {
     onRemoveSuccess: () => setDeleteTarget(null),
   });
 
-  // 챌린지 카드의 "진행 금액 갱신" 인라인 저장 전용 — updateMutation과 달리 매번 "저장했습니다."를
-  // 띄우지 않고, 목표 달성 여부에 따라 다른 토스트 하나만 보여준다.
-  const progressMutation = useMutation({
-    mutationFn: ({ id, payload }: { id: number; payload: FinancialGoalUpdateIn }) => updateGoal(id, payload),
-    onSuccess: (updated, { id }) => {
-      invalidate();
-      setProgressDraft((d) => {
-        const next = { ...d };
-        delete next[id];
-        return next;
-      });
-      if (updated.status === "succeeded") {
-        toast(`"${updated.name}" 챌린지 성공! 두 분이 함께 해냈어요 🎉`, "success");
-      } else {
-        toast("진행 금액을 저장했습니다.", "success");
-      }
-    },
-  });
-
-  // 장기목표 카드의 월별 행 인라인 "이번 달 저축액 입력" 저장 전용 — progressMutation과 같은
-  // 톤으로 전체 목표를 다시 보내지 않고 그 달의 achieved_amount만 갱신한다. 연동된 장기목표는
-  // 이 mutation을 쓰지 않는다(자동계산이라 저장 버튼 자체가 없음).
-  const monthlyTargetMutation = useMutation({
-    mutationFn: ({ goalId, yearMonth, achievedAmount }: { goalId: number; yearMonth: string; achievedAmount: string }) =>
-      updateGoalMonthlyTarget(goalId, yearMonth, achievedAmount),
-    onSuccess: (_updated, { goalId, yearMonth }) => {
-      invalidate();
-      setMonthlyTargetDraft((d) => {
-        const next = { ...d };
-        delete next[`${goalId}-${yearMonth}`];
-        return next;
-      });
-      toast("이번 달 저축액을 저장했습니다.", "success");
-    },
-  });
-
   return (
     <QueryBoundary query={goalsQuery}>
       {(data) => {
@@ -135,13 +83,6 @@ export default function GoalsTab() {
   const activeGoalsByPriority = priorityOrderedGoals.filter((g) => !isGoalAchieved(g));
   const achievedGoals = priorityOrderedGoals.filter((g) => isGoalAchieved(g));
   const activeGoals = pinHouseholdGoalsFirst(sortGoals(activeGoalsByPriority, sortOption));
-  const celebrateIfCrossed = (oldPct: number, goal: FinancialGoalOut) => {
-    const milestone = crossedMilestone(oldPct, Number(goal.progress_pct), goal.kind);
-    if (milestone !== null) {
-      const label = goal.kind === "challenge" ? "챌린지" : "목표";
-      toast(`"${goal.name}" ${label} ${milestone}% 달성! 축하해요 🎉`, "success");
-    }
-  };
 
   const handleSubmit = (draft: Draft) => {
     const oldPct = formTarget !== null && typeof formTarget === "object" ? Number(formTarget.progress_pct) : 0;
@@ -155,212 +96,20 @@ export default function GoalsTab() {
     }
   };
 
-  const handleUpdateProgress = (goal: FinancialGoalOut, current_amount: string) => {
-    const payload = { ...toPayload(draftFromGoal(goal)), current_amount };
-    progressMutation.mutate({ id: goal.id, payload });
-  };
-
-  const handleUpdateMonthlyTarget = (goal: FinancialGoalOut, yearMonth: string, achievedAmount: string) => {
-    const oldPct = Number(goal.progress_pct);
-    monthlyTargetMutation.mutate(
-      { goalId: goal.id, yearMonth, achievedAmount },
-      { onSuccess: (updated) => celebrateIfCrossed(oldPct, updated) },
-    );
-  };
-
-  /** 활성/달성 목표 목록이 공유하는 카드 조립. 장기목표(goal)와 챌린지(challenge)는 같은
-   * GoalProgressCard 조립을 공유한다 — 챌린지는 연동/월별계획을 쓰지 않는 필드 구성(toPayload
-   * 참고)이라 관련 블록이 데이터 기반으로 자연히 비게 되고, 배지와 진행 금액 갱신 위젯 노출
-   * 조건에서만 명시적으로 갈라진다. */
-  const renderGoalCard = (goal: FinancialGoalOut) => {
-    const isChallenge = goal.kind === "challenge";
-    const isNetWorth = goal.kind === "net_worth";
-    const isCombined = goal.kind === "combined";
-    const hasLoanSource = goal.funding_sources.some((fs) => fs.type === "loan");
-    const status = computeCardStatus(goal);
-
-    // 이번 달 아직 달성 못한 가장 이른 달 — 연동 목표는 거래내역 기반 자동계산값(is_auto_computed)이라
-    // 저장 버튼 없이 읽기 전용으로 보여주고, 미연동 목표는 인라인 입력을 쓴다
-    // (app/services/goal_service.py::compute_linked_monthly_achieved 참고). 챌린지는 월별 계획
-    // 자체가 없어(toPayload에서 항상 monthly_targets: null로 저장) 이 블록이 자연히 no-op된다.
-    const activeMonth = goal.monthly_targets.find((mt) => !mt.is_achieved) ?? null;
-    const isAutoComputed = activeMonth?.is_auto_computed ?? false;
-    const draftKey = activeMonth && !isAutoComputed ? `${goal.id}-${activeMonth.year_month}` : null;
-    const monthlyDraftValue =
-      draftKey !== null
-        ? (monthlyTargetDraft[draftKey] ?? toAmountInputValue(activeMonth!.achieved_amount))
-        : "0";
-
-    // 연동(funding_sources)도 없고 월별 계획(monthly_targets)도 없는 목표는 거래내역이나 월별
-    // 그리드로 진행률을 갱신할 방법이 없어, 카드에서 현재 금액을 직접 입력해 갱신한다. 챌린지는
-    // 애초에 연동·월별계획 개념이 없어(toPayload 참고) 활성 상태인 동안 항상 이 경로를 탄다 —
-    // 만료된 챌린지는 더 이상 갱신할 수 없어 위젯을 숨긴다.
-    const progressDraftValue = progressDraft[goal.id] ?? toAmountInputValue(goal.current_amount);
-    // 순자산 목표는 자산 탭의 순자산을 그대로 따라가므로 직접 입력할 것이 없다.
-    const showProgressUpdateWidget =
-      !isNetWorth &&
-      !isCombined &&
-      goal.funding_sources.length === 0 &&
-      goal.monthly_targets.length === 0 &&
-      (isChallenge ? goal.effective_status === "active" : status !== "achieved");
-
-    const badges: GoalProgressCardBadge[] = [
-      { label: progressStatusLabel(status), toneClassName: progressStatusBadgeClass(status) },
-    ];
-    if (isChallenge) {
-      badges.push({ label: "챌린지", toneClassName: progressStatusBadgeClass("neutral") });
-    }
-    if (isNetWorth) {
-      badges.push({ label: "순자산 목표", toneClassName: progressStatusBadgeClass("neutral") });
-    }
-    if (isCombined) {
-      badges.push({ label: "통합 목표", toneClassName: progressStatusBadgeClass("neutral") });
-    }
-    if (isAutoComputed) {
-      badges.push({ label: "이번 달 자동계산", toneClassName: progressStatusBadgeClass("neutral") });
-    }
-
-    const extraDetails: GoalProgressCardExtraDetail[] = [];
-    if (!isChallenge && goal.eta_year_month) {
-      const ab = goal.ahead_behind_months;
-      extraDetails.push({
-        key: "eta",
-        content: `현재 저축 속도면 ${formatYearMonth(goal.eta_year_month)} 도달 예상${
-          ab !== null ? ` · 목표일 대비 ${Math.abs(ab)}개월 ${ab >= 0 ? "빠름" : "늦음"}` : ""
-        }`,
-      });
-    }
-    if (isCombined && goal.combined_members.length > 0) {
-      extraDetails.push({
-        key: "members",
-        content: (
-          <CombinedMembersList members={goal.combined_members} meId={me?.id ?? null} now={openedAt} compact />
-        ),
-      });
-    }
-    // 빠른 입력(진행 금액/이번 달 저축액). 모바일은 "기록" 버튼을 눌러야 펼친다.
-    const renderEntry = () =>
-      showProgressUpdateWidget ? (
-        <div className="flex items-start flex-wrap gap-2 pt-1">
-          <AmountInput
-            label="진행 금액 갱신"
-            value={progressDraftValue}
-            onChange={(value) => setProgressDraft((d) => ({ ...d, [goal.id]: value }))}
-            className="w-full sm:w-40"
-          />
-          <Button
-            size="sm"
-            loading={progressMutation.isPending && progressMutation.variables?.id === goal.id}
-            onClick={() => handleUpdateProgress(goal, progressDraftValue)}
-            className={`${INLINE_BUTTON_OFFSET} ${TOUCH_TARGET_MIN_HEIGHT}`}
-          >
-            저장
-          </Button>
-        </div>
-      ) : activeMonth && isAutoComputed ? (
-        <p className="text-xs text-gray-500 dark:text-gray-400 pt-1">
-          {activeMonth.year_month} 이번 달 자동계산: {formatKrw(activeMonth.achieved_amount)} /{" "}
-          {formatKrw(activeMonth.target_amount)}
-        </p>
-      ) : activeMonth && draftKey !== null ? (
-        <div className="flex items-start flex-wrap gap-2 pt-1">
-          <AmountInput
-            label={`${activeMonth.year_month} 저축액 입력`}
-            value={monthlyDraftValue}
-            onChange={(value) => setMonthlyTargetDraft((d) => ({ ...d, [draftKey]: value }))}
-            className="w-full sm:w-40"
-          />
-          <Button
-            size="sm"
-            loading={monthlyTargetMutation.isPending && monthlyTargetMutation.variables?.goalId === goal.id}
-            onClick={() => handleUpdateMonthlyTarget(goal, activeMonth.year_month, monthlyDraftValue)}
-            className={`${INLINE_BUTTON_OFFSET} ${TOUCH_TARGET_MIN_HEIGHT}`}
-          >
-            저장
-          </Button>
-        </div>
-      ) : undefined;
-
-    return (
-      <GoalProgressCard
-        key={goal.id}
-        title={goal.name}
-        metaLine={`${
-          isNetWorth
-            ? `가구 순자산${goal.exclude_real_estate ? "(부동산 제외)" : ""} 기준`
-            : isCombined ? `구성 ${goal.combined_members.length}개` : `${goal.priority}순위`
-        }${
-          goal.target_date !== null
-            ? ` · D-${daysUntil(goal.target_date)}`
-            : goal.target_age !== null
-              ? ` · ${goal.target_age}세까지`
-              : ""
-        }${goal.funding_sources.length > 0 ? ` · 연동 ${goal.funding_sources.length}건` : ""}`}
-        badges={badges}
-        subtitle={
-          goal.description || (goal.start_date && goal.target_date) ? (
-            <>
-              {goal.description && (
-                <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5 truncate">{goal.description}</p>
-              )}
-              {goal.start_date && goal.target_date && (
-                <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5 truncate">
-                  {formatDate(goal.start_date)} ~ {formatDate(goal.target_date)}
-                </p>
-              )}
-            </>
-          ) : undefined
-        }
-        pct={Number(goal.progress_pct)}
-        primaryDetail={
-          <>
-            {isCombined ? "합계" : goal.funding_sources.length > 0 ? "연동 잔액" : "저축"}{" "}
-            {formatKrwCompact(Number(goal.current_amount))} / 목표 {formatKrwCompact(Number(goal.required_amount))}
-            {!isChallenge && <> · 월 {formatKrwCompact(Number(goal.planned_monthly_amount))}</>}
-            {hasLoanSource && " (대출 차감)"}
-          </>
-        }
-        pinnedDetail={
-          <Link
-            to={goalDetailLink(goal.id)}
-            className={`inline-flex items-center ${TOUCH_TARGET_MIN_HEIGHT} text-xs font-semibold text-primary-600 dark:text-primary-400 hover:underline`}
-          >
-            자세히 보기 · 서로 응원하기 →
-          </Link>
-        }
-        extraDetails={extraDetails}
-        onEdit={() => setFormTarget(goal)}
-        onDelete={() => setDeleteTarget(goal.id)}
-        footer={
-          (showProgressUpdateWidget || draftKey !== null) && !entryOpenIds.has(goal.id) ? (
-            <>
-              <Button size="sm" variant="secondary" icon={<Plus size={14} />} onClick={() => openEntry(goal.id)} className="sm:hidden">
-                {showProgressUpdateWidget ? "진행 금액 기록" : `${activeMonth!.year_month} 저축액 기록`}
-              </Button>
-              <div className="hidden sm:block">{renderEntry()}</div>
-            </>
-          ) : (
-            renderEntry()
-          )
-        }
-      />
-    );
-
-  };
+  const renderGoalCard = (goal: FinancialGoalOut) => (
+    <GoalListCard
+      key={goal.id}
+      goal={goal}
+      meId={me?.id ?? null}
+      openedAt={openedAt}
+      onEdit={() => setFormTarget(goal)}
+      onDelete={() => setDeleteTarget(goal.id)}
+      onSaved={invalidate}
+    />
+  );
 
   const modalInitial =
     formTarget === "new-goal" ? EMPTY_GOAL_DRAFT : formTarget !== null ? draftFromGoal(formTarget) : null;
-  const modalTitle =
-    formTarget === "new-goal"
-      ? "목표 추가"
-      : formTarget !== null && formTarget.kind === "challenge"
-        ? "챌린지 수정"
-        : formTarget !== null && formTarget.kind === "net_worth"
-          ? "순자산 목표 수정"
-          : formTarget !== null && formTarget.kind === "combined"
-            ? "통합 목표 수정"
-            : "재무목표 수정";
-
   return (
     <div className="space-y-6">
       <Link
@@ -430,7 +179,7 @@ export default function GoalsTab() {
       {modalInitial && (
         <GoalFormModal
           initial={modalInitial}
-          title={modalTitle}
+          title={goalFormTitle(formTarget!)}
           submitLabel={formTarget === "new-goal" ? "추가" : "저장"}
           submitting={isSaving}
           savingsProducts={savingsProducts ?? []}

@@ -1,51 +1,20 @@
-import { useId, useState } from "react";
+import { useState } from "react";
 import type { FormEvent } from "react";
-import { useMutation, useQuery } from "@tanstack/react-query";
-import { Link } from "react-router-dom";
-import { Download } from "lucide-react";
-import Button from "@/components/common/Button";
-import CollapsibleGroup from "@/components/common/CollapsibleGroup";
-import CollapsibleHint from "@/components/common/CollapsibleHint";
-import AmountInput from "@/components/common/AmountInput";
-import FormInput from "@/components/common/FormInput";
 import Modal from "@/components/common/Modal";
 import Tabs from "@/components/common/Tabs";
-import FundingSourceChecklist from "@/components/financialPlan/FundingSourceChecklist";
-import GoalMonthlyTargetEditor from "@/components/financialPlan/GoalMonthlyTargetEditor";
-import { fetchGrowlioGoalSettings } from "@/api/goals";
-import { fetchNetWorth } from "@/api/netWorth";
-import { FORM_LABEL, FORM_SECTION_LABEL, TEXTAREA_SM } from "@/constants/inputStyles";
-import { isGrowlioLinkedInvestment } from "@/constants/growlio";
-import { STALE_TIME } from "@/constants/queryConfig";
-import { QUERY_KEYS } from "@/constants/queryKeys";
-import { planViewLink } from "@/constants/routes";
-import { monthsBetween, syncTargetsToPeriod } from "@/utils/monthRange";
-import { currentDateIso, yearMonthOfDate } from "@/utils/date";
-import { extractErrorMessage } from "@/utils/error";
-import { formatKrw, toAmountInputValue } from "@/utils/format";
-import { toast } from "@/utils/toast";
+import ChallengeGoalFields from "@/components/financialPlan/goalForm/ChallengeGoalFields";
+import CombinedGoalFields from "@/components/financialPlan/goalForm/CombinedGoalFields";
+import LongTermGoalFields, { GOAL_STEPS } from "@/components/financialPlan/goalForm/LongTermGoalFields";
+import NetWorthGoalFields from "@/components/financialPlan/goalForm/NetWorthGoalFields";
+import { fundingSourceOptions } from "@/components/financialPlan/goalForm/goalFormShared";
 import {
   emptyChallengeDraft,
   emptyCombinedDraft,
   emptyNetWorthDraft,
   EMPTY_GOAL_DRAFT,
-  toYearMonth,
   type Draft,
 } from "@/components/financialPlan/goalDraft";
-import type {
-  AccountWithBalanceOut,
-  FinancialGoalOut,
-  GoalKind,
-  GoalMonthlyTargetIn,
-  LoanOut,
-  SavingsProductOut,
-  UserOut,
-} from "@/types";
-import { amountToneClass, formErrorTextClass } from "@/utils/colors";
-import { sumAmounts } from "@/utils/amount";
-import { realEstateMortgages, realEstateNetForGoal } from "@/utils/netWorth";
-import { useSavingsProductsPlan } from "@/hooks/usePlanQueries";
-import { TOUCH_TARGET_MIN_HEIGHT } from "@/constants/uiSizes";
+import type { AccountWithBalanceOut, FinancialGoalOut, GoalKind, LoanOut, SavingsProductOut, UserOut } from "@/types";
 
 const GOAL_KIND_TABS = ["통합", "순자산", "장기 목표", "챌린지"] as const;
 type GoalKindTab = (typeof GOAL_KIND_TABS)[number];
@@ -72,10 +41,8 @@ function emptyDraftFor(kind: GoalKind, userIds: string[]): Draft {
 /** 기본 이름이 있는 유형 — 유형을 바꿀 때 입력하던 이름 대신 새 유형의 기본 이름을 쓴다. */
 const DEFAULT_NAMED_KINDS: GoalKind[] = ["net_worth", "combined"];
 
-/** 장기 목표 폼의 단계 — 한 화면에 모든 입력(기본정보·자금원 3종 체크리스트·월별 계획·제안 계산)을 쌓던 긴 모달을
- * 모바일에서 한 번에 한 가지만 결정하도록 나눴다. */
-const GOAL_STEPS = ["무엇을·언제·얼마", "연동할 자금원", "저축 계획"] as const;
-
+/** 목표 추가·수정 모달. 초안·유형 토글·저장 판정만 여기서 하고, 입력 화면은 유형별 컴포넌트(`goalForm/`)가 그린다 —
+ * 장기 목표는 3단계, 챌린지·순자산·통합 목표는 한 화면. */
 export default function GoalFormModal({
   initial,
   title,
@@ -111,14 +78,13 @@ export default function GoalFormModal({
   onClose: () => void;
   onSubmit: (draft: Draft) => void;
 }) {
-  const fieldId = useId();
   const [draft, setDraft] = useState<Draft>(initial);
-  const [currentAge, setCurrentAge] = useState("");
+  const [step, setStep] = useState(0);
   // 렌더 중 new Date()는 비순수 호출이라(oxlint) 모달이 열린 시점을 한 번만 잡는다.
   const [openedAt] = useState(() => new Date());
-  const isChallenge = draft.kind === "challenge";
-  const isNetWorth = draft.kind === "net_worth";
-  const isCombined = draft.kind === "combined";
+  const { availableSavingsProducts, availableLoans } = fundingSourceOptions(savingsProducts, loans, existingGoal);
+  const shared = { draft, setDraft, submitLabel, submitting };
+
   const kindTabs = GOAL_KIND_TABS.filter(
     (tab) => (tab !== "순자산" || canCreateNetWorth) && (tab !== "통합" || canCreateCombined),
   );
@@ -139,87 +105,6 @@ export default function GoalFormModal({
         variant="pill"
       />
     ) : null;
-  const isLinked =
-    draft.savings_product_ids.length > 0 || draft.account_ids.length > 0 || draft.loan_ids.length > 0;
-  // 다른 목표에 이미 연동된 상품은 선택지에서 제외 — 연동되면 어느 목표를 따를지 모호해지기 때문.
-  // 지금 이 목표에 이미 연동된 상품(existingGoal.id와 일치)은 계속 보여준다. 부동산과 그 짝 담보대출은 목표
-  // 자금원이 될 수 없다(백엔드 goal_service.RealEstateFundingSourceError — 시세는 "모으는 돈"이 아니다).
-  const availableSavingsProducts = savingsProducts.filter(
-    (p) => p.product_type !== "real_estate" && (p.linked_goal_id === null || p.linked_goal_id === existingGoal?.id),
-  );
-  const mortgageIds = new Set(realEstateMortgages(savingsProducts, loans).map((loan) => loan.id));
-  const availableLoans = loans.filter((loan) => !mortgageIds.has(loan.id));
-
-  // 저축·투자 상품이 연동된 목표의 월 저축액은 목표에 입력한 값이 아니라 연동 상품들의 이번 달 계획 합계다
-  // (백엔드 goal_progress_service.planned_monthly_for_goal — 계획 원본은 계획 탭의 상품별 월 계획). 폼에서도
-  // 그 합계를 보여주고, 수정은 계획 탭으로 안내한다 — 여기 입력한 값은 연동 목표에선 쓰이지 않기 때문.
-  const hasLinkedProducts = draft.savings_product_ids.length > 0;
-  const thisMonth = yearMonthOfDate(openedAt);
-  const { data: productPlan } = useSavingsProductsPlan(thisMonth, { enabled: !isChallenge && hasLinkedProducts });
-  const { data: netWorthData } = useQuery({
-    queryKey: QUERY_KEYS.netWorth(),
-    queryFn: () => fetchNetWorth(),
-    staleTime: STALE_TIME.MEDIUM,
-    enabled: isNetWorth,
-  });
-  const linkedPlannedMonthly = productPlan
-    ? sumAmounts(
-        productPlan.items.filter((item) => draft.savings_product_ids.includes(String(item.id))),
-        (item) => item.planned,
-      )
-    : null;
-
-  // 시작일/종료일이 바뀌면 월별 목표금액 행도 그 기간에 맞춰 다시 맞춘다 — 겹치는 달의 금액은 보존.
-  const syncMonthlyTargetsToPeriod = (startDate: string, targetDate: string, existing: GoalMonthlyTargetIn[]) =>
-    syncTargetsToPeriod(toYearMonth(startDate), toYearMonth(targetDate), existing);
-
-  const growlioGoalMutation = useMutation({
-    mutationFn: fetchGrowlioGoalSettings,
-    onSuccess: (data) => {
-      if (!data.is_configured || data.goal_amount === null) {
-        toast("growlio에 설정된 투자목표가 없어요.", "error");
-        return;
-      }
-      const goalAmount = data.goal_amount;
-      const annualDepositGoal = data.annual_deposit_goal;
-      // 다른 목표에 이미 연동된 상품은 후보에서 제외(availableSavingsProducts 참고).
-      const growlioProductIds = availableSavingsProducts.filter(isGrowlioLinkedInvestment).map((p) => String(p.id));
-      setDraft((d) => ({
-        ...d,
-        name: d.name.trim() === "" ? "growlio 투자목표" : d.name,
-        required_amount: String(Math.round(goalAmount)),
-        monthly_saving_amount:
-          annualDepositGoal !== null
-            ? String(Math.round(annualDepositGoal / 12))
-            : d.monthly_saving_amount,
-        savings_product_ids:
-          d.kind !== "net_worth" && growlioProductIds.length > 0 ? growlioProductIds : d.savings_product_ids,
-        // growlio 목표 수익률로 복리 ETA를 계산한다(목표 폼 3단계 "기대 연 수익률").
-        expected_annual_return_pct:
-          data.goal_annual_return_pct !== null ? String(data.goal_annual_return_pct) : d.expected_annual_return_pct,
-      }));
-      toast(
-        growlioProductIds.length > 0
-          ? "growlio 투자목표를 불러왔어요."
-          : "growlio 투자목표를 불러왔어요. 저축·투자 상품 탭에서 growlio 계좌를 먼저 가져오면 진행률이 자동 반영돼요.",
-        "success",
-      );
-    },
-    onError: (err) => toast(extractErrorMessage(err, "growlio 투자목표를 불러오지 못했습니다."), "error"),
-  });
-
-  const toggleId = (
-    field: "savings_product_ids" | "account_ids" | "loan_ids" | "member_goal_ids" | "growlio_user_ids",
-    id: string,
-  ) => {
-    setDraft((d) => ({
-      ...d,
-      [field]: d[field].includes(id) ? d[field].filter((v) => v !== id) : [...d[field], id],
-    }));
-  };
-
-  const [step, setStep] = useState(0);
-  const isLastStep = step === GOAL_STEPS.length - 1;
 
   const handleSubmit = (e: FormEvent) => {
     e.preventDefault();
@@ -228,523 +113,40 @@ export default function GoalFormModal({
       return;
     }
     // 챌린지·순자산·통합 목표는 한 화면 폼이라 바로 저장. 장기 목표는 마지막 단계에서만 저장하고, 그 전 Enter/다음은 다음 단계로.
-    if (!isChallenge && !isNetWorth && !isCombined && !isLastStep) {
+    if (draft.kind === "goal" && step !== GOAL_STEPS.length - 1) {
       setStep((current) => current + 1);
       return;
     }
     onSubmit(draft);
   };
 
-  if (isCombined) {
-    const memberCandidates = goals.filter((g) => g.kind === "goal");
-    const selectedGoalsTotal = sumAmounts(
-      memberCandidates.filter((g) => draft.member_goal_ids.includes(String(g.id))),
-      (g) => g.required_amount,
-    );
-    // 이미 저장된 통합 목표면 growlio 목표금액을 알고 있다(저장 전 새 목표는 저장 후 합산).
-    const knownGrowlioTotal = sumAmounts(
-      (existingGoal?.combined_members ?? []).filter(
-        (m) => m.type === "growlio" && m.user_id !== null && draft.growlio_user_ids.includes(m.user_id),
-      ),
-      (m) => m.required_amount ?? "0",
-    );
-    const hasSelection = draft.member_goal_ids.length > 0 || draft.growlio_user_ids.length > 0;
-    return (
-      <Modal onClose={onClose} title={title}>
-        <form onSubmit={handleSubmit} className="p-6 overflow-y-auto flex flex-col gap-3">
-          {kindToggle}
-          <div className="rounded-lg border border-gray-200 dark:border-gray-700 px-3 py-2.5 text-sm text-gray-600 dark:text-gray-300 space-y-1">
-            <p>
-              고른 목표의 합계가 통합 목표예요. 지금 고른 장기 목표{" "}
-              <span className="font-semibold text-gray-900 dark:text-gray-50">{formatKrw(selectedGoalsTotal)}</span>
-              {existingGoal !== null && draft.growlio_user_ids.length > 0 && (
-                <>
-                  {" "}+ growlio 목표{" "}
-                  <span className="font-semibold text-gray-900 dark:text-gray-50">{formatKrw(knownGrowlioTotal)}</span>
-                </>
-              )}
-            </p>
-            <CollapsibleHint summary="growlio 목표는 각자 nestlio를 열 때 불러와요.">
-              growlio 목표금액·투자자산(부동산 제외)은 각자 nestlio를 열 때 저장되고, 배우자 값은 마지막으로 불러온 시점
-              기준이에요. 목표금액은 고른 목표를 단순히 더한 값이라, 같은 돈을 노리는 목표를 함께 고르면 합계가 커져요.
-              growlio에서 가져온 투자 상품처럼 growlio 투자자산과 겹치는 금액은 현재 금액에서 한 번만 세요.
-            </CollapsibleHint>
-          </div>
-          <FormInput
-            label="목표 이름"
-            value={draft.name}
-            maxLength={100}
-            onChange={(e) => setDraft((d) => ({ ...d, name: e.target.value }))}
-            className="w-full"
-            required
-          />
-          <FundingSourceChecklist
-            label="부부 각자의 growlio 투자목표"
-            items={users}
-            getId={(u) => u.id}
-            getName={(u) => `${u.display_name}의 growlio 목표`}
-            getAmountLabel={() => ""}
-            selectedIds={draft.growlio_user_ids}
-            onToggle={(id) => toggleId("growlio_user_ids", id)}
-            emptyMessage="가구 구성원이 없어요."
-          />
-          <FundingSourceChecklist
-            label="함께 묶을 장기 목표"
-            items={memberCandidates}
-            getId={(g) => g.id}
-            getName={(g) => g.name}
-            getAmountLabel={(g) => `목표 ${formatKrw(g.required_amount)}`}
-            selectedIds={draft.member_goal_ids}
-            onToggle={(id) => toggleId("member_goal_ids", id)}
-            emptyMessage="장기 목표가 아직 없어요. growlio 목표만 묶어도 돼요."
-          />
-          {!hasSelection && <p className={`text-xs ${formErrorTextClass()}`}>묶을 목표를 하나 이상 골라 주세요.</p>}
-          <FormInput
-            label="목표일 (선택)"
-            type="date"
-            value={draft.target_date}
-            onChange={(e) => setDraft((d) => ({ ...d, target_date: e.target.value }))}
-            className="w-full"
-          />
-          <FormInput
-            label="기대 연 수익률 % (선택)"
-            type="number"
-            inputMode="decimal"
-            step="0.1"
-            value={draft.expected_annual_return_pct}
-            onChange={(e) => setDraft((d) => ({ ...d, expected_annual_return_pct: e.target.value }))}
-            className="w-full"
-            hint="입력하면 월 복리로 예상 달성월을 계산해요."
-          />
-          <Button type="submit" loading={submitting} disabled={!hasSelection} className="mt-2">
-            {submitLabel}
-          </Button>
-        </form>
-      </Modal>
-    );
-  }
-
-  if (isNetWorth) {
-    return (
-      <Modal onClose={onClose} title={title}>
-        <form onSubmit={handleSubmit} className="p-6 overflow-y-auto flex flex-col gap-3">
-          {kindToggle}
-          <div className="rounded-lg border border-gray-200 dark:border-gray-700 px-3 py-2.5 text-sm text-gray-600 dark:text-gray-300 space-y-1">
-            <p>
-              {draft.exclude_real_estate ? "지금 우리 순자산(부동산 제외)" : "지금 우리 순자산"}{" "}
-              <span className="font-semibold text-gray-900 dark:text-gray-50">
-                {netWorthData
-                  ? formatKrw(
-                      Number(netWorthData.current.net_worth) -
-                        (draft.exclude_real_estate ? realEstateNetForGoal(savingsProducts, loans) : 0),
-                    )
-                  : "불러오는 중…"}
-              </span>
-            </p>
-            <label className="flex items-center gap-2 cursor-pointer text-gray-900 dark:text-gray-50">
-              <input
-                type="checkbox"
-                checked={draft.exclude_real_estate}
-                onChange={(e) => setDraft((d) => ({ ...d, exclude_real_estate: e.target.checked }))}
-                className="h-4 w-4 rounded border-gray-300 shrink-0"
-              />
-              부동산 제외
-            </label>
-            <CollapsibleHint summary="진행률은 자산 탭의 순자산을 따라가요.">
-              순자산 = 계좌·저축·투자·부동산 − 대출(growlio 연동 포함). 부동산을 제외하면 부동산과 growlio에서 함께 가져온
-              담보대출을 빼요(growlio 목표의 투자자산 기준과 같아요). 월 저축액은{" "}
-              <Link to={planViewLink("이번 달")} className="font-semibold underline hover:no-underline">
-                계획 탭
-              </Link>{" "}
-              저축·투자 계획 합계예요.
-            </CollapsibleHint>
-          </div>
-          <Button
-            type="button"
-            variant="secondary"
-            size="sm"
-            icon={<Download size={14} />}
-            loading={growlioGoalMutation.isPending}
-            onClick={() => growlioGoalMutation.mutate()}
-          >
-            growlio 목표 금액·수익률 불러오기
-          </Button>
-          <FormInput
-            label="목표 이름"
-            value={draft.name}
-            maxLength={100}
-            onChange={(e) => setDraft((d) => ({ ...d, name: e.target.value }))}
-            className="w-full"
-            required
-          />
-          <AmountInput
-            label="목표 순자산"
-            value={draft.required_amount}
-            onChange={(value) => setDraft((d) => ({ ...d, required_amount: value }))}
-            className="w-full"
-          />
-          <FormInput
-            label="목표일"
-            type="date"
-            value={draft.target_date}
-            onChange={(e) => setDraft((d) => ({ ...d, target_date: e.target.value }))}
-            className="w-full"
-          />
-          <FormInput
-            label="기대 연 수익률 % (선택)"
-            type="number"
-            inputMode="decimal"
-            step="0.1"
-            value={draft.expected_annual_return_pct}
-            onChange={(e) => setDraft((d) => ({ ...d, expected_annual_return_pct: e.target.value }))}
-            className="w-full"
-            hint="입력하면 월 복리로 예상 달성월을 계산해요."
-          />
-          <Button type="submit" loading={submitting} className="mt-2">
-            {submitLabel}
-          </Button>
-        </form>
-      </Modal>
-    );
-  }
-
-  if (isChallenge) {
-    return (
-      <Modal onClose={onClose} title={title}>
-        <form onSubmit={handleSubmit} className="p-6 overflow-y-auto flex flex-col gap-3">
-          {kindToggle}
-          <FormInput
-            label="챌린지 제목"
-            value={draft.name}
-            maxLength={100}
-            onChange={(e) => setDraft((d) => ({ ...d, name: e.target.value }))}
-            className="w-full"
-            required
-          />
-          <div>
-            <label htmlFor={`${fieldId}-0`} className={FORM_LABEL}>설명 (선택)</label>
-            <textarea
-              id={`${fieldId}-0`}
-              value={draft.description}
-              maxLength={500}
-              onChange={(e) => setDraft((d) => ({ ...d, description: e.target.value }))}
-              className={`w-full ${TEXTAREA_SM}`}
-              rows={2}
-            />
-          </div>
-          <AmountInput
-            label="목표 금액"
-            value={draft.required_amount}
-            onChange={(value) => setDraft((d) => ({ ...d, required_amount: value }))}
-            className="w-full"
-          />
-          <div className="grid grid-cols-2 gap-3">
-            <FormInput
-              label="시작일"
-              type="date"
-              value={draft.start_date}
-              onChange={(e) => setDraft((d) => ({ ...d, start_date: e.target.value }))}
-              className="w-full"
-            />
-            <FormInput
-              label="종료일"
-              type="date"
-              value={draft.target_date}
-              onChange={(e) => setDraft((d) => ({ ...d, target_date: e.target.value }))}
-              className="w-full"
-              min={draft.start_date}
-            />
-          </div>
-          {existingGoal && (
-            <AmountInput
-              label="진행 금액"
-              value={draft.current_amount}
-              onChange={(value) => setDraft((d) => ({ ...d, current_amount: value }))}
-              className="w-full"
-            />
-          )}
-          <Button type="submit" loading={submitting} className="mt-2">
-            {submitLabel}
-          </Button>
-        </form>
-      </Modal>
-    );
-  }
-
-  // 수정 모드에서 아직 아무것도 고치지 않았다면(초안이 저장된 값과 같다면) 백엔드가 이미 계산해
-  // 내려준 months_remaining/suggested_monthly_amount(app/services/goal_service.py::
-  // compute_months_remaining/compute_suggested_monthly_amount)를 그대로 보여준다. 목표일/나이/
-  // 필요금액/현재저축액 중 하나라도 바뀌는 순간부터는 "저장하면 어떻게 될지" 미리보기가 필요하므로
-  // 프론트에서 직접 계산한다 — 신규 생성 모드는 저장된 값 자체가 없어 항상 이 경로를 쓴다.
-  const draftMatchesExistingGoal =
-    existingGoal !== null &&
-    draft.target_date === (existingGoal.target_date ?? "") &&
-    draft.target_age === (existingGoal.target_age !== null ? String(existingGoal.target_age) : "") &&
-    draft.required_amount === toAmountInputValue(existingGoal.required_amount) &&
-    draft.current_amount === toAmountInputValue(existingGoal.current_amount);
-
-  const monthsRemainingFromDate = draft.target_date !== "" ? monthsBetween(openedAt, new Date(draft.target_date)) : null;
-  const monthsRemainingFromAge =
-    currentAge !== "" && draft.target_age !== "" ? (Number(draft.target_age) - Number(currentAge)) * 12 : null;
-  const monthsRemaining =
-    draftMatchesExistingGoal && existingGoal
-      ? existingGoal.months_remaining
-      : (monthsRemainingFromDate ?? monthsRemainingFromAge);
-  const suggestedMonthly =
-    draftMatchesExistingGoal && existingGoal && existingGoal.suggested_monthly_amount !== null
-      ? Math.round(Number(existingGoal.suggested_monthly_amount))
-      : monthsRemaining !== null && monthsRemaining > 0
-        ? Math.max(0, Math.round((Number(draft.required_amount) - Number(draft.current_amount)) / monthsRemaining))
-        : null;
-
-  // 장기목표의 "현재 진행액" — 연동이면 백엔드가 내려준 현재 잔액 합, 미연동이면 폼에 입력된 값.
-  // 균등분배 버튼이 "필요금액 - 여기까지 모은 금액"을 남은 달에 나누는 기준이 된다.
-  const currentProgressForDistribution =
-    isLinked && existingGoal ? Number(existingGoal.current_amount) : Number(draft.current_amount) || 0;
-  const hasMonthlyPlan = draft.monthly_targets.length > 0;
-
   return (
     <Modal onClose={onClose} title={title}>
       <form onSubmit={handleSubmit} className="p-6 overflow-y-auto flex flex-col gap-3">
         {kindToggle}
-        <ol className="grid grid-cols-3 gap-1" aria-label="목표 설정 단계">
-          {GOAL_STEPS.map((label, index) => (
-            <li key={label}>
-              <button
-                type="button"
-                // 새 목표는 순서대로 진행하고(이름 없이 건너뛰지 않게), 수정할 때는 원하는 단계로 바로 이동한다.
-                disabled={existingGoal === null && index > step}
-                onClick={() => setStep(index)}
-                aria-current={index === step ? "step" : undefined}
-                className={`w-full ${TOUCH_TARGET_MIN_HEIGHT} rounded-lg px-1 text-xs font-medium border transition-colors disabled:opacity-50 ${
-                  index === step
-                    ? "border-primary-300 dark:border-primary-700 bg-primary-50 dark:bg-primary-950 text-primary-600 dark:text-primary-400"
-                    : "border-gray-200 dark:border-gray-700 text-gray-500 dark:text-gray-400"
-                }`}
-              >
-                {index + 1}. {label}
-              </button>
-            </li>
-          ))}
-        </ol>
-        {step === 0 && (
-          <>
-        <p className={FORM_SECTION_LABEL}>기본 정보</p>
-        {/* 저장 전에는 아무것도 반영되지 않으므로(모달을 닫으면 원복) 별도 확인 모달 없이 바로 불러온다. */}
-        <Button
-          type="button"
-          variant="secondary"
-          size="sm"
-          icon={<Download size={14} />}
-          loading={growlioGoalMutation.isPending}
-          onClick={() => growlioGoalMutation.mutate()}
-        >
-          {existingGoal === null ? "growlio 투자목표 불러오기" : "growlio 값으로 채우기"}
-        </Button>
-        <FormInput
-          label="재무목표"
-          value={draft.name}
-          maxLength={100}
-          onChange={(e) => setDraft((d) => ({ ...d, name: e.target.value }))}
-          className="w-full"
-          required
-        />
-        <div className="grid grid-cols-2 gap-3">
-          <FormInput
-            label="순위"
-            type="number"
-            inputMode="numeric"
-            value={draft.priority}
-            onChange={(e) => setDraft((d) => ({ ...d, priority: e.target.value }))}
-            className="w-full"
+        {draft.kind === "combined" ? (
+          <CombinedGoalFields {...shared} existingGoal={existingGoal} goals={goals} users={users} />
+        ) : draft.kind === "net_worth" ? (
+          <NetWorthGoalFields
+            {...shared}
+            savingsProducts={savingsProducts}
+            availableSavingsProducts={availableSavingsProducts}
+            loans={loans}
           />
-          <FormInput
-            label="목표일"
-            type="date"
-            value={draft.target_date}
-            onChange={(e) =>
-              setDraft((d) => ({
-                ...d,
-                target_date: e.target.value,
-                monthly_targets:
-                  e.target.value === "" ? [] : syncMonthlyTargetsToPeriod(currentDateIso(), e.target.value, d.monthly_targets),
-              }))
-            }
-            className="w-full"
-          />
-        </div>
-        {draft.target_date === "" && (
-          <FormInput
-            label="목표 나이"
-            hint="목표일 대신 나이로 정할 때"
-            type="number"
-            inputMode="numeric"
-            value={draft.target_age}
-            onChange={(e) => setDraft((d) => ({ ...d, target_age: e.target.value }))}
-            className="w-full"
-          />
-        )}
-        <AmountInput
-          label="필요금액"
-          value={draft.required_amount}
-          onChange={(value) => setDraft((d) => ({ ...d, required_amount: value }))}
-          className="w-full"
-        />
-          </>
-        )}
-        {step === 1 && (
-          <>
-          <p className="text-sm text-gray-500 dark:text-gray-400">
-            상품·계좌를 연결하면 저축액이 자동 계산돼요. 연결하지 않아도 돼요.
-          </p>
-          <FundingSourceChecklist
-            label="연동할 저축/투자 상품 (복수 선택 가능)"
-            items={availableSavingsProducts}
-            getId={(p) => p.id}
-            getName={(p) => p.name}
-            getAmountLabel={(p) => formatKrw(p.current_balance)}
-            selectedIds={draft.savings_product_ids}
-            onToggle={(id) => toggleId("savings_product_ids", id)}
-            emptyMessage="연동 가능한 저축/투자 상품이 없어요."
-            hint="잔액이 합산되고, 월 저축액은 연동 상품들의 월 계획 합계예요. 다른 목표에 연동된 상품과 부동산은 안 보여요."
-          />
-          <FundingSourceChecklist
-            label="연동할 계좌 (복수 선택 가능)"
-            items={accounts}
-            getId={({ account }) => account.id}
-            getName={({ account }) => account.name}
-            getAmountLabel={({ balance }) => formatKrw(balance)}
-            selectedIds={draft.account_ids}
-            onToggle={(id) => toggleId("account_ids", id)}
-            emptyMessage="등록된 계좌가 없어요."
-          />
-          <FundingSourceChecklist
-            label="연동할 대출 (연동 시 금액에서 차감돼요)"
-            items={availableLoans}
-            getId={(loan) => loan.id}
-            getName={(loan) => loan.name}
-            getAmountLabel={(loan) => `-${formatKrw(loan.balance)}`}
-            amountClassName={amountToneClass("negative")}
-            selectedIds={draft.loan_ids}
-            onToggle={(id) => toggleId("loan_ids", id)}
-            emptyMessage="등록된 대출이 없어요."
-            hint="현재 저축액 = 연동 상품·계좌 잔액 − 연동 대출 잔액"
-          />
-          </>
-        )}
-        {step === 2 && (
-          <>
-        <p className={FORM_SECTION_LABEL}>저축 계획</p>
-        {isLinked ? (
-          <div className="rounded-lg border border-gray-200 dark:border-gray-700 px-3 py-2.5 text-sm text-gray-500 dark:text-gray-400">
-            현재 저축액은 연동된 항목들의 잔액 합(대출은 차감)으로 자동 계산돼요.
-          </div>
-        ) : hasMonthlyPlan ? (
-          <div className="rounded-lg border border-gray-200 dark:border-gray-700 px-3 py-2.5 text-sm text-gray-500 dark:text-gray-400">
-            현재 저축액은 아래 월별 계획의 달성액 합계로 자동 계산돼요. 저장한 뒤 목표 카드에서
-            매달 저축액을 입력해 채워가세요.
-          </div>
+        ) : draft.kind === "challenge" ? (
+          <ChallengeGoalFields {...shared} isEditing={existingGoal !== null} />
         ) : (
-          <AmountInput
-            label="현재 저축액"
-            value={draft.current_amount}
-            onChange={(value) => setDraft((d) => ({ ...d, current_amount: value }))}
-            className="w-full"
+          <LongTermGoalFields
+            {...shared}
+            step={step}
+            setStep={setStep}
+            existingGoal={existingGoal}
+            availableSavingsProducts={availableSavingsProducts}
+            accounts={accounts}
+            availableLoans={availableLoans}
+            openedAt={openedAt}
           />
         )}
-        {draft.target_date !== "" && (
-          <GoalMonthlyTargetEditor
-            startMonth={thisMonth}
-            endMonth={toYearMonth(draft.target_date)}
-            targets={draft.monthly_targets}
-            onChange={(monthly_targets) => setDraft((d) => ({ ...d, monthly_targets }))}
-            distributeAmount={String(Math.max(0, Number(draft.required_amount) - currentProgressForDistribution))}
-          />
-        )}
-        <div className="rounded-lg border border-gray-200 dark:border-gray-700 p-3 space-y-2">
-          <p className="text-xs font-medium text-gray-500 dark:text-gray-400">필요 저축액 자동 계산</p>
-          {draft.target_date === "" && (
-            <div className="flex items-end gap-2">
-              <FormInput
-                label="현재 나이"
-                type="number"
-                inputMode="numeric"
-                value={currentAge}
-                onChange={(e) => setCurrentAge(e.target.value)}
-                className="w-24"
-              />
-            </div>
-          )}
-          {suggestedMonthly !== null && hasLinkedProducts && (
-            <p className="text-sm text-gray-700 dark:text-gray-300">
-              목표까지 필요한 월 저축액: <span className="font-semibold">{formatKrw(suggestedMonthly)}</span>
-            </p>
-          )}
-          {suggestedMonthly !== null && !hasLinkedProducts && (
-            <Button
-              type="button"
-              variant="secondary"
-              size="sm"
-              onClick={() => setDraft((d) => ({ ...d, monthly_saving_amount: String(suggestedMonthly) }))}
-            >
-              제안 적용: 월 {formatKrw(suggestedMonthly)}
-            </Button>
-          )}
-          {monthsRemaining !== null && monthsRemaining <= 0 && (
-            <p className={`text-xs ${formErrorTextClass()}`}>목표일(또는 필요한 나이)이 지금보다 이후여야 계산할 수 있어요.</p>
-          )}
-          <p className="text-xs text-gray-500 dark:text-gray-400">(필요금액 − 현재 저축액) ÷ 남은 개월 · 저장되지 않아요</p>
-        </div>
-        {hasLinkedProducts ? (
-          <div className="space-y-1">
-            <p className={FORM_LABEL}>월 저축금액 (연동 상품의 이번 달 계획 합계)</p>
-            <p className="text-base font-semibold text-gray-900 dark:text-gray-50">
-              {linkedPlannedMonthly !== null ? formatKrw(linkedPlannedMonthly) : "계산 중…"}
-            </p>
-            <p className="text-xs text-gray-500 dark:text-gray-400">
-              상품별 월 계획은{" "}
-              <Link to={planViewLink("이번 달")} className="font-semibold underline hover:no-underline">
-                계획 탭
-              </Link>
-              의 저축·투자에서 바꿔요.
-            </p>
-          </div>
-        ) : (
-          <AmountInput
-            label="월 저축금액"
-            value={draft.monthly_saving_amount}
-            onChange={(value) => setDraft((d) => ({ ...d, monthly_saving_amount: value }))}
-            className="w-full"
-          />
-        )}
-        {/* 투자로 모을 때만 쓰는 선택 항목이라 접어 둔다(값이 있으면 펼친 채로). */}
-        <CollapsibleGroup
-          header={<span className="text-sm font-medium text-gray-600 dark:text-gray-300">선택 항목 · 기대 수익률</span>}
-          defaultOpen={draft.expected_annual_return_pct !== ""}
-        >
-          <FormInput
-            label="기대 연 수익률 %"
-            type="number"
-            inputMode="decimal"
-            step="0.1"
-            value={draft.expected_annual_return_pct}
-            onChange={(e) => setDraft((d) => ({ ...d, expected_annual_return_pct: e.target.value }))}
-            className="w-full"
-            hint="입력하면 월 복리로 예상 달성월을 계산해요. growlio 투자목표를 불러오면 채워져요."
-          />
-        </CollapsibleGroup>
-          </>
-        )}
-        <div className="flex gap-2 mt-2">
-          {step > 0 && (
-            <Button type="button" variant="secondary" className="flex-1" onClick={() => setStep((current) => current - 1)}>
-              이전
-            </Button>
-          )}
-          <Button type="submit" loading={isLastStep && submitting} className="flex-1">
-            {isLastStep ? submitLabel : "다음"}
-          </Button>
-        </div>
       </form>
     </Modal>
   );
