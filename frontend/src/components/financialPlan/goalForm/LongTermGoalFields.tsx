@@ -14,7 +14,7 @@ import {
   useGrowlioGoalImport,
   type GoalFieldsProps,
 } from "@/components/financialPlan/goalForm/goalFormShared";
-import { previewGoalPlan } from "@/components/financialPlan/goalForm/goalPlanPreview";
+import { draftCurrentAmount, previewGoalPlan } from "@/components/financialPlan/goalForm/goalPlanPreview";
 import { toYearMonth } from "@/components/financialPlan/goalDraft";
 import { FORM_LABEL, FORM_SECTION_LABEL } from "@/constants/inputStyles";
 import { planViewLink } from "@/constants/routes";
@@ -225,6 +225,9 @@ function PlanStep({
   setDraft,
   existingGoal,
   openedAt,
+  availableSavingsProducts,
+  accounts,
+  availableLoans,
   currentAge,
   setCurrentAge,
   linkedPlannedMonthly,
@@ -237,11 +240,20 @@ function PlanStep({
     draft.savings_product_ids.length > 0 || draft.account_ids.length > 0 || draft.loan_ids.length > 0;
   const hasLinkedProducts = draft.savings_product_ids.length > 0;
   const thisMonth = yearMonthOfDate(openedAt);
-  const { monthsRemaining, suggestedMonthly } = previewGoalPlan({ draft, existingGoal, openedAt, currentAge });
-  // 장기목표의 "현재 진행액" — 연동이면 백엔드가 내려준 현재 잔액 합, 미연동이면 폼에 입력된 값.
-  // 균등분배 버튼이 "필요금액 - 여기까지 모은 금액"을 남은 달에 나누는 기준이 된다.
-  const currentProgressForDistribution =
-    isLinked && existingGoal ? Number(existingGoal.current_amount) : Number(draft.current_amount) || 0;
+  // 장기목표의 "현재 진행액" — 연동이면 지금 고른 자금원의 잔액 합(대출 차감), 미연동이면 폼에 입력된 값.
+  // 필요 월 저축액 미리보기와 균등분배("필요금액 - 여기까지 모은 금액"을 남은 달에 나누기)의 기준이 된다.
+  const currentProgress = draftCurrentAmount(draft, {
+    savingsProducts: availableSavingsProducts,
+    accounts,
+    loans: availableLoans,
+  });
+  const { monthsRemaining, suggestedMonthly } = previewGoalPlan({
+    draft,
+    existingGoal,
+    openedAt,
+    currentAge,
+    currentAmount: currentProgress,
+  });
   const hasMonthlyPlan = draft.monthly_targets.length > 0;
 
   return (
@@ -270,7 +282,7 @@ function PlanStep({
           endMonth={toYearMonth(draft.target_date)}
           targets={draft.monthly_targets}
           onChange={(monthly_targets) => setDraft((d) => ({ ...d, monthly_targets }))}
-          distributeAmount={String(Math.max(0, Number(draft.required_amount) - currentProgressForDistribution))}
+          distributeAmount={String(Math.max(0, Number(draft.required_amount) - currentProgress))}
         />
       )}
       <div className="rounded-lg border border-gray-200 dark:border-gray-700 p-3 space-y-2">
