@@ -15,6 +15,7 @@ from sqlalchemy.orm import Session
 
 from app.config import settings
 from app.constants.merchant_keywords import EXPENSE_MERCHANT_KEYWORDS
+from app.constants.payment_methods import PAYMENT_METHOD_BY_CARD_TYPE, PAYMENT_METHOD_LABELS, PAYMENT_METHODS
 from app.errors import InvalidInputError, PayloadTooLargeError
 from app.models.account import Account
 from app.models.card import Card
@@ -26,7 +27,6 @@ from app.services import card_service, user_service
 logger = logging.getLogger(__name__)
 
 CSV_HEADER = ["날짜", "구분", "카테고리", "금액", "메모", "입력자", "계좌", "결제수단", "소유자", "카드"]
-PAYMENT_METHOD_LABELS = {"cash": "현금", "credit_card": "신용카드", "debit_card": "체크카드", "transfer": "계좌이체", "other": "기타"}
 CSV_TYPE_LABELS = {"income": "수입", "expense": "지출"}
 CSV_TYPE_BY_LABEL = {"수입": "income", "지출": "expense", "income": "income", "expense": "expense"}
 # 부분 일치로 쓸 학습 메모의 최소 길이 — 한 글자("커")는 거의 모든 메모에 들어가 엉뚱하게 매칭된다.
@@ -184,7 +184,7 @@ def _parse_payment_method(raw: str) -> str | None:
     key = _normalize_memo(raw)
     if not key:
         return None
-    if key in ("cash", "credit_card", "debit_card", "transfer", "other"):
+    if key in PAYMENT_METHODS:
         return key
     return next((method for words, method in _PAYMENT_METHOD_RULES if any(w in key for w in words)), "other")
 
@@ -508,7 +508,7 @@ def _parse_line(
         # 바꿨어도 내보내기 → 다시 가져오기에서 지난 거래가 새 계좌로 옮겨지면 안 된다. 화면 입력은 새 거래라
         # 카드 우선(transaction_service._apply_card)이지만 CSV는 기존 기록의 이관이다.
         account = account or card.payment_account
-        payment_method = card_service.PAYMENT_METHOD_BY_CARD_TYPE[card.card_type]
+        payment_method = PAYMENT_METHOD_BY_CARD_TYPE[card.card_type]
     raw_owner = cell("owner")
     owner = None
     if raw_owner and raw_owner not in _COMMON_OWNER_ALIASES:

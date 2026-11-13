@@ -10,9 +10,6 @@ from app.models.card import Card
 from app.models.transaction import Transaction
 from app.services import user_service
 
-# 카드 종류 → 거래의 payment_method(app/schemas/transaction.py PaymentMethod)
-PAYMENT_METHOD_BY_CARD_TYPE = {"credit": "credit_card", "debit": "debit_card"}
-
 
 class InvalidCardAccountError(InvalidInputError):
     pass
