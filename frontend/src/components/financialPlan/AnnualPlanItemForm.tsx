@@ -1,14 +1,11 @@
-import { useId, useState } from "react";
+import { useState } from "react";
 import type { FormEvent } from "react";
-import AnnualPlanMonthlyGrid from "@/components/financialPlan/AnnualPlanMonthlyGrid";
 import Button from "@/components/common/Button";
 import CategoryPicker from "@/components/common/CategoryPicker";
-import AmountInput from "@/components/common/AmountInput";
 import FormInput from "@/components/common/FormInput";
 import OwnerSelect from "@/components/common/OwnerSelect";
-import { INPUT_SM, LABEL_SM } from "@/constants/inputStyles";
-import { buildYearMonthRange, syncTargetsToPeriod } from "@/utils/monthRange";
-import { formatMonthOnly } from "@/utils/format";
+import PlanPeriodFields from "@/components/financialPlan/PlanPeriodFields";
+import { usePlanPeriodTargets } from "@/components/financialPlan/usePlanPeriodTargets";
 import type { AnnualPlanItemMonthlyTargetIn, CashflowSection, CategoryOut, UserOut } from "@/types";
 
 export interface AnnualPlanItemFormValues {
@@ -46,36 +43,19 @@ export default function AnnualPlanItemForm({
   submitting,
   onSubmit,
 }: Props) {
-  const fieldId = useId();
   const [name, setName] = useState(initialValues?.name ?? "");
   const [ownerUserId, setOwnerUserId] = useState(initialValues?.owner_user_id ?? "");
   const [categoryId, setCategoryId] = useState(initialValues?.category_id ?? "");
-  const [startMonth, setStartMonth] = useState(initialValues?.start_month ?? `${year}-01`);
-  const [endMonth, setEndMonth] = useState(initialValues?.end_month ?? `${year}-12`);
-  const [monthlyTargets, setMonthlyTargets] = useState<AnnualPlanItemMonthlyTargetIn[]>(
-    initialValues?.monthly_targets ?? [],
-  );
-  const existingTotal = (initialValues?.monthly_targets ?? []).reduce(
-    (sum, t) => sum + (Number(t.target_amount) || 0),
-    0,
-  );
-  const [annualTotalDraft, setAnnualTotalDraft] = useState(existingTotal > 0 ? String(existingTotal) : "");
+  const period = usePlanPeriodTargets({
+    start_month: initialValues?.start_month ?? `${year}-01`,
+    end_month: initialValues?.end_month ?? `${year}-12`,
+    monthly_targets: initialValues?.monthly_targets ?? [],
+  });
 
   const sectionCategories =
     section === "income"
       ? categories.filter((c) => c.kind === "income")
       : categories.filter((c) => c.kind === "expense" && c.type === section);
-  const monthOptions = buildYearMonthRange(`${year}-01`, `${year}-12`);
-
-  const changeStartMonth = (next: string) => {
-    setStartMonth(next);
-    setMonthlyTargets((targets) => syncTargetsToPeriod(next, endMonth, targets));
-  };
-  const changeEndMonth = (next: string) => {
-    setEndMonth(next);
-    setMonthlyTargets((targets) => syncTargetsToPeriod(startMonth, next, targets));
-  };
-
   const handleSubmit = (e: FormEvent) => {
     e.preventDefault();
     if (!name.trim()) return;
@@ -83,9 +63,9 @@ export default function AnnualPlanItemForm({
       name,
       owner_user_id: ownerUserId,
       category_id: categoryId,
-      start_month: startMonth,
-      end_month: endMonth,
-      monthly_targets: monthlyTargets,
+      start_month: period.startMonth,
+      end_month: period.endMonth,
+      monthly_targets: period.monthlyTargets,
     });
   };
 
@@ -116,50 +96,7 @@ export default function AnnualPlanItemForm({
         required
       />
       <OwnerSelect label="구분" value={ownerUserId} onChange={setOwnerUserId} users={users} />
-      <div className="grid grid-cols-2 gap-2">
-        <div>
-          <label htmlFor={`${fieldId}-0`} className={`block mb-1 font-medium ${LABEL_SM}`}>적용 시작월</label>
-          <select
-            id={`${fieldId}-0`}
-            className={`${INPUT_SM} w-full`}
-            value={startMonth}
-            onChange={(e) => changeStartMonth(e.target.value)}
-          >
-            {monthOptions
-              .filter((ym) => ym <= endMonth)
-              .map((ym) => (
-                <option key={ym} value={ym}>
-                  {formatMonthOnly(ym)}
-                </option>
-              ))}
-          </select>
-        </div>
-        <div>
-          <label htmlFor={`${fieldId}-1`} className={`block mb-1 font-medium ${LABEL_SM}`}>적용 종료월</label>
-          <select id={`${fieldId}-1`} className={`${INPUT_SM} w-full`} value={endMonth} onChange={(e) => changeEndMonth(e.target.value)}>
-            {monthOptions
-              .filter((ym) => ym >= startMonth)
-              .map((ym) => (
-                <option key={ym} value={ym}>
-                  {formatMonthOnly(ym)}
-                </option>
-              ))}
-          </select>
-        </div>
-      </div>
-      <AmountInput
-        label="균등분배할 총액"
-        value={annualTotalDraft}
-        onChange={(value) => setAnnualTotalDraft(value)}
-        hint="이 금액을 적용 기간의 달에 고르게 나눠 채워요. 지금까지 입력된 실제 합계는 아래 '월별 목표금액 합계'를 보세요."
-      />
-      <AnnualPlanMonthlyGrid
-        startMonth={startMonth}
-        endMonth={endMonth}
-        targets={monthlyTargets}
-        onChange={setMonthlyTargets}
-        distributeAmount={annualTotalDraft}
-      />
+      <PlanPeriodFields year={year} period={period} />
       <Button type="submit" loading={submitting} className="w-full justify-center">
         {submitLabel}
       </Button>

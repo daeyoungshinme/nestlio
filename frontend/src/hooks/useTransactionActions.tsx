@@ -1,11 +1,11 @@
 import { useState } from "react";
 import type { ReactNode } from "react";
 import { useMutation } from "@tanstack/react-query";
-import ConfirmModal from "@/components/common/ConfirmModal";
 import Modal from "@/components/common/Modal";
 import TransactionForm from "@/components/transactions/TransactionForm";
 import type { TransactionFormValues } from "@/components/transactions/TransactionForm";
 import { deleteTransaction, updateTransaction } from "@/api/transactions";
+import { useConfirmDelete } from "@/hooks/useConfirmDelete";
 import { useCreateTransaction, useInvalidateTransactionRelated } from "@/hooks/useInvalidateTransactionRelated";
 import { toast } from "@/utils/toast";
 import type { AccountWithBalanceOut, CategoryOut, SavingsProductOut, TransactionOut, UserOut } from "@/types";
@@ -51,7 +51,6 @@ export function useTransactionActions({
 } {
   const [formTarget, setFormTarget] = useState<"new" | TransactionOut | null>(null);
   const [createDate, setCreateDate] = useState("");
-  const [deleteTarget, setDeleteTarget] = useState<TransactionOut | null>(null);
   const invalidateAll = useInvalidateTransactionRelated();
 
   const updateMutation = useMutation({
@@ -65,11 +64,11 @@ export function useTransactionActions({
     },
   });
 
-  const deleteMutation = useMutation({
-    mutationFn: deleteTransaction,
-    onSuccess: () => {
+  const { openDelete, deleteNow, modal: deleteModal } = useConfirmDelete<TransactionOut>({
+    remove: deleteTransaction,
+    message: () => "이 내역을 삭제할까요? 되돌릴 수 없습니다.",
+    onDeleted: () => {
       invalidateAll();
-      setDeleteTarget(null);
       // 삭제는 수정 폼 안에서만 시작하므로 그 폼도 닫는다(시트는 그날 목록으로 돌아간다).
       setFormTarget(null);
       onSaved?.();
@@ -82,7 +81,7 @@ export function useTransactionActions({
     onSaved?.();
     toast("내역을 추가했습니다.", "success", {
       label: "취소",
-      onClick: () => deleteMutation.mutate(created.id),
+      onClick: () => deleteNow(created.id),
     });
   });
 
@@ -95,7 +94,7 @@ export function useTransactionActions({
       currentUserId={currentUserId}
       layout="stack"
       isNew={target === "new"}
-      onDelete={target === "new" ? undefined : () => setDeleteTarget(target)}
+      onDelete={target === "new" ? undefined : () => openDelete(target)}
       submitLabel={target === "new" ? "추가" : "저장"}
       submitting={createMutation.isPending || updateMutation.isPending}
       initialValues={target === "new" ? { transaction_date: dateHint } : formValuesOf(target)}
@@ -113,14 +112,7 @@ export function useTransactionActions({
           <div className="p-6 overflow-y-auto">{renderForm(formTarget, createDate)}</div>
         </Modal>
       )}
-      {deleteTarget && (
-        <ConfirmModal
-          message="이 내역을 삭제할까요? 되돌릴 수 없습니다."
-          loading={deleteMutation.isPending}
-          onConfirm={() => deleteMutation.mutate(deleteTarget.id)}
-          onCancel={() => setDeleteTarget(null)}
-        />
-      )}
+      {deleteModal}
     </>
   );
 

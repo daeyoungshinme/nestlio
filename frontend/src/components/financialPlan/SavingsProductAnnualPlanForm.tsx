@@ -1,11 +1,7 @@
-import { useId, useState } from "react";
 import type { FormEvent } from "react";
-import AnnualPlanMonthlyGrid from "@/components/financialPlan/AnnualPlanMonthlyGrid";
 import Button from "@/components/common/Button";
-import AmountInput from "@/components/common/AmountInput";
-import { INPUT_SM, LABEL_SM } from "@/constants/inputStyles";
-import { buildYearMonthRange, syncTargetsToPeriod } from "@/utils/monthRange";
-import { formatMonthOnly } from "@/utils/format";
+import PlanPeriodFields from "@/components/financialPlan/PlanPeriodFields";
+import { usePlanPeriodTargets } from "@/components/financialPlan/usePlanPeriodTargets";
 import type { SavingsProductAnnualPlanMonthlyTargetIn } from "@/types";
 
 export interface SavingsProductAnnualPlanFormValues {
@@ -34,77 +30,16 @@ export default function SavingsProductAnnualPlanForm({
   submitting,
   onSubmit,
 }: Props) {
-  const fieldId = useId();
-  const [startMonth, setStartMonth] = useState(initialValues.start_month);
-  const [endMonth, setEndMonth] = useState(initialValues.end_month);
-  const [monthlyTargets, setMonthlyTargets] = useState<SavingsProductAnnualPlanMonthlyTargetIn[]>(
-    initialValues.monthly_targets,
-  );
-  const existingTotal = initialValues.monthly_targets.reduce((sum, t) => sum + (Number(t.target_amount) || 0), 0);
-  const [totalDraft, setTotalDraft] = useState(existingTotal > 0 ? String(existingTotal) : "");
-
-  const monthOptions = buildYearMonthRange(`${year}-01`, `${year}-12`);
-
-  const changeStartMonth = (next: string) => {
-    setStartMonth(next);
-    setMonthlyTargets((targets) => syncTargetsToPeriod(next, endMonth, targets));
-  };
-  const changeEndMonth = (next: string) => {
-    setEndMonth(next);
-    setMonthlyTargets((targets) => syncTargetsToPeriod(startMonth, next, targets));
-  };
+  const period = usePlanPeriodTargets(initialValues);
 
   const handleSubmit = (e: FormEvent) => {
     e.preventDefault();
-    onSubmit({ start_month: startMonth, end_month: endMonth, monthly_targets: monthlyTargets });
+    onSubmit({ start_month: period.startMonth, end_month: period.endMonth, monthly_targets: period.monthlyTargets });
   };
 
   return (
     <form onSubmit={handleSubmit} className="flex flex-col gap-3">
-      <div className="grid grid-cols-2 gap-2">
-        <div>
-          <label htmlFor={`${fieldId}-0`} className={`block mb-1 font-medium ${LABEL_SM}`}>적용 시작월</label>
-          <select
-            id={`${fieldId}-0`}
-            className={`${INPUT_SM} w-full`}
-            value={startMonth}
-            onChange={(e) => changeStartMonth(e.target.value)}
-          >
-            {monthOptions
-              .filter((ym) => ym <= endMonth)
-              .map((ym) => (
-                <option key={ym} value={ym}>
-                  {formatMonthOnly(ym)}
-                </option>
-              ))}
-          </select>
-        </div>
-        <div>
-          <label htmlFor={`${fieldId}-1`} className={`block mb-1 font-medium ${LABEL_SM}`}>적용 종료월</label>
-          <select id={`${fieldId}-1`} className={`${INPUT_SM} w-full`} value={endMonth} onChange={(e) => changeEndMonth(e.target.value)}>
-            {monthOptions
-              .filter((ym) => ym >= startMonth)
-              .map((ym) => (
-                <option key={ym} value={ym}>
-                  {formatMonthOnly(ym)}
-                </option>
-              ))}
-          </select>
-        </div>
-      </div>
-      <AmountInput
-        label="균등분배할 총액"
-        value={totalDraft}
-        onChange={(value) => setTotalDraft(value)}
-        hint="이 금액을 적용 기간의 달에 고르게 나눠 채워요. 지금까지 입력된 실제 합계는 아래 '월별 목표금액 합계'를 보세요."
-      />
-      <AnnualPlanMonthlyGrid
-        startMonth={startMonth}
-        endMonth={endMonth}
-        targets={monthlyTargets}
-        onChange={setMonthlyTargets}
-        distributeAmount={totalDraft}
-      />
+      <PlanPeriodFields year={year} period={period} />
       <Button type="submit" loading={submitting} className="w-full justify-center">
         {submitLabel}
       </Button>

@@ -1,7 +1,8 @@
+import CompleteCheckbox from "@/components/common/CompleteCheckbox";
 import RowActionButtons from "@/components/common/RowActionButtons";
 import StatusBadge from "@/components/common/StatusBadge";
 import TodoPriorityBadge from "@/components/todos/TodoPriorityBadge";
-import { TOUCH_TARGET_MIN, TOUCH_TARGET_MIN_HEIGHT } from "@/constants/uiSizes";
+import { TOUCH_TARGET_MIN_HEIGHT } from "@/constants/uiSizes";
 import { todoMyTurnBadgeClass, todoUrgencyBadgeClass } from "@/utils/colors";
 import { occurrenceDate } from "@/utils/date";
 import { formatDate } from "@/utils/format";
@@ -38,15 +39,7 @@ export default function TodoRow({ todo, today, myId, users, onEdit, onDelete, on
   return (
     <div className="card flex items-center justify-between gap-3">
       <div className="min-w-0 flex flex-1 items-center gap-1">
-        <label className={`${TOUCH_TARGET_MIN} -ml-3 shrink-0 cursor-pointer`}>
-          <input
-            type="checkbox"
-            checked={checked}
-            onChange={() => onToggleComplete(todo)}
-            className="h-5 w-5 rounded-sm border-gray-300"
-            aria-label={`${todo.title} 완료 처리`}
-          />
-        </label>
+        <CompleteCheckbox checked={checked} onToggle={() => onToggleComplete(todo)} title={todo.title} />
         <button type="button" onClick={() => onEdit(todo)} className={`min-w-0 flex-1 text-left ${TOUCH_TARGET_MIN_HEIGHT}`}>
           <span className="flex items-center gap-2 flex-wrap">
             <span

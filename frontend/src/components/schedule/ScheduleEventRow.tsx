@@ -1,6 +1,6 @@
+import CompleteCheckbox from "@/components/common/CompleteCheckbox";
 import RowActionButtons from "@/components/common/RowActionButtons";
 import StatusBadge from "@/components/common/StatusBadge";
-import { TOUCH_TARGET_MIN } from "@/constants/uiSizes";
 import type { EventFrequency, EventOut } from "@/types";
 
 const FREQUENCY_LABEL: Record<EventFrequency, string> = { once: "한 번", weekly: "매주", monthly: "매월" };
@@ -28,16 +28,7 @@ export default function ScheduleEventRow({ event, onEdit, onDelete, onToggleComp
   return (
     <div className="card flex items-center justify-between gap-3">
       <div className="min-w-0 flex items-center gap-1">
-        {/* 체크박스 자체는 작아도 감싼 label이 44px라 엄지로 누르기 쉽다. */}
-        <label className={`${TOUCH_TARGET_MIN} -ml-3 shrink-0 cursor-pointer`}>
-          <input
-            type="checkbox"
-            checked={completed}
-            onChange={() => onToggleComplete(event)}
-            className="h-5 w-5 rounded-sm border-gray-300"
-            aria-label={`${event.title} 완료 처리`}
-          />
-        </label>
+        <CompleteCheckbox checked={completed} onToggle={() => onToggleComplete(event)} title={event.title} />
         <div className="min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
             <p

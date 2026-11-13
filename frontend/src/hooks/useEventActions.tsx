@@ -1,10 +1,10 @@
 import { useState } from "react";
 import type { ReactNode } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import ConfirmModal from "@/components/common/ConfirmModal";
 import Modal from "@/components/common/Modal";
 import EventForm, { emptyEventFormValues, eventToFormValues } from "@/components/transactions/EventForm";
 import { completeEvent, createEvent, deleteEvent, updateEvent } from "@/api/events";
+import { useConfirmDelete } from "@/hooks/useConfirmDelete";
 import { useCrudMutations } from "@/hooks/useCrudMutations";
 import { QUERY_KEYS } from "@/constants/queryKeys";
 import { occurrenceDate } from "@/utils/date";
@@ -32,7 +32,6 @@ export function useEventActions({
 } {
   const [formTarget, setFormTarget] = useState<"new" | EventOut | null>(null);
   const [createDateHint, setCreateDateHint] = useState("");
-  const [deleteTarget, setDeleteTarget] = useState<EventOut | null>(null);
   const queryClient = useQueryClient();
   const invalidateEvents = () => queryClient.invalidateQueries({ queryKey: QUERY_KEYS.eventsAll });
 
@@ -50,11 +49,11 @@ export function useEventActions({
     },
   });
 
-  const deleteMutation = useMutation({
-    mutationFn: (id: number) => deleteEvent(id),
-    onSuccess: () => {
+  const { openDelete, modal: deleteModal } = useConfirmDelete<EventOut>({
+    remove: deleteEvent,
+    message: (event) => `"${event.title}" 일정을 삭제할까요?`,
+    onDeleted: () => {
       invalidateEvents();
-      setDeleteTarget(null);
       toast("일정을 삭제했습니다.", "success");
     },
   });
@@ -84,14 +83,7 @@ export function useEventActions({
           <div className="p-6 overflow-y-auto">{renderForm(formTarget, createDateHint)}</div>
         </Modal>
       )}
-      {deleteTarget && (
-        <ConfirmModal
-          message={`"${deleteTarget.title}" 일정을 삭제할까요?`}
-          loading={deleteMutation.isPending}
-          onConfirm={() => deleteMutation.mutate(deleteTarget.id)}
-          onCancel={() => setDeleteTarget(null)}
-        />
-      )}
+      {deleteModal}
     </>
   );
 
@@ -101,7 +93,7 @@ export function useEventActions({
       setFormTarget("new");
     },
     openEdit: setFormTarget,
-    openDelete: setDeleteTarget,
+    openDelete,
     toggleComplete: (event) =>
       completeMutation.mutate({
         id: event.id,

@@ -26,7 +26,7 @@ import { currentYearMonth } from "@/utils/date";
 import { planViewLink } from "@/constants/routes";
 import {
   formatKrw,
-  formatPercent,
+  formatReturnPct,
   formatSyncedAt,
   resolveOwnerLabel,
 } from "@/utils/format";
@@ -275,8 +275,7 @@ function SavingsProductRow({
             )}
             {product.return_rate_pct !== null && (
               <span className={`shrink-0 text-[11px] font-semibold ${returnRateTextColor(Number(product.return_rate_pct))}`}>
-                {Number(product.return_rate_pct) > 0 ? "+" : ""}
-                {formatPercent(Number(product.return_rate_pct), 1)}
+                {formatReturnPct(product.return_rate_pct, true)}
               </span>
             )}
           </div>

@@ -1,50 +1,29 @@
 import { useState } from "react";
-import { useSearchParams } from "react-router-dom";
-import { useQuery } from "@tanstack/react-query";
 import { ListChecks, Plus } from "lucide-react";
 import Button from "@/components/common/Button";
 import EmptyState from "@/components/common/EmptyState";
 import QueryBoundary from "@/components/common/QueryBoundary";
 import Tabs from "@/components/common/Tabs";
 import TodoRow from "@/components/todos/TodoRow";
-import { fetchTodos } from "@/api/todos";
-import { QUERY_KEYS } from "@/constants/queryKeys";
-import { TODO_TABS, type TodoTab } from "@/constants/routes";
+import { useTodos } from "@/hooks/useScheduleQueries";
+import { TODO_TABS } from "@/constants/routes";
+import { useTabParam } from "@/hooks/useTabParam";
 import { useMe, useUsers } from "@/hooks/useReferenceData";
 import { useTodoActions } from "@/hooks/useTodoActions";
 import { currentDateIso } from "@/utils/date";
 import { filterTodosByAssignee, sortOpenTodos, TODO_ASSIGNEE_FILTERS, type TodoAssigneeFilter } from "@/utils/todos";
 
-function isTab(value: string | null): value is TodoTab {
-  return (TODO_TABS as readonly string[]).includes(value ?? "");
-}
-
 /** 부부 할일 — 서로 등록하고 맡기고 함께 체크한다. 주 메뉴에 없고 홈의 "우리 할일" 카드에서 들어온다. */
 export default function TodosPage() {
-  const [searchParams, setSearchParams] = useSearchParams();
-  const tabParam = searchParams.get("tab");
-  const activeTab: TodoTab = isTab(tabParam) ? tabParam : "진행 중";
+  const [activeTab, changeTab] = useTabParam("tab", TODO_TABS, "진행 중");
   const status = activeTab === "완료" ? "done" : "open";
   const [assigneeFilter, setAssigneeFilter] = useState<TodoAssigneeFilter>("전체");
   const today = currentDateIso();
 
   const { data: users } = useUsers();
   const { data: me } = useMe();
-  const todosQuery = useQuery({
-    queryKey: QUERY_KEYS.todos(status),
-    queryFn: () => fetchTodos(status),
-  });
+  const todosQuery = useTodos(status);
   const { openCreate, openEdit, openDelete, toggleComplete, modals } = useTodoActions({ users });
-
-  const changeTab = (tab: TodoTab) =>
-    setSearchParams(
-      (prev) => {
-        const next = new URLSearchParams(prev);
-        next.set("tab", tab);
-        return next;
-      },
-      { replace: true },
-    );
 
   return (
     <div className="space-y-4">

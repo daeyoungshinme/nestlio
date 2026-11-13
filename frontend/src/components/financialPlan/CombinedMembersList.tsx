@@ -2,7 +2,7 @@ import { RefreshCw } from "lucide-react";
 import Button from "@/components/common/Button";
 import ProgressBar from "@/components/common/ProgressBar";
 import { cautionTextClass } from "@/utils/colors";
-import { formatKrwCompact, formatSyncedAt } from "@/utils/format";
+import { formatKrwCompact, formatReturnPct, formatSyncedAt } from "@/utils/format";
 import type { CombinedMemberOut, GrowlioGoalSnapshotOut } from "@/types";
 
 /** 배우자 값이 이보다 오래되면 주의 표시 — 배우자가 nestlio를 열어야 갱신된다. */
@@ -25,8 +25,8 @@ function growlioChips(snap: GrowlioGoalSnapshotOut): string[] {
     );
   }
   if (snap.goal_annual_return_pct !== null) {
-    const actual = snap.actual_return_pct !== null ? `${Number(snap.actual_return_pct).toFixed(1)}%` : "-";
-    chips.push(`수익률 ${actual} / 목표 ${Number(snap.goal_annual_return_pct).toFixed(1)}%`);
+    const actual = snap.actual_return_pct !== null ? formatReturnPct(snap.actual_return_pct) : "-";
+    chips.push(`수익률 ${actual} / 목표 ${formatReturnPct(snap.goal_annual_return_pct)}`);
   }
   if (snap.retirement_target_year !== null) chips.push(`${snap.retirement_target_year}년 은퇴`);
   return chips;

@@ -1,7 +1,8 @@
 import { useMemo, useRef, useState } from "react";
 import { Repeat } from "lucide-react";
 import { useSearchParams } from "react-router-dom";
-import { LEDGER_VIEWS, type LedgerView } from "@/constants/routes";
+import { LEDGER_VIEWS } from "@/constants/routes";
+import { useTabParam } from "@/hooks/useTabParam";
 import Tabs from "@/components/common/Tabs";
 import LedgerScheduleList from "@/components/transactions/LedgerScheduleList";
 import { useEventActions } from "@/hooks/useEventActions";
@@ -30,10 +31,6 @@ import { TOUCH_TARGET_MIN_HEIGHT } from "@/constants/uiSizes";
 
 const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
-function isLedgerView(value: string | null): value is LedgerView {
-  return (LEDGER_VIEWS as readonly string[]).includes(value ?? "");
-}
-
 /** 날짜 시트 안에서 띄운 폼 — 거래 또는 일정의 추가("new")/수정. */
 type DayPanel = { kind: "tx"; target: "new" | TransactionOut } | { kind: "event"; target: "new" | EventOut };
 
@@ -44,9 +41,8 @@ function defaultDateHint(yearMonth: string): string {
 /** 가계부 — 부부의 거래 기록과 일정을 한 캘린더에서 공유한다. `?view=내역|일정`으로 캘린더 아래 목록만 바뀐다
  * (구 독립 `/schedule` 페이지는 이 "일정" 보기로 병합됐고, `?date=YYYY-MM-DD`로 들어오면 그 날 모달을 연다). */
 export default function TransactionsPage() {
-  const [searchParams, setSearchParams] = useSearchParams();
-  const viewParam = searchParams.get("view");
-  const view: LedgerView = isLedgerView(viewParam) ? viewParam : "내역";
+  const [searchParams] = useSearchParams();
+  const [view, changeView] = useTabParam("view", LEDGER_VIEWS, "내역");
   const [yearMonth, setYearMonth] = useState(() => {
     const d = searchParams.get("date");
     return d && ISO_DATE_RE.test(d) ? d.slice(0, 7) : currentYearMonth();
@@ -85,15 +81,6 @@ export default function TransactionsPage() {
     setSelectedDate(d);
   });
 
-  const changeView = (next: LedgerView) =>
-    setSearchParams(
-      (prev) => {
-        const params = new URLSearchParams(prev);
-        params.set("view", next);
-        return params;
-      },
-      { replace: true },
-    );
   const filters = useLedgerFilters(month.items);
 
   const userOptions = useMemo(() => {
