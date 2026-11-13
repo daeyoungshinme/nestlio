@@ -41,7 +41,6 @@ def log_sent(
             related_type=related_type or ("category" if related_id else None),
             related_id=related_id,
             year_month=period_key,
-            status="sent",
             detail=detail[:500],
         )
     )
@@ -70,7 +69,6 @@ def log_event(
         related_type=related_type,
         related_id=related_id,
         year_month=now.isoformat(timespec="seconds"),
-        status="sent",
         detail=detail[:500],
     )
     try:
