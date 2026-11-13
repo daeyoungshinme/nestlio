@@ -132,3 +132,48 @@ def test_partner_saving_accepts_reactions(seeded_db):
 
     reaction = db.query(NotificationReaction).filter_by(notification_log_id=log_id).one()
     assert (reaction.emoji, reaction.message) == ("👏", "멋져!")
+
+
+def _first_returns_none_once():
+    """두 요청이 동시에 "아직 없음"을 본 상황 — 첫 조회만 None을 돌려 다른 요청이 먼저 기록한 행을 못 본 것처럼 만든다."""
+    from sqlalchemy.orm import Query
+
+    original = Query.first
+    calls = {"n": 0}
+
+    def fake(self):
+        calls["n"] += 1
+        return None if calls["n"] == 1 else original(self)
+
+    return patch.object(Query, "first", fake)
+
+
+def test_mark_read_double_tap_is_idempotent(seeded_db):
+    """더블 탭으로 같은 읽음 요청이 겹치면 유니크 제약에 걸려 500이었다 — 이미 읽음이니 성공으로 본다."""
+    from app.models.notification_read import NotificationRead
+    from app.services import notification_log_service
+
+    db, user = seeded_db["db"], seeded_db["user"]
+    notification_log_service.log_sent(db, "email_weekly", "2026-07-27")
+    log_id = db.query(NotificationLog).one().id
+    notification_inbox_service.mark_read(db, user.id, log_id)
+
+    with _first_returns_none_once():
+        notification_inbox_service.mark_read(db, user.id, log_id)
+
+    assert db.query(NotificationRead).count() == 1
+
+
+def test_add_reaction_double_tap_updates_the_winning_row(seeded_db):
+    from app.services import notification_log_service
+
+    db, user = seeded_db["db"], seeded_db["user"]
+    notification_log_service.log_sent(db, "goal_milestone", "25", related_id=1, related_type="goal")
+    log_id = db.query(NotificationLog).one().id
+    notification_inbox_service.add_reaction(db, user.id, log_id, "🎉")
+
+    with _first_returns_none_once():
+        notification_inbox_service.add_reaction(db, user.id, log_id, "👏", "최고")
+
+    reaction = db.query(NotificationReaction).one()
+    assert (reaction.emoji, reaction.message) == ("👏", "최고")

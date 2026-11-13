@@ -5,7 +5,7 @@ from typing import Annotated, Literal, get_args
 
 from pydantic import BaseModel, BeforeValidator, ConfigDict, Field
 
-from app.schemas.common import KrwAmount, KrwBalance, bounded_str
+from app.schemas.common import DbInt, KrwAmount, KrwBalance, bounded_str
 
 PolicyType = Literal["indemnity", "diagnosis", "life", "accident", "auto", "home", "savings", "other"]
 PaymentFrequency = Literal["monthly", "yearly"]
@@ -83,7 +83,7 @@ class InsuranceRiderOut(BaseModel):
 class InsuranceRiderIn(BaseModel):
     """id가 있으면 그 특약을 갱신, 없으면 추가. 계약 저장 때 목록에 없는 기존 특약은 삭제된다."""
 
-    id: int | None = None
+    id: DbInt | None = None
     name: bounded_str(100)
     coverage: RiderCoverage
     coverage_amount: KrwBalance | None = None
@@ -136,7 +136,7 @@ class InsurancePolicyIn(BaseModel):
     coverages: list[Coverage] = Field(default_factory=list, max_length=len(_COVERAGES))
     # None이면 기존 특약을 그대로 둔다(특약을 모르는 구 클라이언트의 PUT이 특약을 지우지 않게). []이면 전부 삭제.
     riders: list[InsuranceRiderIn] | None = Field(default=None, max_length=MAX_RIDERS_PER_POLICY)
-    recurring_expense_id: int | None = None
+    recurring_expense_id: DbInt | None = None
     memo: bounded_str(200) | None = None
 
     def to_fields(self) -> dict:

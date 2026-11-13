@@ -29,7 +29,7 @@
 ### schemas (`app/schemas/`)
 
 - 출력 모델은 `ConfigDict(from_attributes=True)`.
-- 입력(`*In`) 필드 타입은 저장 컬럼에 맞춘다: `KrwAmount`=`Numeric(12,2)`, `KrwBalance`=`Numeric(14,2)`(둘 다 음수 불가), `SignedKrwBalance`=마이너스가 정상인 계좌 잔액, `Pct`=`Numeric(5,2)`, `String(N)` 컬럼은 `bounded_str(N)`. 이유: Postgres는 범위 초과 시 500(DataError)을 내지만 테스트용 SQLite는 무시하므로 스키마에서 422로 막아야 한다. `KrwAmount` 등은 빈 문자열(비운 `<input type="number">`)을 0으로 받는다. 누락은 `tests/test_schemas_krw_amount.py::test_every_input_decimal_and_str_field_is_bounded`가 잡는다.
+- 입력(`*In`) 필드 타입은 저장 컬럼에 맞춘다: `KrwAmount`=`Numeric(12,2)`, `KrwBalance`=`Numeric(14,2)`(둘 다 음수 불가), `SignedKrwBalance`=마이너스가 정상인 계좌 잔액, `Pct`=`Numeric(5,2)`, `String(N)` 컬럼은 `bounded_str(N)`, int(id·FK·정렬·연도)는 `DbInt`(Postgres `INTEGER` 범위, 더 좁은 범위가 있으면 `Field(ge=, le=)`). 이유: Postgres는 범위 초과 시 500(DataError)을 내지만 테스트용 SQLite는 무시하므로 스키마에서 422로 막아야 한다. `KrwAmount` 등은 빈 문자열(비운 `<input type="number">`)을 0으로 받는다. 누락은 `tests/test_schemas_krw_amount.py::test_every_input_decimal_and_str_field_is_bounded`가 잡는다(int 포함).
 - 자유텍스트 컬럼을 출력에서 `Literal`로 좁힐 때는 `app/schemas/transaction.py`의 `PaymentMethodOut` 패턴(미지 값 → `"other"` 폴백 `BeforeValidator`)을 출력 타입에만 쓴다. 입력은 순수 `Literal`로 엄격하게. 안 그러면 기존 레거시 행 때문에 응답 직렬화가 500으로 터진다.
 - 스키마를 바꾸면 `cd frontend && npm run generate:api-types`로 `frontend/src/types/api.generated.ts`를 갱신해 함께 커밋한다(CI `api-types-drift`). 상세는 [frontend/CLAUDE.md](frontend/CLAUDE.md).
 

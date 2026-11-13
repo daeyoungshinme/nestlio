@@ -5,7 +5,7 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from app.schemas.common import KrwAmount, KrwBalance, Pct, YearMonth, bounded_str
+from app.schemas.common import DbInt, KrwAmount, KrwBalance, Pct, YearMonth, bounded_str
 
 FundingSourceType = Literal["savings_product", "account", "loan"]
 GoalKind = Literal["goal", "challenge", "net_worth", "combined"]
@@ -14,7 +14,7 @@ CombinedMemberType = Literal["goal", "growlio"]
 
 class FundingSourceIn(BaseModel):
     type: FundingSourceType
-    id: int
+    id: DbInt
 
 
 class FundingSourceOut(BaseModel):
@@ -137,10 +137,10 @@ class FinancialGoalOut(BaseModel):
 
 class FinancialGoalCreateIn(BaseModel):
     kind: GoalKind = "goal"
-    priority: int = 1
+    priority: DbInt = 1
     name: bounded_str(100)
     description: bounded_str(500) | None = None
-    target_age: int | None = None
+    target_age: DbInt | None = None
     target_date: date | None = None
     required_amount: KrwBalance = Decimal("0")
     monthly_saving_amount: KrwAmount = Decimal("0")
@@ -150,17 +150,17 @@ class FinancialGoalCreateIn(BaseModel):
     monthly_targets: list[GoalMonthlyTargetIn] | None = None
     expected_annual_return_pct: Pct | None = Field(default=None, ge=-50, le=100)
     # kind="combined"만: 묶을 장기 목표 id와 growlio 목표를 합산할 가구 구성원 id.
-    member_goal_ids: list[int] | None = Field(default=None, max_length=50)
+    member_goal_ids: list[DbInt] | None = Field(default=None, max_length=50)
     growlio_user_ids: list[uuid.UUID] | None = Field(default=None, max_length=2)
     # kind="net_worth"만 의미가 있다(다른 kind는 False로 저장).
     exclude_real_estate: bool = False
 
 
 class FinancialGoalUpdateIn(BaseModel):
-    priority: int
+    priority: DbInt
     name: bounded_str(100)
     description: bounded_str(500) | None = None
-    target_age: int | None
+    target_age: DbInt | None
     target_date: date | None = None
     required_amount: KrwBalance
     monthly_saving_amount: KrwAmount
@@ -170,7 +170,7 @@ class FinancialGoalUpdateIn(BaseModel):
     monthly_targets: list[GoalMonthlyTargetIn] | None = None
     expected_annual_return_pct: Pct | None = Field(default=None, ge=-50, le=100)
     # 통합 목표의 구성 — 둘 다 None이면 구성을 바꾸지 않는다.
-    member_goal_ids: list[int] | None = Field(default=None, max_length=50)
+    member_goal_ids: list[DbInt] | None = Field(default=None, max_length=50)
     growlio_user_ids: list[uuid.UUID] | None = Field(default=None, max_length=2)
     # None이면 그대로 둔다. kind="net_worth"가 아니면 무시(항상 False).
     exclude_real_estate: bool | None = None

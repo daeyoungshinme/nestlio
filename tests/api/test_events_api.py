@@ -2,6 +2,8 @@ from datetime import date
 from decimal import Decimal
 from unittest.mock import patch
 
+import pytest
+
 from app.models.user import User
 
 
@@ -168,3 +170,25 @@ def test_complete_recurring_without_valid_occurrence_returns_400(client):
         ).status_code
         == 400
     )
+
+
+@pytest.mark.parametrize(
+    "patch_fields",
+    [
+        {"title": "   "},
+        {"end_at": "2026-07-01T08:00:00"},
+        {"frequency": "weekly", "recurrence_end_date": "2026-06-30"},
+        {"reminder_minutes_before": -1},
+        {"reminder_minutes_before": 7 * 24 * 60 + 1},
+    ],
+)
+def test_create_event_rejects_invalid_input(client, patch_fields):
+    """전에는 빈 제목·시작보다 이른 종료·시작보다 이른 반복 종료일·범위 밖 리마인더가 그대로 저장됐다."""
+    payload = {"title": "병원", "start_at": "2026-07-01T09:00:00", **patch_fields}
+    assert client.post("/api/v1/events", json=payload).status_code == 422
+
+
+def test_create_event_strips_title(client):
+    resp = client.post("/api/v1/events", json={"title": "  병원  ", "start_at": "2026-07-01T09:00:00"})
+    assert resp.status_code == 201
+    assert resp.json()["title"] == "병원"

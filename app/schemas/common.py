@@ -47,6 +47,10 @@ def bounded_str(max_length: int) -> Any:
 # 입력 스키마(*In)와 쿼리 파라미터에만 쓰고, 출력 스키마는 서버가 만든 값이라 str 그대로 둔다.
 YearMonth = Annotated[str, StringConstraints(pattern=r"^\d{4}-(0[1-9]|1[0-2])$")]
 
+# Postgres INTEGER(id·FK·정렬·연도 등) 범위 — 넘으면 Postgres는 DataError(500)를 내지만 테스트 SQLite는 받아 주므로
+# 스키마에서 422로 막는다. 입력 스키마의 int 필드는 이것(또는 더 좁은 Field 범위)을 쓴다(test_schemas_krw_amount 가드).
+DbInt = Annotated[int, Field(ge=-(2**31), le=2**31 - 1)]
+
 
 class TotalsOut(BaseModel):
     income: Decimal

@@ -506,3 +506,41 @@ def test_completed_occurrence_gets_no_reminder_but_next_does(mock_connected, moc
 
     assert event_reminder_service.send_due_reminders(db, now=datetime(2026, 7, 8, 8, 30)) == 0
     assert event_reminder_service.send_due_reminders(db, now=datetime(2026, 7, 15, 8, 30)) == 1
+
+
+def test_changing_frequency_drops_completions_that_are_no_longer_occurrences(seeded_db):
+    """매주 → 매월로 바꾸면 7/8 회차는 없어진다 — 기록을 남기면 나중에 그 날짜가 다시 회차가 될 때 완료로 보인다."""
+    db = seeded_db["db"]
+    event = _weekly(seeded_db)  # 2026-07-01부터 매주
+    event_service.set_completed(db, event.id, completed=True, occurrence_date=date(2026, 7, 1))
+    event_service.set_completed(db, event.id, completed=True, occurrence_date=date(2026, 7, 8))
+
+    event_service.update_event(db, event.id, frequency="monthly")
+
+    assert {c.occurrence_date for c in db.query(EventOccurrenceCompletion)} == {date(2026, 7, 1)}
+
+
+def test_switching_between_once_and_recurring_clears_the_other_completion_state(seeded_db):
+    db, user = seeded_db["db"], seeded_db["user"]
+    event = event_service.create_event(db, created_by=user.id, title="병원", start_at=datetime(2026, 7, 1, 9, 0))
+    event_service.set_completed(db, event.id, completed=True)
+
+    event_service.update_event(db, event.id, frequency="weekly")
+    assert db.get(Event, event.id).completed_at is None  # 단건 완료가 반복 일정에 남지 않는다
+
+    event_service.set_completed(db, event.id, completed=True, occurrence_date=date(2026, 7, 8))
+    event_service.update_event(db, event.id, frequency="once")
+    assert db.query(EventOccurrenceCompletion).count() == 0
+
+
+def test_list_events_skips_past_one_off_events_in_sql(seeded_db):
+    db, user = seeded_db["db"], seeded_db["user"]
+    event_service.create_event(db, created_by=user.id, title="지난 일정", start_at=datetime(2026, 5, 1, 9, 0))
+    event_service.create_event(db, created_by=user.id, title="이번 달", start_at=datetime(2026, 7, 10, 9, 0))
+    weekly = _weekly(seeded_db)
+
+    titles = [r["title"] for r in event_service.list_events(db, date(2026, 7, 1), date(2026, 7, 31))]
+
+    assert "지난 일정" not in titles
+    assert titles.count("이번 달") == 1
+    assert titles.count(weekly.title) == 5

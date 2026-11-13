@@ -5,7 +5,7 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict
 
-from app.schemas.common import KrwAmount, KrwBalance, Pct, YearMonth, bounded_str
+from app.schemas.common import DbInt, KrwAmount, KrwBalance, Pct, YearMonth, bounded_str
 
 RepaymentMethod = Literal["equal_payment", "equal_principal", "bullet", "grace_period", "other"]
 
@@ -33,7 +33,7 @@ class LoanCreateIn(BaseModel):
     balance: KrwBalance = Decimal("0")
     monthly_payment: KrwAmount = Decimal("0")
     origination_year_month: YearMonth | None = None
-    term_months: int | None = None
+    term_months: DbInt | None = None
     interest_rate: Pct | None = None
     repayment_method: RepaymentMethod | None = None
     owner_user_id: uuid.UUID | None = None
@@ -44,7 +44,7 @@ class LoanUpdateIn(BaseModel):
     balance: KrwBalance
     monthly_payment: KrwAmount
     origination_year_month: YearMonth | None
-    term_months: int | None
+    term_months: DbInt | None
     interest_rate: Pct | None
     repayment_method: RepaymentMethod | None
     owner_user_id: uuid.UUID | None = None

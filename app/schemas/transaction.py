@@ -8,7 +8,7 @@ from pydantic import BaseModel, BeforeValidator, ConfigDict, Field
 from app.schemas.account import AccountOut
 from app.schemas.card import CardOut
 from app.schemas.category import CategoryOut
-from app.schemas.common import KrwAmount, TotalsOut, bounded_str
+from app.schemas.common import DbInt, KrwAmount, TotalsOut, bounded_str
 from app.schemas.savings_product import SavingsProductOut
 from app.schemas.user import UserOut
 
@@ -54,14 +54,14 @@ class TransactionCreateIn(BaseModel):
     # 빈 문자열("")도 0으로 받는다 — 다른 *In 스키마와 동일 (app/schemas/common.py)
     amount: KrwAmount
     type: Literal["income", "expense"]
-    category_id: int
+    category_id: DbInt
     transaction_date: date
     description: bounded_str(255) | None = None
     payment_method: PaymentMethod | None = None
-    account_id: int | None = None
-    savings_product_id: int | None = None
+    account_id: DbInt | None = None
+    savings_product_id: DbInt | None = None
     # 결제카드를 고르면 account_id·payment_method는 무시하고 카드의 결제계좌·종류로 저장한다
-    card_id: int | None = None
+    card_id: DbInt | None = None
     owner_user_id: uuid.UUID | None = None
 
 
@@ -118,7 +118,7 @@ BULK_DELETE_MAX = 500
 class BulkDeleteIn(BaseModel):
     # 한 요청이 지울 수 있는 상한 — 화면의 다중 선택은 한 달치 목록 단위라 이 정도면 충분하고,
     # 무제한이면 행마다 growlio 호출(최대 5초)이 이어져 요청이 타임아웃된다.
-    ids: list[int] = Field(max_length=BULK_DELETE_MAX)
+    ids: list[DbInt] = Field(max_length=BULK_DELETE_MAX)
 
 
 class BulkDeleteResultOut(BaseModel):

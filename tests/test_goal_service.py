@@ -473,6 +473,26 @@ def test_sync_challenge_statuses_ignores_challenge_below_target(seeded_db):
     assert goal_service.sync_challenge_statuses(db, now=NOW) == []
 
 
+def test_sync_challenge_statuses_query_count_does_not_grow_with_challenges(seeded_db, count_selects):
+    """일일 잡이 챌린지마다 진행금액(계좌 잔액)을 따로 조회하던 N+1 — 수정 전 2개 10회, 6개 18회."""
+    from app.services import account_service
+
+    db, user = seeded_db["db"], seeded_db["user"]
+
+    def run(n_challenges):
+        for _ in range(n_challenges):
+            account = account_service.create_account(db, name="통장", account_type="bank", initial_balance=Decimal("0"))
+            make_challenge(db, user, funding_sources=[{"type": "account", "id": account.id}])
+        db.expire_all()
+        with count_selects() as n:
+            goal_service.sync_challenge_statuses(db, now=NOW)
+        return n[0]
+
+    two = run(2)
+    six = run(4)  # 누적 6개
+    assert six == two
+
+
 # --- kind="goal"의 월별 계획: 미연동은 월별 achieved 합, 연동은 거래내역 기반 자동계산 -----------------
 
 

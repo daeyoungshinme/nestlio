@@ -2,6 +2,7 @@ import logging
 import uuid
 from datetime import datetime
 
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.errors import DomainError, NotFoundError, UnprocessableError
@@ -100,24 +101,33 @@ def add_reaction(
     if emoji not in REACTION_EMOJIS:
         raise InvalidReactionError("지원하지 않는 반응이에요.")
     message = message.strip()[:200] or None if message else None
-    existing = (
-        db.query(NotificationReaction)
-        .filter(
-            NotificationReaction.notification_log_id == notification_log_id,
-            NotificationReaction.user_id == user_id,
-        )
-        .first()
-    )
-    if existing is not None:
-        existing.emoji = emoji
-        existing.message = message
-    else:
-        db.add(
-            NotificationReaction(
-                notification_log_id=notification_log_id, user_id=user_id, emoji=emoji, message=message
+    # 두 번 빠르게 누르면 두 요청이 모두 "없음"을 보고 삽입해 유니크 제약(uq_notification_reaction_log_user)에
+    # 걸린다 — 진 쪽은 롤백 후 이긴 쪽 행을 덮어쓴다(한 번 더 시도).
+    for attempt in range(2):
+        existing = (
+            db.query(NotificationReaction)
+            .filter(
+                NotificationReaction.notification_log_id == notification_log_id,
+                NotificationReaction.user_id == user_id,
             )
+            .first()
         )
-    db.commit()
+        if existing is not None:
+            existing.emoji = emoji
+            existing.message = message
+        else:
+            db.add(
+                NotificationReaction(
+                    notification_log_id=notification_log_id, user_id=user_id, emoji=emoji, message=message
+                )
+            )
+        try:
+            db.commit()
+            return
+        except IntegrityError:
+            db.rollback()
+            if attempt == 1:
+                raise
 
 
 def unread_count(db: Session, user_id: uuid.UUID) -> int:
@@ -138,18 +148,31 @@ def mark_read(db: Session, user_id: uuid.UUID, notification_log_id: int, now: da
     if existing is not None:
         return
     db.add(NotificationRead(notification_log_id=notification_log_id, user_id=user_id, read_at=now))
-    db.commit()
+    try:
+        db.commit()
+    except IntegrityError:
+        # 동시에 들어온 같은 읽음 요청이 먼저 기록했다(uq_notification_read_log_user) — 이미 읽음이므로 성공으로 본다.
+        db.rollback()
 
 
 def mark_all_read(db: Session, user_id: uuid.UUID, now: datetime | None = None) -> int:
     now = now or now_kst()
-    already_read = db.query(NotificationRead.notification_log_id).filter(NotificationRead.user_id == user_id)
-    unread_ids = [row[0] for row in db.query(NotificationLog.id).filter(~NotificationLog.id.in_(already_read))]
-    for log_id in unread_ids:
-        db.add(NotificationRead(notification_log_id=log_id, user_id=user_id, read_at=now))
-    if unread_ids:
-        db.commit()
-    return len(unread_ids)
+    # 단건 읽음·다른 탭의 모두 읽음과 겹치면 유니크 제약에 걸린다 — 롤백 후 남은 것만 다시 계산해 한 번 더 시도한다.
+    for attempt in range(2):
+        already_read = db.query(NotificationRead.notification_log_id).filter(NotificationRead.user_id == user_id)
+        unread_ids = [row[0] for row in db.query(NotificationLog.id).filter(~NotificationLog.id.in_(already_read))]
+        if not unread_ids:
+            return 0
+        for log_id in unread_ids:
+            db.add(NotificationRead(notification_log_id=log_id, user_id=user_id, read_at=now))
+        try:
+            db.commit()
+            return len(unread_ids)
+        except IntegrityError:
+            db.rollback()
+            if attempt == 1:
+                raise
+    return 0
 
 
 def send_goal_cheer(

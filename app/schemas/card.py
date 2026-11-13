@@ -4,7 +4,7 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict
 
 from app.schemas.account import AccountOut
-from app.schemas.common import bounded_str
+from app.schemas.common import DbInt, bounded_str
 
 CardType = Literal["credit", "debit"]
 
@@ -31,7 +31,7 @@ class CardWithUsageOut(BaseModel):
 class CardCreateIn(BaseModel):
     name: bounded_str(100)
     card_type: CardType
-    payment_account_id: int | None = None
+    payment_account_id: DbInt | None = None
     owner_user_id: uuid.UUID | None = None
 
 

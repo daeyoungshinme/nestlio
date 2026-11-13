@@ -40,6 +40,8 @@ class Transaction(Base):
             "savings_products.id", name="fk_transactions_savings_product_id_savings_products"
         ),
         nullable=True,
+        # 상품별 납입 실적(savings_product_plan_service.actuals_for_month 등)이 이 칸으로 거른다.
+        index=True,
     )
     # 결제카드. 있으면 account_id·payment_method는 저장 시 카드에서 채운다(transaction_service._apply_card)
     card_id: Mapped[int | None] = mapped_column(ForeignKey("cards.id"), nullable=True, index=True)
