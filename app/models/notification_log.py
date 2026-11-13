@@ -24,5 +24,4 @@ class NotificationLog(Base):
     # goal_cheer (dedupe 없음) — 20자 상한이라 마이크로초를 붙이면 안 된다
     year_month: Mapped[str | None] = mapped_column(String(20), nullable=True)
     sent_at: Mapped[datetime] = mapped_column(DateTime, default=now_kst, server_default=func.now())
-    status: Mapped[str] = mapped_column(String(20), default="sent")
     detail: Mapped[str | None] = mapped_column(String(500), nullable=True)
