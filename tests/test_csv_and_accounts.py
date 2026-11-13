@@ -160,6 +160,36 @@ def test_import_partial_memo_match_uses_longest_known_memo(seeded_db):
     assert _category_of(db, "스타벅스 강남점") == "식비"
 
 
+def test_import_partial_memo_same_length_prefers_more_history(seeded_db):
+    db, user, food, rent = seeded_db["db"], seeded_db["user"], seeded_db["food"], seeded_db["rent"]
+    _expense(db, user, rent, "강남")
+    _expense(db, user, food, "커피")
+    _expense(db, user, food, "커피")
+
+    transaction_import_service.import_csv(db, "2026-07-05,지출,,5000,강남 커피\n", user.id)
+
+    assert _category_of(db, "강남 커피") == "식비"
+
+
+def test_import_partial_memo_skips_longer_memo_without_eligible_category(seeded_db):
+    db, user, food, salary = seeded_db["db"], seeded_db["user"], seeded_db["food"], seeded_db["salary"]
+    transaction_service.create_transaction(
+        db, user_id=user.id, category_id=salary.id, type_="income", amount=Decimal("100"),
+        transaction_date=date(2026, 6, 1), description="스타벅스",
+    )
+    _expense(db, user, food, "스타")
+    cafe = Category(name="카페", kind="expense", type="variable", color="#000000")
+    db.add(cafe)
+    db.commit()
+    _expense(db, user, cafe, "스타벅스")
+    cafe.is_active = False
+    db.commit()
+
+    transaction_import_service.import_csv(db, "2026-07-05,지출,,5000,스타벅스 강남점\n", user.id)
+
+    assert _category_of(db, "스타벅스 강남점") == "식비"
+
+
 def test_import_memo_match_ignores_case_and_spacing(seeded_db):
     db, user, food = seeded_db["db"], seeded_db["user"], seeded_db["food"]
     _expense(db, user, food, "GS25  역삼")
@@ -485,11 +515,11 @@ def test_match_account_prefers_exact_then_longest_partial(seeded_db):
     db = seeded_db["db"]
     shinhan = account_service.create_account(db, "신한", "bank", Decimal("0"))
     shinhan_main = account_service.create_account(db, "신한통장(본인)", "bank", Decimal("0"))
-    accounts = [shinhan, shinhan_main]
+    accounts = transaction_import_service._NameIndex([shinhan, shinhan_main])
 
-    assert transaction_import_service._match_by_name("신한", accounts) is shinhan
-    assert transaction_import_service._match_by_name("신한통장", accounts) is shinhan_main
-    assert transaction_import_service._match_by_name("하나", accounts) is None
+    assert accounts.match("신한") is shinhan
+    assert accounts.match("신한통장") is shinhan_main
+    assert accounts.match("하나") is None
 
 
 def _july(db):
