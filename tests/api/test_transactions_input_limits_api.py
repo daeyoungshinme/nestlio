@@ -41,3 +41,10 @@ def test_overlong_description_is_422_not_500(client, seeded_db):
         },
     )
     assert resp.status_code == 422
+
+
+@pytest.mark.parametrize("limit", [0, -1, 51])
+def test_recent_items_limit_out_of_range_is_422(client, limit):
+    # 음수면 ranked[:-n]으로 조용히 뒤에서 잘렸다.
+    resp = client.get("/api/v1/transactions/recent-items", params={"type": "expense", "limit": limit})
+    assert resp.status_code == 422

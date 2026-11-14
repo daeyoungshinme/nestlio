@@ -1,5 +1,7 @@
 from decimal import Decimal
 
+import pytest
+
 
 def test_create_and_list_items(client):
     resp = client.put(
@@ -185,3 +187,10 @@ def test_category_budgets_endpoint(client, seeded_db):
     rows = resp.json()["category_budgets"]
     food_row = next(r for r in rows if r["category_id"] == food.id)
     assert food_row["budget"] == "300000.00"
+
+
+@pytest.mark.parametrize("year", [0, 1999, 2101, 10000])
+def test_out_of_range_year_is_422_not_500(client, year):
+    # date(year, 1, 1)이 되는 값 — 범위 밖이면 year_bounds에서 ValueError(500)가 났다.
+    assert client.get("/api/v1/annual-plan", params={"year": year}).status_code == 422
+    assert client.post("/api/v1/annual-plan/seed", json={"year": year, "source": "recurring"}).status_code == 422

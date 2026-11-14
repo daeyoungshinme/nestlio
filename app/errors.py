@@ -46,3 +46,14 @@ class ServiceUnavailableError(UpstreamError):
     """외부 의존성이 일시적으로 응답하지 않음 — 클라이언트가 잠시 후 재시도하면 되는 상태."""
 
     status_code = 503
+
+
+class PartialFailureError(Exception):
+    """예약 잡의 항목 루프가 끝까지 돈 뒤 일부 항목이 실패했음을 알린다 — 한 항목 실패가 나머지를 막지 않게 항목마다
+    잡고 롤백하되, 로그만 남기고 "ok"로 끝나면 매일 같은 항목이 실패해도 GitHub Actions가 초록불이다. 성공한 항목은
+    이미 커밋돼 있다. HTTP 도메인 예외가 아니다(잡 엔드포인트가 500으로 올린다)."""
+
+    def __init__(self, what: str, failed: int, done: int):
+        super().__init__(f"{what}: {failed}건 실패, {done}건 처리")
+        self.failed = failed
+        self.done = done

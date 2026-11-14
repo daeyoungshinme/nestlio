@@ -1,6 +1,8 @@
 from datetime import date
 from unittest.mock import patch
 
+import pytest
+
 
 @patch("app.services.notification_service.gmail_service.send_email")
 def test_list_notifications(mock_send, client, seeded_db):
@@ -91,3 +93,9 @@ def test_unknown_notif_type_falls_back_to_other(client, seeded_db):
 
     [item] = client.get("/api/v1/notifications").json()["items"]
     assert item["notif_type"] == "other"
+
+
+@pytest.mark.parametrize("limit", [0, -1, 201])
+def test_list_notifications_limit_out_of_range_is_422(client, limit):
+    # 음수 LIMIT은 Postgres가 거부(500)하고, 큰 값은 알림함 전체를 한 번에 읽는다.
+    assert client.get("/api/v1/notifications", params={"limit": limit}).status_code == 422

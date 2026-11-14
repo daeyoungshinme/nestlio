@@ -97,7 +97,7 @@ def category_breakdown(
 def recent_items(
     type: Literal["income", "expense"],
     is_savings: bool = False,
-    limit: int = 8,
+    limit: int = Query(default=8, ge=1, le=50),
     db: Session = Depends(get_db),
     _: User = Depends(get_current_user),
 ):

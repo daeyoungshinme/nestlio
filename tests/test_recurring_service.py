@@ -1,6 +1,9 @@
 from datetime import date
 from decimal import Decimal
 
+import pytest
+
+from app.errors import PartialFailureError
 from app.models.transaction import Transaction
 from app.services import recurring_service
 from app.utils.dates import advance_due_date, advance_recurring_date
@@ -139,7 +142,10 @@ def test_generate_due_transactions_later_failure_does_not_repost_earlier_item(se
             raise RuntimeError("boom")
         return real_create(db_, **kwargs)
 
-    with patch("app.services.recurring_service.create_transaction", side_effect=fail_for_second):
+    with (
+        patch("app.services.recurring_service.create_transaction", side_effect=fail_for_second),
+        pytest.raises(PartialFailureError, match="1건 실패, 1건 처리"),
+    ):
         recurring_service.generate_due_transactions(db, today=date(2026, 7, 1))
     recurring_service.generate_due_transactions(db, today=date(2026, 7, 1))  # 다음 실행(재시도)
 

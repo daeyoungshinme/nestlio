@@ -3,6 +3,7 @@ from unittest.mock import patch
 
 import pytest
 
+from app.errors import PartialFailureError
 from app.models.event import Event
 from app.models.event_occurrence_completion import EventOccurrenceCompletion
 from app.models.notification_log import NotificationLog
@@ -276,7 +277,10 @@ def test_one_unexpected_reminder_error_does_not_block_others(mock_connected, moc
     _event_with_reminder(db, user, title="미용실")
 
     mock_send.side_effect = [RuntimeError("boom"), None]
-    assert event_reminder_service.send_due_reminders(db, now=datetime(2026, 7, 15, 9, 0)) == 1
+    # 나머지는 보내고, 끝에 실패를 알린다(잡이 초록불로 끝나지 않게).
+    with pytest.raises(PartialFailureError) as exc_info:
+        event_reminder_service.send_due_reminders(db, now=datetime(2026, 7, 15, 9, 0))
+    assert (exc_info.value.failed, exc_info.value.done) == (1, 1)
     assert len(_reminder_logs(db)) == 1
 
 

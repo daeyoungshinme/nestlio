@@ -233,7 +233,8 @@ def compute_eta_with_return(
     """기대 연수익률을 월 복리로 적용했을 때 목표금액에 도달하는 예상 달("YYYY-MM"). 매달 말 잔액에 월 수익률을
     곱하고 월 저축액을 더한다. 수익률이 없으면 None(선형 ETA만 쓴다), 이미 달성했으면 이번 달, 50년 안에 못
     닿으면 None — 옛 무제한 복리 프로젝션을 없앴던 이유(비현실적 먼 미래 날짜)를 상한으로 막는다."""
-    if annual_return_pct is None:
+    # −100% 이하면 (1 + r)이 0 이하라 월 수익률(12제곱근)이 정의되지 않는다 — 복리 ETA를 내지 않는다.
+    if annual_return_pct is None or annual_return_pct <= Decimal("-100"):
         return None
     if required_amount <= current_amount:
         return year_month_str(today)

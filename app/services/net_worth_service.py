@@ -74,8 +74,8 @@ def compute_growlio_unlinked(db: Session, bearer_token: str) -> dict:
 
     이미 연동된(=가져온) 자산은 로컬 net_worth에 이미 잡히므로 제외한다. 대시보드에
     자동으로 뜨는 보조 위젯이므로, growlio가 설정되지 않았거나(GrowlioNotConfiguredError)
-    요청이 실패해도(GrowlioRequestError, 예: growlio가 잠들어있음) 절대 실패시키지 않고
-    조용히 0건으로 처리한다 (transaction_service._send_staged_pushes와 동일한 방침).
+    요청이 실패하거나(GrowlioRequestError, 예: growlio가 잠들어있음) 응답 형태가 예상과 달라도
+    (MALFORMED_RESPONSE_ERRORS) 절대 실패시키지 않고 조용히 0건으로 처리한다.
     """
     try:
         # 두 growlio 호출을 동시에 보내 growlio가 느릴 때(콜드스타트 등) 최악의 대기시간을
@@ -91,7 +91,14 @@ def compute_growlio_unlinked(db: Session, bearer_token: str) -> dict:
 
     linked_account_ids = growlio_client.already_linked_growlio_ids(db, Account)
     linked_product_ids = growlio_client.already_linked_growlio_ids(db, SavingsProduct)
+    try:
+        return _unlinked_totals(accounts, real_estate_items, linked_account_ids, linked_product_ids)
+    except growlio_client.MALFORMED_RESPONSE_ERRORS:
+        logger.warning("growlio_unlinked_malformed_response", exc_info=True)
+        return _unlinked_totals([], [], linked_account_ids, linked_product_ids)
 
+
+def _unlinked_totals(accounts: list[dict], real_estate_items: list[dict], linked_account_ids, linked_product_ids) -> dict:
     bank_total = Decimal("0")
     investment_total = Decimal("0")
     item_count = 0

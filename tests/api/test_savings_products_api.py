@@ -1,6 +1,8 @@
 from decimal import Decimal
 from unittest.mock import patch
 
+import pytest
+
 
 def test_growlio_link_and_unlink(client, seeded_db):
     create_resp = client.post(
@@ -229,3 +231,8 @@ def test_growlio_import_creates_one_product_per_selected_account(client, seeded_
 
 def test_deactivate_product_404_when_missing(client):
     assert client.post("/api/v1/savings-products/99999/deactivate").status_code == 404
+
+
+@pytest.mark.parametrize("year", [0, 10000])
+def test_annual_plan_summary_out_of_range_year_is_422(client, year):
+    assert client.get("/api/v1/savings-products/annual-plan", params={"year": year}).status_code == 422

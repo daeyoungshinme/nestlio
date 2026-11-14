@@ -1,11 +1,12 @@
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.dependencies import get_current_user
 from app.models.user import User
 from app.schemas.annual_plan import AnnualPlanItemUpsertIn, AnnualPlanListOut, AnnualPlanSeedIn
+from app.schemas.common import PLAN_YEAR_MAX, PLAN_YEAR_MIN
 from app.services import annual_plan_service
 from app.utils.dates import today_kst
 
@@ -13,7 +14,11 @@ router = APIRouter(prefix="/annual-plan", tags=["annual-plan"])
 
 
 @router.get("", response_model=AnnualPlanListOut)
-def get_plan(year: int, db: Session = Depends(get_db), _: User = Depends(get_current_user)):
+def get_plan(
+    year: int = Query(ge=PLAN_YEAR_MIN, le=PLAN_YEAR_MAX),
+    db: Session = Depends(get_db),
+    _: User = Depends(get_current_user),
+):
     return annual_plan_service.plan_view(db, year, today_kst())
 
 
