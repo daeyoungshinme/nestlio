@@ -1,5 +1,6 @@
 import sys
 from contextlib import contextmanager
+from datetime import date, datetime, time
 from pathlib import Path
 
 import pytest
@@ -94,6 +95,30 @@ def seeded_db(db_session):
     db_session.refresh(events)
     db_session.refresh(salary)
     return {"db": db_session, "user": user, "food": food, "rent": rent, "events": events, "salary": salary}
+
+
+# 날짜 파라미터가 없는 엔드포인트(대시보드·보고서 등)는 라우터가 today_kst()를 읽는다 — 이 픽스처가 그 "오늘"을
+# 고정해 월말·자정·월초에 결과가 바뀌는 테스트를 막는다. 서비스 함수는 이것 대신 today=/now= 인자로 고정한다.
+FROZEN_TODAY = date(2026, 7, 15)
+
+
+@pytest.fixture()
+def frozen_today(monkeypatch) -> date:
+    """로드된 app.* 모듈이 `from app.utils.dates import today_kst/now_kst`로 들고 있는 이름을 전부 FROZEN_TODAY(정오)로
+    바꾼다(모듈마다 이름을 따로 들고 있어 app.utils.dates만 패치하면 안 먹는다). 모델 컬럼 default=now_kst는 함수 객체를
+    이미 잡고 있어 그대로 실제 시각이다."""
+    from app.utils import dates
+
+    real_today, real_now = dates.today_kst, dates.now_kst
+    frozen_now = datetime.combine(FROZEN_TODAY, time(12, 0))
+    for name, module in list(sys.modules.items()):
+        if not (name == "app" or name.startswith("app.")):
+            continue
+        if getattr(module, "today_kst", None) is real_today:
+            monkeypatch.setattr(module, "today_kst", lambda: FROZEN_TODAY)
+        if getattr(module, "now_kst", None) is real_now:
+            monkeypatch.setattr(module, "now_kst", lambda: frozen_now)
+    return FROZEN_TODAY
 
 
 @pytest.fixture()

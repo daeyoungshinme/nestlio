@@ -102,11 +102,6 @@ jobs:
       # 게이트: 런타임 의존성(브라우저 번들로 나가는 것)에 high 이상 취약점이 있으면 실패.
       # 상위에서 아직 못 고치는 전이 취약점은 package.json `overrides` 로 고정.
       - run: npm audit --omit=dev --audit-level=high
-      # 정보용: dev/빌드타임 의존성까지 포함한 전체 audit — 실패해도 CI를 막지 않는다.
-      # tailwindcss 3 → chokidar/fast-glob → braces(GHSA-vfj7-8cjw-p6xm)는 패치 버전이 없고
-      # tailwind v4 마이그레이션으로만 빠진다. 빌드 머신에서만 도는 코드라 게이트에서 제외했다.
-      - run: npm audit --audit-level=high
-        continue-on-error: true
       # 디자인 토큰 가드: 인터랙티브 크롬은 raw emerald-*/indigo-* 대신 primary 토큰이나
       # utils/colors.ts 헬퍼를 쓴다 (src/index.css @theme 주석). colors.ts 는 상태색 정본이라 제외.
       - name: no raw emerald/indigo classes

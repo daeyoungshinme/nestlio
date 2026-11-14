@@ -23,6 +23,7 @@
 ## 시간 결정론
 
 - 테스트에서 `datetime.now()`/`date.today()`를 쓰지 않는다. 서비스의 `today=`/`now=` 파라미터에 고정 날짜를 넘긴다([app/services/CLAUDE.md](../app/services/CLAUDE.md)). freezegun 등은 쓰지 않는다.
+- 날짜 인자가 없는 엔드포인트(라우터가 `today_kst()`를 읽음 — 대시보드·보고서·목표 상세 등)는 `frozen_today` 픽스처(`conftest.py`, 2026-07-15 정오로 고정)를 받고 기대값도 그 날짜로 만든다. 테스트에서 `today_kst()`/`now_kst()`를 직접 부르면 월말·자정에 결과가 바뀐다. 예외는 시계 함수 자체를 검증하는 `test_dates.py`와 모델 `default=now_kst`가 KST로 찍히는지 보는 테스트뿐이다(컬럼 default는 함수 객체를 잡고 있어 픽스처로 고정되지 않는다).
 
 ## Mocking
 
@@ -37,4 +38,7 @@
   - `test_event_service.py`: `event_service` + `event_reminder_service`
   - `test_savings_product_service.py`: `savings_product_*` 세 모듈
   - `test_coaching_engine.py`: `coaching_engine` + `savings_coaching_service`
-- `loan_service`는 전용 파일 없이 다른 테스트에서 간접 커버된다. 단 "간접 커버"는 경로가 실행된다는 뜻이지 분기가 단언된다는 뜻이 아니다 — 분기가 있는 함수는 간접 커버에만 맡기지 않고 직접 테스트를 붙인다(2026-10-07 `annual_plan_service.set_month_target`, `email_templates.build_*_summary_html`, `growlio_client.register_exception_handlers`, `savings_coaching_service.savings_pace_history`에 추가).
+  - `test_todo_service.py`: `todo_service` + `todo_notification_service`
+  - `test_financial_plan_services.py`: `loan_service`(대출 CRUD·비활성화)
+- 라우터 쪽 예외: `media`(`/media/couple-photo`)는 `tests/api/test_settings_api.py`가 부부 사진 설정과 함께 본다.
+- 전용 파일이 없는 모듈을 "간접 커버"에 맡길 때 주의 — "간접 커버"는 경로가 실행된다는 뜻이지 분기가 단언된다는 뜻이 아니다 — 분기가 있는 함수는 간접 커버에만 맡기지 않고 직접 테스트를 붙인다(2026-10-07 `annual_plan_service.set_month_target`, `email_templates.build_*_summary_html`, `growlio_client.register_exception_handlers`, `savings_coaching_service.savings_pace_history`에 추가).

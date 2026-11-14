@@ -1,12 +1,12 @@
 from decimal import Decimal
 
 from app.services import goal_service, transaction_service
-from app.utils.dates import month_bounds, shift_month, today_kst, year_month_str
+from app.utils.dates import month_bounds, shift_month, year_month_str
 
 
-def test_dashboard_month_returns_totals_and_insights(client, seeded_db):
+def test_dashboard_month_returns_totals_and_insights(client, seeded_db, frozen_today):
     db, user = seeded_db["db"], seeded_db["user"]
-    today = today_kst()
+    today = frozen_today
     transaction_service.create_transaction(db, user_id=user.id, category_id=seeded_db["salary"].id, type_="income", amount=Decimal("100000"), transaction_date=today)
 
     resp = client.get("/api/v1/dashboard", params={"year_month": year_month_str(today)})
@@ -40,11 +40,11 @@ def test_dashboard_month_returns_totals_and_insights(client, seeded_db):
     assert "owner_category_breakdown" not in body
 
 
-def test_dashboard_flags_categories_over_guideline_as_coaching_insight(client, seeded_db):
+def test_dashboard_flags_categories_over_guideline_as_coaching_insight(client, seeded_db, frozen_today):
     db, user, food = seeded_db["db"], seeded_db["user"], seeded_db["food"]
     food.benchmark_group = "food"
     db.commit()
-    today = today_kst()
+    today = frozen_today
     transaction_service.create_transaction(db, user_id=user.id, category_id=seeded_db["salary"].id, type_="income", amount=Decimal("1000000"), transaction_date=today)
     transaction_service.create_transaction(db, user_id=user.id, category_id=food.id, type_="expense", amount=Decimal("200000"), transaction_date=today)
 
@@ -55,10 +55,10 @@ def test_dashboard_flags_categories_over_guideline_as_coaching_insight(client, s
     assert "category_benchmark" in rule_codes
 
 
-def test_dashboard_defaults_to_current_month(client):
+def test_dashboard_defaults_to_current_month(client, frozen_today):
     resp = client.get("/api/v1/dashboard")
     assert resp.status_code == 200
-    start, end = month_bounds(today_kst())
+    start, end = month_bounds(frozen_today)
     assert (resp.json()["start"], resp.json()["end"]) == (start.isoformat(), end.isoformat())
 
 
@@ -69,10 +69,10 @@ def test_dashboard_includes_savings_streak_by_default(client):
     assert body["savings_streak_months"] == 0
 
 
-def test_dashboard_savings_streak_reflects_consecutive_goal_pace_months(client, seeded_db):
+def test_dashboard_savings_streak_reflects_consecutive_goal_pace_months(client, seeded_db, frozen_today):
     db, user, food = seeded_db["db"], seeded_db["user"], seeded_db["food"]
     goal_service.create_goal(db, priority=1, name="여행자금", target_age=None, required_amount=Decimal("10000000"), monthly_saving_amount=Decimal("500000"))
-    today = today_kst()
+    today = frozen_today
     transaction_service.create_transaction(db, user_id=user.id, category_id=seeded_db["salary"].id, type_="income", amount=Decimal("2000000"), transaction_date=today)
     transaction_service.create_transaction(db, user_id=user.id, category_id=food.id, type_="expense", amount=Decimal("1000000"), transaction_date=today)
 
@@ -101,9 +101,9 @@ def test_dashboard_bootstrap_combines_reference_data(client, seeded_db):
     assert body["users"][0]["display_name"] == user.display_name
 
 
-def test_monthly_retrospective_summarizes_previous_completed_month(client, seeded_db):
+def test_monthly_retrospective_summarizes_previous_completed_month(client, seeded_db, frozen_today):
     db, user, food = seeded_db["db"], seeded_db["user"], seeded_db["food"]
-    prev_start, _ = month_bounds(shift_month(today_kst(), -1))
+    prev_start, _ = month_bounds(shift_month(frozen_today, -1))
     transaction_service.create_transaction(db, user_id=user.id, category_id=seeded_db["salary"].id, type_="income", amount=Decimal("50000"), transaction_date=prev_start)
     transaction_service.create_transaction(db, user_id=user.id, category_id=food.id, type_="expense", amount=Decimal("20000"), transaction_date=prev_start)
 
