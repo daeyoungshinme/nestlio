@@ -73,7 +73,7 @@ def create_goal(
         kind=payload.kind,
         description=payload.description,
         start_date=payload.start_date,
-        created_by_id=current_user.id if payload.kind == "challenge" else None,
+        created_by_id=current_user.id,
         monthly_targets=[mt.model_dump() for mt in payload.monthly_targets] if payload.monthly_targets else None,
         now=now,
         expected_annual_return_pct=payload.expected_annual_return_pct,

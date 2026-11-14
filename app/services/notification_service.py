@@ -1,4 +1,5 @@
 import logging
+from collections.abc import Callable
 from datetime import date, timedelta
 from decimal import Decimal
 from typing import Literal
@@ -150,27 +151,27 @@ def _monthly_mail(db: Session, today: date) -> tuple[str, str, str]:
 def send_weekly_summary(db: Session, today: date | None = None) -> bool:
     today = today or today_kst()
     _, _, period_key = _weekly_period(today)
-    if not notification_settings_service.is_enabled(db, "email_weekly"):
-        return False
-    if notification_log_service.already_sent(db, "email_weekly", period_key):
-        return False
-    subject, body, html = _weekly_mail(db, today)
-    send_email_best_effort(db, subject, body, html_body=html)
-    notification_log_service.log_sent(db, "email_weekly", period_key, detail=body[:500])
-    return True
+    return _send_summary(db, "email_weekly", period_key, _weekly_mail, today)
 
 
 def send_monthly_summary(db: Session, today: date | None = None) -> bool:
     today = today or today_kst()
-    # 켜짐·중복 여부를 먼저 본다 — 회고 집계(코칭 인사이트 포함)는 매일 도는 예약 잡에서 대부분 버려진다.
     _, _, period_key = dashboard_service.retrospective_period(today)
-    if not notification_settings_service.is_enabled(db, "email_monthly"):
+    return _send_summary(db, "email_monthly", period_key, _monthly_mail, today)
+
+
+def _send_summary(
+    db: Session, setting_key: str, period_key: str, build: Callable[[Session, date], tuple[str, str, str]], today: date
+) -> bool:
+    """정기 요약 발송 — 켜짐·중복 여부를 먼저 본다(회고 집계(코칭 인사이트 포함)는 매일 도는 예약 잡에서 대부분
+    버려진다). 메일은 best-effort, 인앱 기록(log_sent)은 항상 남긴다."""
+    if not notification_settings_service.is_enabled(db, setting_key):
         return False
-    if notification_log_service.already_sent(db, "email_monthly", period_key):
+    if notification_log_service.already_sent(db, setting_key, period_key):
         return False
-    subject, body, html = _monthly_mail(db, today)
+    subject, body, html = build(db, today)
     send_email_best_effort(db, subject, body, html_body=html)
-    notification_log_service.log_sent(db, "email_monthly", period_key, detail=body[:500])
+    notification_log_service.log_sent(db, setting_key, period_key, detail=body[:500])
     return True
 
 

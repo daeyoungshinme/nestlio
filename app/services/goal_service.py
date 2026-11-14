@@ -166,7 +166,8 @@ def create_goal(
         kind=kind,
         description=description,
         start_date=start_date,
-        created_by_id=created_by_id,
+        # 만든 사람은 챌린지에만 남긴다("누가 건 챌린지" 표시) — 장기·순자산·통합 목표는 부부 공동이다.
+        created_by_id=created_by_id if kind == "challenge" else None,
         exclude_real_estate=exclude_real_estate and kind == "net_worth",
     )
     _apply_funding_sources(db, goal, funding_sources)

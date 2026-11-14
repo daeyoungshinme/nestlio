@@ -982,3 +982,17 @@ def test_ordinary_loan_can_still_fund_a_goal(seeded_db):
         monthly_saving_amount=Decimal("0"), funding_sources=[{"type": "loan", "id": loan.id}],
     )
     assert [fs.loan_id for fs in goal.funding_sources] == [loan.id]
+
+
+def test_create_goal_keeps_creator_only_for_challenges(seeded_db):
+    """만든 사람은 챌린지에만 남는다 — 라우터는 항상 요청자를 넘기고 서비스가 거른다."""
+    db, user = seeded_db["db"], seeded_db["user"]
+    common = {"priority": 1, "target_age": None, "required_amount": Decimal("1000000"), "monthly_saving_amount": Decimal("0")}
+
+    goal = goal_service.create_goal(db, name="여행", created_by_id=user.id, **common)
+    challenge = goal_service.create_goal(
+        db, name="무지출", kind="challenge", start_date=date(2026, 8, 1), created_by_id=user.id, now=NOW, **common
+    )
+
+    assert goal.created_by_id is None
+    assert challenge.created_by_id == user.id
