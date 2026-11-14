@@ -16,7 +16,6 @@ from app.services import (
     savings_product_service,
     transaction_trend_service,
 )
-from app.utils.money import whole_won
 
 
 def investable_surplus(totals: dict, actual_saved: Decimal) -> Decimal:
@@ -55,8 +54,9 @@ def emergency_fund_context(db: Session, month_start: date) -> tuple[Decimal | No
     # 0원은 "비상금 없음"이 아니라 "비상금이 바닥남" — 가장 경고가 필요한 상태라 None과 구분한다.
     if balance is None:
         return None, None
-    trend = transaction_trend_service.monthly_trend(db, months=3, anchor=month_start)
-    avg_fixed = whole_won(sum((row["fixed"] for row in trend), Decimal("0")) / len(trend))
+    # 진행 중인 달은 뺀다 — 월초엔 고정지출이 아직 거의 없어 평균이 1/3쯤 줄고 "몇 개월치"가 부풀려진다.
+    # 기록 시작 전 달도 0원으로 넣지 않는다(신규 가구에서 평균이 희석되지 않게).
+    avg_fixed = transaction_trend_service.trailing_average_by_section(db, month_start, 3, active_months_only=True)["fixed"]
     return balance, avg_fixed
 
 

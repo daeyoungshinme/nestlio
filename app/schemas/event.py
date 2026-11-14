@@ -4,7 +4,7 @@ from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, StringConstraints, model_validator
 
-from app.schemas.common import bounded_str
+from app.schemas.common import KstWallClock, bounded_str
 from app.schemas.recurring import RecurringOut
 from app.schemas.user import UserOut
 
@@ -49,8 +49,8 @@ class EventCreateIn(BaseModel):
     description: bounded_str(1000) | None = None
     location: bounded_str(255) | None = None
     all_day: bool = False
-    start_at: datetime
-    end_at: datetime | None = None
+    start_at: KstWallClock
+    end_at: KstWallClock | None = None
     frequency: EventFrequency = "once"
     recurrence_end_date: date | None = None
     reminder_minutes_before: Annotated[int, Field(ge=0, le=REMINDER_MINUTES_MAX)] | None = None

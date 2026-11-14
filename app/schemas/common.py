@@ -1,10 +1,12 @@
 import uuid
+from datetime import datetime
 from decimal import Decimal
 from typing import Annotated, Any, Literal
 
-from pydantic import BaseModel, BeforeValidator, Field, StringConstraints
+from pydantic import AfterValidator, BaseModel, BeforeValidator, Field, StringConstraints
 
 from app.constants.benchmark_groups import BENCHMARK_GROUPS
+from app.utils.dates import KST
 
 BenchmarkGroup = Literal[tuple(BENCHMARK_GROUPS)]  # type: ignore[valid-type]
 # 카테고리 type = 지출 섹션(app/constants/sections.py EXPENSE_SECTIONS와 같은 값).
@@ -50,6 +52,18 @@ YearMonth = Annotated[str, StringConstraints(pattern=r"^\d{4}-(0[1-9]|1[0-2])$")
 # Postgres INTEGER(id·FK·정렬·연도 등) 범위 — 넘으면 Postgres는 DataError(500)를 내지만 테스트 SQLite는 받아 주므로
 # 스키마에서 422로 막는다. 입력 스키마의 int 필드는 이것(또는 더 좁은 Field 범위)을 쓴다(test_schemas_krw_amount 가드).
 DbInt = Annotated[int, Field(ge=-(2**31), le=2**31 - 1)]
+
+
+def _to_kst_wall_clock(value: datetime) -> datetime:
+    if value.tzinfo is not None:
+        value = value.astimezone(KST).replace(tzinfo=None)
+    return value.replace(microsecond=0)
+
+
+# 사용자가 입력하는 시각 — 앱은 naive datetime을 KST 벽시계로 다룬다(루트 CLAUDE.md "날짜"). 오프셋이 붙어 오면
+# KST로 옮겨 떼고(그대로 두면 Postgres `timestamp`가 세션 TZ(UTC)로 바꿔 저장한다), 초 미만은 버린다 —
+# 리마인더 dedup 키(`occurrence.isoformat()`)가 NotificationLog.year_month String(20)을 넘지 않게.
+KstWallClock = Annotated[datetime, AfterValidator(_to_kst_wall_clock)]
 
 
 class TotalsOut(BaseModel):

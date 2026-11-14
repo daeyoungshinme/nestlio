@@ -513,13 +513,15 @@ def test_emergency_fund_context_treats_zero_balance_as_empty_fund_not_missing(se
     db.add(SavingsProduct(name="비상금", product_type="emergency_fund", current_balance=Decimal("0"),
                           monthly_saving_amount=Decimal("0")))
     db.commit()
-    # 3개월 중 한 달만 고정지출 → 평균 100000/3 = 33333.33… → 원 단위로 반올림
-    transaction_service.create_transaction(db, user_id=user.id, category_id=rent.id, type_="expense", amount=Decimal("100000"), transaction_date=date(2026, 7, 1))
+    # 직전 3개월(4~6월) 중 거래가 있는 두 달만 센다 → (100000 + 50001) / 2 = 75000.5 → 원 단위로 반올림.
+    # 진행 중인 7월 거래는 평균에 넣지 않는다.
+    for amount, day in (("50001", date(2026, 4, 1)), ("100000", date(2026, 6, 1)), ("999999", date(2026, 7, 1))):
+        transaction_service.create_transaction(db, user_id=user.id, category_id=rent.id, type_="expense", amount=Decimal(amount), transaction_date=day)
 
     balance, avg_fixed = savings_coaching_service.emergency_fund_context(db, date(2026, 7, 1))
 
     assert balance == Decimal("0")
-    assert avg_fixed == Decimal("33333")
+    assert avg_fixed == Decimal("75000")
     insight = emergency_fund_insight(balance, avg_fixed)
     assert insight is not None and insight.severity == "warning"
     allocation = savings_coaching_service.compute_surplus_allocation(db, date(2026, 7, 1), Decimal("50000"))

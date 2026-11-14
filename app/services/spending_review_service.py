@@ -37,7 +37,7 @@ from app.models.category import Category
 from app.models.recurring_expense import RecurringExpense
 from app.models.transaction import Transaction
 from app.services import budget_service, coaching_engine, coaching_settings_service, transaction_report_service
-from app.utils.dates import month_bounds, parse_year_month, shift_month, today_kst, year_month_str
+from app.utils.dates import month_bounds, parse_year_month, recent_month_starts, shift_month, today_kst, year_month_str
 from app.utils.money import format_won, monthly_equivalent, whole_won
 
 CATEGORY_LEVEL_RULES = ("trend_up", "benchmark_excess", "chronic_overrun", "small_frequent")
@@ -436,8 +436,9 @@ def build_spending_review(
     year_month = year_month or default_year_month(today)
     anchor = parse_year_month(year_month)
     lookback = settings.spending_review_lookback_months
-    history_months = [year_month_str(shift_month(anchor, -o)) for o in range(lookback, 0, -1)]
-    window_start = shift_month(anchor, -lookback)
+    history_starts = recent_month_starts(anchor, lookback, include_anchor=False)
+    history_months = [year_month_str(m) for m in history_starts]
+    window_start = history_starts[0] if history_starts else anchor
     all_rows = _tx_rows(db, window_start, month_bounds(anchor)[1])
     meta = _category_meta(categories if categories is not None else db.query(Category).all())
     thresholds = thresholds if thresholds is not None else coaching_settings_service.get_thresholds(db)
