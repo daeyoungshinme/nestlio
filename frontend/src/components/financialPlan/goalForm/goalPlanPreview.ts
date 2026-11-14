@@ -1,5 +1,6 @@
 import type { Draft } from "@/components/financialPlan/goalDraft";
 import type { AccountWithBalanceOut, FinancialGoalOut, LoanOut, SavingsProductOut } from "@/types";
+import { parseDateIso } from "@/utils/date";
 import { toAmountInputValue } from "@/utils/format";
 import { monthsBetween } from "@/utils/monthRange";
 
@@ -70,7 +71,7 @@ export function previewGoalPlan({
     draft.current_amount === toAmountInputValue(existingGoal.current_amount) &&
     sameFundingSources(draft, existingGoal);
 
-  const monthsRemainingFromDate = draft.target_date !== "" ? monthsBetween(openedAt, new Date(draft.target_date)) : null;
+  const monthsRemainingFromDate = draft.target_date !== "" ? monthsBetween(openedAt, parseDateIso(draft.target_date)) : null;
   const monthsRemainingFromAge =
     currentAge !== "" && draft.target_age !== "" ? (Number(draft.target_age) - Number(currentAge)) * 12 : null;
   const monthsRemaining =

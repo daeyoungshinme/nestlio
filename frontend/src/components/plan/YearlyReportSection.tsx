@@ -77,11 +77,12 @@ export default function YearlyReportSection({ year }: { year: number }) {
     queryFn: () => fetchYearlyReport(year, ownerParam),
     staleTime: STALE_TIME.MEDIUM,
   });
-  const { data: trend, isLoading: isTrendLoading } = useQuery({
+  const trendQuery = useQuery({
     queryKey: QUERY_KEYS.categoryTrend(CATEGORY_TREND_MONTHS),
     queryFn: () => fetchCategoryTrend(CATEGORY_TREND_MONTHS),
     staleTime: STALE_TIME.MEDIUM,
   });
+  const trend = trendQuery.data;
 
   const trendData = useMemo(
     () =>
@@ -209,9 +210,10 @@ export default function YearlyReportSection({ year }: { year: number }) {
 
             <div className="card">
               <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">카테고리별 소비 추이 (최근 {CATEGORY_TREND_MONTHS}개월)</h3>
-              {isTrendLoading || !trend || !trendData ? (
-                <SkeletonCard rows={2} />
-              ) : trend.series.length === 0 ? (
+              {/* 실패하면 끝없는 스켈레톤 대신 다시 시도 — 위 연간 보고서와 따로 불러온다. */}
+              <QueryBoundary query={trendQuery} compact loadingFallback={<SkeletonCard rows={2} />} errorMessage="소비 추이를 불러오지 못했어요">
+                {(trend) =>
+              trend.series.length === 0 ? (
                 <EmptyState icon={TrendingUp} title="최근 지출 내역이 없어요" compact />
               ) : (
                 <div className="h-[240px] sm:h-[280px]">
@@ -246,7 +248,9 @@ export default function YearlyReportSection({ year }: { year: number }) {
                     </LineChart>
                   </ResponsiveContainer>
                 </div>
-              )}
+              )
+                }
+              </QueryBoundary>
             </div>
 
             <SavingsReviewLinkCard />

@@ -69,7 +69,10 @@ export default function SavingsProductsSection({ users }: Props) {
     () => new Map((productPlan?.items ?? []).map((item) => [item.id, item.planned])),
     [productPlan],
   );
-  const monthlyPlanOf = (product: SavingsProductOut) => plannedById.get(product.id) ?? product.monthly_saving_amount;
+  // 계획을 불러오기 전(또는 실패)엔 null — 폴백 필드를 실제 계획처럼 보여주면 계획 탭과 숫자가 달라진다.
+  // 계획을 불러온 뒤 목록에 없는 상품(계획 대상이 아닌 비상금 등)만 폴백 필드를 쓴다.
+  const monthlyPlanOf = (product: SavingsProductOut): string | null =>
+    productPlan ? (plannedById.get(product.id) ?? product.monthly_saving_amount) : null;
 
   const section = useAssetSection<SavingsProductOut, SavingsProductCreateIn, SavingsProductUpdateIn>({
     api: {
@@ -99,7 +102,7 @@ export default function SavingsProductsSection({ users }: Props) {
         const existingGrowlioAccountIds = new Set(
           data.filter((p): p is SavingsProductOut & { growlio_account_id: string } => !!p.growlio_account_id).map((p) => p.growlio_account_id)
         );
-        const totalMonthly = sumAmounts(data, (p) => monthlyPlanOf(p));
+        const totalMonthly = productPlan ? sumAmounts(data, (p) => monthlyPlanOf(p) ?? "0") : null;
         const balanceByType = PRODUCT_TYPES.map((type) => ({
           type,
           rows: data.filter((p) => p.product_type === type),
@@ -171,7 +174,7 @@ export default function SavingsProductsSection({ users }: Props) {
             <div className="space-y-4">
               <InlineStatsBar
                 items={[
-                  { label: "월 저축액 합계", value: formatKrw(totalMonthly) },
+                  { label: "월 저축액 합계", value: totalMonthly !== null ? formatKrw(totalMonthly) : "—" },
                   ...(balanceByType.length > 1
                     ? balanceByType.map(({ type, total }) => ({
                         label: savingsProductTypeLabel(type),
@@ -223,7 +226,7 @@ function SavingsProductRow({
   onDelete,
 }: {
   product: SavingsProductOut;
-  monthlyPlan: string;
+  monthlyPlan: string | null;
   users: UserOut[] | undefined;
   linkedGoals: FinancialGoalOut[];
   syncPending: boolean;
@@ -281,7 +284,7 @@ function SavingsProductRow({
           </div>
           <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
             {ownerLabel}
-            {` · 월 ${formatKrw(monthlyPlan)}`}
+            {monthlyPlan !== null && ` · 월 ${formatKrw(monthlyPlan)}`}
             {product.return_amount !== null && (
               <span className={returnRateTextColor(Number(product.return_rate_pct))}>
                 {" "}

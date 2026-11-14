@@ -32,6 +32,12 @@ export function currentYear(): number {
   return new Date().getFullYear();
 }
 
+/** "YYYY-MM-DD" → 그 날 로컬 자정. `new Date("YYYY-MM-DD")`는 UTC 자정으로 읽혀 로컬 날짜·월이 어긋날 수 있다. */
+export function parseDateIso(dateIso: string): Date {
+  const [y, m, d] = dateIso.split("-").map(Number);
+  return new Date(y, m - 1, d);
+}
+
 /** "YYYY-MM-DD"에 일 수를 더한 "YYYY-MM-DD" (월/연 경계 넘어감). */
 export function shiftDateIso(dateIso: string, deltaDays: number): string {
   const [y, m, day] = dateIso.split("-").map(Number);

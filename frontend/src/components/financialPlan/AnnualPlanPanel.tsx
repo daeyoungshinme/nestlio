@@ -22,6 +22,7 @@ import { SECTIONS, SAVINGS_INVESTMENT_LABEL } from "@/constants/planSections";
 import { PLAN_RELATED_KEYS, QUERY_KEYS } from "@/constants/queryKeys";
 import { invalidateKeys } from "@/utils/queryClient";
 import { pctOf } from "@/utils/format";
+import { savingsInvestmentActual } from "@/utils/planTotals";
 import { worseStatus } from "@/utils/colors";
 import { currentYear } from "@/utils/date";
 import { toast } from "@/utils/toast";
@@ -112,11 +113,8 @@ export default function AnnualPlanPanel() {
   const savingsInvestmentTargetToDate = savingsAnnualData
     ? Number(savingsAnnualData.savings.target_to_date) + Number(savingsAnnualData.investment.target_to_date)
     : 0;
-  const savingsInvestmentActual =
-    savingsAnnualData && savingsAnnualData.savings.actual !== null && savingsAnnualData.investment.actual !== null
-      ? Number(savingsAnnualData.savings.actual) + Number(savingsAnnualData.investment.actual)
-      : null;
-  const savingsInvestmentPct = pctOf(savingsInvestmentActual, savingsInvestmentTargetToDate);
+  const savingsInvestmentActualTotal = savingsInvestmentActual(savingsAnnualData);
+  const savingsInvestmentPct = pctOf(savingsInvestmentActualTotal, savingsInvestmentTargetToDate);
   const sections: PlanSection[] = [
     ...SECTIONS.map(({ key, label }) => {
       const sectionSummary = summary[key];
@@ -145,7 +143,7 @@ export default function AnnualPlanPanel() {
     {
       label: SAVINGS_INVESTMENT_LABEL,
       planned: savingsInvestmentTargetToDate,
-      actual: savingsInvestmentActual,
+      actual: savingsInvestmentActualTotal,
       pct: savingsInvestmentPct,
       status: savingsAnnualData
         ? worseStatus(savingsAnnualData.savings.status, savingsAnnualData.investment.status)

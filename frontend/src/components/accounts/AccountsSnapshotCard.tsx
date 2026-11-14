@@ -23,6 +23,10 @@ import type { GrowlioSyncAllOut, GrowlioSyncFailureOut } from "@/types";
 const AssetCompositionDonut = lazy(() => import("@/components/accounts/AssetCompositionDonut"));
 const NetWorthTrendChart = lazy(() => import("@/components/accounts/NetWorthTrendChart"));
 
+const DONUT_PLACEHOLDER = (
+  <div className="shrink-0 self-center sm:self-start w-[156px] sm:w-[180px] lg:w-[198px] xl:w-[210px] h-[144px] sm:h-[164px] lg:h-[176px]" />
+);
+
 export default function AccountsSnapshotCard() {
   const queryClient = useQueryClient();
   const [syncFailures, setSyncFailures] = useState<GrowlioSyncFailureOut[] | null>(null);
@@ -136,15 +140,18 @@ export default function AccountsSnapshotCard() {
             </p>
           </div>
 
-          <Suspense
-            fallback={<div className="shrink-0 self-center sm:self-start w-[156px] sm:w-[180px] lg:w-[198px] xl:w-[210px] h-[144px] sm:h-[164px] lg:h-[176px]" />}
-          >
-            <AssetCompositionDonut
-              accounts={accountsTotal}
-              savingsInvestment={savingsInvestmentTotal}
-              realEstate={realEstateNetTotal}
-            />
-          </Suspense>
+          {/* 상품·대출 목록이 오기 전엔 부동산 몫을 알 수 없다 — 0으로 계산해 저축·투자에 섞어 그리지 않는다. */}
+          {products && loans ? (
+            <Suspense fallback={DONUT_PLACEHOLDER}>
+              <AssetCompositionDonut
+                accounts={accountsTotal}
+                savingsInvestment={savingsInvestmentTotal}
+                realEstate={realEstateNetTotal}
+              />
+            </Suspense>
+          ) : (
+            DONUT_PLACEHOLDER
+          )}
         </div>
       </div>
 

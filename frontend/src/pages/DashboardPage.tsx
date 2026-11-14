@@ -57,7 +57,7 @@ export default function DashboardPage() {
     queryFn: () => fetchDashboard(yearMonth),
   });
   // 계획 탭과 같은 쿼리 키 — 두 탭을 오가도 캐시를 재사용한다.
-  const { data: planData } = useCashflowPlan(yearMonth);
+  const planQuery = useCashflowPlan(yearMonth);
   const { data: savingsPlanData } = useSavingsProductsPlan(yearMonth);
   const { data: notifications } = useNotifications();
   const { data: me } = useMe();
@@ -149,7 +149,9 @@ export default function DashboardPage() {
       />
 
       <MonthFlowCard
-        plan={planData}
+        plan={planQuery.data}
+        planError={planQuery.isError}
+        onRetryPlan={() => void planQuery.refetch()}
         savingsPlan={savingsPlanData}
         footer={
           <InvestSurplusCard

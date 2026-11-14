@@ -3,7 +3,7 @@ import { Plus } from "lucide-react";
 import Button from "@/components/common/Button";
 import ConfirmModal from "@/components/common/ConfirmModal";
 import EmptyState from "@/components/common/EmptyState";
-import SkeletonCard from "@/components/common/SkeletonCard";
+import QueryBoundary from "@/components/common/QueryBoundary";
 import CategoryCard from "@/components/categories/CategoryCard";
 import CategoryFormModal from "@/components/categories/CategoryFormModal";
 import { CATEGORY_TYPE_LABEL, CATEGORY_TYPE_ORDER } from "@/components/categories/categoryTypes";
@@ -18,7 +18,7 @@ export default function CategoriesSection() {
   const [formTarget, setFormTarget] = useState<"new" | CategoryOut | null>(null);
   const [deactivateTarget, setDeactivateTarget] = useState<CategoryOut | null>(null);
 
-  const { data, isLoading } = useCategories();
+  const categoriesQuery = useCategories();
 
   const { createMutation, updateMutation, removeMutation: deactivateMutation } = useCrudMutations({
     // 카테고리 이름/색/활성 여부가 박힌 응답 전부(목록은 CATEGORY_RELATED_KEYS 주석 참고).
@@ -34,20 +34,6 @@ export default function CategoriesSection() {
     onRemoveSuccess: () => setDeactivateTarget(null),
   });
 
-  if (isLoading || !data) {
-    return <SkeletonCard rows={4} />;
-  }
-
-  const expenseByType = CATEGORY_TYPE_ORDER.map((type) => ({
-    type,
-    items: data.filter((c) => c.kind === "expense" && c.type === type && !c.is_savings),
-  }));
-  const incomeCategories = data.filter((c) => c.kind === "income" && !c.is_savings);
-  const groups = [
-    ...expenseByType.map(({ type, items }) => ({ key: type, label: CATEGORY_TYPE_LABEL[type], items })),
-    { key: "income", label: "수입", items: incomeCategories },
-  ];
-
   return (
     <div className="space-y-6">
       {/* 예전엔 6칸짜리 추가 폼이 목록 위에 늘 펼쳐져 있어 모바일에서 목록이 한 화면 아래로 밀렸다. */}
@@ -57,29 +43,34 @@ export default function CategoriesSection() {
         </Button>
       </div>
 
-      {data.length === 0 ? (
-        <EmptyState title="등록된 카테고리가 없어요" compact />
-      ) : (
-        <div className="space-y-5">
-          {groups.map(({ key, label, items }) =>
-            items.length === 0 ? null : (
-              <div key={key} className="space-y-2">
-                <h4 className="text-xs font-semibold text-gray-500 dark:text-gray-400">{label}</h4>
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                  {items.map((category) => (
-                    <CategoryCard
-                      key={category.id}
-                      category={category}
-                      onEdit={() => setFormTarget(category)}
-                      onDeactivate={() => setDeactivateTarget(category)}
-                    />
-                  ))}
-                </div>
-              </div>
-            ),
-          )}
-        </div>
-      )}
+      {/* 실패를 끝없는 스켈레톤으로 두지 않는다 — 추가 버튼은 목록 조회와 무관하게 남긴다. */}
+      <QueryBoundary query={categoriesQuery} errorMessage="카테고리를 불러오지 못했어요">
+        {(data) =>
+          data.length === 0 ? (
+            <EmptyState title="등록된 카테고리가 없어요" compact />
+          ) : (
+            <div className="space-y-5">
+              {groupCategories(data).map(({ key, label, items }) =>
+                items.length === 0 ? null : (
+                  <div key={key} className="space-y-2">
+                    <h4 className="text-xs font-semibold text-gray-500 dark:text-gray-400">{label}</h4>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                      {items.map((category) => (
+                        <CategoryCard
+                          key={category.id}
+                          category={category}
+                          onEdit={() => setFormTarget(category)}
+                          onDeactivate={() => setDeactivateTarget(category)}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                ),
+              )}
+            </div>
+          )
+        }
+      </QueryBoundary>
 
       {formTarget && (
         <CategoryFormModal
@@ -104,4 +95,16 @@ export default function CategoriesSection() {
       )}
     </div>
   );
+}
+
+/** 지출은 고정/변동/비정기 순, 그다음 수입 — 저축 카테고리는 관리 화면에서 숨긴다. */
+function groupCategories(data: CategoryOut[]) {
+  return [
+    ...CATEGORY_TYPE_ORDER.map((type) => ({
+      key: type,
+      label: CATEGORY_TYPE_LABEL[type],
+      items: data.filter((c) => c.kind === "expense" && c.type === type && !c.is_savings),
+    })),
+    { key: "income", label: "수입", items: data.filter((c) => c.kind === "income" && !c.is_savings) },
+  ];
 }

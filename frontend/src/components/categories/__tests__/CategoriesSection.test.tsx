@@ -22,8 +22,9 @@ const FOOD: CategoryOut = {
   is_savings: false,
 } as CategoryOut;
 
+let categoriesResult: Record<string, unknown> = { data: [FOOD], isLoading: false };
 vi.mock("@/hooks/useReferenceData", () => ({
-  useCategories: () => ({ data: [FOOD], isLoading: false }),
+  useCategories: () => categoriesResult,
 }));
 
 const { default: CategoriesSection } = await import("@/components/categories/CategoriesSection");
@@ -38,6 +39,7 @@ function renderSection() {
 
 describe("CategoriesSection", () => {
   beforeEach(() => {
+    categoriesResult = { data: [FOOD], isLoading: false };
     createCategory.mockReset().mockResolvedValue({ ...FOOD, id: 9 });
     updateCategory.mockReset().mockResolvedValue(FOOD);
   });
@@ -73,5 +75,15 @@ describe("CategoriesSection", () => {
       3,
       { name: "외식", kind: "expense", type: "variable", color: "#ff0000", benchmark_group: "food" },
     ]);
+  });
+
+  it("목록 조회가 실패하면 스켈레톤에 머물지 않고 다시 시도를 보여주며, 추가 버튼은 남는다", () => {
+    const refetch = vi.fn();
+    categoriesResult = { data: undefined, isLoading: false, isError: true, error: new Error("boom"), refetch };
+    renderSection();
+
+    fireEvent.click(screen.getByRole("button", { name: "다시 시도" }));
+    expect(refetch).toHaveBeenCalled();
+    expect(screen.getByRole("button", { name: /카테고리 추가/ })).toBeInTheDocument();
   });
 });
