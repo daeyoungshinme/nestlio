@@ -4,9 +4,10 @@ import type { ToastEvent } from "@/utils/toast";
 import { APP_EVENTS } from "@/constants/events";
 import { Z_TOASTER } from "@/constants/zIndex";
 import { BOTTOM_NAV_HEIGHT_PX, TOUCH_TARGET_MIN_HEIGHT } from "@/constants/uiSizes";
+import { errorToastBgClass } from "@/utils/colors";
 
 const COLORS: Record<string, string> = {
-  error: "bg-red-600",
+  error: errorToastBgClass(),
   success: "bg-primary",
   info: "bg-primary-600",
 };

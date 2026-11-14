@@ -1,5 +1,6 @@
-import { useState } from "react";
+import { useId, useState } from "react";
 import type { FormEvent } from "react";
+import { TOUCH_TARGET_COMPACT_MOBILE_ONLY } from "@/constants/uiSizes";
 import Button from "@/components/common/Button";
 import AmountInput from "@/components/common/AmountInput";
 import FormInput from "@/components/common/FormInput";
@@ -84,18 +85,21 @@ export default function SavingsProductFormModal({
     onSubmit(draft);
   };
 
+  const typeLabelId = useId();
+
   return (
     <Modal onClose={onClose} title={title}>
       <form onSubmit={handleSubmit} className="p-6 overflow-y-auto flex flex-col gap-3">
         <div>
-          <label className="block mb-1 font-medium text-sm text-gray-700 dark:text-gray-300">유형</label>
-          <div className="flex gap-1 bg-gray-100 dark:bg-gray-800 rounded-lg p-1 w-fit">
+          <p id={typeLabelId} className="block mb-1 font-medium text-sm text-gray-700 dark:text-gray-300">유형</p>
+          <div role="group" aria-labelledby={typeLabelId} className="flex gap-1 bg-gray-100 dark:bg-gray-800 rounded-lg p-1 w-fit">
             {PRODUCT_TYPES.map((type) => (
               <button
                 key={type}
                 type="button"
                 onClick={() => setDraft((d) => ({ ...d, product_type: type }))}
-                className={`px-3 py-2 text-sm font-medium rounded-md transition-colors ${
+                aria-pressed={draft.product_type === type}
+                className={`px-3 py-2 ${TOUCH_TARGET_COMPACT_MOBILE_ONLY} text-sm font-medium rounded-md transition-colors ${
                   draft.product_type === type
                     ? "bg-white dark:bg-gray-700 shadow-sm text-gray-900 dark:text-gray-50"
                     : "text-gray-500 dark:text-gray-400"

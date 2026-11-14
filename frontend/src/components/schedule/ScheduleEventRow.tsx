@@ -2,6 +2,7 @@ import CompleteCheckbox from "@/components/common/CompleteCheckbox";
 import RowActionButtons from "@/components/common/RowActionButtons";
 import StatusBadge from "@/components/common/StatusBadge";
 import type { EventFrequency, EventOut } from "@/types";
+import { neutralBadgeClass } from "@/utils/colors";
 
 const FREQUENCY_LABEL: Record<EventFrequency, string> = { once: "한 번", weekly: "매주", monthly: "매월" };
 
@@ -39,7 +40,7 @@ export default function ScheduleEventRow({ event, onEdit, onDelete, onToggleComp
             {event.frequency !== "once" && (
               <StatusBadge
                 label={FREQUENCY_LABEL[event.frequency]}
-                toneClassName="bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400"
+                toneClassName={neutralBadgeClass()}
               />
             )}
           </div>

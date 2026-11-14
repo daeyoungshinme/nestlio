@@ -17,7 +17,7 @@ import { computeCardStatus, daysUntil } from "@/utils/goalStatus";
 import { formatKrw, formatKrwCompact } from "@/utils/format";
 import type { CoupleContribution } from "@/utils/contribution";
 import type { FinancialGoalOut, NotificationReactionOut } from "@/types";
-import { TOUCH_TARGET_MIN_HEIGHT } from "@/constants/uiSizes";
+import { TOUCH_TARGET_COMPACT_MOBILE_ONLY, TOUCH_TARGET_MIN_HEIGHT } from "@/constants/uiSizes";
 
 interface Props {
   goal: FinancialGoalOut | null;
@@ -68,7 +68,7 @@ export default function HomeGoalHero({
       {netWorth !== null && (
         <Link
           to={ROUTES.accounts}
-          className="flex items-center gap-1 rounded-full bg-gray-100 dark:bg-gray-800 px-3 min-h-[36px] text-xs font-medium text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700"
+          className={`flex items-center gap-1 rounded-full bg-gray-100 dark:bg-gray-800 px-3 ${TOUCH_TARGET_COMPACT_MOBILE_ONLY} text-xs font-medium text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700`}
           title={`순자산 ${formatKrw(netWorth)}`}
         >
           <Landmark size={12} aria-hidden="true" />

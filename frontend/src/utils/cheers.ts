@@ -6,7 +6,7 @@ export const CHEER_EMOJIS = ["🎉", "👏", "❤️", "💪", "🥳"] as const;
 
 /** 배우자의 응원이 붙는 알림 종류 — 마일스톤·챌린지 성공 축하에 남긴 반응, 목표 상세에서 직접 보낸 응원(goal_cheer —
  * 보낸 사람의 이모지·메시지가 그 알림의 리액션으로 저장된다), 배우자 저축 기록(partner_saving)에 남긴 반응. */
-export const CHEER_NOTIF_TYPES: ReadonlySet<NotifType> = new Set([
+const CHEER_NOTIF_TYPES: ReadonlySet<NotifType> = new Set([
   "goal_milestone",
   "challenge_success",
   "goal_cheer",

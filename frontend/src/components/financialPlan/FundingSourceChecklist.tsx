@@ -1,3 +1,4 @@
+import { useId } from "react";
 import { FORM_LABEL } from "@/constants/inputStyles";
 
 interface Props<T> {
@@ -28,13 +29,19 @@ export default function FundingSourceChecklist<T>({
   emptyMessage,
   hint,
 }: Props<T>) {
+  const labelId = useId();
   return (
     <div>
-      <label className={FORM_LABEL}>{label}</label>
+      <p id={labelId} className={FORM_LABEL}>
+        {label}
+      </p>
       {items.length === 0 ? (
         <p className="text-xs text-gray-400 dark:text-gray-500">{emptyMessage}</p>
       ) : (
-        <div className="rounded-lg border border-gray-200 dark:border-gray-700 divide-y divide-gray-100 dark:divide-gray-800 max-h-40 overflow-y-auto">
+        <div
+          role="group"
+          aria-labelledby={labelId}
+          className="rounded-lg border border-gray-200 dark:border-gray-700 divide-y divide-gray-100 dark:divide-gray-800 max-h-40 overflow-y-auto">
           {items.map((item) => {
             const id = String(getId(item));
             return (

@@ -63,7 +63,7 @@ export default function GrowlioLinkSection<T>({
 
   return (
     <div className="border-t border-gray-100 dark:border-gray-800 pt-3 mt-1">
-      <label className="block mb-1.5 font-medium text-sm text-gray-700 dark:text-gray-300">growlio 계좌 연동</label>
+      <p className="block mb-1.5 font-medium text-sm text-gray-700 dark:text-gray-300">growlio 계좌 연동</p>
       {growlioAccountId ? (
         <div className="flex items-center justify-between gap-2 text-sm">
           <span className="text-gray-500 dark:text-gray-400 truncate">연동됨 ({growlioAccountId.slice(0, 8)}…)</span>

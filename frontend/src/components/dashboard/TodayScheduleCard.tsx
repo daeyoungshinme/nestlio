@@ -10,6 +10,7 @@ import { useEvents } from "@/hooks/useScheduleQueries";
 import { useEventActions } from "@/hooks/useEventActions";
 import { ROUTES } from "@/constants/routes";
 import { TOUCH_TARGET_MIN_HEIGHT } from "@/constants/uiSizes";
+import { assigneeBadgeClass } from "@/utils/colors";
 import { occurrenceDate, shiftDateIso } from "@/utils/date";
 import { formatDate, formatKrw } from "@/utils/format";
 import type { UserOut } from "@/types";
@@ -75,7 +76,7 @@ export default function TodayScheduleCard({ day, users }: Props) {
                     </p>
                     <StatusBadge
                       label={`담당 ${event.assignee?.display_name ?? "공동"}`}
-                      toneClassName="bg-primary-50 dark:bg-primary-950 text-primary-600 dark:text-primary-400"
+                      toneClassName={assigneeBadgeClass()}
                     />
                   </div>
                 );

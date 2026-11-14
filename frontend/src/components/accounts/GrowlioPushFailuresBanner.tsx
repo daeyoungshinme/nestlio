@@ -1,3 +1,4 @@
+import { useId } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AlertTriangle } from "lucide-react";
 import Button from "@/components/common/Button";
@@ -16,6 +17,7 @@ const TYPE_LABEL: Record<GrowlioPushFailedOut["transaction_type"], string> = {
 /** growlio 반영을 자동으로 포기한 저축·투자 입출금 경고. 계좌 연동이 끊기는 등 확정 오류로 여러 번 실패한
  * 건만 여기 온다(일시 장애는 다음 화면 로드 때 자동으로 다시 보낸다). 없으면 아무것도 그리지 않는다. */
 export default function GrowlioPushFailuresBanner() {
+  const titleId = useId();
   const queryClient = useQueryClient();
   const { data: failures } = useQuery({
     queryKey: QUERY_KEYS.growlioPushFailures,
@@ -32,9 +34,9 @@ export default function GrowlioPushFailuresBanner() {
   if (!failures || failures.length === 0) return null;
 
   return (
-    <section className={`rounded-xl p-4 ${errorCalloutClass()}`} aria-labelledby="growlio-push-failures-title">
+    <section className={`rounded-xl p-4 ${errorCalloutClass()}`} aria-labelledby={titleId}>
       <h2
-        id="growlio-push-failures-title"
+        id={titleId}
         className={`flex items-center gap-2 text-sm font-semibold ${errorCalloutTextClass()}`}
       >
         <AlertTriangle size={16} aria-hidden />

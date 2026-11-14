@@ -169,7 +169,7 @@ export interface TrendRowOut {
 
 export interface InsightOut {
   rule_code: string;
-  severity: "info" | "warning" | "critical";
+  severity: InsightSeverityLevel;
   message: string;
 }
 

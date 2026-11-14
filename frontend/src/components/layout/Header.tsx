@@ -15,6 +15,7 @@ import { QUERY_KEYS } from "@/constants/queryKeys";
 import { pageTitleFor } from "@/constants/nav";
 import { ROUTES } from "@/constants/routes";
 import { TOUCH_TARGET_COMPACT_MOBILE_ONLY, TOUCH_TARGET_MIN, TOUCH_TARGET_MIN_HEIGHT } from "@/constants/uiSizes";
+import { unreadCountBadgeClass } from "@/utils/colors";
 import { formatDate } from "@/utils/format";
 import type { NotificationOut, NotifType } from "@/types";
 // 축하·저축 알림에만 응원 반응을 남길 수 있다 — 예산 경고 등은 축하할 대상이 아니라 반응 UI를 노출하지 않는다.
@@ -89,7 +90,7 @@ export default function Header() {
         <Bell size={20} aria-hidden="true" />
         {unreadCount > 0 && (
           <span
-            className="absolute top-1 right-1 min-w-[18px] h-[18px] px-1 rounded-full bg-red-500 text-white text-[11px] font-semibold flex items-center justify-center"
+            className={`absolute top-1 right-1 min-w-[18px] h-[18px] px-1 rounded-full ${unreadCountBadgeClass()} text-[11px] font-semibold flex items-center justify-center`}
             aria-hidden="true"
           >
             {unreadCount > 99 ? "99+" : unreadCount}
