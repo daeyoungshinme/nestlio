@@ -80,17 +80,8 @@ class TotalsOut(BaseModel):
     savings: Decimal
 
 
-class UserTotalsOut(BaseModel):
-    user_id: uuid.UUID
-    display_name: str
-    income: Decimal
-    expense: Decimal
-    savings: Decimal
-
-
 class OwnerTotalsOut(BaseModel):
-    """UserTotalsOut과 달리 거래를 *기록한* 사람(user_id)이 아니라 거래가 실제로 *속한*
-    사람(owner_user_id) 기준 집계 — owner_user_id가 없으면 부부 공통 지출이며 display_name은
+    """거래를 *기록한* 사람(user_id)이 아니라 거래가 실제로 *속한* 사람(owner_user_id) 기준 집계 — owner_user_id가 없으면 부부 공통 지출이며 display_name은
     "공통"이 된다."""
 
     owner_user_id: uuid.UUID | None
