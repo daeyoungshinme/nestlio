@@ -10,7 +10,7 @@ from app.services import (
     notification_service,
     recurring_service,
 )
-from app.utils.dates import now_kst, today_kst
+from app.utils.dates import now_kst, today_kst, year_month_str
 
 logger = logging.getLogger("scheduler")
 
@@ -63,14 +63,16 @@ def daily_threshold_safety_net() -> None:
     (status/completed_at)도 함께 재평가한다 — 저장 이벤트 없이 연동 잔액만 자연히 목표액을
     넘는 경우를 잡기 위함(goal_service.sync_challenge_statuses). Google 미연결이어도 인앱
     알림함에는 항상 기록된다 (이메일만 조건부)."""
+    # 시각은 잡이 읽어 단계마다 주입한다(서비스 안에서 today_kst()를 다시 읽지 않게 — app/services/CLAUDE.md "시간 결정론").
+    now, today = now_kst(), today_kst()
     db = SessionLocal()
     errors: list[str] = []
     try:
         for step_name, step in (
-            ("예산 초과 체크", lambda: notification_service.check_all_categories_threshold(db)),
-            ("챌린지 상태 재평가", lambda: goal_service.sync_challenge_statuses(db, now=now_kst())),
-            ("목표 달성 체크", lambda: notification_service.check_all_goal_milestones(db)),
-            ("월말 저축 리마인더", lambda: notification_service.check_savings_pace_reminder(db, today=today_kst())),
+            ("예산 초과 체크", lambda: notification_service.check_all_categories_threshold(db, year_month=year_month_str(today))),
+            ("챌린지 상태 재평가", lambda: goal_service.sync_challenge_statuses(db, now=now)),
+            ("목표 달성 체크", lambda: notification_service.check_all_goal_milestones(db, today=today)),
+            ("월말 저축 리마인더", lambda: notification_service.check_savings_pace_reminder(db, today=today)),
         ):
             try:
                 step()

@@ -1,3 +1,6 @@
+import pytest
+
+
 def test_get_growlio_goal_settings_returns_501_when_not_configured(client, seeded_db):
     """GROWLIO_API_BASE_URL 미설정(GrowlioNotConfiguredError)이면 app.main의 전역 핸들러가
     501로 매핑한다 — growlio_client.fetch_investment_goal을 직접 patch해서, 이 개발 환경의
@@ -454,6 +457,48 @@ def test_growlio_insight_survives_unavailable_linked_endpoints(client, seeded_db
     assert body["linked_performance"] is None
     assert body["eta_with_actual_return_year_month"] is None
     assert body["direct_deposits"] == []
+
+
+@pytest.mark.parametrize(
+    ("perf", "deposits"),
+    [
+        ({"xirr_pct": "not-a-number"}, [{"month": "2026-09"}]),  # 숫자 아닌 수익률, 금액 키 누락
+        ({"xirr_pct": 5.0}, [{"month": "2026-09", "net_deposit_krw": None}]),  # 필수 칸 누락, None 금액
+    ],
+)
+def test_growlio_insight_survives_malformed_linked_responses(client, seeded_db, perf, deposits):
+    """응답 형태가 예상과 달라도 목표 상세 전체가 500이 되지 않고 그 필드만 비운다."""
+    from unittest.mock import patch
+
+    goal_id = _goal_linked_to_growlio(client, seeded_db, growlio_ids=("g-1",))
+    with (
+        patch("app.services.goal_service.growlio_client.fetch_performance", return_value={"xirr_pct": 5.0}),
+        patch("app.services.goal_service.growlio_client.fetch_account_performance", return_value=perf),
+        patch("app.services.goal_service.growlio_client.fetch_net_deposits", return_value=deposits),
+    ):
+        resp = client.get(f"/api/v1/financial-goals/{goal_id}/growlio-insight")
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["linked_performance"] is None
+    assert body["eta_with_actual_return_year_month"] is None
+    assert body["direct_deposits"] == []
+
+
+def test_growlio_insight_without_compound_eta_when_return_is_minus_100_or_less(client, seeded_db):
+    from unittest.mock import patch
+
+    goal_id = _goal_linked_to_growlio(client, seeded_db, growlio_ids=("g-1",))
+    perf = {"xirr_pct": -150.0, "current_value_krw": 1000.0, "net_invested_krw": 5000.0, "account_count": 1}
+    with (
+        patch("app.services.goal_service.growlio_client.fetch_performance", return_value={"xirr_pct": 5.0}),
+        patch("app.services.goal_service.growlio_client.fetch_account_performance", return_value=perf),
+        patch("app.services.goal_service.growlio_client.fetch_net_deposits", return_value=[]),
+    ):
+        body = client.get(f"/api/v1/financial-goals/{goal_id}/growlio-insight").json()
+
+    assert body["linked_performance"]["xirr_pct"] == -150.0
+    assert body["eta_with_actual_return_year_month"] is None
 
 
 def test_growlio_insight_skips_linked_calls_without_growlio_links(client, seeded_db):

@@ -40,7 +40,7 @@ def test_daily_due_date_check_posts_due_recurring_without_google(seeded_db, monk
 def test_safety_net_rolls_back_failed_step_and_runs_the_rest(seeded_db, monkeypatch):
     ran: list[str] = []
 
-    def poison_session(db):
+    def poison_session(db, **_kwargs):
         # notif_type NOT NULL 위반 → flush 실패. 롤백하지 않으면 다음 단계가 PendingRollbackError.
         db.add(NotificationLog(notif_type=None))
         db.flush()
@@ -77,6 +77,49 @@ def test_safety_net_runs_savings_pace_reminder_with_kst_today(seeded_db, monkeyp
     jobs.daily_threshold_safety_net()
 
     assert seen == [date(2026, 9, 28)]
+
+
+def test_safety_net_injects_kst_today_into_every_dated_step(seeded_db, monkeypatch):
+    seen: dict[str, object] = {}
+    monkeypatch.setattr(
+        jobs.notification_service, "check_all_categories_threshold", lambda db, year_month: seen.update(ym=year_month)
+    )
+    monkeypatch.setattr(jobs.goal_service, "sync_challenge_statuses", lambda db, now: None)
+    monkeypatch.setattr(jobs.notification_service, "check_all_goal_milestones", lambda db, today: seen.update(goal=today))
+    monkeypatch.setattr(jobs.notification_service, "check_savings_pace_reminder", lambda db, today: None)
+    monkeypatch.setattr(jobs, "today_kst", lambda: date(2026, 9, 28))
+
+    jobs.daily_threshold_safety_net()
+
+    assert seen == {"ym": "2026-09", "goal": date(2026, 9, 28)}
+
+
+def test_daily_due_date_check_fails_job_when_an_item_fails(seeded_db, monkeypatch):
+    """한 항목 실패가 나머지를 막지는 않지만 잡은 실패로 끝난다 — 로그만 남기고 "ok"면 매일 같은 항목이
+    실패해도 GitHub Actions가 초록불이다."""
+    from unittest.mock import patch
+
+    from app.errors import PartialFailureError
+
+    db, user, rent = seeded_db["db"], seeded_db["user"], seeded_db["rent"]
+    for name in ("월세", "관리비"):
+        recurring_service.create_recurring(
+            db, name=name, category_id=rent.id, amount=Decimal("100"),
+            frequency="monthly", start_date=date(2026, 7, 5), created_by=user.id,
+        )
+    real_create = recurring_service.create_transaction
+
+    def fail_one(db_, **kwargs):
+        if kwargs["description"] == "관리비":
+            raise RuntimeError("boom")
+        return real_create(db_, **kwargs)
+
+    monkeypatch.setattr(jobs, "today_kst", lambda: date(2026, 7, 5))
+    with patch("app.services.recurring_service.create_transaction", side_effect=fail_one), pytest.raises(PartialFailureError):
+        jobs.daily_due_date_check()
+
+    db.expire_all()
+    assert [t.description for t in db.query(Transaction).all()] == ["월세"]
 
 
 def test_event_reminder_check_logs_in_app_without_google(seeded_db, monkeypatch):

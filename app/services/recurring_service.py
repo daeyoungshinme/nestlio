@@ -5,6 +5,7 @@ from decimal import Decimal
 
 from sqlalchemy.orm import Session
 
+from app.errors import PartialFailureError
 from app.models.recurring_expense import RecurringExpense
 from app.models.transaction import Transaction
 from app.services.transaction_service import create_transaction, validate_category_kind
@@ -137,7 +138,8 @@ def reactivate_recurring(db: Session, recurring_id: int, today: date | None = No
 
 def generate_due_transactions(db: Session, today: date | None = None) -> list[Transaction]:
     """Post a transaction for every active recurring expense whose next_due_date has arrived,
-    then roll next_due_date forward. Safe to call repeatedly (idempotent per due date)."""
+    then roll next_due_date forward. Safe to call repeatedly (idempotent per due date).
+    항목 하나가 실패해도 나머지는 만들고, 끝에 PartialFailureError로 알린다(잡이 실패로 보이게)."""
     today = today or today_kst()
     due_items = (
         db.query(RecurringExpense)
@@ -145,6 +147,7 @@ def generate_due_transactions(db: Session, today: date | None = None) -> list[Tr
         .all()
     )
     created: list[Transaction] = []
+    failed = 0
     for recurring in due_items:
         try:
             # a recurring expense can be overdue by more than one period (e.g. app was off) -
@@ -178,6 +181,9 @@ def generate_due_transactions(db: Session, today: date | None = None) -> list[Tr
             # so one bad item shouldn't block the rest of due_items from being posted. Roll back
             # so a failed flush/commit above doesn't poison the session for the remaining items.
             db.rollback()
+            failed += 1
             logger.exception("고정지출 거래 생성 실패: %s", recurring.name)
     db.commit()
+    if failed:
+        raise PartialFailureError("고정지출 거래 생성", failed, len(created))
     return created

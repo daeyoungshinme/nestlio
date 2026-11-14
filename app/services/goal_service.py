@@ -301,23 +301,34 @@ def _linked_growlio_account_ids(goal: FinancialGoal) -> list[str]:
 
 def _linked_growlio_extras(goal: FinancialGoal, out: dict, bearer_token: str, today: date) -> dict:
     """연동된 growlio 계좌만의 실제 수익률·그 수익률 기준 예상 달성월·growlio 직접 입금(최근 6개월). 각 호출은
-    best-effort다 — growlio가 이 엔드포인트를 모르는 구버전이거나 실패하면 해당 필드만 비운다(카드의 나머지는 유지)."""
+    best-effort다 — growlio가 이 엔드포인트를 모르는 구버전이거나 실패하거나 응답 형태가 다르면 해당 필드만 비운다
+    (카드의 나머지는 유지)."""
     account_ids = _linked_growlio_account_ids(goal)
     extras: dict = {"linked_performance": None, "eta_with_actual_return_year_month": None, "direct_deposits": []}
     if not account_ids:
         return extras
     try:
-        perf = growlio_client.fetch_account_performance(bearer_token, account_ids)
-        extras["linked_performance"] = perf
-        if perf.get("xirr_pct") is not None:
-            extras["eta_with_actual_return_year_month"] = goal_progress_service.compute_eta_with_return(
+        raw = growlio_client.fetch_account_performance(bearer_token, account_ids)
+        # 응답 모델(GrowlioAccountPerformanceOut)이 요구하는 칸을 여기서 확인한다 — 원본 dict를 그대로 넘기면
+        # 형태가 다를 때 응답 직렬화에서 500이 난다(이 try가 못 잡는 곳).
+        xirr = raw.get("xirr_pct")
+        perf = {
+            "xirr_pct": None if xirr is None else float(xirr),
+            "current_value_krw": float(raw["current_value_krw"]),
+            "net_invested_krw": float(raw["net_invested_krw"]),
+            "account_count": int(raw["account_count"]),
+        }
+        eta = None
+        if perf["xirr_pct"] is not None:
+            eta = goal_progress_service.compute_eta_with_return(
                 today,
                 out["current_amount"],
                 goal.required_amount,
                 out["planned_monthly_amount"],
                 Decimal(str(perf["xirr_pct"])),
             )
-    except growlio_client.GrowlioRequestError:
+        extras["linked_performance"], extras["eta_with_actual_return_year_month"] = perf, eta
+    except (growlio_client.GrowlioRequestError, *growlio_client.MALFORMED_RESPONSE_ERRORS):
         logger.info("growlio_account_performance_unavailable goal_id=%s", goal.id, exc_info=True)
     try:
         start_month = year_month_str(shift_month(today, -(DIRECT_DEPOSIT_MONTHS - 1)))
@@ -329,7 +340,7 @@ def _linked_growlio_extras(goal: FinancialGoal, out: dict, bearer_token: str, to
         extras["direct_deposits"] = [
             {"month": month, "amount": amount} for month, amount in sorted(by_month.items()) if amount
         ]
-    except growlio_client.GrowlioRequestError:
+    except (growlio_client.GrowlioRequestError, *growlio_client.MALFORMED_RESPONSE_ERRORS):
         logger.info("growlio_net_deposits_unavailable goal_id=%s", goal.id, exc_info=True)
     return extras
 

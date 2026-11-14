@@ -22,7 +22,8 @@
 ## 세션 패턴
 
 - 외부 HTTP 호출로 트리거되므로 요청 스코프 `get_db()`가 없다. 새 잡은 기본적으로 **`@_job("실패 로그 문구")` 데코레이터**를 쓴다 — 자체 `SessionLocal()`을 열어 `db` 하나를 넘기고, 예외는 로그를 남긴 뒤 **다시 던지며**(엔드포인트가 500 → GitHub Actions가 실패로 표시), `finally`에서 세션을 닫는다.
-- 여러 단계를 독립적으로 돌리고 실패를 모아 한 번에 보고해야 하는 잡(`daily_threshold_safety_net`)만 직접 세션을 관리한다. 이때 실패한 단계 뒤에는 `db.rollback()`을 해야 다음 단계가 `PendingRollbackError`로 연쇄 실패하지 않는다.
+- 여러 단계를 독립적으로 돌리고 실패를 모아 한 번에 보고해야 하는 잡(`daily_threshold_safety_net`)만 직접 세션을 관리한다. 이때 실패한 단계 뒤에는 `db.rollback()`을 해야 다음 단계가 `PendingRollbackError`로 연쇄 실패하지 않는다. 시각은 잡 시작 때 한 번 읽어(`now_kst()`/`today_kst()`) 단계마다 키워드로 주입한다.
+- 항목 루프(`recurring_service.generate_due_transactions`, `notification_service.check_all_goal_milestones`/`check_all_categories_threshold`, `event_reminder_service.send_due_reminders`)는 항목마다 잡고 롤백해 나머지를 처리한 뒤, 하나라도 실패했으면 끝에 `app.errors.PartialFailureError`(실패·처리 건수)를 던진다 — 잡이 500으로 끝나 Actions에 빨간불이 뜬다. 성공한 항목은 이미 커밋돼 있고 다음 실행이 실패분을 다시 시도한다(전부 멱등). 새 항목 루프도 이 규칙을 따른다.
 - 테스트는 `tests/test_scheduler_jobs.py` — `conftest.py`가 `app.scheduler.jobs.SessionLocal`을 테스트 DB로 돌린다.
 
 ## Google 연동 가드

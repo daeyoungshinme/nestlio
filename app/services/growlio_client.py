@@ -185,6 +185,11 @@ def fetch_net_deposits(bearer_token: str, account_ids: list[str], start_month: s
     )
 
 
+# growlio 응답을 읽다가 형태가 예상과 다를 때(키 누락·None·숫자 아님) 나는 예외 — best-effort 화면 보조값은
+# GrowlioRequestError와 함께 이것도 흡수해 그 필드만 비운다(Decimal 변환 실패 InvalidOperation은 ArithmeticError).
+MALFORMED_RESPONSE_ERRORS: tuple[type[Exception], ...] = (KeyError, TypeError, ValueError, ArithmeticError)
+
+
 def to_decimal_krw(raw) -> Decimal:
     """growlio 응답의 *_krw 숫자 필드(float/int/str)를 Decimal로 변환한다."""
     return Decimal(str(raw))

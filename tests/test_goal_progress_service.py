@@ -34,6 +34,9 @@ def test_eta_with_return_is_never_later_than_linear_and_caps_projection():
     )
     assert compounded is not None and compounded <= linear
     assert gps.compute_eta_with_return(TODAY, Decimal("0"), Decimal("1000"), Decimal("100"), None) is None
+    # −100% 이하면 월 수익률이 정의되지 않는다(음수의 12제곱근) — 예외 대신 None
+    assert gps.compute_eta_with_return(TODAY, Decimal("0"), Decimal("1000"), Decimal("100"), Decimal("-100")) is None
+    assert gps.compute_eta_with_return(TODAY, Decimal("0"), Decimal("1000"), Decimal("100"), Decimal("-150")) is None
     # 50년(600개월) 안에 못 닿으면 None — 비현실적인 먼 미래 날짜를 내지 않는다
     assert gps.compute_eta_with_return(TODAY, Decimal("0"), Decimal("10") ** 12, Decimal("1"), Decimal("1")) is None
 

@@ -1,10 +1,10 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.dependencies import get_bearer_token, get_current_user
 from app.models.user import User
-from app.schemas.common import YearMonth
+from app.schemas.common import PLAN_YEAR_MAX, PLAN_YEAR_MIN, YearMonth
 from app.schemas.savings_product import (
     GrowlioAccountOut,
     SavingsProductAnnualPlanDetailOut,
@@ -44,7 +44,11 @@ def get_plan_summary(
 
 
 @router.get("/annual-plan", response_model=SavingsProductAnnualPlanListOut)
-def get_annual_plan_summary(year: int | None = None, db: Session = Depends(get_db), _: User = Depends(get_current_user)):
+def get_annual_plan_summary(
+    year: int | None = Query(default=None, ge=PLAN_YEAR_MIN, le=PLAN_YEAR_MAX),
+    db: Session = Depends(get_db),
+    _: User = Depends(get_current_user),
+):
     today = today_kst()
     warn_pct, critical_pct = coaching_settings_service.budget_thresholds(db)
     return savings_product_plan_service.compute_annual_plan_summary(

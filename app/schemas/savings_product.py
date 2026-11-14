@@ -5,7 +5,7 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict
 
-from app.schemas.common import DbInt, KrwAmount, KrwBalance, YearMonth, bounded_str
+from app.schemas.common import KrwAmount, KrwBalance, PlanYear, YearMonth, bounded_str
 from app.schemas.growlio import GrowlioImportIn, GrowlioSyncAllOut
 from app.utils.plan_status import PlanStatus
 
@@ -121,7 +121,7 @@ class SavingsProductAnnualPlanDetailOut(BaseModel):
 
 
 class SavingsProductAnnualPlanUpsertIn(BaseModel):
-    year: DbInt
+    year: PlanYear
     start_month: YearMonth
     end_month: YearMonth
     monthly_targets: list[SavingsProductAnnualPlanMonthlyTargetIn]

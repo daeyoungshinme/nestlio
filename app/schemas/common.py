@@ -51,6 +51,11 @@ YearMonth = Annotated[str, StringConstraints(pattern=r"^\d{4}-(0[1-9]|1[0-2])$")
 # 스키마에서 422로 막는다. 입력 스키마의 int 필드는 이것(또는 더 좁은 Field 범위)을 쓴다(test_schemas_krw_amount 가드).
 DbInt = Annotated[int, Field(ge=-(2**31), le=2**31 - 1)]
 
+# 계획·보고서 연도 — date(year, 1, 1)이 되는 값이라 0이나 10000이면 year_bounds에서 ValueError(500)가 난다.
+# 쿼리 파라미터는 FastAPI Query(ge=PLAN_YEAR_MIN, le=PLAN_YEAR_MAX)로 같은 범위를 쓴다.
+PLAN_YEAR_MIN, PLAN_YEAR_MAX = 2000, 2100
+PlanYear = Annotated[int, Field(ge=PLAN_YEAR_MIN, le=PLAN_YEAR_MAX)]
+
 
 class TotalsOut(BaseModel):
     income: Decimal

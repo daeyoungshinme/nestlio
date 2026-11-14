@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.dependencies import get_current_user
 from app.models.user import User
-from app.schemas.common import YearMonth
+from app.schemas.common import PLAN_YEAR_MAX, PLAN_YEAR_MIN, YearMonth
 from app.schemas.reports import CategoryTrendOut, SavingsReviewOut, YearlyReportOut
 from app.services import dashboard_service, transaction_trend_service
 from app.utils.dates import today_kst
@@ -26,7 +26,7 @@ def _owner_filter(owner: uuid.UUID | Literal["all", "shared"] | None) -> uuid.UU
 
 @router.get("/yearly", response_model=YearlyReportOut)
 def yearly(
-    year: int | None = None,
+    year: int | None = Query(default=None, ge=PLAN_YEAR_MIN, le=PLAN_YEAR_MAX),
     owner: OwnerQuery = None,
     db: Session = Depends(get_db),
     _: User = Depends(get_current_user),

@@ -6,7 +6,7 @@ from typing import Literal
 from fastapi import BackgroundTasks
 from sqlalchemy.orm import Session
 
-from app.errors import ConflictError
+from app.errors import ConflictError, PartialFailureError
 from app.services import (
     budget_service,
     coaching_settings_service,
@@ -264,7 +264,7 @@ def check_all_goal_milestones(db: Session, today: date | None = None) -> int:
     goals = goal_service.list_goals(db)
     # 진행금액은 한 번에 계산한다(goal_progress_service.current_amounts) — 목표마다 조회하면 N+1이 된다.
     amounts = goal_progress_service.current_amounts(db, goals)
-    sent = 0
+    sent = failed = 0
     for goal in goals:
         try:
             if _celebrate_goal_milestone(db, goal, today, current_amount=amounts[goal.id]):
@@ -272,7 +272,10 @@ def check_all_goal_milestones(db: Session, today: date | None = None) -> int:
         except Exception:
             # 한 목표의 실패가 세션을 오염시켜 이후 log_sent 커밋이 연쇄 실패하지 않도록 롤백.
             db.rollback()
+            failed += 1
             logger.exception("goal_milestone_alert_failed goal_id=%s", goal.id)
+    if failed:
+        raise PartialFailureError("목표 달성 알림", failed, sent)
     return sent
 
 
@@ -280,14 +283,17 @@ def check_all_categories_threshold(db: Session, year_month: str | None = None) -
     year_month = year_month or year_month_str(today_kst())
     warn_pct, critical_pct = coaching_settings_service.budget_thresholds(db)
     rows = budget_service.budget_vs_actual(db, year_month, warn_pct, critical_pct)
-    sent = 0
+    sent = failed = 0
     for row in rows:
         try:
             if _send_threshold_alert(db, row, year_month):
                 sent += 1
         except Exception:
             db.rollback()
+            failed += 1
             logger.exception("threshold_alert_failed category_id=%s", row["category_id"])
+    if failed:
+        raise PartialFailureError("예산 초과 알림", failed, sent)
     return sent
 
 

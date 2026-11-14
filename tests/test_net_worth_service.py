@@ -2,6 +2,8 @@ from datetime import date, datetime, timedelta
 from decimal import Decimal
 from unittest.mock import MagicMock, patch
 
+import pytest
+
 from app.models.user import User
 from app.services import account_service, loan_service, net_worth_service, savings_product_service
 from app.services.growlio_client import GrowlioNotConfiguredError, GrowlioRequestError
@@ -120,6 +122,25 @@ def test_compute_growlio_unlinked_does_not_double_count_real_estate(seeded_db):
     assert breakdown["investment_total"] == Decimal("0")
     assert breakdown["real_estate_total"] == Decimal("5000000")
     assert breakdown["item_count"] == 1
+
+
+@pytest.mark.parametrize(
+    ("accounts", "real_estate"),
+    [
+        ([{"id": "a-1", "current_value_krw": 1000.0}], []),  # asset_type 누락
+        ([], [{"id": "re-1", "market_value_krw": None}]),  # 시세 None
+    ],
+)
+def test_compute_growlio_unlinked_survives_malformed_response(seeded_db, accounts, real_estate):
+    """대시보드가 자동으로 띄우는 보조 위젯이라 응답 형태가 달라도 500 대신 0건."""
+    with (
+        patch("app.services.net_worth_service.growlio_client.fetch_account_balances", return_value=accounts),
+        patch("app.services.net_worth_service.growlio_client.fetch_real_estate_items", return_value=real_estate),
+    ):
+        breakdown = net_worth_service.compute_growlio_unlinked(seeded_db["db"], "token")
+
+    assert breakdown["item_count"] == 0
+    assert breakdown["net_total"] == Decimal("0")
 
 
 def test_compute_growlio_unlinked_returns_zero_when_everything_already_linked(seeded_db):

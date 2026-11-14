@@ -1,6 +1,8 @@
 from datetime import date
 from decimal import Decimal
 
+import pytest
+
 from app.models.user import User
 from app.services import transaction_service
 from app.utils.dates import today_kst
@@ -147,3 +149,8 @@ def test_owner_query_accepts_all_shared_uuid_and_rejects_others(client, seeded_d
         assert client.get("/api/v1/reports/yearly", params={"year": 2026, "owner": owner}).status_code == 200
     assert client.get("/api/v1/reports/yearly", params={"owner": "nobody"}).status_code == 422
     assert client.get("/api/v1/reports/savings-review", params={"owner": "nobody"}).status_code == 422
+
+
+@pytest.mark.parametrize("year", [0, 10000])
+def test_yearly_report_out_of_range_year_is_422(client, year):
+    assert client.get("/api/v1/reports/yearly", params={"year": year}).status_code == 422

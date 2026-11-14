@@ -6,6 +6,7 @@ from fastapi import BackgroundTasks
 from sqlalchemy import and_, func, or_
 from sqlalchemy.orm import Session, selectinload
 
+from app.errors import PartialFailureError
 from app.models.event import Event
 from app.models.notification_log import NotificationLog
 from app.models.user import User
@@ -30,7 +31,7 @@ def send_due_reminders(db: Session, now: datetime, window_minutes: int = 30) -> 
     and whose event is still upcoming. Meant to be called by a periodic scheduler job — catch-up
     safe: a missed/delayed tick is recovered on the next run, and NotificationLog dedup prevents
     duplicate sends. 인앱 알림은 Google 연결과 무관하게 남고, 메일은 연결돼 있을 때만 간다.
-    반환값은 이번 틱에 기록(=알림)한 리마인더 수."""
+    반환값은 이번 틱에 기록(=알림)한 리마인더 수. 일부가 실패하면 나머지를 보낸 뒤 PartialFailureError."""
     if not notification_settings_service.is_enabled(db, NOTIF_TYPE):
         return 0
 
@@ -39,7 +40,7 @@ def send_due_reminders(db: Session, now: datetime, window_minutes: int = 30) -> 
         (event, occurrence) for event in candidates for occurrence in _due_occurrences(event, now, window_minutes)
     ]
     already_notified = _already_notified_pairs(db, {event.id for event, _ in due_pairs})
-    reminded = 0
+    reminded = failed = 0
     for event, occurrence in due_pairs:
         if (event.id, occurrence.isoformat()) in already_notified:
             continue
@@ -49,7 +50,10 @@ def send_due_reminders(db: Session, now: datetime, window_minutes: int = 30) -> 
         except Exception:
             # 한 건의 실패가 세션을 오염시켜 나머지 리마인더의 log_sent 커밋까지 막지 않도록 롤백.
             db.rollback()
+            failed += 1
             logger.exception("event_reminder_failed event_id=%s", event.id)
+    if failed:
+        raise PartialFailureError("일정 리마인더", failed, reminded)
     return reminded
 
 
