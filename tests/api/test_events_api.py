@@ -42,6 +42,18 @@ def test_create_list_update_delete_event(client, seeded_db):
     assert all(item["id"] != event_id for item in list_resp2.json()["items"])
 
 
+def test_create_event_normalizes_start_to_kst_wall_clock_without_fraction(client):
+    """오프셋이 붙은 시각은 KST 벽시계로 옮기고 초 미만은 버린다 — 리마인더 dedup 키(isoformat)가
+    NotificationLog.year_month String(20)을 넘으면 리마인더 기록이 매번 실패한다."""
+    resp = client.post(
+        "/api/v1/events",
+        json={"title": "병원", "start_at": "2026-07-15T01:00:00.123456+00:00", "end_at": "2026-07-15T11:30:00.5"},
+    )
+    assert resp.status_code == 201
+    assert resp.json()["start_at"] == "2026-07-15T10:00:00"
+    assert resp.json()["end_at"] == "2026-07-15T11:30:00"
+
+
 def test_update_missing_event_returns_404(client):
     resp = client.put(
         "/api/v1/events/999999",

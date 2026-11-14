@@ -161,7 +161,12 @@ def _bucket_linked_rows(goal: FinancialGoal, year_months: list[str], rows: list)
         if ym not in result:
             continue
         amount = amount or Decimal("0")
-        if savings_product_id is not None and savings_product_id in product_ids:
+        in_product = savings_product_id is not None and savings_product_id in product_ids
+        in_account = account_id is not None and account_id in account_ids
+        if in_product and in_account:
+            # 목표에 연동된 계좌 → 같은 목표의 저축상품 이체: 계좌 −amount와 상품 +amount가 상쇄된다.
+            continue
+        if in_product:
             result[ym] += amount
         else:
             result[ym] += amount if tx_type == "income" else -amount

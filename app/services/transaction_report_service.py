@@ -263,8 +263,9 @@ def _category_breakdown_by_owner_batch(
 def _trailing_average_by_owner_batch(
     db: Session, anchor: date, months: int = 3, type_: str = "expense"
 ) -> dict[uuid.UUID | Literal["shared"], dict[int, Decimal]]:
-    """trailing_average_by_category_by_owner()를 모든 owner·달에 대해 쿼리 1개로 배치 조회한
-    버전 — owner별로 반복 호출하지 않는다(대시보드는 매 요청마다 이 계산을 필요로 한다)."""
+    """owner(배우자·"shared")별 카테고리 평균 — 직전 months개월(anchor 달 제외)을 쿼리 1개로 모아 owner마다
+    나눈다(대시보드는 매 요청마다 필요). 분모는 가구 평균(transaction_trend_service.trailing_average_by_category
+    기본값)과 같은 고정 months라 부부별 값과 가구 값이 같은 기준으로 비교된다."""
     month_starts = recent_month_starts(anchor, months, include_anchor=False)
     if not month_starts:
         return {}

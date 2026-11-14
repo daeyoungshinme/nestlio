@@ -669,6 +669,52 @@ def test_compute_linked_monthly_achieved_savings_product_deposits_always_add(see
     assert result == {"2026-09": Decimal("100000")}
 
 
+def test_compute_linked_monthly_achieved_transfer_inside_goal_cancels_out(seeded_db):
+    """같은 목표에 연동된 계좌 → 저축상품 이체는 목표 안에서 돈이 옮겨간 것뿐이라 달성액이 아니다.
+    목표 밖 계좌에서 들어온 상품 입금은 +, 목표 계좌에서 목표 밖으로 나간 지출은 −."""
+    db, user, food = seeded_db["db"], seeded_db["user"], seeded_db["food"]
+    savings_category = Category(name="저축", type="variable", is_savings=True, sort_order=0)
+    db.add(savings_category)
+    db.commit()
+    db.refresh(savings_category)
+
+    goal_account = account_service.create_account(db, "목표통장", "checking", Decimal("0"))
+    outside_account = account_service.create_account(db, "생활비통장", "checking", Decimal("0"))
+    product = savings_product_service.create_product(db, "적금", Decimal("0"), Decimal("100000"))
+    goal = goal_service.create_goal(
+        db,
+        priority=1,
+        name="내집마련",
+        target_age=None,
+        required_amount=Decimal("1000000"),
+        monthly_saving_amount=Decimal("0"),
+        target_date=date(2026, 9, 30),
+        funding_sources=[{"type": "account", "id": goal_account.id}, {"type": "savings_product", "id": product.id}],
+        monthly_targets=[{"year_month": "2026-09", "target_amount": Decimal("100000")}],
+    )
+
+    def save(amount: str, day: int, account_id: int) -> None:
+        transaction_service.create_transaction(
+            db,
+            user_id=user.id,
+            category_id=savings_category.id,
+            type_="expense",
+            amount=Decimal(amount),
+            transaction_date=date(2026, 9, day),
+            account_id=account_id,
+            savings_product_id=product.id,
+        )
+
+    save("70000", 5, goal_account.id)  # 목표 내부 이체 → 0
+    save("30000", 6, outside_account.id)  # 목표 밖에서 상품으로 → +30000
+    transaction_service.create_transaction(
+        db, user_id=user.id, category_id=food.id, type_="expense", amount=Decimal("5000"), transaction_date=date(2026, 9, 7), account_id=goal_account.id
+    )  # 목표 계좌에서 지출 → −5000
+
+    result = goal_progress_service.compute_linked_monthly_achieved(db, goal, ["2026-09"])
+    assert result == {"2026-09": Decimal("25000")}
+
+
 def test_to_out_marks_linked_goal_monthly_targets_as_auto_computed(seeded_db):
     db, user, salary = seeded_db["db"], seeded_db["user"], seeded_db["salary"]
     account = account_service.create_account(db, "입출금통장", "checking", Decimal("0"))
