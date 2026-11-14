@@ -1,5 +1,6 @@
 import type { FinancialGoalOut } from "@/types";
 import type { ProgressStatus } from "@/utils/colors";
+import { parseDateIso } from "@/utils/date";
 
 /** kind="challenge"(단기 부부 챌린지)의 effective_status(active/succeeded/expired)를 목표 카드가
  * 공유하는 ProgressStatus로 매핑한다 — 챌린지는 "월 저축 페이스"라는 개념이 없어 아래
@@ -15,7 +16,7 @@ function computeChallengeStatus(goal: FinancialGoalOut): ProgressStatus {
 export function daysUntil(targetDate: string): number {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
-  const target = new Date(targetDate);
+  const target = parseDateIso(targetDate);
   return Math.round((target.getTime() - today.getTime()) / 86_400_000);
 }
 

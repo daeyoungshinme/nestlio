@@ -32,14 +32,18 @@ export default function AccountsPage() {
   const { data: products } = useSavingsProducts();
   const sectionTotals: Partial<Record<Section, string>> = {};
   if (netWorth) {
-    const { savingsInvestmentTotal, realEstateTotal } = splitSavingsAndRealEstate(
-      Number(netWorth.current.savings_total),
-      products,
-    );
     sectionTotals["계좌"] = formatKrwCompact(Number(netWorth.current.accounts_total));
-    sectionTotals["저축·투자"] = formatKrwCompact(savingsInvestmentTotal);
-    sectionTotals["부동산"] = formatKrwCompact(realEstateTotal);
     sectionTotals["대출"] = formatKrwCompact(Number(netWorth.current.loans_total));
+    // 상품 목록이 오기 전(또는 실패)엔 부동산 몫을 모른다 — 0원으로 두면 "저축·투자"에 부동산이 섞이고
+    // "부동산"이 0원으로 보이므로 두 합계는 비워 둔다.
+    if (products) {
+      const { savingsInvestmentTotal, realEstateTotal } = splitSavingsAndRealEstate(
+        Number(netWorth.current.savings_total),
+        products,
+      );
+      sectionTotals["저축·투자"] = formatKrwCompact(savingsInvestmentTotal);
+      sectionTotals["부동산"] = formatKrwCompact(realEstateTotal);
+    }
   }
 
   useEffect(() => {

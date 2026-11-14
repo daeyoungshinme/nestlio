@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Pencil } from "lucide-react";
 import Modal from "@/components/common/Modal";
+import QueryBoundary from "@/components/common/QueryBoundary";
 import SkeletonCard from "@/components/common/SkeletonCard";
 import StatusBadge from "@/components/common/StatusBadge";
 import SavingsProductAnnualPlanForm from "@/components/financialPlan/SavingsProductAnnualPlanForm";
@@ -53,7 +54,7 @@ export default function SavingsPlanProductRow({
     ]);
   };
 
-  const { data: planDetail, isLoading: isPlanLoading } = useQuery({
+  const planDetailQuery = useQuery({
     queryKey: QUERY_KEYS.savingsProductAnnualPlanDetail(item.id, year),
     queryFn: () => fetchSavingsProductAnnualPlanDetail(item.id, year),
     enabled: isPlanModalOpen,
@@ -149,9 +150,8 @@ export default function SavingsPlanProductRow({
       {isPlanModalOpen && (
         <Modal onClose={() => setIsPlanModalOpen(false)} title={`${item.name} 월별 계획 편집 (${year}년)`}>
           <div className="p-6 overflow-y-auto">
-            {isPlanLoading || !planDetail ? (
-              <SkeletonCard rows={3} />
-            ) : (
+            <QueryBoundary query={planDetailQuery} compact loadingFallback={<SkeletonCard rows={3} />} errorMessage="월별 계획을 불러오지 못했어요">
+              {(planDetail) => (
               <SavingsProductAnnualPlanForm
                 year={year}
                 initialValues={{
@@ -162,7 +162,8 @@ export default function SavingsPlanProductRow({
                 submitting={upsertPlanMutation.isPending}
                 onSubmit={(values) => upsertPlanMutation.mutate(values)}
               />
-            )}
+              )}
+            </QueryBoundary>
           </div>
         </Modal>
       )}

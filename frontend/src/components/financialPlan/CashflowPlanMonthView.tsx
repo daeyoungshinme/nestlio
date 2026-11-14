@@ -32,6 +32,7 @@ import { PLAN_RELATED_KEYS } from "@/constants/queryKeys";
 import { invalidateKeys } from "@/utils/queryClient";
 import { shiftYearMonth } from "@/utils/date";
 import { formatYearMonth, pctOf } from "@/utils/format";
+import { savingsInvestmentActual, savingsInvestmentPlanned } from "@/utils/planTotals";
 import { worseStatus } from "@/utils/colors";
 import { toast } from "@/utils/toast";
 import type {
@@ -178,14 +179,9 @@ export default function CashflowPlanMonthView({
   });
 
   const summary = data.summary;
-  const plannedSavingsInvestmentTotal = savingsPlanData
-    ? Number(savingsPlanData.savings.planned) + Number(savingsPlanData.investment.planned)
-    : 0;
-  const savingsInvestmentActual =
-    savingsPlanData && savingsPlanData.savings.actual !== null && savingsPlanData.investment.actual !== null
-      ? Number(savingsPlanData.savings.actual) + Number(savingsPlanData.investment.actual)
-      : null;
-  const savingsInvestmentPct = pctOf(savingsInvestmentActual, plannedSavingsInvestmentTotal);
+  const plannedSavingsInvestmentTotal = savingsInvestmentPlanned(savingsPlanData);
+  const savingsInvestmentActualTotal = savingsInvestmentActual(savingsPlanData);
+  const savingsInvestmentPct = pctOf(savingsInvestmentActualTotal, plannedSavingsInvestmentTotal);
   const budgetRows = data.category_budgets;
   const budgetRowByCategory = new Map(budgetRows.map((row) => [row.category_id, row]));
   const sections: PlanSection[] = [
@@ -223,7 +219,7 @@ export default function CashflowPlanMonthView({
     {
       label: SAVINGS_INVESTMENT_LABEL,
       planned: plannedSavingsInvestmentTotal,
-      actual: savingsInvestmentActual,
+      actual: savingsInvestmentActualTotal,
       pct: savingsInvestmentPct,
       status: savingsPlanData ? worseStatus(savingsPlanData.savings.status, savingsPlanData.investment.status) : null,
       content: <SavingsInvestmentPlanPanel yearMonth={yearMonth} showViewToggle={false} />,
