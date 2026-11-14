@@ -3,7 +3,7 @@ import RowActionButtons from "@/components/common/RowActionButtons";
 import StatusBadge from "@/components/common/StatusBadge";
 import TodoPriorityBadge from "@/components/todos/TodoPriorityBadge";
 import { TOUCH_TARGET_MIN_HEIGHT } from "@/constants/uiSizes";
-import { todoMyTurnBadgeClass, todoUrgencyBadgeClass } from "@/utils/colors";
+import { neutralBadgeClass, todoMyTurnBadgeClass, todoUrgencyBadgeClass } from "@/utils/colors";
 import { occurrenceDate } from "@/utils/date";
 import { formatDate } from "@/utils/format";
 import {
@@ -55,11 +55,11 @@ export default function TodoRow({ todo, today, myId, users, onEdit, onDelete, on
             {todo.frequency !== "once" && (
               <StatusBadge
                 label={TODO_FREQUENCY_LABEL[todo.frequency]}
-                toneClassName="bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400"
+                toneClassName={neutralBadgeClass()}
               />
             )}
             {todo.each_completes && (
-              <StatusBadge label="각자" toneClassName="bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400" />
+              <StatusBadge label="각자" toneClassName={neutralBadgeClass()} />
             )}
           </span>
           <span className="block break-keep text-xs text-gray-500 dark:text-gray-400 mt-0.5">

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { ArrowRight, Plus } from "lucide-react";
 import { Link } from "react-router-dom";
 import Button from "@/components/common/Button";
@@ -18,11 +18,11 @@ import {
   normalizeMonthItem,
   type NormalizedItem,
 } from "@/components/financialPlan/savingsPlanItems";
-import { createSavingsProduct, fetchSavingsProductsAnnualPlan } from "@/api/savingsProducts";
+import { createSavingsProduct } from "@/api/savingsProducts";
 import { useSavingsProducts, useUsers } from "@/hooks/useReferenceData";
-import { useSavingsProductsPlan } from "@/hooks/usePlanQueries";
+import { useSavingsProductsAnnualPlan, useSavingsProductsPlan } from "@/hooks/usePlanQueries";
 import { accountsSectionLink } from "@/constants/routes";
-import { ASSET_RELATED_KEYS, QUERY_KEYS } from "@/constants/queryKeys";
+import { ASSET_RELATED_KEYS } from "@/constants/queryKeys";
 import { invalidateKeys } from "@/utils/queryClient";
 import { yearOf } from "@/utils/date";
 import { toast } from "@/utils/toast";
@@ -70,11 +70,7 @@ export default function SavingsInvestmentPlanPanel({
     isLoading: isAnnualLoading,
     isError: isAnnualError,
     refetch: refetchAnnual,
-  } = useQuery({
-    queryKey: QUERY_KEYS.savingsProductsAnnualPlan(year),
-    queryFn: () => fetchSavingsProductsAnnualPlan(year),
-    enabled: viewMode === "올해 누적",
-  });
+  } = useSavingsProductsAnnualPlan(year, { enabled: viewMode === "올해 누적" });
   const { data: products } = useSavingsProducts();
   const { data: users } = useUsers();
 

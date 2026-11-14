@@ -379,6 +379,36 @@ export function todoPriorityBadgeClass(priority: "urgent" | "high" | "low"): str
   return TODO_PRIORITY_BADGE[priority];
 }
 
+/** 할일·일정의 "담당 X" 배지 — 홈 카드와 목록이 같은 톤을 쓴다. */
+export function assigneeBadgeClass(): string {
+  return TRANSACTION_TYPE_STYLE.income;
+}
+
+/** 반복 주기·"각자" 같은 중립 보조 배지. */
+export function neutralBadgeClass(): string {
+  return TRANSACTION_TYPE_STYLE.expense;
+}
+
+/** 오류 화면(ErrorState)의 큰 경고 아이콘 — 본문보다 옅게. */
+export function errorIllustrationClass(): string {
+  return "text-red-300 dark:text-red-800";
+}
+
+/** 폼 필수 표시(*). */
+export function requiredMarkClass(): string {
+  return "text-red-500";
+}
+
+/** 에러 토스트 배경. */
+export function errorToastBgClass(): string {
+  return "bg-red-600";
+}
+
+/** 헤더 알림 벨의 안 읽은 개수 배지 배경(흰 글자와 함께). */
+export function unreadCountBadgeClass(): string {
+  return "bg-red-500 text-white";
+}
+
 /** "내 차례" 배지 — 각자 완료 할일에서 내 몫이 남았을 때. */
 export function todoMyTurnBadgeClass(): string {
   return TRANSACTION_TYPE_STYLE.income;

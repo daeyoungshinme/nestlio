@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { ChevronLeft, ChevronRight } from "lucide-react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import AnnualPlanItemForm from "@/components/financialPlan/AnnualPlanItemForm";
 import AnnualPlanSectionPanel from "@/components/financialPlan/AnnualPlanSectionPanel";
 import PlanBalanceSummary from "@/components/plan/PlanBalanceSummary";
@@ -15,11 +15,11 @@ import Modal from "@/components/common/Modal";
 import SkeletonCard from "@/components/common/SkeletonCard";
 import { PLAN_ANALYSIS_SECTION, ROUTES } from "@/constants/routes";
 import { TOUCH_TARGET_MIN } from "@/constants/uiSizes";
-import { deleteAnnualPlanItem, fetchAnnualPlan, upsertAnnualPlanItem } from "@/api/annualPlan";
-import { fetchSavingsProductsAnnualPlan } from "@/api/savingsProducts";
+import { deleteAnnualPlanItem, upsertAnnualPlanItem } from "@/api/annualPlan";
+import { useAnnualPlan, useSavingsProductsAnnualPlan } from "@/hooks/usePlanQueries";
 import { useCategories, useUsers } from "@/hooks/useReferenceData";
 import { SECTIONS, SAVINGS_INVESTMENT_LABEL } from "@/constants/planSections";
-import { PLAN_RELATED_KEYS, QUERY_KEYS } from "@/constants/queryKeys";
+import { PLAN_RELATED_KEYS } from "@/constants/queryKeys";
 import { invalidateKeys } from "@/utils/queryClient";
 import { pctOf } from "@/utils/format";
 import { savingsInvestmentActual } from "@/utils/planTotals";
@@ -50,19 +50,13 @@ export default function AnnualPlanPanel() {
   const analysisRef = useRef<HTMLElement>(null);
   const scrollToAnalysis = searchParams.get("section") === PLAN_ANALYSIS_SECTION;
 
-  const { data, isLoading, isError, refetch } = useQuery({
-    queryKey: QUERY_KEYS.annualPlan(year),
-    queryFn: () => fetchAnnualPlan(year),
-  });
+  const { data, isLoading, isError, refetch } = useAnnualPlan(year);
   const {
     data: savingsAnnualData,
     isLoading: savingsLoading,
     isError: savingsError,
     refetch: refetchSavings,
-  } = useQuery({
-    queryKey: QUERY_KEYS.savingsProductsAnnualPlan(year),
-    queryFn: () => fetchSavingsProductsAnnualPlan(year),
-  });
+  } = useSavingsProductsAnnualPlan(year);
   const { data: users } = useUsers();
   const { data: categories } = useCategories();
 

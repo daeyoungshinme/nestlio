@@ -1,5 +1,6 @@
 import { AlertTriangle } from "lucide-react";
 import { TOUCH_TARGET_MIN_HEIGHT } from "@/constants/uiSizes";
+import { errorIllustrationClass } from "@/utils/colors";
 
 interface Props {
   title?: string;
@@ -14,7 +15,7 @@ export default function ErrorState({ title = "불러오지 못했습니다", mes
     <div
       className={`flex flex-col items-center justify-center text-center px-4 ${compact ? "py-6" : "py-12"} ${className ?? ""}`}
     >
-      <AlertTriangle size={40} className="mb-3 text-red-300 dark:text-red-800" />
+      <AlertTriangle size={40} className={`mb-3 ${errorIllustrationClass()}`} />
       <p className="text-sm font-medium text-gray-500 dark:text-gray-400">{title}</p>
       {message && <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">{message}</p>}
       {onRetry && (

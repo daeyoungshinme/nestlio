@@ -1,7 +1,7 @@
 import type { InputHTMLAttributes } from "react";
 import { INPUT_MD, INPUT_SM, LABEL_MD, LABEL_SM } from "@/constants/inputStyles";
 import { cn } from "@/utils/cn";
-import { formErrorBorderClass, formErrorTextClass, formPreviewTextClass } from "@/utils/colors";
+import { formErrorBorderClass, formErrorTextClass, formPreviewTextClass, requiredMarkClass } from "@/utils/colors";
 
 interface Props extends Omit<InputHTMLAttributes<HTMLInputElement>, "size"> {
   label: string;
@@ -34,7 +34,7 @@ export default function FormInput({
     <div>
       <label htmlFor={inputId} className={`block mb-1 font-medium ${labelClass}`}>
         {label}
-        {required && <span className="text-red-500 ml-0.5">*</span>}
+        {required && <span className={`${requiredMarkClass()} ml-0.5`}>*</span>}
       </label>
       <input
         id={inputId}

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useId, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import Tabs from "@/components/common/Tabs";
 import { fetchRecentTransactions } from "@/api/transactions";
@@ -132,7 +132,9 @@ export default function TransactionQuickPicks({
       : [];
   const planFlatItems = uiType === "income" ? planItems.filter((item) => item.section === "income") : [];
   const hasPlanContent = planGroups.length > 0 || planFlatItems.length > 0;
-  // 기억된 탭이 비어 있고 다른 탭에 내용이 있으면 그쪽을 보여준다(저장값은 바꾸지 않는다).
+  const frequentLabelId = useId();
+  // 기억된 탭이 비어 있고 다른 탭에 내용이 있으면 그쪽을 보여준다(저장값은 바꾸지 않는다). 둘 다 비면 탭 영역을
+  // 그리지 않으므로, 보이는 탭에는 항상 내용이 있다.
   const activeTab: QuickTab =
     quickTab === "최근" && !hasRecentContent && hasPlanContent
       ? "계획"
@@ -144,8 +146,10 @@ export default function TransactionQuickPicks({
     <>
       {uiType === "savings" && recentItems && recentItems.length > 0 && (
         <div className="w-full">
-          <label className={`block mb-1 font-medium ${LABEL_SM}`}>자주 쓰는 항목</label>
-          <div className="flex gap-2 overflow-x-auto pb-1">
+          <p id={frequentLabelId} className={`block mb-1 font-medium ${LABEL_SM}`}>
+            자주 쓰는 항목
+          </p>
+          <div role="group" aria-labelledby={frequentLabelId} className="flex gap-2 overflow-x-auto pb-1">
             {recentItems.map((tx) => (
               <QuickChip key={tx.id} label={recentChipLabel(tx)} disabled={submitting} onClick={() => onQuickAdd(tx)} />
             ))}
@@ -158,7 +162,6 @@ export default function TransactionQuickPicks({
           <Tabs tabs={QUICK_TABS} activeTab={activeTab} onChange={setQuickTab} variant="pill" />
           <div className="mt-2">
             {activeTab === "계획" ? (
-              hasPlanContent ? (
                 <div className="flex flex-col gap-2">
                   {planGroups.map((group) => (
                     <div key={group.value}>
@@ -182,10 +185,7 @@ export default function TransactionQuickPicks({
                     </div>
                   )}
                 </div>
-              ) : (
-                <p className={`${LABEL_SM} py-1`}>이번 달 계획에 등록된 항목이 없어요.</p>
-              )
-            ) : hasRecentContent ? (
+            ) : (
               <div className="flex flex-col gap-2">
                 {recentGroups.length > 0 ? (
                   recentGroups.map((group) => (
@@ -210,8 +210,6 @@ export default function TransactionQuickPicks({
                   </div>
                 )}
               </div>
-            ) : (
-              <p className={`${LABEL_SM} py-1`}>최근 등록한 내역이 없어요.</p>
             )}
           </div>
         </div>

@@ -9,7 +9,7 @@
  * 라벨 맵이 조용히 어긋나기 때문. optional 여부·null 허용은 비교하지 않는다(생성 타입은 백엔드 기본값이
  * 있는 응답 필드를 optional(`?`)로 표시해 오탐이 많다). 새 손 타입을 추가하면 아래 목록에도 한 줄 추가한다.
  */
-import type { components } from "./api.generated";
+import type { components, operations } from "./api.generated";
 import type {
   AccountCreateIn,
   AccountOut,
@@ -144,6 +144,7 @@ import type {
   TestEmailResultOut,
   TotalsOut,
   TransactionCreateIn,
+  TransactionFilters,
   TransactionListOut,
   TransactionOut,
   TrendRowOut,
@@ -324,4 +325,6 @@ export type HandWrittenApiTypeChecks = [
   Expect<SameKeys<InsuranceRiderIn, Schemas["InsuranceRiderIn"]>>,
   Expect<SameKeys<InsuranceTargetsOut, Schemas["InsuranceTargetsOut"]>>,
   Expect<SameKeys<InsuranceTargetsIn, Schemas["InsuranceTargetsIn"]>>,
+  // 쿼리 파라미터(스키마가 아니라 operation에 있다) — 가계부 목록 필터.
+  Expect<SameKeys<TransactionFilters, NonNullable<operations["list_transactions_api_v1_transactions_get"]["parameters"]["query"]>>>,
 ];

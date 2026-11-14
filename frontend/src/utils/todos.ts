@@ -65,7 +65,7 @@ export function todoDueLabel(todo: TodoOut): string | null {
 }
 
 /** 기한이 오늘부터 이 일수 안이면 "임박"(D-n 배지). */
-export const TODO_SOON_DAYS = 3;
+const TODO_SOON_DAYS = 3;
 
 /** 진행 중 할일의 기한 긴급도 — 기한 지남 / 오늘 / TODO_SOON_DAYS일 이내. 완료됐거나 기한이 없거나 여유 있으면 null. */
 export function todoUrgency(todo: TodoOut, today: string): TodoUrgency | null {

@@ -12,7 +12,7 @@ import { useMe } from "@/hooks/useReferenceData";
 import { useTodoActions } from "@/hooks/useTodoActions";
 import { ROUTES } from "@/constants/routes";
 import { TOUCH_TARGET_MIN_HEIGHT } from "@/constants/uiSizes";
-import { todoMyTurnBadgeClass, todoUrgencyBadgeClass } from "@/utils/colors";
+import { assigneeBadgeClass, todoMyTurnBadgeClass, todoUrgencyBadgeClass } from "@/utils/colors";
 import {
   completionProgressLabel,
   isCheckedBy,
@@ -91,7 +91,7 @@ export default function TodoCard({ day, users }: Props) {
                     ) : (
                       <StatusBadge
                         label={`담당 ${todo.assignee?.display_name ?? "공동"}`}
-                        toneClassName="bg-primary-50 dark:bg-primary-950 text-primary-600 dark:text-primary-400"
+                        toneClassName={assigneeBadgeClass()}
                       />
                     )}
                   </div>
