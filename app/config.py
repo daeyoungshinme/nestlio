@@ -51,7 +51,7 @@ class Settings(BaseSettings):
     notify_email_to: str = "you@example.com"
 
     # React SPA(dev: Vite, prod: 별도 오리진)에서의 요청을 허용
-    # 5273 = Vite dev 서버, 8899 = 배포 스냅샷(dev.bat run) uvicorn 단일 프로세스
+    # 5273 = Vite dev 서버, 8899 = 배포 스냅샷(dev.sh run / dev.bat run) uvicorn 단일 프로세스
     cors_origins: list[str] = ["http://localhost:5273", "http://localhost:8899"]
 
     # 프론트엔드 SPA의 오리진 (초대 이메일에 넣을 가입 링크 조립용)

@@ -5,7 +5,6 @@ import pytest
 
 from app.models.user import User
 from app.services import transaction_service
-from app.utils.dates import today_kst
 
 
 def test_yearly_report_returns_monthly_and_breakdown(client, seeded_db):
@@ -93,9 +92,9 @@ def test_yearly_report_rejects_invalid_owner_param(client):
     assert resp.status_code == 422
 
 
-def test_category_trend_returns_trailing_months_with_series(client, seeded_db):
+def test_category_trend_returns_trailing_months_with_series(client, seeded_db, frozen_today):
     db, user, food = seeded_db["db"], seeded_db["user"], seeded_db["food"]
-    transaction_service.create_transaction(db, user_id=user.id, category_id=food.id, type_="expense", amount=Decimal("40000"), transaction_date=today_kst())
+    transaction_service.create_transaction(db, user_id=user.id, category_id=food.id, type_="expense", amount=Decimal("40000"), transaction_date=frozen_today)
 
     resp = client.get("/api/v1/reports/category-trend", params={"months": 3})
 

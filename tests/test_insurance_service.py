@@ -121,15 +121,16 @@ def test_riders_none_keeps_existing_and_foreign_id_rejected(seeded_db):
 
 
 def test_removed_spouse_cannot_become_insured_but_existing_policy_stays_editable(seeded_db):
+    from datetime import datetime
+
     from app.models.user import User
-    from app.utils.dates import now_kst
 
     db = seeded_db["db"]
     spouse = User(email="spouse2@example.com", display_name="Spouse 2")
     db.add(spouse)
     db.commit()
     policy = insurance_service.create_policy(db, _fields(insured_user_id=spouse.id))
-    spouse.removed_at = now_kst()
+    spouse.removed_at = datetime(2026, 7, 1, 9, 0)
     db.commit()
 
     with pytest.raises(insurance_service.InsuredUserNotFoundError):

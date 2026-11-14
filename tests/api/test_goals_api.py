@@ -42,14 +42,11 @@ def test_update_goal_not_found(client, seeded_db):
     assert resp.status_code == 404
 
 
-def test_create_and_list_challenge(client, seeded_db):
-    # effective_status는 엔드포인트가 실제 오늘과 target_date를 비교해 계산하므로(주입 불가),
-    # "아직 진행 중"을 검증하려면 target_date가 오늘 이후여야 한다 — 고정 날짜는 시간이 지나면 만료된다.
+def test_create_and_list_challenge(client, seeded_db, frozen_today):
+    # effective_status는 엔드포인트가 오늘(today_kst)과 target_date를 비교해 계산한다 — frozen_today로 오늘을 고정한다.
     from datetime import timedelta
 
-    from app.utils.dates import today_kst
-
-    today = today_kst()
+    today = frozen_today
     resp = client.post(
         "/api/v1/financial-goals",
         json={
@@ -405,10 +402,10 @@ def _goal_linked_to_growlio(client, seeded_db, growlio_ids=("g-1", "g-2")):
     ).json()["id"]
 
 
-def test_growlio_insight_adds_linked_account_return_eta_and_direct_deposits(client, seeded_db):
+def test_growlio_insight_adds_linked_account_return_eta_and_direct_deposits(client, seeded_db, frozen_today):
     from unittest.mock import patch
 
-    from app.utils.dates import shift_month, today_kst, year_month_str
+    from app.utils.dates import shift_month, year_month_str
 
     goal_id = _goal_linked_to_growlio(client, seeded_db)
     perf = {"xirr_pct": 8.0, "current_value_krw": 10000000.0, "net_invested_krw": 9000000.0, "account_count": 2}
@@ -432,7 +429,7 @@ def test_growlio_insight_adds_linked_account_return_eta_and_direct_deposits(clie
     assert body["direct_deposits"] == [{"month": "2026-09", "amount": "500000.0"}]
     mock_perf.assert_called_once()
     assert sorted(mock_perf.call_args.args[1]) == ["g-1", "g-2"]
-    assert mock_dep.call_args.args[2] == year_month_str(shift_month(today_kst(), -5))
+    assert mock_dep.call_args.args[2] == year_month_str(shift_month(frozen_today, -5))
 
 
 def test_growlio_insight_survives_unavailable_linked_endpoints(client, seeded_db):

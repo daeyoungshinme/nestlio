@@ -52,7 +52,7 @@ npm run generate:icons      # public/favicon.svg → PNG/ICO
 - **참조 데이터**: 계좌·결제카드·카테고리·저축상품·유저는 `hooks/useReferenceData.ts`의 `useAccounts`/`useCards`/`useCategories`/`useSavingsProducts`/`useUsers`/`useMe`로만 조회한다. 순자산은 같은 파일의 `useNetWorth`, 할일·일정 목록은 `hooks/useScheduleQueries.ts`의 `useTodos`/`useEvents`.
 - **탭 파라미터**: `?tab=`·`?view=`·`?section=`으로 고르는 탭은 `hooks/useTabParam`(유효성·기본값·replace, `pinDefault`·`legacyKeys`)으로 읽고 바꾼다.
 - **영속 쿼리 캐시**: `main.tsx`의 `PersistQueryClientProvider`가 `PERSIST_QUERY_KEYS`(`constants/queryConfig.ts`) 응답을 localStorage에 24시간 보관해 재방문 시 즉시 그린다. 이 키들의 **응답 형태를 호환되지 않게 바꾸면**(필드 이름·타입 변경, 필수 필드 추가) `main.tsx`의 `buster`를 올린다 — 안 올리면 구 캐시가 최대 24시간 렌더돼 깨진다(필드 삭제만이면 보통 불필요). `DEFAULT_GC_TIME`은 `PERSIST_MAX_AGE` 이상으로 둔다.
-- **다크모드**: `<html>`의 `.dark` 클래스(`darkMode: "class"`), `stores/themeStore.ts` — 저장값이 없으면 `prefers-color-scheme`.
+- **다크모드**: `<html>`의 `.dark` 클래스(Tailwind v4 — `src/index.css`의 `@custom-variant dark`, 설정 파일 없음), `stores/themeStore.ts` — 저장값이 없으면 `prefers-color-scheme`.
 
 ## 구조 (`src/`)
 
