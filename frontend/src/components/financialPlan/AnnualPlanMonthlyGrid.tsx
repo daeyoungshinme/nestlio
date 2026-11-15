@@ -1,6 +1,7 @@
 import { useId, useState } from "react";
 import { Copy } from "lucide-react";
 import { amountInputProps } from "@/components/common/AmountInput";
+import { sumAmounts } from "@/utils/amount";
 import Button from "@/components/common/Button";
 import CollapsibleGroup from "@/components/common/CollapsibleGroup";
 import { FORM_LABEL, INPUT_SM } from "@/constants/inputStyles";
@@ -126,7 +127,7 @@ export default function AnnualPlanMonthlyGrid({
         // 여러 해에 걸친 목표(36개월 등)는 해마다 접는다 — 첫 해만 펼쳐 두고 헤더에 그해 합계.
         years.map((year) => {
           const yearMonths = months.filter((ym) => ym.startsWith(year));
-          const yearTotal = yearMonths.reduce((sum, ym) => sum + (Number(amountByMonth.get(ym)) || 0), 0);
+          const yearTotal = sumAmounts(yearMonths, (ym) => amountByMonth.get(ym));
           return (
             <CollapsibleGroup
               key={year}

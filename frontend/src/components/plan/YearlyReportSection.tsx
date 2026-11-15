@@ -24,6 +24,7 @@ import QueryBoundary from "@/components/common/QueryBoundary";
 import EmptyState from "@/components/common/EmptyState";
 import SavingsReviewLinkCard from "@/components/review/SavingsReviewLinkCard";
 import { fetchCategoryTrend, fetchYearlyReport } from "@/api/reports";
+import { useOwnerTabs } from "@/hooks/useOwnerTabs";
 import { useUsers } from "@/hooks/useReferenceData";
 import { QUERY_KEYS } from "@/constants/queryKeys";
 import { ROUTES } from "@/constants/routes";
@@ -36,8 +37,6 @@ import type { CategoryBenchmarkRowOut } from "@/types";
 const PIE_TOP_COUNT = 5;
 
 const CATEGORY_TREND_MONTHS = 6;
-const ALL_OWNERS_TAB = "전체";
-const SHARED_OWNER_TAB = "공통";
 
 const MONTH_TICK_FORMATTER = (value: string) => value.replace("월", "");
 const TREND_TICK_FORMATTER = (value: string) => value.replace(/^\d+년\s*/, "");
@@ -47,7 +46,6 @@ const TREND_TICK_FORMATTER = (value: string) => value.replace(/^\d+년\s*/, "");
  * 남겼다: 월별 수입/지출 추이, 부부별 카테고리 지출, 가구 평균(가이드라인) 대비, 최근 카테고리 추이. */
 export default function YearlyReportSection({ year }: { year: number }) {
   const navigate = useNavigate();
-  const [ownerTab, setOwnerTab] = useState(ALL_OWNERS_TAB);
   const [hiddenSeries, setHiddenSeries] = useState<Set<string>>(new Set());
   const isDark = useThemeStore((s) => s.isDark);
   const toggleSeries = (name: string) => {
@@ -64,13 +62,7 @@ export default function YearlyReportSection({ year }: { year: number }) {
   const { data: users } = useUsers();
   // 배우자별/공통 지출을 비교하는 탭 — 카테고리별 지출·가구 평균 대비 비교 두 카드에만 적용된다
   // (월별 수입/지출, 소득 등 총계는 항상 가구 전체 기준으로 유지).
-  const ownerTabs = [ALL_OWNERS_TAB, ...(users?.map((u) => u.display_name) ?? []), SHARED_OWNER_TAB];
-  const ownerParam =
-    ownerTab === ALL_OWNERS_TAB
-      ? undefined
-      : ownerTab === SHARED_OWNER_TAB
-        ? "shared"
-        : users?.find((u) => u.display_name === ownerTab)?.id;
+  const { tabs: ownerTabs, ownerTab, setOwnerTab, isAll: isAllOwners, ownerParam } = useOwnerTabs(users);
 
   const yearlyReportQuery = useQuery({
     queryKey: QUERY_KEYS.yearlyReport(year, ownerParam),
@@ -147,7 +139,7 @@ export default function YearlyReportSection({ year }: { year: number }) {
 
             <div className="card">
               <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">
-                카테고리별 지출{ownerTab !== ALL_OWNERS_TAB ? ` · ${ownerTab}` : ""}
+                카테고리별 지출{!isAllOwners ? ` · ${ownerTab}` : ""}
               </h3>
               {pieData.length === 0 ? (
                 <EmptyState icon={PieChartIcon} title="이 해에 지출 내역이 없어요" compact />
@@ -185,10 +177,10 @@ export default function YearlyReportSection({ year }: { year: number }) {
 
             <div className="card">
               <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1">
-                가구 평균 대비 지출 비교{ownerTab !== ALL_OWNERS_TAB ? ` · ${ownerTab}` : ""}
+                가구 평균 대비 지출 비교{!isAllOwners ? ` · ${ownerTab}` : ""}
               </h3>
               <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
-                {ownerTab !== ALL_OWNERS_TAB
+                {!isAllOwners
                   ? "가구 소득 대비 이 몫의 지출 비중이에요. 공식 통계가 아닌 일반적인 가이드라인 참고값이에요."
                   : "공식 통계가 아닌 일반적인 가이드라인 참고값이에요. 설정에서 조정할 수 있어요."}
               </p>

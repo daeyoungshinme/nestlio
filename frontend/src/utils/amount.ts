@@ -7,6 +7,10 @@ export function sumAmounts<T>(
 ): number {
   if (!items) return 0;
   let total = 0;
-  for (const item of items) total += Number(pick(item) ?? 0);
+  for (const item of items) {
+    const n = Number(pick(item) ?? 0);
+    // 비운 입력칸("")은 0, 숫자가 아닌 값도 합계를 NaN으로 망치지 않게 0으로 본다.
+    if (Number.isFinite(n)) total += n;
+  }
   return total;
 }

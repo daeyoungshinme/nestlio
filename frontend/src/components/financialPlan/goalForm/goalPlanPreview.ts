@@ -1,5 +1,6 @@
 import type { Draft } from "@/components/financialPlan/goalDraft";
 import type { AccountWithBalanceOut, FinancialGoalOut, LoanOut, SavingsProductOut } from "@/types";
+import { sumAmounts } from "@/utils/amount";
 import { parseDateIso } from "@/utils/date";
 import { toAmountInputValue } from "@/utils/format";
 import { monthsBetween } from "@/utils/monthRange";
@@ -16,15 +17,18 @@ export function draftCurrentAmount(
   sources: { savingsProducts: SavingsProductOut[]; accounts: AccountWithBalanceOut[]; loans: LoanOut[] },
 ): number {
   if (!isLinked(draft)) return Number(draft.current_amount) || 0;
-  const productTotal = sources.savingsProducts
-    .filter((p) => draft.savings_product_ids.includes(String(p.id)))
-    .reduce((sum, p) => sum + Number(p.current_balance), 0);
-  const accountTotal = sources.accounts
-    .filter(({ account }) => draft.account_ids.includes(String(account.id)))
-    .reduce((sum, { balance }) => sum + Number(balance), 0);
-  const loanTotal = sources.loans
-    .filter((loan) => draft.loan_ids.includes(String(loan.id)))
-    .reduce((sum, loan) => sum + Number(loan.balance), 0);
+  const productTotal = sumAmounts(
+    sources.savingsProducts.filter((p) => draft.savings_product_ids.includes(String(p.id))),
+    (p) => p.current_balance,
+  );
+  const accountTotal = sumAmounts(
+    sources.accounts.filter(({ account }) => draft.account_ids.includes(String(account.id))),
+    (row) => row.balance,
+  );
+  const loanTotal = sumAmounts(
+    sources.loans.filter((loan) => draft.loan_ids.includes(String(loan.id))),
+    (loan) => loan.balance,
+  );
   return productTotal + accountTotal - loanTotal;
 }
 

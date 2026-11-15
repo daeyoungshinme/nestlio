@@ -1,3 +1,4 @@
+import { sumAmounts } from "@/utils/amount";
 import { buildYearMonthRange, distributeAmountEvenly } from "@/utils/monthRange";
 import { toAmountInputValue } from "@/utils/format";
 
@@ -19,7 +20,7 @@ export function useMonthlyTargetGrid(
 ) {
   const months = buildYearMonthRange(startMonth, endMonth);
   const amountByMonth = new Map(targets.map((t) => [t.year_month, toAmountInputValue(t.target_amount)]));
-  const total = targets.reduce((sum, t) => sum + (Number(t.target_amount) || 0), 0);
+  const total = sumAmounts(targets, (t) => t.target_amount);
 
   const setAmount = (yearMonth: string, amount: string) => {
     const next = months.map((ym) => ({
