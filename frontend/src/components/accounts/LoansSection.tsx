@@ -1,167 +1,90 @@
-import { useId, useState } from "react";
-import type { FormEvent } from "react";
 import { useNavigate } from "react-router-dom";
-import { Link2, Plus } from "lucide-react";
-import Button from "@/components/common/Button";
+import { Link2 } from "lucide-react";
 import AssetRow from "@/components/accounts/AssetRow";
-import ConfirmModal from "@/components/common/ConfirmModal";
-import EmptyState from "@/components/common/EmptyState";
-import AmountInput from "@/components/common/AmountInput";
-import FormInput from "@/components/common/FormInput";
-import Modal from "@/components/common/Modal";
-import OwnerSelect from "@/components/common/OwnerSelect";
+import AssetSectionShell from "@/components/accounts/AssetSectionShell";
+import LoanFormModal, {
+  draftFromLoan,
+  EMPTY_LOAN_DRAFT,
+  REPAYMENT_METHOD_LABEL,
+  toLoanPayload,
+  type LoanDraft,
+} from "@/components/accounts/LoanFormModal";
 import QueryBoundary from "@/components/common/QueryBoundary";
 import InlineStatsBar from "@/components/common/InlineStatsBar";
 import { createLoan, deactivateLoan, updateLoan } from "@/api/loans";
-import { ASSET_RELATED_KEYS } from "@/constants/queryKeys";
-import { INPUT_SM, LABEL_SM } from "@/constants/inputStyles";
-import { useCrudMutations } from "@/hooks/useCrudMutations";
+import { useAssetSection } from "@/hooks/useAssetSection";
 import { useLoans } from "@/hooks/useReferenceData";
 import { accountsSectionLink } from "@/constants/routes";
-import { formatKrw, formatSyncedAt, resolveOwnerLabel, toAmountInputValue } from "@/utils/format";
-import type { LoanOut, RepaymentMethod, UserOut } from "@/types";
+import { formatKrw, resolveOwnerLabel } from "@/utils/format";
+import type { LoanCreateIn, LoanOut, LoanUpdateIn, UserOut } from "@/types";
 import { sumAmounts } from "@/utils/amount";
-
-const REPAYMENT_METHOD_LABEL: Record<RepaymentMethod, string> = {
-  equal_payment: "원리금균등",
-  equal_principal: "원금균등",
-  bullet: "만기일시상환",
-  grace_period: "거치식",
-  other: "기타",
-};
-
-interface Draft {
-  name: string;
-  balance: string;
-  monthly_payment: string;
-  origination_year_month: string;
-  term_months: string;
-  interest_rate: string;
-  repayment_method: RepaymentMethod | "";
-  owner_user_id: string;
-}
-
-const EMPTY_DRAFT: Draft = {
-  name: "",
-  balance: "0",
-  monthly_payment: "0",
-  origination_year_month: "",
-  term_months: "",
-  interest_rate: "",
-  repayment_method: "",
-  owner_user_id: "",
-};
-
-function draftFromLoan(loan: LoanOut): Draft {
-  return {
-    name: loan.name,
-    balance: toAmountInputValue(loan.balance),
-    monthly_payment: toAmountInputValue(loan.monthly_payment),
-    origination_year_month: loan.origination_year_month ?? "",
-    term_months: loan.term_months !== null ? String(loan.term_months) : "",
-    interest_rate: loan.interest_rate ?? "",
-    repayment_method: loan.repayment_method ?? "",
-    owner_user_id: loan.owner_user_id ?? "",
-  };
-}
-
-function toPayload(draft: Draft) {
-  return {
-    name: draft.name,
-    balance: draft.balance,
-    monthly_payment: draft.monthly_payment,
-    origination_year_month: draft.origination_year_month || null,
-    term_months: draft.term_months === "" ? null : Number(draft.term_months),
-    interest_rate: draft.interest_rate === "" ? null : draft.interest_rate,
-    repayment_method: draft.repayment_method || null,
-    owner_user_id: draft.owner_user_id || null,
-  };
-}
 
 interface Props {
   users: UserOut[] | undefined;
 }
 
+/** 자산 › 대출. growlio에서 따로 가져오지 않고(담보대출은 부동산 가져오기·동기화가 함께 만든다) 행 단위 동기화도
+ * 없어서 공용 골격(useAssetSection + AssetSectionShell)에서 가져오기·동기화만 뺀다. */
 export default function LoansSection({ users }: Props) {
-  const [formTarget, setFormTarget] = useState<"new" | LoanOut | null>(null);
-  const [deactivateTarget, setDeactivateTarget] = useState<number | null>(null);
-
   const loansQuery = useLoans();
-
-  const { createMutation, updateMutation, removeMutation: deactivateMutation } = useCrudMutations({
-    invalidateKeys: ASSET_RELATED_KEYS,
-    api: { create: createLoan, update: updateLoan, remove: deactivateLoan },
-    messages: { create: "대출을 추가했습니다.", update: "저장했습니다.", remove: "비활성화했습니다." },
-    onCreateSuccess: () => setFormTarget(null),
-    onUpdateSuccess: () => setFormTarget(null),
-    onRemoveSuccess: () => setDeactivateTarget(null),
+  const section = useAssetSection<LoanOut, LoanCreateIn, LoanUpdateIn>({
+    api: { create: createLoan, update: updateLoan, deactivate: deactivateLoan },
+    getId: (loan) => loan.id,
+    messages: { create: "대출을 추가했습니다." },
   });
 
-  const isSaving = createMutation.isPending || updateMutation.isPending;
-
-  const handleSubmit = (draft: Draft) => {
-    if (formTarget === "new") {
-      createMutation.mutate(toPayload(draft));
-    } else if (formTarget) {
-      updateMutation.mutate({ id: formTarget.id, payload: toPayload(draft) });
-    }
+  const handleSubmit = (draft: LoanDraft) => {
+    const payload = toLoanPayload(draft);
+    section.submit(payload, payload);
   };
 
   return (
     <QueryBoundary query={loansQuery} errorMessage="대출을 불러오지 못했어요">
-      {(data) => {
-        const totalMonthly = sumAmounts(data, (l) => l.monthly_payment);
-
-        return (
-          <div className="space-y-4">
-            <div className="flex justify-end">
-              <Button size="sm" icon={<Plus size={14} />} onClick={() => setFormTarget("new")}>
-                대출 추가
-              </Button>
-            </div>
-
-            {data.length === 0 ? (
-              <EmptyState title="등록된 대출이 없어요" compact />
-            ) : (
-              <div className="space-y-4">
-                <InlineStatsBar items={[{ label: "월납입금액 합계", value: formatKrw(totalMonthly), tone: "negative" }]} />
-                <div className="space-y-2">
-                  {data.map((loan) => (
-                    <LoanRow
-                      key={loan.id}
-                      loan={loan}
-                      users={users}
-                      onEdit={() => setFormTarget(loan)}
-                      onDelete={() => setDeactivateTarget(loan.id)}
-                    />
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {formTarget && (
+      {(data) => (
+        <AssetSectionShell
+          addLabel="대출 추가"
+          onAdd={section.openNew}
+          isEmpty={data.length === 0}
+          emptyTitle="등록된 대출이 없어요"
+          deactivateMessage="이 대출을 비활성화할까요?"
+          deactivateOpen={section.deactivateTarget !== null}
+          onConfirmDeactivate={section.confirmDeactivate}
+          deactivating={section.deactivating}
+          onCancelDeactivate={section.cancelDeactivate}
+          overlays={
+            section.formTarget && (
               <LoanFormModal
-                initial={formTarget === "new" ? EMPTY_DRAFT : draftFromLoan(formTarget)}
-                title={formTarget === "new" ? "대출 추가" : "대출 수정"}
-                submitLabel={formTarget === "new" ? "추가" : "저장"}
-                submitting={isSaving}
+                initial={section.editing ? draftFromLoan(section.editing) : EMPTY_LOAN_DRAFT}
+                title={section.isNew ? "대출 추가" : "대출 수정"}
+                submitLabel={section.isNew ? "추가" : "저장"}
+                submitting={section.isSaving}
                 users={users}
-                onClose={() => setFormTarget(null)}
+                onClose={section.closeForm}
                 onSubmit={handleSubmit}
               />
-            )}
-
-            {deactivateTarget !== null && (
-              <ConfirmModal
-                message="이 대출을 비활성화할까요?"
-                loading={deactivateMutation.isPending}
-                onConfirm={() => deactivateMutation.mutate(deactivateTarget)}
-                onCancel={() => setDeactivateTarget(null)}
-              />
-            )}
+            )
+          }
+        >
+          <div className="space-y-4">
+            <InlineStatsBar
+              items={[
+                { label: "월납입금액 합계", value: formatKrw(sumAmounts(data, (l) => l.monthly_payment)), tone: "negative" },
+              ]}
+            />
+            <div className="space-y-2">
+              {data.map((loan) => (
+                <LoanRow
+                  key={loan.id}
+                  loan={loan}
+                  users={users}
+                  onEdit={() => section.openEdit(loan)}
+                  onDelete={() => section.askDeactivate(loan)}
+                />
+              ))}
+            </div>
           </div>
-        );
-      }}
+        </AssetSectionShell>
+      )}
     </QueryBoundary>
   );
 }
@@ -178,7 +101,6 @@ function LoanRow({
   onDelete: () => void;
 }) {
   const navigate = useNavigate();
-  const ownerLabel = resolveOwnerLabel(loan.owner_user_id, users);
 
   return (
     <AssetRow
@@ -187,7 +109,7 @@ function LoanRow({
       meta={
         <p className="text-xs text-gray-500 dark:text-gray-400">
           {loan.repayment_method ? `${REPAYMENT_METHOD_LABEL[loan.repayment_method]} · ` : ""}
-          {ownerLabel}
+          {resolveOwnerLabel(loan.owner_user_id, users)}
         </p>
       }
       amount={
@@ -196,9 +118,8 @@ function LoanRow({
           <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">월 {formatKrw(loan.monthly_payment)}</p>
         </>
       }
-      syncedAtLabel={
-        loan.last_synced_at ? `마지막 동기화 ${formatSyncedAt(loan.last_synced_at)}` : "아직 동기화하지 않았어요"
-      }
+      lastSyncedAt={loan.last_synced_at}
+      // 담보대출은 짝 부동산 동기화가 함께 갱신한다 — 행에서는 부동산 섹션으로 보낸다.
       actions={
         loan.growlio_account_id
           ? [{ icon: <Link2 size={16} />, label: "부동산에서 동기화", onClick: () => navigate(accountsSectionLink("부동산")) }]
@@ -209,112 +130,5 @@ function LoanRow({
       deleteLabel="비활성화"
       menuAriaLabel={`${loan.name} 작업 더 보기`}
     />
-  );
-}
-
-function LoanFormModal({
-  initial,
-  title,
-  submitLabel,
-  submitting,
-  users,
-  onClose,
-  onSubmit,
-}: {
-  initial: Draft;
-  title: string;
-  submitLabel: string;
-  submitting: boolean;
-  users: UserOut[] | undefined;
-  onClose: () => void;
-  onSubmit: (draft: Draft) => void;
-}) {
-  const fieldId = useId();
-  const [draft, setDraft] = useState<Draft>(initial);
-
-  const handleSubmit = (e: FormEvent) => {
-    e.preventDefault();
-    if (!draft.name.trim()) return;
-    onSubmit(draft);
-  };
-
-  return (
-    <Modal onClose={onClose} title={title}>
-      <form onSubmit={handleSubmit} className="p-6 overflow-y-auto flex flex-col gap-3">
-        <FormInput
-          label="상품명"
-          value={draft.name}
-          maxLength={100}
-          onChange={(e) => setDraft((d) => ({ ...d, name: e.target.value }))}
-          className="w-full"
-          required
-        />
-        <div className="grid grid-cols-2 gap-3">
-          <AmountInput
-            label="대출잔액"
-            value={draft.balance}
-            onChange={(value) => setDraft((d) => ({ ...d, balance: value }))}
-            className="w-full"
-          />
-          <AmountInput
-            label="월납입금액"
-            value={draft.monthly_payment}
-            onChange={(value) => setDraft((d) => ({ ...d, monthly_payment: value }))}
-            className="w-full"
-          />
-        </div>
-        <div className="grid grid-cols-2 gap-3">
-          <FormInput
-            label="대출연월"
-            type="month"
-            value={draft.origination_year_month}
-            onChange={(e) => setDraft((d) => ({ ...d, origination_year_month: e.target.value }))}
-            className="w-full"
-          />
-          <FormInput
-            label="대출기간(개월)"
-            type="number"
-            inputMode="numeric"
-            value={draft.term_months}
-            onChange={(e) => setDraft((d) => ({ ...d, term_months: e.target.value }))}
-            className="w-full"
-          />
-        </div>
-        <div className="grid grid-cols-2 gap-3">
-          <FormInput
-            label="이자율(%)"
-            type="number"
-            inputMode="decimal"
-            value={draft.interest_rate}
-            onChange={(e) => setDraft((d) => ({ ...d, interest_rate: e.target.value }))}
-            className="w-full"
-          />
-          <div>
-            <label htmlFor={`${fieldId}-0`} className={`block mb-1 font-medium ${LABEL_SM}`}>상환방식</label>
-            <select
-              id={`${fieldId}-0`}
-              className={`${INPUT_SM} w-full`}
-              value={draft.repayment_method}
-              onChange={(e) => setDraft((d) => ({ ...d, repayment_method: e.target.value as RepaymentMethod | "" }))}
-            >
-              <option value="">선택 안함</option>
-              {Object.entries(REPAYMENT_METHOD_LABEL).map(([key, label]) => (
-                <option key={key} value={key}>
-                  {label}
-                </option>
-              ))}
-            </select>
-          </div>
-        </div>
-        <OwnerSelect
-          value={draft.owner_user_id}
-          onChange={(owner_user_id) => setDraft((d) => ({ ...d, owner_user_id }))}
-          users={users}
-        />
-        <Button type="submit" loading={submitting} className="mt-2">
-          {submitLabel}
-        </Button>
-      </form>
-    </Modal>
   );
 }
