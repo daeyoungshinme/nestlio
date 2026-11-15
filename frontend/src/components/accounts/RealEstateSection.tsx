@@ -1,34 +1,17 @@
-import { useState } from "react";
-import type { FormEvent } from "react";
-import { RefreshCw } from "lucide-react";
-import Button from "@/components/common/Button";
 import AssetRow from "@/components/accounts/AssetRow";
 import AssetSectionShell from "@/components/accounts/AssetSectionShell";
-import AmountInput from "@/components/common/AmountInput";
-import FormInput from "@/components/common/FormInput";
+import RealEstateFormModal, { EMPTY_REAL_ESTATE_DRAFT, toRealEstatePayload, type RealEstateDraft } from "@/components/accounts/RealEstateFormModal";
+import { ProductBadges, ReturnAmountText, goalsLinkedToProduct, growlioIdSet } from "@/components/accounts/productRowParts";
 import GrowlioImportModal from "@/components/common/GrowlioImportModal";
-import GrowlioLinkSection from "@/components/accounts/GrowlioLinkSection";
-import Modal from "@/components/common/Modal";
-import OwnerSelect from "@/components/common/OwnerSelect";
 import QueryBoundary from "@/components/common/QueryBoundary";
-import StatusBadge from "@/components/common/StatusBadge";
 import InlineStatsBar from "@/components/common/InlineStatsBar";
-import {
-  createSavingsProduct,
-  deactivateSavingsProduct,
-  updateSavingsProduct,
-} from "@/api/savingsProducts";
+import { createSavingsProduct, deactivateSavingsProduct, updateSavingsProduct } from "@/api/savingsProducts";
 import { fetchGrowlioRealEstate, importGrowlioRealEstate, syncRealEstate } from "@/api/realEstate";
 import { ASSET_RELATED_KEYS, QUERY_KEYS } from "@/constants/queryKeys";
 import { useAssetSection } from "@/hooks/useAssetSection";
 import { useGoals, useSavingsProducts } from "@/hooks/useReferenceData";
-import {
-  formatKrw,
-  formatReturnPct,
-  formatSyncedAt,
-  resolveOwnerLabel,
-} from "@/utils/format";
-import { cautionTextClass, linkedGoalBadgeStyle, returnRateTextColor, savingsProductTypeBadgeStyle, savingsProductTypeLabel } from "@/utils/colors";
+import { formatKrw, resolveOwnerLabel } from "@/utils/format";
+import { cautionTextClass } from "@/utils/colors";
 import type {
   FinancialGoalOut,
   RealEstateImportResultOut,
@@ -37,24 +20,8 @@ import type {
   SavingsProductUpdateIn,
   UserOut,
 } from "@/types";
-import { baseDraftFromProduct, type ProductBaseDraft } from "@/components/accounts/productDraft";
+import { baseDraftFromProduct } from "@/components/accounts/productDraft";
 import { sumAmounts } from "@/utils/amount";
-
-type Draft = ProductBaseDraft;
-
-const EMPTY_DRAFT: Draft = { name: "", current_balance: "0", principal_amount: "", owner_user_id: "" };
-const draftFromProduct = baseDraftFromProduct;
-
-function toRealEstatePayload(draft: Draft) {
-  return {
-    name: draft.name,
-    current_balance: draft.current_balance,
-    monthly_saving_amount: "0",
-    product_type: "real_estate" as const,
-    principal_amount: draft.principal_amount !== "" ? draft.principal_amount : null,
-    owner_user_id: draft.owner_user_id || null,
-  };
-}
 
 interface Props {
   users: UserOut[] | undefined;
@@ -74,10 +41,7 @@ export default function RealEstateSection({ users }: Props) {
     messages: { create: "부동산을 추가했습니다.", sync: "growlio 시세/담보대출을 동기화했습니다." },
   });
 
-  const goalsFor = (product: SavingsProductOut) =>
-    goals?.filter((g) => g.funding_sources.some((fs) => fs.type === "savings_product" && fs.id === product.id)) ?? [];
-
-  const handleSubmit = (draft: Draft) => {
+  const handleSubmit = (draft: RealEstateDraft) => {
     const payload = toRealEstatePayload(draft);
     section.submit(payload, payload);
   };
@@ -87,9 +51,7 @@ export default function RealEstateSection({ users }: Props) {
       {(allData) => {
         const data = allData.filter((p) => p.product_type === "real_estate");
 
-        const existingGrowlioAccountIds = new Set(
-          data.filter((p): p is SavingsProductOut & { growlio_account_id: string } => !!p.growlio_account_id).map((p) => p.growlio_account_id)
-        );
+        const existingGrowlioAccountIds = growlioIdSet(data.map((p) => p.growlio_account_id));
         const rowsWithGain = data.filter((p) => p.return_amount !== null);
         const totalGain = sumAmounts(rowsWithGain, (p) => p.return_amount);
 
@@ -109,7 +71,7 @@ export default function RealEstateSection({ users }: Props) {
               <>
                 {section.formTarget && (
                   <RealEstateFormModal
-                    initial={section.editing ? draftFromProduct(section.editing) : EMPTY_DRAFT}
+                    initial={section.editing ? baseDraftFromProduct(section.editing) : EMPTY_REAL_ESTATE_DRAFT}
                     product={section.editing}
                     title={section.isNew ? "부동산 추가" : "부동산 수정"}
                     submitLabel={section.isNew ? "추가" : "저장"}
@@ -171,7 +133,7 @@ export default function RealEstateSection({ users }: Props) {
                     key={product.id}
                     product={product}
                     users={users}
-                    linkedGoals={goalsFor(product)}
+                    linkedGoals={goalsLinkedToProduct(goals, product.id)}
                     syncPending={section.syncPending}
                     onSync={() => section.sync(product)}
                     onEdit={() => section.openEdit(product)}
@@ -204,145 +166,26 @@ function RealEstateRow({
   onEdit: () => void;
   onDelete: () => void;
 }) {
-  const ownerLabel = resolveOwnerLabel(product.owner_user_id, users);
-
   return (
     <AssetRow
       name={product.name}
       linked={!!product.growlio_account_id}
       meta={
         <>
-          <div className="flex items-center gap-1.5 flex-wrap mt-1">
-            <StatusBadge
-              size="chip"
-              label={savingsProductTypeLabel(product.product_type)}
-              toneClassName={savingsProductTypeBadgeStyle(product.product_type)}
-              className="shrink-0"
-            />
-            {linkedGoals.length > 0 && (
-              <StatusBadge
-                size="chip"
-                label={`목표: ${linkedGoals[0].name}${linkedGoals.length > 1 ? ` 외 ${linkedGoals.length - 1}건` : ""}`}
-                toneClassName={linkedGoalBadgeStyle()}
-                className="shrink-0 max-w-[140px] sm:max-w-[220px] truncate"
-                title={`목표: ${linkedGoals.map((g) => g.name).join(", ")}`}
-              />
-            )}
-            {product.return_rate_pct !== null && (
-              <span className={`shrink-0 text-[11px] font-semibold ${returnRateTextColor(Number(product.return_rate_pct))}`}>
-                {formatReturnPct(product.return_rate_pct, true)}
-              </span>
-            )}
-          </div>
+          <ProductBadges product={product} linkedGoals={linkedGoals} />
           <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-            {ownerLabel}
-            {product.return_amount !== null && (
-              <span className={returnRateTextColor(Number(product.return_rate_pct))}>
-                {" "}
-                · 매입가 {formatKrw(product.principal_amount)} ({Number(product.return_amount) > 0 ? "+" : ""}
-                {formatKrw(product.return_amount)})
-              </span>
-            )}
+            {resolveOwnerLabel(product.owner_user_id, users)}
+            <ReturnAmountText product={product} label="매입가" />
           </p>
         </>
       }
       amount={<p className="mt-1 text-base font-bold text-gray-900 dark:text-gray-50">{formatKrw(product.current_balance)}</p>}
-      syncedAtLabel={
-        product.last_synced_at ? `마지막 동기화 ${formatSyncedAt(product.last_synced_at)}` : "아직 동기화하지 않았어요"
-      }
-      actions={
-        product.growlio_account_id
-          ? [
-              {
-                icon: <RefreshCw size={16} className={syncPending ? "animate-spin" : ""} />,
-                label: syncPending ? "동기화 중…" : "growlio 시세/담보대출 동기화",
-                onClick: onSync,
-                disabled: syncPending,
-              },
-            ]
-          : []
-      }
+      lastSyncedAt={product.last_synced_at}
+      sync={{ onSync, pending: syncPending, label: "growlio 시세/담보대출 동기화" }}
       onEdit={onEdit}
       onDelete={onDelete}
       deleteLabel="비활성화"
       menuAriaLabel={`${product.name} 작업 더 보기`}
     />
-  );
-}
-
-function RealEstateFormModal({
-  initial,
-  product,
-  title,
-  submitLabel,
-  submitting,
-  users,
-  onClose,
-  onSubmit,
-}: {
-  initial: Draft;
-  product: SavingsProductOut | null;
-  title: string;
-  submitLabel: string;
-  submitting: boolean;
-  users: UserOut[] | undefined;
-  onClose: () => void;
-  onSubmit: (draft: Draft) => void;
-}) {
-  const [draft, setDraft] = useState<Draft>(initial);
-
-  const handleSubmit = (e: FormEvent) => {
-    e.preventDefault();
-    if (!draft.name.trim()) return;
-    onSubmit(draft);
-  };
-
-  return (
-    <Modal onClose={onClose} title={title}>
-      <form onSubmit={handleSubmit} className="p-6 overflow-y-auto flex flex-col gap-3">
-        <FormInput
-          label="이름"
-          value={draft.name}
-          maxLength={100}
-          onChange={(e) => setDraft((d) => ({ ...d, name: e.target.value }))}
-          className="w-full"
-          required
-        />
-        <AmountInput
-          label="현재 시세"
-          value={draft.current_balance}
-          onChange={(value) => setDraft((d) => ({ ...d, current_balance: value }))}
-          className="w-full"
-        />
-        <AmountInput
-          label="매입가 (선택)"
-          value={draft.principal_amount}
-          onChange={(value) => setDraft((d) => ({ ...d, principal_amount: value }))}
-          className="w-full"
-        />
-        <OwnerSelect
-          value={draft.owner_user_id}
-          onChange={(owner_user_id) => setDraft((d) => ({ ...d, owner_user_id }))}
-          users={users}
-        />
-        {product && (
-          <GrowlioLinkSection
-            productId={product.id}
-            growlioAccountId={product.growlio_account_id}
-            autoSyncEnabled={product.auto_sync_enabled}
-            queryKey={QUERY_KEYS.growlioRealEstateAccounts}
-            fetchRows={fetchGrowlioRealEstate}
-            getRowId={(item) => item.id}
-            getRowLabel={(item) => item.name}
-            getRowAmount={(item) => item.market_value_krw}
-            invalidateKeys={ASSET_RELATED_KEYS}
-            onLinked={onClose}
-          />
-        )}
-        <Button type="submit" loading={submitting} className="mt-2">
-          {submitLabel}
-        </Button>
-      </form>
-    </Modal>
   );
 }

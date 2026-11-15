@@ -1,11 +1,12 @@
 import type { ReactNode } from "react";
-import { Link2, Pencil, Trash2 } from "lucide-react";
+import { Link2, Pencil, RefreshCw, Trash2 } from "lucide-react";
 import AccountActionsMenu from "@/components/common/AccountActionsMenu";
 import type { AccountActionsMenuItem } from "@/components/common/AccountActionsMenu";
 import RowActionButtons from "@/components/common/RowActionButtons";
 import StatusBadge from "@/components/common/StatusBadge";
 import { TOUCH_TARGET_MIN_MOBILE_ONLY } from "@/constants/uiSizes";
 import { growlioLinkedBadgeStyle } from "@/utils/colors";
+import { formatSyncedAt } from "@/utils/format";
 
 export type AssetRowAction = AccountActionsMenuItem;
 
@@ -19,9 +20,11 @@ interface Props {
   meta: ReactNode;
   /** 금액 표시 영역 (여러 줄 가능). */
   amount: ReactNode;
-  /** linked일 때만 렌더링되는 "마지막 동기화 …" 텍스트. */
-  syncedAtLabel?: string;
-  /** 동기화/외부 링크 등 수정·삭제 이외의 행별 액션. */
+  /** growlio 마지막 동기화 시각 — linked일 때 "마지막 동기화 …"/"아직 동기화하지 않았어요"로 보여준다. */
+  lastSyncedAt?: string | null;
+  /** linked일 때 맨 앞에 붙는 행 단위 growlio 동기화 버튼. label 기본값 "growlio 동기화". */
+  sync?: { onSync: () => void; pending: boolean; label?: string };
+  /** 외부 링크 등 동기화·수정·삭제 이외의 행별 액션. */
   actions?: AssetRowAction[];
   onEdit: () => void;
   onDelete: () => void;
@@ -30,20 +33,34 @@ interface Props {
 }
 
 /** 계좌/저축상품/부동산/대출 4개 섹션이 거의 동일하게 반복 구현하던 행(row) 카드 셸.
- * 이름 + growlio 배지, 액션 버튼(데스크톱 아이콘 ⇄ 모바일 ⋯메뉴 이중 렌더링), "마지막 동기화"
+ * 이름 + growlio 배지, 액션 버튼(데스크톱 아이콘 ⇄ 모바일 ⋯메뉴 이중 렌더링), growlio 동기화 버튼과 "마지막 동기화"
  * 텍스트를 여기서 공통 처리하고, 유형별로 다른 배지·본문(meta/amount)만 각 섹션이 조립해서 넘긴다. */
 export default function AssetRow({
   name,
   linked,
   meta,
   amount,
-  syncedAtLabel,
-  actions = [],
+  lastSyncedAt,
+  sync,
+  actions: extraActions = [],
   onEdit,
   onDelete,
   deleteLabel = "삭제",
   menuAriaLabel,
 }: Props) {
+  const actions: AssetRowAction[] = [
+    ...(linked && sync
+      ? [
+          {
+            icon: <RefreshCw size={16} className={sync.pending ? "animate-spin" : ""} />,
+            label: sync.pending ? "동기화 중…" : (sync.label ?? "growlio 동기화"),
+            onClick: sync.onSync,
+            disabled: sync.pending,
+          },
+        ]
+      : []),
+    ...extraActions,
+  ];
   const menuItems: AccountActionsMenuItem[] = [
     ...actions,
     { icon: <Pencil size={16} />, label: "수정", onClick: onEdit },
@@ -67,7 +84,11 @@ export default function AssetRow({
         </div>
         {meta}
         {amount}
-        {linked && syncedAtLabel && <p className="text-[11px] text-gray-400 dark:text-gray-500 mt-0.5">{syncedAtLabel}</p>}
+        {linked && lastSyncedAt !== undefined && (
+          <p className="text-[11px] text-gray-400 dark:text-gray-500 mt-0.5">
+            {lastSyncedAt ? `마지막 동기화 ${formatSyncedAt(lastSyncedAt)}` : "아직 동기화하지 않았어요"}
+          </p>
+        )}
       </div>
       <div className="flex items-center gap-1 shrink-0">
         <div className="hidden sm:flex items-center gap-1">

@@ -1,20 +1,19 @@
-import { useId, useState } from "react";
-import type { FormEvent } from "react";
-import { RefreshCw } from "lucide-react";
-import Button from "@/components/common/Button";
 import AssetRow from "@/components/accounts/AssetRow";
 import AssetSectionShell from "@/components/accounts/AssetSectionShell";
+import AccountFormModal, {
+  ACCOUNT_TYPE_LABEL,
+  ACCOUNT_TYPES,
+  draftFromAccount,
+  EMPTY_ACCOUNT_DRAFT,
+  type AccountDraft,
+} from "@/components/accounts/AccountFormModal";
+import { growlioIdSet } from "@/components/accounts/productRowParts";
 import CollapsibleGroup from "@/components/common/CollapsibleGroup";
-import AmountInput from "@/components/common/AmountInput";
-import FormInput from "@/components/common/FormInput";
 import GrowlioImportModal from "@/components/common/GrowlioImportModal";
-import Modal from "@/components/common/Modal";
-import OwnerSelect from "@/components/common/OwnerSelect";
 import QueryBoundary from "@/components/common/QueryBoundary";
 import InlineStatsBar from "@/components/common/InlineStatsBar";
 import { growlioAssetTypeLabel } from "@/constants/growlio";
 import { GROUP_THRESHOLD } from "@/constants/accounts";
-import { INPUT_SM, LABEL_SM } from "@/constants/inputStyles";
 import {
   createAccount,
   deactivateAccount,
@@ -26,35 +25,9 @@ import {
 import { ASSET_RELATED_KEYS, QUERY_KEYS } from "@/constants/queryKeys";
 import { useAssetSection } from "@/hooks/useAssetSection";
 import { useAccounts } from "@/hooks/useReferenceData";
-import { formatKrw, formatSyncedAt, resolveOwnerLabel, toAmountInputValue } from "@/utils/format";
-import type { AccountCreateIn, AccountOut, AccountUpdateIn, AccountWithBalanceOut, UserOut } from "@/types";
+import { formatKrw, resolveOwnerLabel } from "@/utils/format";
+import type { AccountCreateIn, AccountUpdateIn, AccountWithBalanceOut, UserOut } from "@/types";
 import { sumAmounts } from "@/utils/amount";
-
-const ACCOUNT_TYPE_LABEL: Record<AccountOut["account_type"], string> = {
-  bank: "은행",
-  cash: "현금",
-};
-
-const ACCOUNT_TYPES: AccountOut["account_type"][] = ["bank", "cash"];
-
-interface Draft {
-  name: string;
-  account_type: AccountOut["account_type"];
-  /** 신규 등록 모드에서는 "초기 잔액", 수정 모드에서는 "현재 잔액"을 의미한다. */
-  amount: string;
-  owner_user_id: string;
-}
-
-const EMPTY_DRAFT: Draft = { name: "", account_type: "bank", amount: "0", owner_user_id: "" };
-
-function draftFromAccount(row: AccountWithBalanceOut): Draft {
-  return {
-    name: row.account.name,
-    account_type: row.account.account_type,
-    amount: toAmountInputValue(row.balance),
-    owner_user_id: row.account.owner_user_id ?? "",
-  };
-}
 
 interface Props {
   users: UserOut[] | undefined;
@@ -69,7 +42,7 @@ export default function AccountsSection({ users }: Props) {
   });
 
   // 생성은 "초기 잔액", 수정은 "현재 잔액"(서버가 initial_balance를 역산) — 같은 입력칸이 페이로드에선 다른 필드다.
-  const handleSubmit = (draft: Draft) => {
+  const handleSubmit = (draft: AccountDraft) => {
     const base = { name: draft.name, account_type: draft.account_type, owner_user_id: draft.owner_user_id || null };
     section.submit({ ...base, initial_balance: draft.amount }, { ...base, current_balance: draft.amount });
   };
@@ -77,9 +50,7 @@ export default function AccountsSection({ users }: Props) {
   return (
     <QueryBoundary query={accountsQuery} errorMessage="계좌를 불러오지 못했어요">
       {(data) => {
-        const existingGrowlioAccountIds = new Set(
-          data.map((row) => row.account.growlio_account_id).filter((id): id is string => !!id)
-        );
+        const existingGrowlioAccountIds = growlioIdSet(data.map((row) => row.account.growlio_account_id));
 
         const balanceByType = ACCOUNT_TYPES.map((type) => ({
           type,
@@ -123,7 +94,7 @@ export default function AccountsSection({ users }: Props) {
               <>
                 {section.formTarget && (
                   <AccountFormModal
-                    initial={section.editing ? draftFromAccount(section.editing) : EMPTY_DRAFT}
+                    initial={section.editing ? draftFromAccount(section.editing) : EMPTY_ACCOUNT_DRAFT}
                     title={section.isNew ? "계좌 추가" : "계좌 수정"}
                     amountLabel={section.isNew ? "초기 잔액" : "현재 잔액"}
                     submitLabel={section.isNew ? "추가" : "저장"}
@@ -218,96 +189,12 @@ function AccountRow({
         </p>
       }
       amount={<p className="mt-1 text-base font-bold text-gray-900 dark:text-gray-50">{formatKrw(balance)}</p>}
-      syncedAtLabel={
-        account.last_synced_at ? `마지막 동기화 ${formatSyncedAt(account.last_synced_at)}` : "아직 동기화하지 않았어요"
-      }
-      actions={
-        account.growlio_account_id
-          ? [
-              {
-                icon: <RefreshCw size={16} className={syncPending ? "animate-spin" : ""} />,
-                label: syncPending ? "동기화 중…" : "growlio 동기화",
-                onClick: onSync,
-                disabled: syncPending,
-              },
-            ]
-          : []
-      }
+      lastSyncedAt={account.last_synced_at}
+      sync={{ onSync, pending: syncPending }}
       onEdit={onEdit}
       onDelete={onDelete}
       deleteLabel="비활성화"
       menuAriaLabel={`${account.name} 작업 더 보기`}
     />
-  );
-}
-
-function AccountFormModal({
-  initial,
-  title,
-  amountLabel,
-  submitLabel,
-  submitting,
-  users,
-  onClose,
-  onSubmit,
-}: {
-  initial: Draft;
-  title: string;
-  amountLabel: string;
-  submitLabel: string;
-  submitting: boolean;
-  users: UserOut[] | undefined;
-  onClose: () => void;
-  onSubmit: (draft: Draft) => void;
-}) {
-  const fieldId = useId();
-  const [draft, setDraft] = useState<Draft>(initial);
-
-  const handleSubmit = (e: FormEvent) => {
-    e.preventDefault();
-    if (!draft.name.trim()) return;
-    onSubmit(draft);
-  };
-
-  return (
-    <Modal onClose={onClose} title={title}>
-      <form onSubmit={handleSubmit} className="p-6 overflow-y-auto flex flex-col gap-3">
-        <FormInput
-          label="이름"
-          value={draft.name}
-          maxLength={100}
-          onChange={(e) => setDraft((d) => ({ ...d, name: e.target.value }))}
-          className="w-full"
-          required
-        />
-        <div>
-          <label htmlFor={`${fieldId}-0`} className={`block mb-1 font-medium ${LABEL_SM}`}>종류</label>
-          <select
-            id={`${fieldId}-0`}
-            className={`${INPUT_SM} w-full`}
-            value={draft.account_type}
-            onChange={(e) => setDraft((d) => ({ ...d, account_type: e.target.value as AccountOut["account_type"] }))}
-          >
-            <option value="bank">은행</option>
-            <option value="cash">현금</option>
-          </select>
-        </div>
-        <OwnerSelect
-          value={draft.owner_user_id}
-          onChange={(owner_user_id) => setDraft((d) => ({ ...d, owner_user_id }))}
-          users={users}
-        />
-        <AmountInput
-          label={amountLabel}
-          value={draft.amount}
-          onChange={(value) => setDraft((d) => ({ ...d, amount: value }))}
-          className="w-full"
-          allowNegative
-        />
-        <Button type="submit" loading={submitting} className="mt-2">
-          {submitLabel}
-        </Button>
-      </form>
-    </Modal>
   );
 }

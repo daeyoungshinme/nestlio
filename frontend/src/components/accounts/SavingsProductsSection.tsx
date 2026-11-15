@@ -1,13 +1,10 @@
 import { useMemo, useState } from "react";
-import { ArrowRight, ExternalLink, RefreshCw } from "lucide-react";
-import { Link } from "react-router-dom";
-import AssetRow from "@/components/accounts/AssetRow";
-import type { AssetRowAction } from "@/components/accounts/AssetRow";
+import SavingsProductRow from "@/components/accounts/SavingsProductRow";
+import { goalsLinkedToProduct, growlioIdSet } from "@/components/accounts/productRowParts";
 import AssetSectionShell from "@/components/accounts/AssetSectionShell";
 import CollapsibleGroup from "@/components/common/CollapsibleGroup";
 import GrowlioImportModal from "@/components/common/GrowlioImportModal";
 import QueryBoundary from "@/components/common/QueryBoundary";
-import StatusBadge from "@/components/common/StatusBadge";
 import InlineStatsBar from "@/components/common/InlineStatsBar";
 import { GROUP_THRESHOLD } from "@/constants/accounts";
 import {
@@ -23,23 +20,10 @@ import { useAssetSection } from "@/hooks/useAssetSection";
 import { useGoals, useSavingsProducts } from "@/hooks/useReferenceData";
 import { useSavingsProductsPlan } from "@/hooks/usePlanQueries";
 import { currentYearMonth } from "@/utils/date";
-import { planViewLink } from "@/constants/routes";
-import {
-  formatKrw,
-  formatReturnPct,
-  formatSyncedAt,
-  resolveOwnerLabel,
-} from "@/utils/format";
-import {
-  linkedGoalBadgeStyle,
-  returnRateTextColor,
-  savingsProductTypeBadgeStyle,
-  savingsProductTypeDotClass,
-  savingsProductTypeLabel,
-} from "@/utils/colors";
-import { GROWLIO_APP_URL, growlioAssetTypeLabel, growlioPortfolioUrl, isGrowlioLinkedInvestment } from "@/constants/growlio";
+import { formatKrw } from "@/utils/format";
+import { savingsProductTypeDotClass, savingsProductTypeLabel } from "@/utils/colors";
+import { growlioAssetTypeLabel } from "@/constants/growlio";
 import type {
-  FinancialGoalOut,
   SavingsProductCreateIn,
   SavingsProductOut,
   SavingsProductUpdateIn,
@@ -85,9 +69,6 @@ export default function SavingsProductsSection({ users }: Props) {
     messages: { create: "저축/투자 상품을 추가했습니다.", sync: "growlio 잔액을 동기화했습니다." },
   });
 
-  const goalsFor = (product: SavingsProductOut) =>
-    goals?.filter((g) => g.funding_sources.some((fs) => fs.type === "savings_product" && fs.id === product.id)) ?? [];
-
   const handleSubmit = (draft: Draft) => {
     const payload = toSavingsProductPayload(draft);
     section.submit(payload, payload);
@@ -99,9 +80,7 @@ export default function SavingsProductsSection({ users }: Props) {
         // 부동산(product_type: "real_estate")은 별도 "부동산" 탭(RealEstateSection)에서 다루므로 여기서는 제외한다.
         const data = allData.filter((p) => p.product_type !== "real_estate");
 
-        const existingGrowlioAccountIds = new Set(
-          data.filter((p): p is SavingsProductOut & { growlio_account_id: string } => !!p.growlio_account_id).map((p) => p.growlio_account_id)
-        );
+        const existingGrowlioAccountIds = growlioIdSet(data.map((p) => p.growlio_account_id));
         const totalMonthly = productPlan ? sumAmounts(data, (p) => monthlyPlanOf(p) ?? "0") : null;
         const balanceByType = PRODUCT_TYPES.map((type) => ({
           type,
@@ -116,7 +95,7 @@ export default function SavingsProductsSection({ users }: Props) {
             product={product}
             monthlyPlan={monthlyPlanOf(product)}
             users={users}
-            linkedGoals={goalsFor(product)}
+            linkedGoals={goalsLinkedToProduct(goals, product.id)}
             syncPending={section.syncPending}
             onSync={() => section.sync(product)}
             onEdit={() => section.openEdit(product)}
@@ -212,106 +191,5 @@ export default function SavingsProductsSection({ users }: Props) {
         );
       }}
     </QueryBoundary>
-  );
-}
-
-function SavingsProductRow({
-  product,
-  monthlyPlan,
-  users,
-  linkedGoals,
-  syncPending,
-  onSync,
-  onEdit,
-  onDelete,
-}: {
-  product: SavingsProductOut;
-  monthlyPlan: string | null;
-  users: UserOut[] | undefined;
-  linkedGoals: FinancialGoalOut[];
-  syncPending: boolean;
-  onSync: () => void;
-  onEdit: () => void;
-  onDelete: () => void;
-}) {
-  const ownerLabel = resolveOwnerLabel(product.owner_user_id, users);
-  const showsExternalLink = isGrowlioLinkedInvestment(product) && !!GROWLIO_APP_URL;
-
-  const actions: AssetRowAction[] = [];
-  if (product.growlio_account_id) {
-    actions.push({
-      icon: <RefreshCw size={16} className={syncPending ? "animate-spin" : ""} />,
-      label: syncPending ? "동기화 중…" : "growlio 동기화",
-      onClick: onSync,
-      disabled: syncPending,
-    });
-  }
-  if (showsExternalLink) {
-    actions.push({
-      icon: <ExternalLink size={16} />,
-      label: "growlio에서 포트폴리오 보기",
-      href: growlioPortfolioUrl(product.growlio_account_id as string),
-    });
-  }
-
-  return (
-    <AssetRow
-      name={product.name}
-      linked={!!product.growlio_account_id}
-      meta={
-        <>
-          <div className="flex items-center gap-1.5 flex-wrap mt-1">
-            <StatusBadge
-              size="chip"
-              label={savingsProductTypeLabel(product.product_type)}
-              toneClassName={savingsProductTypeBadgeStyle(product.product_type)}
-              className="shrink-0"
-            />
-            {linkedGoals.length > 0 && (
-              <StatusBadge
-                size="chip"
-                label={`목표: ${linkedGoals[0].name}${linkedGoals.length > 1 ? ` 외 ${linkedGoals.length - 1}건` : ""}`}
-                toneClassName={linkedGoalBadgeStyle()}
-                className="shrink-0 max-w-[140px] sm:max-w-[220px] truncate"
-                title={`목표: ${linkedGoals.map((g) => g.name).join(", ")}`}
-              />
-            )}
-            {product.return_rate_pct !== null && (
-              <span className={`shrink-0 text-[11px] font-semibold ${returnRateTextColor(Number(product.return_rate_pct))}`}>
-                {formatReturnPct(product.return_rate_pct, true)}
-              </span>
-            )}
-          </div>
-          <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-            {ownerLabel}
-            {monthlyPlan !== null && ` · 월 ${formatKrw(monthlyPlan)}`}
-            {product.return_amount !== null && (
-              <span className={returnRateTextColor(Number(product.return_rate_pct))}>
-                {" "}
-                · 원금 {formatKrw(product.principal_amount)} ({Number(product.return_amount) > 0 ? "+" : ""}
-                {formatKrw(product.return_amount)})
-              </span>
-            )}
-          </p>
-          {(product.product_type === "savings" || product.product_type === "investment") && (
-            <Link
-              to={planViewLink("이번 달")}
-              className="inline-flex items-center gap-1 text-xs text-gray-500 dark:text-gray-400 hover:text-primary dark:hover:text-primary-400 mt-1"
-            >
-              월별 계획 보기 <ArrowRight size={12} />
-            </Link>
-          )}
-        </>
-      }
-      amount={<p className="mt-1 text-base font-bold text-gray-900 dark:text-gray-50">{formatKrw(product.current_balance)}</p>}
-      syncedAtLabel={
-        product.last_synced_at ? `마지막 동기화 ${formatSyncedAt(product.last_synced_at)}` : "아직 동기화하지 않았어요"
-      }
-      actions={actions}
-      onEdit={onEdit}
-      onDelete={onDelete}
-      deleteLabel="비활성화"
-      menuAriaLabel={`${product.name} 작업 더 보기`}
-    />
   );
 }

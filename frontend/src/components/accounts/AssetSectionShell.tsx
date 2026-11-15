@@ -7,7 +7,8 @@ import EmptyState from "@/components/common/EmptyState";
 interface Props {
   addLabel: string;
   onAdd: () => void;
-  onImport: () => void;
+  /** growlio 가져오기 — 없으면(대출) 버튼을 그리지 않는다. */
+  onImport?: () => void;
   isEmpty: boolean;
   emptyTitle: string;
   /** 비활성화 확인 문구 — deactivateOpen일 때만 ConfirmModal이 뜬다. */
@@ -24,7 +25,7 @@ interface Props {
   className?: string;
 }
 
-/** 자산 섹션(계좌·저축/투자·부동산) 공통 골격 — 상단 "growlio에서 가져오기"/"추가" 버튼, 빈 상태,
+/** 자산 섹션(계좌·저축/투자·부동산·대출) 공통 골격 — 상단 "growlio에서 가져오기"/"추가" 버튼, 빈 상태,
  * 비활성화 확인 모달. 행·합계·폼은 섹션마다 달라 children/overlays로 받는다(상태는 useAssetSection). */
 export default function AssetSectionShell({
   addLabel,
@@ -44,9 +45,11 @@ export default function AssetSectionShell({
   return (
     <div className={className}>
       <div className="flex justify-end gap-2 flex-wrap">
-        <Button size="sm" variant="secondary" icon={<Download size={14} />} onClick={onImport}>
-          growlio에서 가져오기
-        </Button>
+        {onImport && (
+          <Button size="sm" variant="secondary" icon={<Download size={14} />} onClick={onImport}>
+            growlio에서 가져오기
+          </Button>
+        )}
         <Button size="sm" icon={<Plus size={14} />} onClick={onAdd}>
           {addLabel}
         </Button>
