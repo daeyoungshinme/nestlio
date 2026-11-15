@@ -11,28 +11,19 @@ import { STALE_TIME } from "@/constants/queryConfig";
 import { QUERY_KEYS } from "@/constants/queryKeys";
 import { SAVINGS_REVIEW_TABS } from "@/constants/routes";
 import { useTabParam } from "@/hooks/useTabParam";
+import { useOwnerTabs } from "@/hooks/useOwnerTabs";
 import { useUsers } from "@/hooks/useReferenceData";
 import { currentYearMonth, shiftYearMonth } from "@/utils/date";
 import { formatKrw, formatKrwCompact, formatYearMonth } from "@/utils/format";
-
-const ALL_OWNERS_TAB = "전체";
-const SHARED_OWNER_TAB = "공통";
 
 /** 절감 점검 — 소비 절감 후보(지난달 기준, 최근 평균과 비교)와 보험 계약 점검. 규칙 기반이며 백엔드
  * spending_review_service / insurance_review_service가 계산한다. 기준월 기본값은 지난달(마감된 달). */
 export default function SavingsReviewPage() {
   const [activeTab, changeTab] = useTabParam("tab", SAVINGS_REVIEW_TABS, "소비");
   const [yearMonth, setYearMonth] = useState(() => shiftYearMonth(currentYearMonth(), -1));
-  const [ownerTab, setOwnerTab] = useState(ALL_OWNERS_TAB);
   const { data: users } = useUsers();
 
-  const ownerTabs = [ALL_OWNERS_TAB, ...(users?.map((u) => u.display_name) ?? []), SHARED_OWNER_TAB];
-  const ownerParam =
-    ownerTab === ALL_OWNERS_TAB
-      ? undefined
-      : ownerTab === SHARED_OWNER_TAB
-        ? "shared"
-        : users?.find((u) => u.display_name === ownerTab)?.id;
+  const { tabs: ownerTabs, ownerTab, setOwnerTab, ownerParam } = useOwnerTabs(users);
 
   const reviewQuery = useQuery({
     queryKey: QUERY_KEYS.savingsReview(yearMonth, ownerParam),

@@ -1,6 +1,7 @@
 import { useMemo } from "react";
 import GroupedTransactionList from "@/components/transactions/GroupedTransactionList";
 import { formatDayHeader } from "@/utils/date";
+import { sumAmounts } from "@/utils/amount";
 import { formatKrw } from "@/utils/format";
 import type { TransactionOut, UserOut } from "@/types";
 
@@ -33,7 +34,7 @@ export default function DailyTransactionGroups({ transactions, onEdit, showUser,
     }
     const expandAll = transactions.length <= EXPAND_ALL_MAX_TRANSACTIONS;
     return Array.from(byDate.entries()).map(([date, txs], index) => {
-      const net = txs.reduce((sum, tx) => sum + (tx.type === "income" ? 1 : -1) * Number(tx.amount), 0);
+      const net = sumAmounts(txs, (tx) => (tx.type === "income" ? 1 : -1) * Number(tx.amount));
       return {
         key: date,
         name: formatDayHeader(date),

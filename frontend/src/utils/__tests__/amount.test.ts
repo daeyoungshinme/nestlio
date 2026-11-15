@@ -11,3 +11,9 @@ describe("sumAmounts", () => {
     expect(sumAmounts([{ a: null }, { a: "5" }], (x) => x.a)).toBe(5);
   });
 });
+
+describe("sumAmounts with draft inputs", () => {
+  it("treats empty and non-numeric values as 0 instead of NaN", () => {
+    expect(sumAmounts([{ v: "1000" }, { v: "" }, { v: "abc" }, { v: null }], (x) => x.v)).toBe(1000);
+  });
+});

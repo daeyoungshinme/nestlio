@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { sumAmounts } from "@/utils/amount";
 import { syncTargetsToPeriod } from "@/utils/monthRange";
 
 export interface MonthlyTargetIn {
@@ -13,7 +14,7 @@ export function usePlanPeriodTargets(initial: { start_month: string; end_month: 
   const [endMonth, setEndMonth] = useState(initial.end_month);
   const [monthlyTargets, setMonthlyTargets] = useState<MonthlyTargetIn[]>(initial.monthly_targets);
   const [totalDraft, setTotalDraft] = useState(() => {
-    const existingTotal = initial.monthly_targets.reduce((sum, t) => sum + (Number(t.target_amount) || 0), 0);
+    const existingTotal = sumAmounts(initial.monthly_targets, (t) => t.target_amount);
     return existingTotal > 0 ? String(existingTotal) : "";
   });
 

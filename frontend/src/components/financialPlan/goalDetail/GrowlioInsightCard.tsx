@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { fetchGoalGrowlioInsight } from "@/api/goals";
 import { STALE_TIME } from "@/constants/queryConfig";
 import { QUERY_KEYS } from "@/constants/queryKeys";
+import { sumAmounts } from "@/utils/amount";
 import { formatKrw, formatReturnPct, formatYearMonth } from "@/utils/format";
 
 /** "투자 수익을 반영하면?" — growlio가 계산한 이 목표의 필요 연수익률과 실제 투자 수익률(XIRR)을 나란히 보여주고,
@@ -18,7 +19,7 @@ export default function GrowlioInsightCard({ goalId }: { goalId: number }) {
   // 목표에 연동된 계좌의 수익률이 있으면 그것을, 없으면 growlio 전체 계좌 수익률을 "우리 실제 수익률"로 보여준다.
   const linkedReturn = linked?.xirr_pct ?? null;
   const actualReturn = linkedReturn ?? performance.xirr_pct ?? performance.annual_return_pct;
-  const directDepositTotal = data.direct_deposits.reduce((sum, d) => sum + Number(d.amount), 0);
+  const directDepositTotal = sumAmounts(data.direct_deposits, (d) => d.amount);
   if (!feasibility && actualReturn === null && directDepositTotal === 0) return null;
 
   return (
