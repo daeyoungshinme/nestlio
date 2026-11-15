@@ -100,10 +100,7 @@ export default function RealEstateSection({ users }: Props) {
                     })}
                     importRows={importGrowlioRealEstate}
                     buildSuccessMessage={(results) => {
-                      const total = results.reduce(
-                        (sum: number, r: RealEstateImportResultOut) => sum + Number(r.savings_product.current_balance),
-                        0,
-                      );
+                      const total = sumAmounts(results, (r: RealEstateImportResultOut) => r.savings_product.current_balance);
                       const loanCount = results.filter((r) => r.loan !== null).length;
                       return (
                         `growlio 계좌 ${results.length}개를 가져왔습니다. 합계 ${formatKrw(total)}` +
