@@ -76,135 +76,135 @@ export default function GoalsTab() {
   return (
     <QueryBoundary query={goalsQuery}>
       {(data) => {
-  const isSaving = createMutation.isPending || updateMutation.isPending;
-  const priorityOrderedGoals = data.slice().sort((a, b) => a.priority - b.priority);
-  // 달성한 목표는 활성 목록에서 분리해 아래 접이식으로 옮긴다 — 완료된 항목이 계속 쌓여
-  // 목록을 채우는 것을 막기 위함(백엔드에 별도 archive 필드는 없음, 순수 프론트 판정).
-  const activeGoalsByPriority = priorityOrderedGoals.filter((g) => !isGoalAchieved(g));
-  const achievedGoals = priorityOrderedGoals.filter((g) => isGoalAchieved(g));
-  const activeGoals = pinHouseholdGoalsFirst(sortGoals(activeGoalsByPriority, sortOption));
+        const isSaving = createMutation.isPending || updateMutation.isPending;
+        const priorityOrderedGoals = data.slice().sort((a, b) => a.priority - b.priority);
+        // 달성한 목표는 활성 목록에서 분리해 아래 접이식으로 옮긴다 — 완료된 항목이 계속 쌓여
+        // 목록을 채우는 것을 막기 위함(백엔드에 별도 archive 필드는 없음, 순수 프론트 판정).
+        const activeGoalsByPriority = priorityOrderedGoals.filter((g) => !isGoalAchieved(g));
+        const achievedGoals = priorityOrderedGoals.filter((g) => isGoalAchieved(g));
+        const activeGoals = pinHouseholdGoalsFirst(sortGoals(activeGoalsByPriority, sortOption));
 
-  const handleSubmit = (draft: Draft) => {
-    const oldPct = formTarget !== null && typeof formTarget === "object" ? Number(formTarget.progress_pct) : 0;
-    if (formTarget === "new-goal") {
-      createMutation.mutate(toPayload(draft), { onSuccess: (goal) => celebrateIfCrossed(oldPct, goal) });
-    } else if (formTarget) {
-      updateMutation.mutate(
-        { id: formTarget.id, payload: toPayload(draft) },
-        { onSuccess: (goal) => celebrateIfCrossed(oldPct, goal) },
-      );
-    }
-  };
+        const handleSubmit = (draft: Draft) => {
+          const oldPct = formTarget !== null && typeof formTarget === "object" ? Number(formTarget.progress_pct) : 0;
+          if (formTarget === "new-goal") {
+            createMutation.mutate(toPayload(draft), { onSuccess: (goal) => celebrateIfCrossed(oldPct, goal) });
+          } else if (formTarget) {
+            updateMutation.mutate(
+              { id: formTarget.id, payload: toPayload(draft) },
+              { onSuccess: (goal) => celebrateIfCrossed(oldPct, goal) },
+            );
+          }
+        };
 
-  const renderGoalCard = (goal: FinancialGoalOut) => (
-    <GoalListCard
-      key={goal.id}
-      goal={goal}
-      meId={me?.id ?? null}
-      openedAt={openedAt}
-      onEdit={() => setFormTarget(goal)}
-      onDelete={() => setDeleteTarget(goal.id)}
-      onSaved={invalidate}
-    />
-  );
+        const renderGoalCard = (goal: FinancialGoalOut) => (
+          <GoalListCard
+            key={goal.id}
+            goal={goal}
+            meId={me?.id ?? null}
+            openedAt={openedAt}
+            onEdit={() => setFormTarget(goal)}
+            onDelete={() => setDeleteTarget(goal.id)}
+            onSaved={invalidate}
+          />
+        );
 
-  const modalInitial =
-    formTarget === "new-goal" ? EMPTY_GOAL_DRAFT : formTarget !== null ? draftFromGoal(formTarget) : null;
-  return (
-    <div className="space-y-6">
-      <Link
-        to={planViewLink("연간")}
-        className="block text-xs text-gray-500 dark:text-gray-400 hover:text-primary dark:hover:text-primary-400"
-      >
-        올해 저축 계획·실적은 연간 탭에서 →
-      </Link>
+        const modalInitial =
+          formTarget === "new-goal" ? EMPTY_GOAL_DRAFT : formTarget !== null ? draftFromGoal(formTarget) : null;
+        return (
+          <div className="space-y-6">
+            <Link
+              to={planViewLink("연간")}
+              className="block text-xs text-gray-500 dark:text-gray-400 hover:text-primary dark:hover:text-primary-400"
+            >
+              올해 저축 계획·실적은 연간 탭에서 →
+            </Link>
 
-      <GoalSectionHeader
-        title="목표"
-        description={
-          <CollapsibleHint summary="목표금액·목표일을 정하면 월별 계획이 자동으로 나뉘어요.">
-            저축·투자 상품이나 계좌를 연동하면 이번 달 달성 여부까지 거래내역으로 자동 확인돼요. 부부가 짧게 도전하는
-            챌린지도 목표 추가 시 유형으로 선택할 수 있어요. 통합 목표로 장기 목표와 부부 각자의 growlio 투자목표를 하나로
-            묶어 볼 수 있어요.
-          </CollapsibleHint>
-        }
-        action={
-          <Button size="sm" icon={<Plus size={14} />} onClick={() => setFormTarget("new-goal")}>
-            목표 추가
-          </Button>
-        }
-      />
+            <GoalSectionHeader
+              title="목표"
+              description={
+                <CollapsibleHint summary="목표금액·목표일을 정하면 월별 계획이 자동으로 나뉘어요.">
+                  저축·투자 상품이나 계좌를 연동하면 이번 달 달성 여부까지 거래내역으로 자동 확인돼요. 부부가 짧게 도전하는
+                  챌린지도 목표 추가 시 유형으로 선택할 수 있어요. 통합 목표로 장기 목표와 부부 각자의 growlio 투자목표를 하나로
+                  묶어 볼 수 있어요.
+                </CollapsibleHint>
+              }
+              action={
+                <Button size="sm" icon={<Plus size={14} />} onClick={() => setFormTarget("new-goal")}>
+                  목표 추가
+                </Button>
+              }
+            />
 
-      {data.length === 0 ? (
-        <EmptyState
-          icon={Target}
-          title="등록된 재무목표가 없어요"
-          description="위 버튼으로 첫 재무목표나 챌린지를 만들어보세요"
-          compact
-        />
-      ) : (
-        <div className="space-y-3">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-            <p className="text-xs text-gray-500 dark:text-gray-400">총 {data.length}개</p>
-            {activeGoals.length > 1 && (
-              <Tabs tabs={GOAL_SORT_LABELS} activeTab={sortOption} onChange={setSortOption} variant="pill" />
+            {data.length === 0 ? (
+              <EmptyState
+                icon={Target}
+                title="등록된 재무목표가 없어요"
+                description="위 버튼으로 첫 재무목표나 챌린지를 만들어보세요"
+                compact
+              />
+            ) : (
+              <div className="space-y-3">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                  <p className="text-xs text-gray-500 dark:text-gray-400">총 {data.length}개</p>
+                  {activeGoals.length > 1 && (
+                    <Tabs tabs={GOAL_SORT_LABELS} activeTab={sortOption} onChange={setSortOption} variant="pill" />
+                  )}
+                </div>
+
+                {activeGoals.length > 0 ? (
+                  <div className="space-y-2">{activeGoals.map(renderGoalCard)}</div>
+                ) : (
+                  <p className="text-xs text-gray-500 dark:text-gray-400 py-1">
+                    진행 중인 목표가 없어요. 모든 목표를 달성했어요! 🎉
+                  </p>
+                )}
+
+                {achievedGoals.length > 0 && (
+                  <CollapsibleGroup
+                    header={
+                      <span className="flex items-center gap-1.5 text-sm font-semibold text-gray-700 dark:text-gray-300">
+                        <Trophy size={14} className="text-primary-500" />
+                        달성한 목표
+                      </span>
+                    }
+                    amount={`${achievedGoals.length}개`}
+                    defaultOpen={false}
+                  >
+                    {achievedGoals.map(renderGoalCard)}
+                  </CollapsibleGroup>
+                )}
+              </div>
+            )}
+
+            {modalInitial && (
+              <GoalFormModal
+                initial={modalInitial}
+                title={goalFormTitle(formTarget!)}
+                submitLabel={formTarget === "new-goal" ? "추가" : "저장"}
+                submitting={isSaving}
+                savingsProducts={savingsProducts ?? []}
+                accounts={accounts ?? []}
+                loans={loans ?? []}
+                existingGoal={typeof formTarget === "object" ? formTarget : null}
+                canCreateNetWorth={!(goalsQuery.data ?? []).some((g) => g.kind === "net_worth")}
+                canCreateCombined={!(goalsQuery.data ?? []).some((g) => g.kind === "combined")}
+                goals={goalsQuery.data ?? []}
+                users={users ?? []}
+                onClose={() => setFormTarget(null)}
+                onSubmit={handleSubmit}
+              />
+            )}
+
+            {deleteTarget !== null && (
+              <ConfirmModal
+                message="삭제할까요?"
+                loading={deleteMutation.isPending}
+                onConfirm={() => deleteMutation.mutate(deleteTarget)}
+                onCancel={() => setDeleteTarget(null)}
+              />
             )}
           </div>
-
-          {activeGoals.length > 0 ? (
-            <div className="space-y-2">{activeGoals.map(renderGoalCard)}</div>
-          ) : (
-            <p className="text-xs text-gray-500 dark:text-gray-400 py-1">
-              진행 중인 목표가 없어요. 모든 목표를 달성했어요! 🎉
-            </p>
-          )}
-
-          {achievedGoals.length > 0 && (
-            <CollapsibleGroup
-              header={
-                <span className="flex items-center gap-1.5 text-sm font-semibold text-gray-700 dark:text-gray-300">
-                  <Trophy size={14} className="text-primary-500" />
-                  달성한 목표
-                </span>
-              }
-              amount={`${achievedGoals.length}개`}
-              defaultOpen={false}
-            >
-              {achievedGoals.map(renderGoalCard)}
-            </CollapsibleGroup>
-          )}
-        </div>
-      )}
-
-      {modalInitial && (
-        <GoalFormModal
-          initial={modalInitial}
-          title={goalFormTitle(formTarget!)}
-          submitLabel={formTarget === "new-goal" ? "추가" : "저장"}
-          submitting={isSaving}
-          savingsProducts={savingsProducts ?? []}
-          accounts={accounts ?? []}
-          loans={loans ?? []}
-          existingGoal={typeof formTarget === "object" ? formTarget : null}
-          canCreateNetWorth={!(goalsQuery.data ?? []).some((g) => g.kind === "net_worth")}
-          canCreateCombined={!(goalsQuery.data ?? []).some((g) => g.kind === "combined")}
-          goals={goalsQuery.data ?? []}
-          users={users ?? []}
-          onClose={() => setFormTarget(null)}
-          onSubmit={handleSubmit}
-        />
-      )}
-
-      {deleteTarget !== null && (
-        <ConfirmModal
-          message="삭제할까요?"
-          loading={deleteMutation.isPending}
-          onConfirm={() => deleteMutation.mutate(deleteTarget)}
-          onCancel={() => setDeleteTarget(null)}
-        />
-      )}
-    </div>
-  );
+        );
       }}
     </QueryBoundary>
   );
