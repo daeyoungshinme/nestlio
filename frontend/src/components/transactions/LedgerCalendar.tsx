@@ -3,6 +3,7 @@ import QueryBoundary from "@/components/common/QueryBoundary";
 import SkeletonCard from "@/components/common/SkeletonCard";
 import MonthCalendarGrid from "@/components/transactions/MonthCalendarGrid";
 import LedgerDayCell from "@/components/transactions/LedgerDayCell";
+import type { LedgerView } from "@/constants/routes";
 import type { EventOut, RecurringOut, TransactionOut } from "@/types";
 
 const EMPTY_TRANSACTIONS: TransactionOut[] = [];
@@ -11,6 +12,8 @@ const EMPTY_RECURRING: RecurringOut[] = [];
 
 interface Props {
   yearMonth: string;
+  view: LedgerView;
+  selectedDate: string | null;
   queries: UseQueryResult<unknown>[];
   transactionsByDate: Map<string, TransactionOut[]>;
   eventsByDate: Map<string, EventOut[]>;
@@ -20,6 +23,8 @@ interface Props {
 
 export default function LedgerCalendar({
   yearMonth,
+  view,
+  selectedDate,
   queries,
   transactionsByDate,
   eventsByDate,
@@ -40,6 +45,8 @@ export default function LedgerCalendar({
             day={cell.day}
             inCurrentMonth={cell.inCurrentMonth}
             isToday={cell.isToday}
+            isSelected={cell.inCurrentMonth && cell.date === selectedDate}
+            view={view}
             transactions={transactionsByDate.get(cell.date) ?? EMPTY_TRANSACTIONS}
             events={eventsByDate.get(cell.date) ?? EMPTY_EVENTS}
             recurringDue={recurringDueByDate.get(cell.date) ?? EMPTY_RECURRING}

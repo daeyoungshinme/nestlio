@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Repeat } from "lucide-react";
 import { useSearchParams } from "react-router-dom";
 import { LEDGER_VIEWS } from "@/constants/routes";
@@ -14,7 +14,7 @@ import QuickAddFab from "@/components/common/QuickAddFab";
 import LedgerCalendar from "@/components/transactions/LedgerCalendar";
 import LedgerListControls from "@/components/transactions/LedgerListControls";
 import LedgerResults from "@/components/transactions/LedgerResults";
-import LedgerDayModal from "@/components/transactions/LedgerDayModal";
+import LedgerDayDetail from "@/components/transactions/LedgerDayDetail";
 import RecurringManageSheet from "@/components/transactions/RecurringManageSheet";
 import { useSwipeMonth } from "@/hooks/useSwipeMonth";
 import { useDebouncedValue } from "@/hooks/useDebouncedValue";
@@ -26,20 +26,18 @@ import { useTransactionActions } from "@/hooks/useTransactionActions";
 import { useAccounts, useCategories, useMe, useSavingsProducts, useUsers } from "@/hooks/useReferenceData";
 import { currentDateIso, currentYearMonth, shiftYearMonth } from "@/utils/date";
 import { formatKrwCompact } from "@/utils/format";
-import type { EventOut, TransactionOut } from "@/types";
 import { TOUCH_TARGET_MIN_HEIGHT } from "@/constants/uiSizes";
 
 const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
-
-/** 날짜 시트 안에서 띄운 폼 — 거래 또는 일정의 추가("new")/수정. */
-type DayPanel = { kind: "tx"; target: "new" | TransactionOut } | { kind: "event"; target: "new" | EventOut };
 
 function defaultDateHint(yearMonth: string): string {
   return yearMonth === currentYearMonth() ? currentDateIso() : `${yearMonth}-01`;
 }
 
-/** 가계부 — 부부의 거래 기록과 일정을 한 캘린더에서 공유한다. `?view=내역|일정`으로 캘린더 아래 목록만 바뀐다
- * (구 독립 `/schedule` 페이지는 이 "일정" 보기로 병합됐고, `?date=YYYY-MM-DD`로 들어오면 그 날 모달을 연다). */
+/** 가계부 — 부부의 거래 기록과 일정을 한 캘린더에서 공유한다. 달력 위의 `?view=내역|일정` 탭이 캘린더 칸
+ * 미리보기와 아래 목록을 함께 바꾼다. 날짜를 누르면 아래 목록이 그날 이력(`LedgerDayDetail`)으로 좁혀지고, 같은 날짜를 다시
+ * 누르거나 "한 달 전체"로 돌아온다(구 독립 `/schedule` 페이지는 "일정" 보기로 병합됐고, `?date=YYYY-MM-DD`로
+ * 들어오면 그 날을 선택한다). */
 export default function TransactionsPage() {
   const [searchParams] = useSearchParams();
   const [view, changeView] = useTabParam("view", LEDGER_VIEWS, "내역");
@@ -48,13 +46,27 @@ export default function TransactionsPage() {
     return d && ISO_DATE_RE.test(d) ? d.slice(0, 7) : currentYearMonth();
   });
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
-  const [dayPanel, setDayPanel] = useState<DayPanel | null>(null);
   const [searchInput, setSearchInput] = useState("");
   const [showRecurringSheet, setShowRecurringSheet] = useRecurringDeepLink();
   const debouncedQuery = useDebouncedValue(searchInput.trim(), 300);
   const calendarRef = useRef<HTMLDivElement>(null);
+  const dayDetailRef = useRef<HTMLDivElement>(null);
 
-  useSwipeMonth(calendarRef, (direction) => setYearMonth((prev) => shiftYearMonth(prev, direction)));
+  // 달을 옮기면 고른 날짜는 그 달 밖이 되므로 한 달 전체 목록으로 돌아간다.
+  const changeMonth = (next: string) => {
+    setYearMonth(next);
+    setSelectedDate(null);
+  };
+  useSwipeMonth(calendarRef, (direction) => {
+    setYearMonth((prev) => shiftYearMonth(prev, direction));
+    setSelectedDate(null);
+  });
+  const toggleDate = (date: string) => setSelectedDate((prev) => (prev === date ? null : date));
+
+  // 모바일은 캘린더가 화면 대부분을 차지해 아래 상세가 안 보일 수 있다 — 고르면 상세가 보이게 스크롤한다.
+  useEffect(() => {
+    if (selectedDate) dayDetailRef.current?.scrollIntoView?.({ block: "nearest", behavior: "smooth" });
+  }, [selectedDate]);
 
   const categoriesQuery = useCategories();
   const accountsQuery = useAccounts();
@@ -63,14 +75,13 @@ export default function TransactionsPage() {
   const { data: users } = useUsers();
 
   const month = useLedgerMonth(yearMonth, debouncedQuery);
-  const eventActions = useEventActions({ users, onSaved: () => setDayPanel(null) });
+  const eventActions = useEventActions({ users });
   const txActions = useTransactionActions({
     categories: categoriesQuery.data,
     accounts: accountsQuery.data,
     savingsProducts: savingsProductsQuery.data,
     users,
     currentUserId: me?.id,
-    onSaved: () => setDayPanel(null),
   });
 
   // ?date=YYYY-MM-DD로 들어오면(옛 일정 경로 리다이렉트 등) 그 달로 이동해 그 날 모달을 열고 파라미터를
@@ -92,24 +103,6 @@ export default function TransactionsPage() {
   }, [me, users]);
   const showUser = userOptions.length > 2;
 
-  const closeDay = () => {
-    setSelectedDate(null);
-    setDayPanel(null);
-  };
-
-  const dayPanelView =
-    selectedDate && dayPanel
-      ? dayPanel.kind === "tx"
-        ? {
-            title: dayPanel.target === "new" ? "내역 추가" : "내역 수정",
-            content: txActions.renderForm(dayPanel.target, selectedDate),
-          }
-        : {
-            title: dayPanel.target === "new" ? "새 일정" : "일정 수정",
-            content: eventActions.renderForm(dayPanel.target, selectedDate),
-          }
-      : null;
-
   return (
     <QueryBoundary
       queries={[categoriesQuery, accountsQuery, savingsProductsQuery]}
@@ -118,7 +111,7 @@ export default function TransactionsPage() {
     >
       <div className="space-y-4">
         <div className="flex items-center justify-between flex-wrap gap-3">
-          <MonthPicker yearMonth={yearMonth} onChange={setYearMonth} />
+          <MonthPicker yearMonth={yearMonth} onChange={changeMonth} />
           <div className="flex gap-2">
             <button
               type="button"
@@ -143,20 +136,49 @@ export default function TransactionsPage() {
           />
         )}
 
+        <Tabs tabs={LEDGER_VIEWS} activeTab={view} onChange={changeView} variant="pill" fullWidth />
+
         <div ref={calendarRef}>
           <LedgerCalendar
             yearMonth={yearMonth}
+            view={view}
+            selectedDate={selectedDate}
             queries={[month.transactionsQuery, month.eventsQuery]}
             transactionsByDate={month.transactionsByDate}
             eventsByDate={month.eventsByDate}
             recurringDueByDate={month.recurringDueByDate}
-            onSelectDate={setSelectedDate}
+            onSelectDate={toggleDate}
           />
         </div>
 
-        <Tabs tabs={LEDGER_VIEWS} activeTab={view} onChange={changeView} variant="pill" fullWidth />
-
-        {view === "일정" ? (
+        {selectedDate ? (
+          <div ref={dayDetailRef} className="scroll-mt-4">
+            <QueryBoundary
+              queries={[month.transactionsQuery, month.eventsQuery]}
+              compact
+              errorMessage="이 날 이력을 불러오지 못했습니다."
+              loadingFallback={<SkeletonCard rows={3} />}
+            >
+              <LedgerDayDetail
+                date={selectedDate}
+                view={view}
+                transactions={month.transactionsByDate.get(selectedDate) ?? []}
+                events={month.eventsByDate.get(selectedDate) ?? []}
+                recurringDue={month.recurringDueByDate.get(selectedDate) ?? []}
+                searchActive={debouncedQuery !== ""}
+                showUser={showUser}
+                users={users}
+                onClear={() => setSelectedDate(null)}
+                onAddTransaction={() => txActions.openCreate(selectedDate)}
+                onEditTransaction={txActions.openEdit}
+                onAddEvent={() => eventActions.openCreate(selectedDate)}
+                onEditEvent={eventActions.openEdit}
+                onDeleteEvent={eventActions.openDelete}
+                onToggleEventComplete={eventActions.toggleComplete}
+              />
+            </QueryBoundary>
+          </div>
+        ) : view === "일정" ? (
           // 목록은 쿼리별로 경계를 둔다 — 실패를 "일정 없음"으로 보이지 않게(캘린더는 둘 다 있어야 그린다).
           <QueryBoundary
             query={month.eventsQuery}
@@ -226,29 +248,11 @@ export default function TransactionsPage() {
         )}
 
         <QuickAddFab
-          onClick={() => (view === "일정" ? eventActions : txActions).openCreate(defaultDateHint(yearMonth))}
+          onClick={() =>
+            (view === "일정" ? eventActions : txActions).openCreate(selectedDate ?? defaultDateHint(yearMonth))
+          }
         />
         {eventActions.modals}
-
-        {selectedDate && (
-          <LedgerDayModal
-            date={selectedDate}
-            transactions={month.transactionsByDate.get(selectedDate) ?? []}
-            events={month.eventsByDate.get(selectedDate) ?? []}
-            recurringDue={month.recurringDueByDate.get(selectedDate) ?? []}
-            showUser={showUser}
-            users={users}
-            panel={dayPanelView}
-            onBack={() => setDayPanel(null)}
-            onClose={closeDay}
-            onAddTransaction={() => setDayPanel({ kind: "tx", target: "new" })}
-            onEditTransaction={(tx) => setDayPanel({ kind: "tx", target: tx })}
-            onAddEvent={() => setDayPanel({ kind: "event", target: "new" })}
-            onEditEvent={(event) => setDayPanel({ kind: "event", target: event })}
-            onDeleteEvent={eventActions.openDelete}
-            onToggleEventComplete={eventActions.toggleComplete}
-          />
-        )}
 
         {txActions.modals}
 

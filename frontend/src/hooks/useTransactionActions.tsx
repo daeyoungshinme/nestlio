@@ -25,8 +25,8 @@ function formValuesOf(tx: TransactionOut): Partial<TransactionFormValues> {
   };
 }
 
-/** 가계부 거래의 추가/수정/삭제와 그 폼·확인 모달(`useEventActions`와 같은 모양). 날짜 시트 안의 폼은 `renderForm`으로
- * 호출 화면이 그리고, 목록·＋ 버튼에서 연 폼과 삭제 확인은 반환된 `modals`를 호출 화면이 그대로 렌더한다. 추가하면
+/** 가계부 거래의 추가/수정/삭제와 그 폼·확인 모달(`useEventActions`와 같은 모양). 폼과 삭제 확인은
+ * 반환된 `modals`를 호출 화면이 그대로 렌더한다. 추가하면
  * "취소"(되돌리기) 토스트를 띄운다. */
 export function useTransactionActions({
   categories,
@@ -34,19 +34,15 @@ export function useTransactionActions({
   savingsProducts,
   users,
   currentUserId,
-  onSaved,
 }: {
   categories: CategoryOut[] | undefined;
   accounts: AccountWithBalanceOut[] | undefined;
   savingsProducts: SavingsProductOut[] | undefined;
   users: UserOut[] | undefined;
   currentUserId: string | undefined;
-  /** 추가·수정·삭제 성공 후 호출 — 가계부 날짜 시트가 폼 화면에서 목록으로 돌아가는 데 쓴다. */
-  onSaved?: () => void;
 }): {
   openCreate: (dateHint: string) => void;
   openEdit: (tx: TransactionOut) => void;
-  renderForm: (target: "new" | TransactionOut, dateHint: string) => ReactNode;
   modals: ReactNode;
 } {
   const [formTarget, setFormTarget] = useState<"new" | TransactionOut | null>(null);
@@ -59,7 +55,6 @@ export function useTransactionActions({
     onSuccess: () => {
       invalidateAll();
       setFormTarget(null);
-      onSaved?.();
       toast("내역을 수정했습니다.", "success");
     },
   });
@@ -69,16 +64,14 @@ export function useTransactionActions({
     message: () => "이 내역을 삭제할까요? 되돌릴 수 없습니다.",
     onDeleted: () => {
       invalidateAll();
-      // 삭제는 수정 폼 안에서만 시작하므로 그 폼도 닫는다(시트는 그날 목록으로 돌아간다).
+      // 삭제는 수정 폼 안에서만 시작하므로 그 폼도 닫는다.
       setFormTarget(null);
-      onSaved?.();
       toast("내역을 삭제했습니다.", "success");
     },
   });
 
   const createMutation = useCreateTransaction((created) => {
     setFormTarget(null);
-    onSaved?.();
     toast("내역을 추가했습니다.", "success", {
       label: "취소",
       onClick: () => deleteNow(created.id),
@@ -122,7 +115,6 @@ export function useTransactionActions({
       setFormTarget("new");
     },
     openEdit: setFormTarget,
-    renderForm,
     modals,
   };
 }
