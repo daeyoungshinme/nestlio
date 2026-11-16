@@ -48,7 +48,7 @@ interface Props {
   editingCard?: CardOut | null;
 }
 
-/** 거래 입력 폼. 상태·동작은 `useTransactionForm`, 선택 칸은 `TransactionFormFields`. 날짜 시트·모달의 세로 배치("stack")와
+/** 거래 입력 폼. 상태·동작은 `useTransactionForm`, 선택 칸은 `TransactionFormFields`. 모달의 세로 배치("stack")와
  * 한 줄 배치("row")를 함께 그린다. */
 export default function TransactionForm({
   categories,
