@@ -19,7 +19,11 @@ def test_now_kst_is_naive_and_utc_plus_nine():
 
 
 def test_today_kst_matches_now_kst_date():
-    assert today_kst() == now_kst().date()
+    # 자정에 걸쳐 돌아도 깨지지 않게 앞뒤로 읽어 그 사이 날짜인지 본다.
+    before = now_kst().date()
+    today = today_kst()
+    after = now_kst().date()
+    assert today in {before, after}
 
 
 

@@ -40,7 +40,7 @@ def category_trend(
     db: Session = Depends(get_db),
     _: User = Depends(get_current_user),
 ):
-    return transaction_trend_service.category_monthly_trend(db, months=months)
+    return transaction_trend_service.category_monthly_trend(db, months=months, anchor=today_kst())
 
 
 @router.get("/savings-review", response_model=SavingsReviewOut)

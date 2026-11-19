@@ -7,7 +7,8 @@ services:
     # 마이그레이션 체인은 2026-09-01에 단일 베이스라인(bdba3c3b3277)으로 스쿼시됐고 운영 DB도
     # 같은 날 stamp 완료 — 상세는 migrations/versions/bdba3c3b3277_squashed_baseline.py 상단 주석.
     startCommand: "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port $PORT"
-    healthCheckPath: /
+    # SPA index.html(/)은 DB·API가 죽어도 200이라 앱 상태를 못 본다 — DB 왕복까지 하는 /healthz(app/routers/health.py).
+    healthCheckPath: /healthz
     envVars:
       # 컨테이너 기본 TZ는 UTC다. 앱은 naive datetime을 "KST 벽시계"로 취급하므로
       # 프로세스 TZ를 Asia/Seoul로 고정한다 —

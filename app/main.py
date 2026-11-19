@@ -11,6 +11,7 @@ from app.routers import (
     dashboard,
     events,
     goals,
+    health,
     insurance,
     internal_jobs,
     invites,
@@ -62,5 +63,6 @@ for api_router in API_ROUTERS:
 app.include_router(internal_jobs.router)
 register_exception_handlers(app)
 app.include_router(media.router)
+app.include_router(health.router)
 # SPA catch-all은 모든 라우터 "이후"에 — 먼저 등록하면 API 경로를 가로챈다.
 mount_spa(app)

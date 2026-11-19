@@ -1,4 +1,4 @@
-from sqlalchemy import MetaData, create_engine
+from sqlalchemy import MetaData, create_engine, text
 from sqlalchemy.orm import DeclarativeBase, sessionmaker
 
 from app.config import settings
@@ -30,3 +30,8 @@ def get_db():
         raise
     finally:
         db.close()
+
+
+def ping(db) -> None:
+    """헬스 체크용 왕복 한 번(`/healthz`) — 연결이 죽었으면 예외가 올라가 500이 된다."""
+    db.execute(text("SELECT 1"))

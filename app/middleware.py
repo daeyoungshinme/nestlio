@@ -23,8 +23,8 @@ async def add_security_headers(request: Request, call_next):
 
 
 def register_middleware(app: FastAPI) -> None:
-    # GZip을 CORS/보안 헤더보다 먼저 등록한다 - Starlette은 먼저 등록한 미들웨어가 응답을
-    # 가장 나중에(가장 바깥에서) 처리하므로, 이래야 최종 응답 바디가 압축된다.
+    # Starlette `add_middleware`는 맨 앞에 끼워 넣으므로 **나중에 등록한 것이 가장 바깥**이다. GZip을 먼저 등록해
+    # 가장 안쪽에 두면 앱 응답 바디를 압축하고, 바깥의 CORS·보안 헤더 미들웨어는 압축된 응답에 헤더만 붙인다.
     app.add_middleware(GZipMiddleware, minimum_size=500)
     app.add_middleware(
         CORSMiddleware,
