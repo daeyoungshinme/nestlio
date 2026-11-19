@@ -1,6 +1,6 @@
 """CSV 가져오기에서 메모(가맹점명)로 지출 카테고리를 고를 때 쓰는 기본 키워드 사전.
 
-과거 거래 이력(`transaction_import_service._infer_category`)으로 못 찾을 때만 쓴다. 키는
+과거 거래 이력(`transaction_import_inference.infer_category`)으로 못 찾을 때만 쓴다. 키는
 `scripts/seed_data.py`의 기본 카테고리 이름이고, 가구에 그 이름의 활성 지출 카테고리가 없으면 그 항목은 무시된다.
 키워드는 소문자로 적는다(메모는 casefold 후 비교). 여러 키워드가 걸리면 가장 긴 것이 이긴다
 ("gs칼텍스"가 "gs25"류보다, "쿠팡이츠"가 "쿠팡"보다 우선).

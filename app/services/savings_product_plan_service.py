@@ -9,8 +9,16 @@ from app.models.savings_product import SavingsProduct
 from app.models.savings_product_annual_plan import SavingsProductAnnualPlan
 from app.models.savings_product_annual_plan_monthly_target import SavingsProductAnnualPlanMonthlyTarget
 from app.models.transaction import Transaction
-from app.services import plan_targets, savings_product_service
-from app.utils.dates import month_bounds, parse_year_month, shift_month, span_bounds, year_bounds, year_month_of
+from app.services import coaching_settings_service, plan_targets, savings_product_service
+from app.utils.dates import (
+    month_bounds,
+    parse_year_month,
+    shift_month,
+    span_bounds,
+    year_bounds,
+    year_month_of,
+    year_month_str,
+)
 from app.utils.money import whole_won
 from app.utils.plan_status import pct_of
 
@@ -352,3 +360,18 @@ def compute_annual_plan_summary(
         "savings": _group_out("savings"),
         "investment": _group_out("investment"),
     }
+
+
+def plan_view(db: Session, year_month: str | None, today: date) -> dict:
+    """계획 화면 저축·투자 섹션(`GET /savings-products/plan`) — 달을 안 주면 이번 달, 가구가 바꾼 예산 경고/위험 %로
+    상태를 낸다(env 기본값을 쓰면 화면과 예산 알림 판정이 어긋난다)."""
+    warn_pct, critical_pct = coaching_settings_service.budget_thresholds(db)
+    return compute_plan_summary(db, year_month or year_month_str(today), warn_pct, critical_pct)
+
+
+def annual_plan_view(db: Session, year: int | None, today: date) -> dict:
+    """연간 저축·투자 계획 대비 누적 실적(`GET /savings-products/annual-plan`) — 해를 안 주면 올해, 기준일은 오늘."""
+    warn_pct, critical_pct = coaching_settings_service.budget_thresholds(db)
+    return compute_annual_plan_summary(
+        db, year or today.year, as_of=today, warn_pct=warn_pct, critical_pct=critical_pct
+    )

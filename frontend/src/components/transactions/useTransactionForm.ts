@@ -191,7 +191,6 @@ export function useTransactionForm({
     uiType,
     switchType,
     savingsCategory,
-    nonSavingsCategories,
     kindCategories,
     recentCategoryIds,
     showCategoryError,

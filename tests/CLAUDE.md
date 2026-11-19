@@ -34,7 +34,7 @@
 - 원칙은 서비스 모듈 1:1(`test_<module>.py`). 새 서비스 모듈을 만들면 전용 테스트 파일도 만든다.
 - 예외 — 모듈을 분할하면서 테스트 파일은 나누지 않은 곳:
   - `test_transaction_service.py`: `transaction_service` + `transaction_report_service` + `transaction_trend_service`
-  - `test_csv_and_accounts.py`: `transaction_import_service`(CSV 가져오기·내보내기 — 계좌 매칭 때문에 계좌도 만든다) + 연간 집계(`transaction_trend_service`). 계좌 CRUD·growlio 동기화는 전용 `test_account_service.py`
+  - `test_csv_and_accounts.py`: `transaction_import_service`·`transaction_import_parsing`·`transaction_import_inference`(CSV 가져오기·내보내기 — 계좌 매칭 때문에 계좌도 만든다) + 연간 집계(`transaction_trend_service`). 계좌 CRUD·growlio 동기화는 전용 `test_account_service.py`
   - `test_event_service.py`: `event_service` + `event_reminder_service`
   - `test_savings_product_service.py`: `savings_product_*` 세 모듈
   - `test_coaching_engine.py`: `coaching_engine` + `savings_coaching_service`

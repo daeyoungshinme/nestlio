@@ -190,7 +190,6 @@ export default function DashboardPage() {
                   savingsProducts={bootstrap.data!.savings_products}
                   users={bootstrap.data!.users}
                   currentUserId={currentUserId ?? undefined}
-                  layout="stack"
                   isNew
                   submitLabel="추가"
                   submitting={createMutation.isPending}

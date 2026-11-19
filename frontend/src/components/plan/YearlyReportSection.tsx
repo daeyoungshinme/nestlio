@@ -1,6 +1,6 @@
 import { useNavigate } from "react-router-dom";
 import { useMemo, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { PieChart as PieChartIcon, Scale, TrendingUp } from "lucide-react";
 import {
   Bar,
@@ -23,6 +23,7 @@ import SkeletonCard from "@/components/common/SkeletonCard";
 import QueryBoundary from "@/components/common/QueryBoundary";
 import EmptyState from "@/components/common/EmptyState";
 import SavingsReviewLinkCard from "@/components/review/SavingsReviewLinkCard";
+import { groupTopCategories } from "@/components/plan/pieGrouping";
 import { fetchCategoryTrend, fetchYearlyReport } from "@/api/reports";
 import { useOwnerTabs } from "@/hooks/useOwnerTabs";
 import { useUsers } from "@/hooks/useReferenceData";
@@ -30,7 +31,7 @@ import { QUERY_KEYS } from "@/constants/queryKeys";
 import { ROUTES } from "@/constants/routes";
 import { STALE_TIME } from "@/constants/queryConfig";
 import { formatKrw, formatKrwAxis, formatKrwCompact, formatPercent, formatYearMonth, formatMonthOnly } from "@/utils/format";
-import { CATEGORY_SWATCH_FALLBACK_COLOR, chartTooltipStyle, incomeExpenseChartColor, planStatusBarClass, planStatusTextClass } from "@/utils/colors";
+import { chartTooltipStyle, incomeExpenseChartColor, planStatusBarClass, planStatusTextClass } from "@/utils/colors";
 import { useThemeStore } from "@/stores/themeStore";
 import type { CategoryBenchmarkRowOut } from "@/types";
 
@@ -68,6 +69,8 @@ export default function YearlyReportSection({ year }: { year: number }) {
     queryKey: QUERY_KEYS.yearlyReport(year, ownerParam),
     queryFn: () => fetchYearlyReport(year, ownerParam),
     staleTime: STALE_TIME.MEDIUM,
+    // 해·담당 탭을 바꾸면 이전 결과를 흐리게 두고 받는다 — 경계가 스켈레톤으로 바뀌면 누른 탭까지 사라졌다.
+    placeholderData: keepPreviousData,
   });
   const trendQuery = useQuery({
     queryKey: QUERY_KEYS.categoryTrend(CATEGORY_TREND_MONTHS),
@@ -99,14 +102,7 @@ export default function YearlyReportSection({ year }: { year: number }) {
     [yearlyData],
   );
   // 카테고리가 10~15개면 범례가 화면 하나를 차지해 상위 PIE_TOP_COUNT개 + "기타"로 묶는다(파이와 범례가 같은 묶음).
-  const pieData = useMemo(() => {
-    const rows = (yearlyData?.breakdown ?? [])
-      .map((row) => ({ name: row.name, value: Number(row.amount), color: row.color }))
-      .sort((a, b) => b.value - a.value);
-    if (rows.length <= PIE_TOP_COUNT + 1) return rows;
-    const rest = rows.slice(PIE_TOP_COUNT).reduce((sum, row) => sum + row.value, 0);
-    return [...rows.slice(0, PIE_TOP_COUNT), { name: "기타", value: rest, color: CATEGORY_SWATCH_FALLBACK_COLOR }];
-  }, [yearlyData]);
+  const pieData = useMemo(() => groupTopCategories(yearlyData?.breakdown ?? [], PIE_TOP_COUNT), [yearlyData]);
   const pieTotal = pieData.reduce((sum, row) => sum + row.value, 0);
 
   return (
@@ -116,7 +112,10 @@ export default function YearlyReportSection({ year }: { year: number }) {
       loadingFallback={<SkeletonCard rows={4} />}
     >
       {(data) => (
-          <div className="space-y-6">
+          <div
+            className={`space-y-6 transition-opacity ${yearlyReportQuery.isPlaceholderData ? "opacity-60" : ""}`}
+            aria-busy={yearlyReportQuery.isPlaceholderData}
+          >
 
             <div className="card">
               <h3 className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-3">월별 수입/지출</h3>

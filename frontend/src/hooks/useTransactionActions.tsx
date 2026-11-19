@@ -85,7 +85,6 @@ export function useTransactionActions({
       savingsProducts={savingsProducts ?? []}
       users={users ?? []}
       currentUserId={currentUserId}
-      layout="stack"
       isNew={target === "new"}
       onDelete={target === "new" ? undefined : () => openDelete(target)}
       submitLabel={target === "new" ? "추가" : "저장"}
