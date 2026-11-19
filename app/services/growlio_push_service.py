@@ -57,12 +57,19 @@ def stage(
 
     호출자는 이 행을 거래 저장과 **같은 커밋**으로 묶는다. 따로 커밋하면 그 사이에 실패했을 때 거래만 남고
     큐 행이 없어 growlio 반영이 영영 빠진다(아웃박스를 둔 이유가 사라짐). 보내기는 커밋 뒤 `send_staged`로."""
-    product = db.get(SavingsProduct, savings_product_id)
-    if product is None or not product.growlio_account_id:
-        return None
+    deposit = _last_deposit_row(db, transaction_id) if transaction_type == "WITHDRAWAL" else None
+    if deposit is not None:
+        # 입금을 보낸 그 계좌에서 뺀다 — 그 사이 상품을 다른 growlio 계좌로 다시 연결했거나 연동을 끊었어도.
+        growlio_account_id, owner_user_id = deposit.growlio_account_id, deposit.owner_user_id
+    else:
+        # 큐 기록이 없는 입금(아웃박스 이전에 직접 보낸 입금 포함)은 지금 연동된 계좌 기준.
+        product = db.get(SavingsProduct, savings_product_id)
+        if product is None or not product.growlio_account_id:
+            return None
+        growlio_account_id, owner_user_id = product.growlio_account_id, product.owner_user_id
     row = GrowlioPushQueue(
-        growlio_account_id=product.growlio_account_id,
-        owner_user_id=product.owner_user_id,
+        growlio_account_id=growlio_account_id,
+        owner_user_id=owner_user_id,
         transaction_id=transaction_id,
         transaction_type=transaction_type,
         amount=amount,
@@ -70,6 +77,19 @@ def stage(
     )
     db.add(row)
     return row
+
+
+def _last_deposit_row(db: Session, transaction_id: int | None) -> GrowlioPushQueue | None:
+    """그 거래의 가장 최근 입금 큐 행 — 그 뒤에 출금 행이 이미 있으면(이미 되돌린 입금) None."""
+    if transaction_id is None:
+        return None
+    last = (
+        db.query(GrowlioPushQueue)
+        .filter(GrowlioPushQueue.transaction_id == transaction_id)
+        .order_by(GrowlioPushQueue.id.desc())
+        .first()
+    )
+    return last if last is not None and last.transaction_type == "DEPOSIT" else None
 
 
 def _classify(exc: Exception) -> str:

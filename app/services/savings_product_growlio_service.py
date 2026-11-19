@@ -126,8 +126,9 @@ def import_from_growlio(
         )
         _apply_balance(product, account)
         db.add(product)
+        already_linked.add(account_id)  # 같은 id가 요청에 두 번 와도 한 번만 만든다
         created.append(product)
-    db.commit()
+    growlio_client.commit_growlio_links(db)
     for product in created:
         db.refresh(product)
     return created
