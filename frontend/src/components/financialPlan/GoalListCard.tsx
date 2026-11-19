@@ -13,9 +13,10 @@ import { INLINE_BUTTON_OFFSET } from "@/constants/inputStyles";
 import { goalDetailLink } from "@/constants/routes";
 import { TOUCH_TARGET_MIN_HEIGHT } from "@/constants/uiSizes";
 import { progressStatusBadgeClass, progressStatusLabel } from "@/utils/colors";
+import { currentYearMonth } from "@/utils/date";
 import { formatDate, formatKrw, formatKrwCompact, formatYearMonth, toAmountInputValue } from "@/utils/format";
 import { celebrateIfCrossed } from "@/utils/goalMilestone";
-import { computeCardStatus, daysUntil } from "@/utils/goalStatus";
+import { computeCardStatus, formatDday } from "@/utils/goalStatus";
 import { toast } from "@/utils/toast";
 import type { FinancialGoalOut } from "@/types";
 
@@ -119,8 +120,11 @@ export default function GoalListCard({
   if (isCombined) {
     badges.push({ label: "통합 목표", toneClassName: progressStatusBadgeClass("neutral") });
   }
-  if (isAutoComputed) {
-    badges.push({ label: "이번 달 자동계산", toneClassName: progressStatusBadgeClass("neutral") });
+  if (isAutoComputed && activeMonth) {
+    // activeMonth는 "아직 달성 못한 가장 이른 달"이라 지난달일 수 있다 — 그 달을 그대로 밝힌다.
+    const label =
+      activeMonth.year_month === currentYearMonth() ? "이번 달" : formatYearMonth(activeMonth.year_month);
+    badges.push({ label: `${label} 자동계산`, toneClassName: progressStatusBadgeClass("neutral") });
   }
 
   const extraDetails: GoalProgressCardExtraDetail[] = [];
@@ -198,7 +202,7 @@ export default function GoalListCard({
           : isCombined ? `구성 ${goal.combined_members.length}개` : `${goal.priority}순위`
       }${
         goal.target_date !== null
-          ? ` · D-${daysUntil(goal.target_date)}`
+          ? ` · ${formatDday(goal.target_date)}`
           : goal.target_age !== null
             ? ` · ${goal.target_age}세까지`
             : ""

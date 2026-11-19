@@ -20,6 +20,13 @@ export function daysUntil(targetDate: string): number {
   return Math.round((target.getTime() - today.getTime()) / 86_400_000);
 }
 
+/** 목표일 배지 — 남았으면 "D-12", 오늘이면 "D-day", 지났으면 "D+3"("D--3"으로 보이던 문제). */
+export function formatDday(targetDate: string): string {
+  const days = daysUntil(targetDate);
+  if (days === 0) return "D-day";
+  return days > 0 ? `D-${days}` : `D+${-days}`;
+}
+
 /** 목표 하나의 진행 상태를 판정한다. 백엔드가 이미 계산해 내려주는 progress_pct/target_date/
  * suggested_monthly_amount만으로 프론트에서 계산하며 별도 백엔드 필드를 추가하지 않는다.
  * planned_monthly_amount(연동 상품의 월 계획 합 또는 목표 월 저축액)가 suggested_monthly_amount의 90% 이상이면 정상으로 본다 — 반올림

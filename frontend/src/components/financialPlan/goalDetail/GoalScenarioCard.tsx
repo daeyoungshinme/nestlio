@@ -33,6 +33,11 @@ export default function GoalScenarioCard({ goal }: { goal: FinancialGoalOut }) {
           <>
             <strong>{scenario.newMonths}개월</strong> 뒤 달성 — 지금보다 <strong>{scenario.monthsSaved}개월</strong> 빨라져요.
           </>
+        ) : scenario.baseMonths === null ? (
+          // 월 계획이 없으면 이 기간은 전부 추가 금액 덕분이다 — "지금 계획으로"라고 하면 틀린 말이 된다.
+          <>
+            <strong>{scenario.newMonths}개월</strong> 뒤 달성해요.
+          </>
         ) : (
           <>
             지금 계획으로 <strong>{scenario.newMonths}개월</strong> 뒤 달성해요.

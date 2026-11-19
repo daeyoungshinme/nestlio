@@ -1,7 +1,7 @@
 import ProgressBar from "@/components/common/ProgressBar";
 import { progressStatusBadgeClass, progressStatusLabel } from "@/utils/colors";
 import { formatKrw, formatKrwCompact, formatPercent, formatYearMonth } from "@/utils/format";
-import { computeCardStatus, daysUntil } from "@/utils/goalStatus";
+import { computeCardStatus, formatDday } from "@/utils/goalStatus";
 import type { FinancialGoalOut } from "@/types";
 
 /** 목표 상세 맨 위 — 유형·D-day, 진행률, (챌린지가 아니면) 월 계획·예상 달성·수익률 반영 ETA·필요 월 저축액. */
@@ -20,7 +20,7 @@ export default function GoalSummaryCard({ goal }: { goal: FinancialGoalOut }) {
                 : goal.kind === "combined"
                   ? "통합 목표 · 장기 목표 + growlio 투자목표 합계"
                   : `${goal.priority}순위 목표`}
-            {goal.target_date && ` · D-${daysUntil(goal.target_date)}`}
+            {goal.target_date && ` · ${formatDday(goal.target_date)}`}
           </p>
           <h2 className="text-lg font-bold text-gray-900 dark:text-gray-50 truncate">{goal.name}</h2>
         </div>
