@@ -69,3 +69,29 @@ def test_string_settings_are_documented_in_env_example():
     string_fields = {name for name, field in Settings.model_fields.items() if field.annotation is str}
     expected = {name.upper() for name in string_fields | set(_PLACEHOLDERS) | set(_REQUIRED_IN_PROD)}
     assert expected - _env_example_keys() == set()
+
+
+def test_removed_user_detail_matches_frontend_client():
+    """제거된 배우자의 403 응답 문구를 프론트(`api/client.ts`)가 정확히 매칭해 자동 로그아웃한다 — 한쪽만 바꾸면
+    제거된 계정이 로그아웃되지 않고 화면마다 오류만 본다(루트 CLAUDE.md "가구(사용자) 모델")."""
+    from app.services.user_service import REMOVED_USER_DETAIL
+
+    client_ts = (ROOT / "frontend" / "src" / "api" / "client.ts").read_text(encoding="utf-8")
+    match = re.search(r'const REMOVED_USER_DETAIL = "([^"]+)";', client_ts)
+    assert match, "frontend/src/api/client.ts에 REMOVED_USER_DETAIL 상수가 없다"
+    assert match.group(1) == REMOVED_USER_DETAIL
+
+
+def test_render_env_keys_are_known():
+    """render.yaml의 백엔드 키는 `Settings` 필드, `VITE_` 키는 `frontend/.env.example`에 있어야 한다 — 오타 난 키는
+    `extra="ignore"`로 조용히 무시돼 배포에서 기본값(연동 꺼짐 등)으로 돈다."""
+    from app.config import Settings
+
+    keys = set(re.findall(r"- key: ([A-Z][A-Z0-9_]*)", (ROOT / "render.yaml").read_text(encoding="utf-8")))
+    vite_keys = {k for k in keys if k.startswith("VITE_")}
+    platform_keys = {"TZ", "PYTHON_VERSION", "NODE_VERSION"}
+    fields = {name.upper() for name in Settings.model_fields}
+    assert keys - vite_keys - platform_keys - fields == set()
+
+    frontend_example = (ROOT / "frontend" / ".env.example").read_text(encoding="utf-8")
+    assert vite_keys - set(re.findall(r"^(VITE_[A-Z0-9_]*)=", frontend_example, re.M)) == set()

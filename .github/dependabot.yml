@@ -21,6 +21,11 @@ updates:
         # 빌드가 깨진 채로 22개 묶음 PR이 올라온다(postcss 플러그인 분리 등).
         # 메이저는 그룹에서 제외해 개별 PR로 검토·마이그레이션한다.
         update-types: ["minor", "patch"]
+    ignore:
+      # 런타임은 Node 22(.nvmrc·render.yaml) — 타입만 26으로 올라가면 없는 API를 써도 타입체크가 통과한다.
+      # Node를 올릴 때 이 줄과 함께 올린다.
+      - dependency-name: "@types/node"
+        update-types: ["version-update:semver-major"]
 
   - package-ecosystem: github-actions
     # 로컬 composite action(.github/actions/*)이 쓰는 setup-python/setup-node도 함께 올린다.

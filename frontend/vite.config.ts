@@ -2,6 +2,10 @@ import path from "path";
 import react from "@vitejs/plugin-react";
 import { defineConfig } from "vitest/config";
 
+// 테스트를 앱 사용자와 같은 시간대(KST)로 고정한다 — 개발 PC와 CI(UTC)에서 날짜 경계 결과가 달라지지 않게.
+// 워커는 이 프로세스의 환경을 물려받는다(Node는 TZ를 첫 Date 사용 때 읽는다).
+process.env.TZ = "Asia/Seoul";
+
 export default defineConfig({
   plugins: [react()],
   resolve: {

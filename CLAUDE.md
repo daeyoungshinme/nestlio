@@ -15,7 +15,7 @@
 - **인증**: 프론트가 `@supabase/supabase-js`로 직접 로그인해 JWT를 받고, 백엔드는 `app/dependencies.py`에서 JWKS(`PyJWKClient`)로 서명만 검증한다. 백엔드엔 로그인 엔드포인트·세션 쿠키가 없다(`Authorization: Bearer`만)
 - **예약 작업**: in-process 스케줄러가 아니라 GitHub Actions(`.github/workflows/scheduled-jobs.yml`)가 `POST /internal/jobs/{job_name}`을 호출한다(Render 무료 티어가 15분 미사용 시 슬립)
 - **외부 연동**: Gmail(알림 메일 발송만 — 구글 캘린더·시트 연동은 2026-10 제거), growlio 자산 API(`app/services/growlio_client.py` — 사용자 JWT를 그대로 전달, 별도 API 키 없음). growlio 연동은 **읽기전용이 아니다** — 저축/투자 거래 입력 시 growlio 계좌에 입출금을 쓰는 `push_transaction`이 있다(실패분은 `growlio_push_service` 아웃박스가 재전송)
-- **배포**: Render 무료 웹서비스 1개(`render.yaml`). FastAPI가 `frontend/dist`를 정적 서빙하는 단일 프로세스. 디스크가 휘발성이라 부부 사진은 Supabase Storage, Google OAuth 토큰은 Postgres(`household.google_oauth_tokens`)에 저장한다
+- **배포**: Render 무료 웹서비스 1개(`render.yaml`). FastAPI가 `frontend/dist`를 정적 서빙하는 단일 프로세스. 헬스 체크는 DB 왕복까지 하는 `GET /healthz`(`app/routers/health.py`, OpenAPI 밖). 디스크가 휘발성이라 부부 사진은 Supabase Storage, Google OAuth 토큰은 Postgres(`household.google_oauth_tokens`)에 저장한다
 
 ## 아키텍처 규칙
 
@@ -62,7 +62,7 @@ growlio API 응답을 새로 쓰거나 형태를 바꾸면 growlio(`d:\project\g
 | 배포 스냅샷 | `dev.sh run` — `frontend/dist` 빌드 후 uvicorn 단일 프로세스(8899) |
 | 프론트만 | `cd frontend && npm run dev` (`/api` → 8899 프록시) |
 | 테스트 | `pytest` (일부만: `pytest tests/test_goal_service.py -k linked`) |
-| 린트 | `ruff check .` (pyflakes·import 정렬·bugbear·pyupgrade(UP)·comprehensions(C4)만, 포매터 전면 재정렬 안 함) |
+| 린트 | `ruff check .` (pyflakes·import 정렬·bugbear·pyupgrade(UP)·comprehensions(C4)·시계 직접 호출 금지(DTZ003/005/011)만, 포매터 전면 재정렬 안 함) |
 | 마이그레이션 드리프트 | `python scripts/check_migration_drift.py` (임베디드 Postgres, 운영 DB 안 건드림 — CI `migration-drift`와 같음) |
 | API 타입 | `cd frontend && PYTHON="<절대경로>/.venv/Scripts/python.exe" npm run generate:api-types` |
 | pre-commit | `pre-commit install` (ruff `--fix`, oxlint, 위생 훅) |

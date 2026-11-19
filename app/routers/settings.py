@@ -21,6 +21,7 @@ from app.services import (
     notification_settings_service,
     settings_service,
 )
+from app.utils.dates import today_kst
 
 router = APIRouter(prefix="/settings", tags=["settings"])
 
@@ -92,9 +93,9 @@ def delete_couple_photo(db: Session = Depends(get_db), current_user: User = Depe
 
 @router.post("/test-weekly-email", response_model=TestEmailResultOut)
 def test_weekly(db: Session = Depends(get_db), _: User = Depends(get_current_user)):
-    return notification_service.send_test_summary(db, "weekly")
+    return notification_service.send_test_summary(db, "weekly", today=today_kst())
 
 
 @router.post("/test-monthly-email", response_model=TestEmailResultOut)
 def test_monthly(db: Session = Depends(get_db), _: User = Depends(get_current_user)):
-    return notification_service.send_test_summary(db, "monthly")
+    return notification_service.send_test_summary(db, "monthly", today=today_kst())

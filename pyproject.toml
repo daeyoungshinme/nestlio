@@ -7,7 +7,9 @@ target-version = "py312"
 extend-exclude = ["migrations"]
 
 [tool.ruff.lint]
-select = ["F", "I", "B", "UP", "C4"]
+# DTZ003/005/011: datetime.utcnow()/datetime.now()/date.today() 금지 — 시각은 app/utils/dates.py의 now_kst()/today_kst()로만
+# 읽는다(컨테이너는 UTC, 앱은 naive datetime을 KST 벽시계로 취급). naive datetime(...) 리터럴(DTZ001)은 정상이라 전체 DTZ는 켜지 않는다.
+select = ["F", "I", "B", "UP", "C4", "DTZ003", "DTZ005", "DTZ011"]
 ignore = [
     "B008",  # FastAPI: Depends()/Query()를 기본 인자로 쓰는 관용 패턴
 ]
@@ -32,3 +34,6 @@ filterwarnings = [
 # SQLAlchemy 모델의 Mapped["SiblingModel"] 문자열 forward ref는 런타임 레지스트리가
 # 해석한다 — ruff는 undefined name으로 오탐한다.
 "app/models/*" = ["F821"]
+# 시계를 읽는 유일한 곳과, 그 시계 자체를 검증하는 테스트.
+"app/utils/dates.py" = ["DTZ005", "DTZ011"]
+"tests/test_dates.py" = ["DTZ005", "DTZ011"]

@@ -7,7 +7,8 @@ on:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  # main push는 커밋마다 끝까지 돌린다(연달아 머지하면 앞 커밋 CI 결과가 사라졌다). PR은 새 push가 앞 실행을 취소.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
   contents: read
@@ -48,6 +49,11 @@ jobs:
               - ".pre-commit-config.yaml"
               - "render.yaml"
               - ".nvmrc"
+              # tests/test_dev_tooling.py가 읽는 파일 — 이것만 바꾼 PR도 가드가 돌아야 한다.
+              - ".env.example"
+              - ".github/workflows/scheduled-jobs.yml"
+              - "frontend/.env.example"
+              - "frontend/src/api/client.ts"
             # 모델 ↔ 마이그레이션 드리프트(임베디드 Postgres라 느림) — 모델·마이그레이션·검사 스크립트가 바뀔 때만.
             migrations:
               - "app/models/**"

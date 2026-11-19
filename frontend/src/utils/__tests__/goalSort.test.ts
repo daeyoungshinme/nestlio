@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { pinHouseholdGoalsFirst, sortGoals } from "@/utils/goalSort";
 import type { FinancialGoalOut } from "@/types";
+import { currentDateIso, shiftDateIso } from "@/utils/date";
 
 function makeGoal(overrides: Partial<FinancialGoalOut>): FinancialGoalOut {
   return {
@@ -37,11 +38,9 @@ function makeGoal(overrides: Partial<FinancialGoalOut>): FinancialGoalOut {
   };
 }
 
+// 로컬 날짜로 만든다 — toISOString()은 UTC라 KST 자정~09시엔 하루 전 날짜가 됐다(여유 있는 비교라 우연히 통과).
 function isoDaysFromNow(days: number): string {
-  const d = new Date();
-  d.setHours(0, 0, 0, 0);
-  d.setDate(d.getDate() + days);
-  return d.toISOString().slice(0, 10);
+  return shiftDateIso(currentDateIso(), days);
 }
 
 describe("sortGoals", () => {
