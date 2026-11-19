@@ -365,9 +365,25 @@ def test_savings_streak_counts_consecutive_months_meeting_goal_pace(seeded_db):
             db, user_id=user.id, category_id=food.id, type_="expense", amount=Decimal(expense), transaction_date=date(2026, month, 15)
         )
 
-    streak = notification_service._savings_streak(db, date(2026, 7, 31))
+    streak = notification_service._savings_streak(db, date(2026, 7, 31), date(2026, 8, 3))
 
     assert streak == 2
+
+
+def test_savings_streak_skips_month_in_progress_until_it_meets_the_plan(seeded_db):
+    """달 초 납입 전에는 이번 달이 미달이라 연속 기록이 0으로 보였다 — 진행 중인 달은 달성했을 때만 센다."""
+    db, user, _food = seeded_db["db"], seeded_db["user"], seeded_db["food"]
+    from app.services import transaction_service
+
+    goal_service.create_goal(db, priority=1, name="비상금", target_age=None, required_amount=Decimal("1000000"), monthly_saving_amount=Decimal("100000"))
+    for month in (5, 6):
+        transaction_service.create_transaction(
+            db, user_id=user.id, category_id=seeded_db["salary"].id, type_="income", amount=Decimal("500000"), transaction_date=date(2026, month, 1)
+        )
+    # 7월은 아직 아무것도 없음(수입−지출 0 < 목표 100,000)
+
+    assert notification_service._savings_streak(db, date(2026, 7, 3), date(2026, 7, 3)) == 2
+    assert notification_service._savings_streak(db, date(2026, 7, 31), date(2026, 8, 3)) == 0  # 끝난 달이면 끊긴다
 
 
 def _second_user(db) -> User:

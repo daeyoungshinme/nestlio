@@ -198,23 +198,35 @@ def category_benchmark_insights(rows: list[dict]) -> list[Insight]:
     ]
 
 
-def goal_pace_insight(actual: Decimal, target_monthly: Decimal) -> Insight | None:
+def goal_pace_insight(actual: Decimal, target_monthly: Decimal, elapsed_ratio: Decimal | None = None) -> Insight | None:
+    """`elapsed_ratio`(진행 중인 달의 경과일/말일)가 있으면 월 계획 × 비율, 즉 "오늘까지 모았어야 할 몫" 대비로 판정한다
+    — 달 초 납입 전에 "계획의 0%" critical이 뜨던 문제. 끝난 달은 None(월 계획 전체 대비). 진행 중인 달에 아직 납입이
+    없으면 판정하지 않는다 — 월급날 자동이체 가구는 그날까지 0원이라 비율과 무관하게 0%가 된다."""
     if target_monthly <= 0:
         return None
-    pct = _pct(actual, target_monthly)
+    in_progress = elapsed_ratio is not None
+    if in_progress and actual <= 0:
+        return None
+    pct = _pct(actual, target_monthly * elapsed_ratio if in_progress else target_monthly)
+    basis = "오늘까지의 계획 페이스" if in_progress else "계획한 월 저축액"
     if pct < settings.goal_pace_critical_pct:
         return Insight(
             "goal_pace",
             "critical",
-            f"이번달 저축·투자가 계획한 월 저축액의 {pct:.0f}%예요. 목표 페이스에 많이 못 미쳤어요. 이번 달엔 같이 지출을 점검해볼까요?",
+            f"이번달 저축·투자가 {basis}의 {pct:.0f}%예요. 목표 페이스에 많이 못 미쳤어요. 이번 달엔 같이 지출을 점검해볼까요?",
         )
     if pct < settings.goal_pace_info_pct:
-        return Insight(
-            "goal_pace", "warning", f"이번달 저축·투자가 계획한 월 저축액의 {pct:.0f}%예요. 우리 조금만 더 힘내볼까요?"
-        )
+        return Insight("goal_pace", "warning", f"이번달 저축·투자가 {basis}의 {pct:.0f}%예요. 우리 조금만 더 힘내볼까요?")
     return Insight(
-        "goal_pace", "info", f"이번달 저축·투자가 계획한 월 저축액의 {pct:.0f}% — 두 분 다 목표 페이스를 잘 지키고 있어요!"
+        "goal_pace", "info", f"이번달 저축·투자가 {basis}의 {pct:.0f}% — 두 분 다 목표 페이스를 잘 지키고 있어요!"
     )
+
+
+def month_elapsed_ratio(start: date, end: date, today: date) -> Decimal | None:
+    """진행 중인 달이면 경과일/말일(오늘 포함), 끝났거나 아직 시작 안 한 달이면 None."""
+    if not start <= today <= end:
+        return None
+    return Decimal(today.day) / Decimal(end.day)
 
 
 def savings_execution_insight(surplus: Decimal, actual_saved: Decimal) -> Insight | None:
@@ -311,7 +323,7 @@ def compute_insights(
         ),
         discretionary_ratio_insight(totals, breakdown, thresholds["discretionary_ratio_warn"]),
         debt_ratio_insight(totals, breakdown, thresholds["debt_ratio_warn"]),
-        goal_pace_insight(pace_actual, pace_target),
+        goal_pace_insight(pace_actual, pace_target, month_elapsed_ratio(start, end, today)),
         # 납입 전인 달 초에 "0원뿐" 경고가 되지 않도록 끝난 달만 본다.
         savings_execution_insight(totals["savings"], actual_saved) if end < today else None,
     ):

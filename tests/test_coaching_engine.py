@@ -229,6 +229,32 @@ def test_goal_pace_skips_without_target():
     assert goal_pace_insight(Decimal("500000"), Decimal("0")) is None
 
 
+def test_goal_pace_in_progress_month_compares_with_share_due_so_far():
+    """진행 중인 달은 월 계획 × 경과일/말일 대비 — 10일(1/3 경과)에 계획 90만 중 30만이면 페이스 100%."""
+    insight = goal_pace_insight(Decimal("300000"), Decimal("900000"), Decimal(10) / Decimal(30))
+    assert insight.severity == "info"
+    assert "오늘까지의 계획 페이스의 100%" in insight.message
+
+
+def test_goal_pace_in_progress_month_without_deposit_yet_is_silent():
+    """진행 중인 달에 아직 납입이 없으면(월급날 자동이체 전) 판정하지 않는다 — 끝난 달의 0원은 그대로 critical."""
+    assert goal_pace_insight(Decimal("0"), Decimal("900000"), Decimal(20) / Decimal(30)) is None
+    assert goal_pace_insight(Decimal("0"), Decimal("900000")).severity == "critical"
+
+
+@pytest.mark.parametrize(
+    ("today", "expected"),
+    [
+        (date(2026, 7, 10), Decimal(10) / Decimal(31)),
+        (date(2026, 7, 31), Decimal(1)),
+        (date(2026, 8, 1), None),  # 끝난 달
+        (date(2026, 6, 30), None),  # 아직 시작 안 한 달
+    ],
+)
+def test_month_elapsed_ratio(today, expected):
+    assert coaching_engine.month_elapsed_ratio(date(2026, 7, 1), date(2026, 7, 31), today) == expected
+
+
 @pytest.mark.parametrize(
     "planned,deposits,goals_monthly,surplus,expected",
     [
@@ -358,6 +384,14 @@ def test_savings_streak_stops_at_first_miss_from_the_end():
     assert savings_streak_months(history) == 2
 
 
+def test_savings_streak_skips_unfinished_current_month():
+    history = [_h(500_000, 500_000), _h(500_000, 500_000), _h(0, 500_000)]
+    assert savings_streak_months(history) == 0
+    assert savings_streak_months(history, last_in_progress=True) == 2
+    # 이번 달을 이미 채웠으면 함께 센다
+    assert savings_streak_months([*history[:2], _h(500_000, 500_000)], last_in_progress=True) == 3
+
+
 def test_savings_streak_stops_at_month_without_target():
     assert savings_streak_months([_h(500_000, 500_000), _h(500_000, 0)]) == 0
     assert savings_streak_months([_h(500_000, 0), _h(500_000, 500_000)]) == 1
@@ -440,10 +474,14 @@ def test_compute_insights_goal_pace_compares_savings_plan_with_deposits(seeded_d
         db, user_id=user.id, category_id=savings_cat.id, type_="expense", amount=Decimal("300000"), transaction_date=date(2026, 7, 3), savings_product_id=product.id
     )
 
-    [pace] = [i for i in coaching_engine.compute_insights(db, "2026-07") if i.rule_code == "goal_pace"]
+    [pace] = [i for i in coaching_engine.compute_insights(db, "2026-07", today=date(2026, 8, 1)) if i.rule_code == "goal_pace"]
 
     assert pace.severity == "critical"
     assert "30%" in pace.message
+
+    # 같은 납입이 7월 9일 현재라면 오늘까지 몫(100만 × 9/31 ≈ 29만) 대비 100%를 넘는다
+    [pace] = [i for i in coaching_engine.compute_insights(db, "2026-07", today=date(2026, 7, 9)) if i.rule_code == "goal_pace"]
+    assert pace.severity == "info"
 
 
 def _seed_month_with_deposit(seeded_db):

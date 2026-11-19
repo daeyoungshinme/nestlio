@@ -236,3 +236,24 @@ def test_deactivate_product_404_when_missing(client):
 @pytest.mark.parametrize("year", [0, 10000])
 def test_annual_plan_summary_out_of_range_year_is_422(client, year):
     assert client.get("/api/v1/savings-products/annual-plan", params={"year": year}).status_code == 422
+
+
+@pytest.mark.parametrize(
+    "monthly_targets",
+    [
+        [{"year_month": "2026-06", "target_amount": "1"}, {"year_month": "2026-06", "target_amount": "2"}],
+        [{"year_month": "2027-01", "target_amount": "1"}],
+    ],
+)
+def test_upsert_annual_plan_rejects_duplicate_or_other_year_months_with_422(client, seeded_db, monthly_targets):
+    product_id = client.post(
+        "/api/v1/savings-products",
+        json={"name": "적금", "current_balance": "0", "monthly_saving_amount": "100000", "product_type": "savings"},
+    ).json()["id"]
+
+    resp = client.put(
+        f"/api/v1/savings-products/{product_id}/annual-plan",
+        json={"year": 2026, "start_month": "2026-01", "end_month": "2026-12", "monthly_targets": monthly_targets},
+    )
+
+    assert resp.status_code == 422

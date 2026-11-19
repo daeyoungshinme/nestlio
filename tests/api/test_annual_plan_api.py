@@ -194,3 +194,35 @@ def test_out_of_range_year_is_422_not_500(client, year):
     # date(year, 1, 1)이 되는 값 — 범위 밖이면 year_bounds에서 ValueError(500)가 났다.
     assert client.get("/api/v1/annual-plan", params={"year": year}).status_code == 422
     assert client.post("/api/v1/annual-plan/seed", json={"year": year, "source": "recurring"}).status_code == 422
+
+
+def _item_payload(**overrides):
+    payload = {
+        "id": None,
+        "year": 2026,
+        "section": "income",
+        "owner_user_id": None,
+        "name": "월급",
+        "category_id": None,
+        "sort_order": 0,
+        "start_month": "2026-01",
+        "end_month": "2026-12",
+        "monthly_targets": [{"year_month": "2026-01", "target_amount": "3000000"}],
+    }
+    return {**payload, **overrides}
+
+
+@pytest.mark.parametrize(
+    "overrides",
+    [
+        # 같은 달 두 번 — 저장하면 월별 유니크 제약에서 500이 났다
+        {"monthly_targets": [{"year_month": "2026-03", "target_amount": "1"}, {"year_month": "2026-03", "target_amount": "2"}]},
+        # 다른 해의 달 — 그 해 연간 화면엔 안 보이고 그 달 예산에만 합산됐다
+        {"monthly_targets": [{"year_month": "2027-03", "target_amount": "1"}]},
+        {"start_month": "2025-12"},
+        {"start_month": "2026-09", "end_month": "2026-03"},
+        {"monthly_targets": [{"year_month": f"2026-{m:02d}", "target_amount": "1"} for m in range(1, 13)] * 2},
+    ],
+)
+def test_upsert_item_rejects_invalid_monthly_targets_with_422(client, overrides):
+    assert client.put("/api/v1/annual-plan/items", json=_item_payload(**overrides)).status_code == 422

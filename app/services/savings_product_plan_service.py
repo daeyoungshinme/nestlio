@@ -1,3 +1,4 @@
+from dataclasses import dataclass, field
 from datetime import date
 from decimal import Decimal
 
@@ -115,24 +116,40 @@ def upsert_annual_plan(
     return plan
 
 
-def _monthly_targets_by_product_for_year(db: Session, product_ids: list[int], year: int) -> dict[int, dict[str, Decimal]]:
-    """product_id별로 그 연도에 저장된 월별 목표금액(year_month -> target_amount)을 한 번에 조회한다
+@dataclass
+class _YearPlan:
+    """한 상품의 그 해 계획 — 기간(start_month~end_month, "YYYY-MM")과 월별 값."""
+
+    start_month: str
+    end_month: str
+    targets: dict[str, Decimal] = field(default_factory=dict)
+
+
+def _monthly_targets_by_product_for_year(db: Session, product_ids: list[int], year: int) -> dict[int, _YearPlan]:
+    """product_id별로 그 연도 계획(기간 + 월별 목표금액)을 한 번에 조회한다 — 계획이 없는 상품은 키가 없다
     (compute_plan_summary/compute_annual_plan_summary가 상품마다 따로 조회하지 않도록)."""
     if not product_ids:
         return {}
     rows = (
         db.query(
             SavingsProductAnnualPlan.product_id,
+            SavingsProductAnnualPlan.start_month,
+            SavingsProductAnnualPlan.end_month,
             SavingsProductAnnualPlanMonthlyTarget.year_month,
             SavingsProductAnnualPlanMonthlyTarget.target_amount,
         )
-        .join(SavingsProductAnnualPlanMonthlyTarget, SavingsProductAnnualPlanMonthlyTarget.plan_id == SavingsProductAnnualPlan.id)
+        # 월별 값이 하나도 없는 계획도 기간은 의미가 있어(기간 밖 달 0) 외부 조인한다.
+        .outerjoin(
+            SavingsProductAnnualPlanMonthlyTarget, SavingsProductAnnualPlanMonthlyTarget.plan_id == SavingsProductAnnualPlan.id
+        )
         .filter(SavingsProductAnnualPlan.product_id.in_(product_ids), SavingsProductAnnualPlan.year == year)
         .all()
     )
-    result: dict[int, dict[str, Decimal]] = {}
-    for product_id, year_month, target_amount in rows:
-        result.setdefault(product_id, {})[year_month] = target_amount
+    result: dict[int, _YearPlan] = {}
+    for product_id, start_month, end_month, year_month, target_amount in rows:
+        plan = result.setdefault(product_id, _YearPlan(start_month, end_month))
+        if year_month is not None:
+            plan.targets[year_month] = target_amount
     return result
 
 
@@ -156,17 +173,25 @@ def planned_by_product_for_month(
     db: Session, year_month: str, products: list[SavingsProduct] | None = None
 ) -> dict[int, Decimal]:
     """상품별 그 달 저축·투자 계획액 — "얼마 저축할지"의 **유일한 원본**이다. SavingsProductAnnualPlan(월별
-    그리드)에 값이 있으면 그 값을, 없으면 product.monthly_saving_amount로 폴백한다. 목표의 월 계획액
+    그리드)이 그 해 있으면 그 값(계획 기간 밖 달은 0), 없으면 product.monthly_saving_amount로 폴백한다. 목표의 월 계획액
     (goal_progress_service.planned_monthly_for_goal)과 코칭의 목표 페이스·연속 달성(coaching_engine)도
     이 값을 쓴다."""
     products = plan_products(db) if products is None else products
     targets_by_product = _monthly_targets_by_product_for_year(db, [p.id for p in products], int(year_month[:4]))
-    return {p.id: _planned_amount(p, targets_by_product.get(p.id, {}), year_month) for p in products}
+    return {p.id: _planned_amount(p, targets_by_product.get(p.id), year_month) for p in products}
 
 
-def _planned_amount(product: SavingsProduct, product_targets: dict[str, Decimal], year_month: str) -> Decimal:
-    """그 달 계획액 규칙: 월별 그리드 값이 있으면 그 값, 없으면 product.monthly_saving_amount."""
-    return product_targets.get(year_month, product.monthly_saving_amount)
+def _planned_amount(product: SavingsProduct, plan: _YearPlan | None, year_month: str) -> Decimal:
+    """그 달 계획액 규칙(`plan`은 그 해 계획, 없으면 None).
+    - 그 해 계획의 기간(start_month~end_month) **밖** 달은 0 — 3~12월로 저장한 계획의 1~2월을 monthly_saving_amount로
+      채우면 그 달 페이스 경고·연속 달성·월말 리마인더·목표 월 계획이 부풀었다.
+    - 기간 안이면 월별 값, 값이 빠진 달은 product.monthly_saving_amount.
+    - 그 해 계획이 없으면 product.monthly_saving_amount."""
+    if plan is None:
+        return product.monthly_saving_amount
+    if not plan.start_month <= year_month <= plan.end_month:
+        return Decimal("0")
+    return plan.targets.get(year_month, product.monthly_saving_amount)
 
 
 def plan_totals_for_month(db: Session, year_month: str) -> tuple[Decimal, Decimal]:
@@ -192,7 +217,7 @@ def plan_totals_for_months(db: Session, year_months: list[str]) -> dict[str, tup
         targets = targets_by_year[int(ym[:4])]
         actuals = actuals_by_month.get(ym, {})
         result[ym] = (
-            sum((_planned_amount(p, targets.get(p.id, {}), ym) for p in products), Decimal("0")),
+            sum((_planned_amount(p, targets.get(p.id), ym) for p in products), Decimal("0")),
             sum((actuals.get(p.id, Decimal("0")) for p in products), Decimal("0")),
         )
     return result
@@ -283,7 +308,7 @@ def compute_annual_plan_summary(
     actual_by_type: dict[str, Decimal] = {t: Decimal("0") for t in PLAN_PRODUCT_TYPES}
     for product in products:
         actual = actuals.get(product.id, Decimal("0"))
-        product_targets = targets_by_product.get(product.id, {})
+        product_targets = targets_by_product.get(product.id)
         monthly_amounts = [
             _planned_amount(product, product_targets, year_month_of(year, month)) for month in range(1, 13)
         ]

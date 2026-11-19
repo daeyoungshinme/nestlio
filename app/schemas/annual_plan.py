@@ -3,10 +3,19 @@ from datetime import datetime
 from decimal import Decimal
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, model_validator
 
 from app.schemas.cashflow_plan import CashflowSection
-from app.schemas.common import CategoryType, DbInt, KrwAmount, PlanYear, YearMonth, bounded_str
+from app.schemas.common import (
+    CategoryType,
+    DbInt,
+    KrwAmount,
+    PlanYear,
+    YearMonth,
+    bounded_str,
+    check_plan_year,
+    monthly_targets_list,
+)
 from app.utils.plan_status import PlanStatus
 
 
@@ -53,7 +62,12 @@ class AnnualPlanItemUpsertIn(BaseModel):
     sort_order: DbInt = 0
     start_month: YearMonth
     end_month: YearMonth
-    monthly_targets: list[AnnualPlanItemMonthlyTargetIn] = []
+    monthly_targets: monthly_targets_list(AnnualPlanItemMonthlyTargetIn, 12) = []
+
+    @model_validator(mode="after")
+    def _within_year(self):
+        check_plan_year(self.year, self.start_month, self.end_month, self.monthly_targets)
+        return self
 
 
 class AnnualPlanSectionMonthOut(BaseModel):

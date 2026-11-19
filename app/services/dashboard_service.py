@@ -67,7 +67,9 @@ def build(db: Session, *, year_month: str | None = None, today: date | None = No
         db, month_start=start, surplus=investable_surplus, fund_context=fund_context
     )
 
-    streak = savings_coaching_service.savings_streak_months(savings_coaching_service.savings_pace_history(db, trend, goals))
+    streak = savings_coaching_service.savings_streak_months(
+        savings_coaching_service.savings_pace_history(db, trend, goals), last_in_progress=end >= today
+    )
 
     return {
         "start": start,

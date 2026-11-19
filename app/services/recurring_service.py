@@ -5,13 +5,43 @@ from decimal import Decimal
 
 from sqlalchemy.orm import Session
 
-from app.errors import PartialFailureError
+from app.errors import ConflictError, PartialFailureError
 from app.models.recurring_expense import RecurringExpense
 from app.models.transaction import Transaction
 from app.services.transaction_service import create_transaction, validate_category_kind
 from app.utils.dates import advance_recurring_date, first_monthly_date_on_or_after, today_kst
 
 logger = logging.getLogger(__name__)
+
+# 일정을 바꾼 뒤 다음 기한을 다시 셀 때·재활성화 때 앞당기는 최대 횟수(주 단위 약 4.6년, 월 단위 20년).
+_ADVANCE_GUARD = 240
+# 바꾸면 다음 기한을 다시 계산해야 하는 일정 칸.
+_SCHEDULE_FIELDS = ("frequency", "start_date", "days_of_month")
+
+
+class RecurringEndedError(ConflictError):
+    """종료일이 지나 더 이상 기한이 없는 고정지출 — 재활성화해도 다음 생성 때 바로 다시 꺼진다."""
+
+
+def _first_due_date(start_date: date, days_of_month: list[int] | None) -> date:
+    """create_recurring의 첫 기한 규칙 — 여러 날짜(days_of_month)면 시작일 이후 첫 지정일, 아니면 시작일."""
+    return first_monthly_date_on_or_after(start_date, days_of_month) if days_of_month else start_date
+
+
+def _advance_until(db: Session, recurring: RecurringExpense, due: date, today: date) -> date:
+    """`due`를 오늘 이후의, 아직 거래가 생성되지 않은 기한까지 앞당긴다 — 소급분을 한꺼번에 만들거나 오늘 이미 만든
+    기한을 다시 만들지 않게."""
+    generated = {
+        tx_date
+        for (tx_date,) in db.query(Transaction.transaction_date).filter(
+            Transaction.recurring_expense_id == recurring.id, Transaction.transaction_date >= today
+        )
+    }
+    guard = 0
+    while (due < today or due in generated) and guard < _ADVANCE_GUARD:
+        guard += 1
+        due = advance_recurring_date(due, recurring.frequency, recurring.day_of_month, recurring.days_of_month)
+    return due
 
 
 def list_recurring(db: Session, active_only: bool = True) -> list[RecurringExpense]:
@@ -88,7 +118,10 @@ def create_recurring(
     return recurring
 
 
-def update_recurring(db: Session, recurring_id: int, **fields) -> RecurringExpense | None:
+def update_recurring(db: Session, recurring_id: int, today: date | None = None, **fields) -> RecurringExpense | None:
+    """일정(주기·시작일·지정일)을 바꾸면 다음 기한을 새 일정으로 다시 계산한다(오늘 이후, 이미 만든 기한 제외) —
+    그대로 두면 매달 25일 → 5일로 바꿔도 이번 달 25일에 한 번 더 생성되고, 시작일을 미래로 옮겨도 예전 기한에 생겼다."""
+    today = today or today_kst()
     recurring = db.get(RecurringExpense, recurring_id)
     if recurring is None:
         return None
@@ -99,8 +132,13 @@ def update_recurring(db: Session, recurring_id: int, **fields) -> RecurringExpen
         fields["day_of_month"] = min(fields["days_of_month"])
     elif "start_date" in fields:
         fields["day_of_month"] = fields["start_date"].day
+    schedule_changed = any(key in fields and fields[key] != getattr(recurring, key) for key in _SCHEDULE_FIELDS)
     for key, value in fields.items():
         setattr(recurring, key, value)
+    if schedule_changed:
+        recurring.next_due_date = _advance_until(
+            db, recurring, _first_due_date(recurring.start_date, recurring.days_of_month), today
+        )
     db.commit()
     db.refresh(recurring)
     return recurring
@@ -119,18 +157,20 @@ def deactivate_recurring(db: Session, recurring_id: int) -> bool:
 def reactivate_recurring(db: Session, recurring_id: int, today: date | None = None) -> RecurringExpense | None:
     """deactivate_recurring의 대칭 함수. 비활성 기간 동안 밀린 next_due_date를 오늘 이후로
     앞당겨서, 재활성화 직후 generate_due_transactions가 소급분을 한꺼번에 만들어버리지
-    않게 한다."""
+    않게 한다. 앞당긴 기한이 종료일을 넘으면 RecurringEndedError(409) — 켜도 다음 생성 때 조용히 다시 꺼진다."""
     today = today or today_kst()
     recurring = db.get(RecurringExpense, recurring_id)
     if recurring is None:
         return None
-    recurring.is_active = True
+    next_due = recurring.next_due_date
     guard = 0
-    while recurring.next_due_date < today and guard < 240:
+    while next_due < today and guard < _ADVANCE_GUARD:
         guard += 1
-        recurring.next_due_date = advance_recurring_date(
-            recurring.next_due_date, recurring.frequency, recurring.day_of_month, recurring.days_of_month
-        )
+        next_due = advance_recurring_date(next_due, recurring.frequency, recurring.day_of_month, recurring.days_of_month)
+    if recurring.end_date and next_due > recurring.end_date:
+        raise RecurringEndedError("종료일이 지난 고정지출이에요. 종료일을 먼저 바꾼 뒤 다시 켜 주세요.")
+    recurring.next_due_date = next_due
+    recurring.is_active = True
     db.commit()
     db.refresh(recurring)
     return recurring

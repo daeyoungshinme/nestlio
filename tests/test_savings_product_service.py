@@ -791,18 +791,36 @@ def test_compute_plan_summary_falls_back_to_monthly_saving_amount_for_unconfigur
 def test_compute_annual_plan_summary_uses_grid_targets_and_falls_back_per_month(seeded_db):
     db = seeded_db["db"]
     product = savings_product_service.create_product(db, "적금", Decimal("0"), Decimal("100000"))
-    # 1월만 그리드로 다르게 지정, 나머지 달은 monthly_saving_amount로 폴백
+    # 1~3월 기간, 1월만 그리드로 다르게 지정 — 기간 안 빈 달은 monthly_saving_amount, 기간 밖(4월~)은 0
     savings_product_plan_service.upsert_annual_plan(
-        db, product.id, 2026, "2026-01", "2026-01", [{"year_month": "2026-01", "target_amount": Decimal("500000")}]
+        db, product.id, 2026, "2026-01", "2026-03", [{"year_month": "2026-01", "target_amount": Decimal("500000")}]
     )
 
-    summary = savings_product_plan_service.compute_annual_plan_summary(db, 2026, as_of=date(2026, 3, 15))
+    summary = savings_product_plan_service.compute_annual_plan_summary(db, 2026, as_of=date(2026, 5, 15))
 
     item = next(i for i in summary["items"] if i["id"] == product.id)
-    # target_to_date(경과 3개월) = 1월 500000(그리드) + 2월 100000 + 3월 100000(폴백)
+    # target_to_date(경과 5개월) = 1월 500000(그리드) + 2·3월 100000(폴백) + 4·5월 0(기간 밖)
     assert item["target_to_date"] == Decimal("700000")
-    # annual_target(12개월) = 500000 + 100000*11
-    assert item["annual_target"] == Decimal("1600000")
+    assert item["annual_target"] == Decimal("700000")
+
+
+def test_months_outside_saved_plan_period_plan_zero_not_monthly_amount(seeded_db):
+    """3~12월로 저장한 계획의 1~2월이 monthly_saving_amount로 채워져 페이스 경고·연속 달성·월말 리마인더가 부풀었다."""
+    db = seeded_db["db"]
+    product = savings_product_service.create_product(db, "적금", Decimal("0"), Decimal("100000"))
+    savings_product_plan_service.upsert_annual_plan(
+        db,
+        product.id,
+        2026,
+        "2026-03",
+        "2026-12",
+        [{"year_month": f"2026-{m:02d}", "target_amount": Decimal("200000")} for m in range(3, 13)],
+    )
+
+    assert savings_product_plan_service.plan_totals_for_month(db, "2026-02")[0] == Decimal("0")
+    assert savings_product_plan_service.plan_totals_for_month(db, "2026-03")[0] == Decimal("200000")
+    # 계획이 없는 해는 그대로 monthly_saving_amount
+    assert savings_product_plan_service.plan_totals_for_month(db, "2027-01")[0] == Decimal("100000")
 
 
 def test_import_from_growlio_propagates_not_configured_error(db_session):

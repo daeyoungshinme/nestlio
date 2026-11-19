@@ -106,10 +106,17 @@ def savings_pace_history(db: Session, trend: list[dict], goals: list[FinancialGo
     return history
 
 
-def savings_streak_months(history: list[tuple[Decimal, Decimal]]) -> int:
+def savings_streak_months(history: list[tuple[Decimal, Decimal]], *, last_in_progress: bool = False) -> int:
     """history는 오래된 달부터 정렬된 월별 (실적, 목표) 쌍(savings_pace_basis 출력). 가장 최근 달부터
     거꾸로 훑으며 목표가 있고 실적이 목표 이상이었던 연속 개월 수를 센다 (게임화 위젯의 '연속 목표달성'
-    스트릭 배지용). 목표가 없는 달을 만나면 거기서 끊는다."""
+    스트릭 배지용). 목표가 없는 달을 만나면 거기서 끊는다.
+
+    `last_in_progress`면 마지막 달은 아직 진행 중이라, 이미 달성했을 때만 세고 아니면 건너뛰고 지난달부터 센다 —
+    그러지 않으면 매달 초 납입 전까지 연속 기록이 0으로 보였다."""
+    if last_in_progress and history:
+        actual, target = history[-1]
+        if target <= 0 or actual < target:
+            history = history[:-1]
     streak = 0
     for actual, target in reversed(history):
         if target <= 0 or actual < target:

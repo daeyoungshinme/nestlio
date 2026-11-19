@@ -5,7 +5,7 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from app.schemas.common import DbInt, KrwAmount, KrwBalance, Pct, YearMonth, bounded_str
+from app.schemas.common import DbInt, KrwAmount, KrwBalance, Pct, YearMonth, bounded_str, monthly_targets_list
 
 FundingSourceType = Literal["savings_product", "account", "loan"]
 GoalKind = Literal["goal", "challenge", "net_worth", "combined"]
@@ -145,9 +145,9 @@ class FinancialGoalCreateIn(BaseModel):
     required_amount: KrwBalance = Decimal("0")
     monthly_saving_amount: KrwAmount = Decimal("0")
     current_amount: KrwBalance = Decimal("0")
-    funding_sources: list[FundingSourceIn] = []
+    funding_sources: list[FundingSourceIn] = Field(default=[], max_length=50)
     start_date: date | None = None
-    monthly_targets: list[GoalMonthlyTargetIn] | None = None
+    monthly_targets: monthly_targets_list(GoalMonthlyTargetIn, 600) | None = None
     expected_annual_return_pct: Pct | None = Field(default=None, ge=-50, le=100)
     # kind="combined"만: 묶을 장기 목표 id와 growlio 목표를 합산할 가구 구성원 id.
     member_goal_ids: list[DbInt] | None = Field(default=None, max_length=50)
@@ -165,9 +165,9 @@ class FinancialGoalUpdateIn(BaseModel):
     required_amount: KrwBalance
     monthly_saving_amount: KrwAmount
     current_amount: KrwBalance = Decimal("0")
-    funding_sources: list[FundingSourceIn] = []
+    funding_sources: list[FundingSourceIn] = Field(default=[], max_length=50)
     start_date: date | None = None
-    monthly_targets: list[GoalMonthlyTargetIn] | None = None
+    monthly_targets: monthly_targets_list(GoalMonthlyTargetIn, 600) | None = None
     expected_annual_return_pct: Pct | None = Field(default=None, ge=-50, le=100)
     # 통합 목표의 구성 — 둘 다 None이면 구성을 바꾸지 않는다.
     member_goal_ids: list[DbInt] | None = Field(default=None, max_length=50)
