@@ -133,8 +133,7 @@ def test_weekly_event_expands_into_multiple_occurrences(client):
 
 
 @patch("app.services.notification_service.gmail_service.send_email")
-@patch("app.services.notification_service.is_connected", return_value=True)
-def test_event_crud_notifies_other_spouse(mock_connected, mock_send, client, seeded_db):
+def test_event_crud_notifies_other_spouse(mock_send, client, seeded_db, gmail_connected):
     db = seeded_db["db"]
     spouse2 = User(email="spouse2@example.com", display_name="Spouse 2")
     db.add(spouse2)

@@ -168,3 +168,30 @@ def count_selects(db_session):
             event.remove(engine, "before_cursor_execute", _on_execute)
 
     return _count
+
+
+# google_auth.is_connected를 이름으로 import한 모듈들 — 테스트가 Gmail 연결 여부를 고정할 때 전부 같이 바꾼다
+# (모듈마다 따로 patch하던 데코레이터가 86개였다). 새 모듈이 is_connected를 import하면 여기에 추가한다.
+_IS_CONNECTED_IMPORTERS = (
+    "app.services.notification_service.is_connected",
+    "app.services.settings_service.is_connected",
+    "app.services.invite_service.is_connected",
+)
+
+
+def _patch_is_connected(monkeypatch, connected: bool) -> None:
+    for target in _IS_CONNECTED_IMPORTERS:
+        monkeypatch.setattr(target, lambda: connected)
+
+
+@pytest.fixture
+def gmail_connected(monkeypatch):
+    """Gmail이 연결된 것으로 고정한다(실제 발송은 `gmail_service.send_email`을 따로 patch)."""
+    _patch_is_connected(monkeypatch, True)
+
+
+@pytest.fixture
+def gmail_disconnected(monkeypatch):
+    """Gmail 미연결로 고정한다 — 메일은 건너뛰고 인앱 알림만 남는 경로."""
+    _patch_is_connected(monkeypatch, False)
+

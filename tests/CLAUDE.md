@@ -22,23 +22,23 @@
 
 ## 시간 결정론
 
-- 테스트에서 `datetime.now()`/`date.today()`를 쓰지 않는다. 서비스의 `today=`/`now=` 파라미터에 고정 날짜를 넘긴다([app/services/CLAUDE.md](../app/services/CLAUDE.md)). freezegun 등은 쓰지 않는다.
+- 테스트에서 `datetime.now()`/`date.today()`를 쓰지 않는다. `today=`가 선택 인자인 서비스(`coaching_engine.compute_insights`, 목표 마일스톤, `send_email_best_effort` 등)도 생략하지 않고 넘긴다 — 생략하면 내부 폴백이 실제 시계를 읽어 진행 중인 달에만 결과가 바뀐다. 서비스의 `today=`/`now=` 파라미터에 고정 날짜를 넘긴다([app/services/CLAUDE.md](../app/services/CLAUDE.md)). freezegun 등은 쓰지 않는다.
 - 날짜 인자가 없는 엔드포인트(라우터가 `today_kst()`를 읽음 — 대시보드·보고서·목표 상세 등)는 `frozen_today` 픽스처(`conftest.py`, 2026-07-15 정오로 고정)를 받고 기대값도 그 날짜로 만든다. 테스트에서 `today_kst()`/`now_kst()`를 직접 부르면 월말·자정에 결과가 바뀐다. 예외는 시계 함수 자체를 검증하는 `test_dates.py`와 모델 `default=now_kst`가 KST로 찍히는지 보는 테스트뿐이다(컬럼 default는 함수 객체를 잡고 있어 픽스처로 고정되지 않는다).
 
 ## Mocking
 
-- `unittest.mock.patch`만 쓴다(`pytest-mock`, `responses` 등 새 라이브러리를 들이지 않는다). 대상: Gmail 발송(`app.services.notification_service.gmail_service.send_email`), Google OAuth, growlio HTTP, Supabase Storage.
+- `unittest.mock.patch`만 쓴다(`pytest-mock`, `responses` 등 새 라이브러리를 들이지 않는다). Gmail 연결 여부는 모듈마다 `is_connected`를 patch하지 않고 `conftest.py`의 `gmail_connected`/`gmail_disconnected` 픽스처를 받는다(`is_connected`를 import한 모듈 전부를 함께 바꾼다 — 새 importer는 `_IS_CONNECTED_IMPORTERS`에 추가). 파라미터화로 연결 여부를 바꾸는 테스트만 직접 patch한다. 대상: Gmail 발송(`app.services.notification_service.gmail_service.send_email`), Google OAuth, growlio HTTP, Supabase Storage.
 
 ## 파일 조직
 
 - 원칙은 서비스 모듈 1:1(`test_<module>.py`). 새 서비스 모듈을 만들면 전용 테스트 파일도 만든다.
 - 예외 — 모듈을 분할하면서 테스트 파일은 나누지 않은 곳:
   - `test_transaction_service.py`: `transaction_service` + `transaction_report_service` + `transaction_trend_service`
-  - `test_csv_and_accounts.py`: `account_service` + `transaction_import_service` + 연간 집계(`transaction_trend_service`)
+  - `test_csv_and_accounts.py`: `transaction_import_service`(CSV 가져오기·내보내기 — 계좌 매칭 때문에 계좌도 만든다) + 연간 집계(`transaction_trend_service`). 계좌 CRUD·growlio 동기화는 전용 `test_account_service.py`
   - `test_event_service.py`: `event_service` + `event_reminder_service`
   - `test_savings_product_service.py`: `savings_product_*` 세 모듈
   - `test_coaching_engine.py`: `coaching_engine` + `savings_coaching_service`
   - `test_todo_service.py`: `todo_service` + `todo_notification_service`
-  - `test_financial_plan_services.py`: `loan_service`(대출 CRUD·비활성화)
+  - `test_financial_plan_services.py`: `loan_service`(대출 CRUD·비활성화·소유자) + 목표·저축상품의 기본 CRUD 스모크 테스트(자세한 건 각 전용 파일)
 - 라우터 쪽 예외: `media`(`/media/couple-photo`)는 `tests/api/test_settings_api.py`가 부부 사진 설정과 함께 본다.
-- 전용 파일이 없는 모듈을 "간접 커버"에 맡길 때 주의 — "간접 커버"는 경로가 실행된다는 뜻이지 분기가 단언된다는 뜻이 아니다 — 분기가 있는 함수는 간접 커버에만 맡기지 않고 직접 테스트를 붙인다(2026-10-07 `annual_plan_service.set_month_target`, `email_templates.build_*_summary_html`, `growlio_client.register_exception_handlers`, `savings_coaching_service.savings_pace_history`에 추가).
+- 전용 파일이 없는 모듈을 "간접 커버"에 맡길 때 주의 — "간접 커버"는 경로가 실행된다는 뜻이지 분기가 단언된다는 뜻이 아니다 — 분기가 있는 함수는 간접 커버에만 맡기지 않고 직접 테스트를 붙인다(2026-10-07 `annual_plan_service.set_month_target`, `email_templates.build_*_summary_html`, `exception_handlers.register_exception_handlers`(`tests/test_exception_handlers.py`), `savings_coaching_service.savings_pace_history`에 추가).

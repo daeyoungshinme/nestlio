@@ -388,8 +388,7 @@ def test_deleting_todo_removes_its_checks(seeded_db):
 
 
 @patch("app.services.notification_service.gmail_service.send_email")
-@patch("app.services.notification_service.is_connected", return_value=True)
-def test_notify_created_for_partner_logs_inbox_read_by_actor_and_mails_partner(mock_connected, mock_send, seeded_db):
+def test_notify_created_for_partner_logs_inbox_read_by_actor_and_mails_partner(mock_send, seeded_db, gmail_connected):
     db, user = seeded_db["db"], seeded_db["user"]
     spouse2 = _spouse2(db)
     todo = _create(seeded_db, title="세금 신고", due_date=date(2026, 7, 10), assignee_id=spouse2.id)
@@ -412,8 +411,7 @@ def test_notify_created_for_partner_logs_inbox_read_by_actor_and_mails_partner(m
 
 
 @patch("app.services.notification_service.gmail_service.send_email")
-@patch("app.services.notification_service.is_connected", return_value=True)
-def test_notify_created_shared_todo_notifies(mock_connected, mock_send, seeded_db):
+def test_notify_created_shared_todo_notifies(mock_send, seeded_db, gmail_connected):
     db = seeded_db["db"]
     _spouse2(db)
     todo = _create(seeded_db)
@@ -425,8 +423,7 @@ def test_notify_created_shared_todo_notifies(mock_connected, mock_send, seeded_d
 
 
 @patch("app.services.notification_service.gmail_service.send_email")
-@patch("app.services.notification_service.is_connected", return_value=True)
-def test_notify_created_for_self_is_silent(mock_connected, mock_send, seeded_db):
+def test_notify_created_for_self_is_silent(mock_send, seeded_db, gmail_connected):
     db, user = seeded_db["db"], seeded_db["user"]
     todo = _create(seeded_db, assignee_id=user.id)
 
@@ -437,8 +434,7 @@ def test_notify_created_for_self_is_silent(mock_connected, mock_send, seeded_db)
 
 
 @patch("app.services.notification_service.gmail_service.send_email")
-@patch("app.services.notification_service.is_connected", return_value=True)
-def test_notify_assignee_changed_only_when_changed_to_partner_or_shared(mock_connected, mock_send, seeded_db):
+def test_notify_assignee_changed_only_when_changed_to_partner_or_shared(mock_send, seeded_db, gmail_connected):
     db, user = seeded_db["db"], seeded_db["user"]
     spouse2 = _spouse2(db)
     todo = _create(seeded_db, assignee_id=spouse2.id)
@@ -462,12 +458,11 @@ def test_notify_assignee_changed_only_when_changed_to_partner_or_shared(mock_con
 
 
 @patch("app.services.notification_service.gmail_service.send_email")
-@patch("app.services.notification_service.is_connected", return_value=True)
 @pytest.mark.parametrize("notify,text", [
     (todo_notification_service.notify_completed, "할일을 완료했어요"),
     (todo_notification_service.notify_deleted, "할일을 삭제했어요"),
 ])
-def test_completed_and_deleted_are_inbox_only(mock_connected, mock_send, seeded_db, notify, text):
+def test_completed_and_deleted_are_inbox_only(mock_send, seeded_db, notify, text, gmail_connected):
     db = seeded_db["db"]
     spouse2 = _spouse2(db)
     todo = _create(seeded_db, assignee_id=spouse2.id)
@@ -500,8 +495,7 @@ def test_completing_partners_created_todo_assigned_to_self_notifies(seeded_db):
 
 
 @patch("app.services.notification_service.gmail_service.send_email")
-@patch("app.services.notification_service.is_connected", return_value=True)
-def test_disabled_pref_silences_inbox_and_mail(mock_connected, mock_send, seeded_db):
+def test_disabled_pref_silences_inbox_and_mail(mock_send, seeded_db, gmail_connected):
     db, user = seeded_db["db"], seeded_db["user"]
     _spouse2(db)
     notification_settings_service.set_prefs(db, {"todo": False}, user.id)
@@ -514,8 +508,7 @@ def test_disabled_pref_silences_inbox_and_mail(mock_connected, mock_send, seeded
     mock_send.assert_not_called()
 
 
-@patch("app.services.notification_service.is_connected", return_value=False)
-def test_inbox_survives_when_gmail_disconnected(mock_connected, seeded_db):
+def test_inbox_survives_when_gmail_disconnected(seeded_db, gmail_disconnected):
     db = seeded_db["db"]
     _spouse2(db)
     todo = _create(seeded_db)
@@ -526,8 +519,7 @@ def test_inbox_survives_when_gmail_disconnected(mock_connected, seeded_db):
 
 
 @patch("app.services.notification_service.gmail_service.send_email")
-@patch("app.services.notification_service.is_connected", return_value=True)
-def test_inbox_failure_rolls_back_and_still_mails(mock_connected, mock_send, seeded_db):
+def test_inbox_failure_rolls_back_and_still_mails(mock_send, seeded_db, gmail_connected):
     db = seeded_db["db"]
     _spouse2(db)
     todo = _create(seeded_db)
@@ -541,8 +533,7 @@ def test_inbox_failure_rolls_back_and_still_mails(mock_connected, mock_send, see
 
 
 @patch("app.services.notification_service.gmail_service.send_email")
-@patch("app.services.notification_service.is_connected", return_value=True)
-def test_pref_lookup_failure_does_not_raise(mock_connected, mock_send, seeded_db):
+def test_pref_lookup_failure_does_not_raise(mock_send, seeded_db, gmail_connected):
     """저장은 이미 끝났으므로 설정 조회 실패가 응답을 500으로 만들면 안 된다. 꺼져 있을 수도 있으니 메일도 보내지
     않는다(일정 알림과 같은 규칙 — 전에는 설정을 못 읽어도 메일을 보냈다)."""
     db = seeded_db["db"]

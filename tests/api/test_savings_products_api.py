@@ -257,3 +257,106 @@ def test_upsert_annual_plan_rejects_duplicate_or_other_year_months_with_422(clie
     )
 
     assert resp.status_code == 422
+
+
+def test_update_product_maps_every_field_to_its_own_column(client, seeded_db):
+    """라우터가 서비스에 위치 인자 7개를 넘긴다 — 순서가 어긋나면(잔액↔월 저축액 등) 값이 엉뚱한 칸에 저장된다.
+    필드마다 다른 값을 넣어 각각 제자리로 가는지 본다."""
+    product_id = client.post(
+        "/api/v1/savings-products",
+        json={"name": "적금", "current_balance": "0", "monthly_saving_amount": "0", "product_type": "savings"},
+    ).json()["id"]
+    owner_id = str(seeded_db["user"].id)
+
+    resp = client.put(
+        f"/api/v1/savings-products/{product_id}",
+        json={
+            "name": "펀드로 변경",
+            "current_balance": "1500000",
+            "monthly_saving_amount": "200000",
+            "product_type": "investment",
+            "principal_amount": "1000000",
+            "owner_user_id": owner_id,
+        },
+    )
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["name"] == "펀드로 변경"
+    assert Decimal(body["current_balance"]) == Decimal("1500000")
+    assert Decimal(body["monthly_saving_amount"]) == Decimal("200000")
+    assert body["product_type"] == "investment"
+    assert Decimal(body["principal_amount"]) == Decimal("1000000")
+    assert body["owner_user_id"] == owner_id
+
+
+def test_update_product_404_when_missing(client):
+    resp = client.put(
+        "/api/v1/savings-products/9999",
+        json={"name": "x", "current_balance": "0", "monthly_saving_amount": "0", "product_type": "savings"},
+    )
+    assert resp.status_code == 404
+
+
+def test_sync_all_reports_synced_and_failed_products(client, seeded_db):
+    """연동된 상품만 동기화하고, growlio 목록에 없는(배우자 소유 등) 상품은 실패 목록에 담아 나머지를 계속한다."""
+    ids = []
+    for name, account_id in [("적금", "growlio-acc-1"), ("배우자 적금", "growlio-acc-2"), ("연동 안 함", None)]:
+        product_id = client.post(
+            "/api/v1/savings-products",
+            json={"name": name, "current_balance": "0", "monthly_saving_amount": "0", "product_type": "savings"},
+        ).json()["id"]
+        if account_id:
+            client.put(
+                f"/api/v1/savings-products/{product_id}/growlio-link",
+                json={"growlio_account_id": account_id, "auto_sync_enabled": True},
+            )
+        ids.append(product_id)
+
+    with patch(
+        "app.services.savings_product_growlio_service.growlio_client.fetch_account_balances",
+        return_value=[{"id": "growlio-acc-1", "name": "국민 자유적금", "asset_type": "DEPOSIT", "current_value_krw": 555000.0}],
+    ) as fetch:
+        resp = client.post("/api/v1/savings-products/sync-all")
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["synced_count"] == 1
+    assert [f["id"] for f in body["failed"]] == [ids[1]]
+    fetch.assert_called_once()  # 목록은 한 번만 조회해 여러 상품에 매칭한다
+    balances = {p["id"]: Decimal(p["current_balance"]) for p in client.get("/api/v1/savings-products").json()}
+    assert balances[ids[0]] == Decimal("555000")
+    assert balances[ids[2]] == Decimal("0")
+
+
+def test_sync_all_without_linked_products_skips_growlio(client):
+    with patch("app.services.savings_product_growlio_service.growlio_client.fetch_account_balances") as fetch:
+        resp = client.post("/api/v1/savings-products/sync-all")
+    assert resp.status_code == 200
+    assert resp.json() == {"synced_count": 0, "failed": []}
+    fetch.assert_not_called()
+
+
+def test_plan_summary_for_month(client):
+    client.post(
+        "/api/v1/savings-products",
+        json={"name": "적금", "current_balance": "0", "monthly_saving_amount": "300000", "product_type": "savings"},
+    )
+    client.post(
+        "/api/v1/savings-products",
+        json={"name": "펀드", "current_balance": "0", "monthly_saving_amount": "100000", "product_type": "investment"},
+    )
+
+    resp = client.get("/api/v1/savings-products/plan", params={"year_month": "2026-07"})
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["year_month"] == "2026-07"
+    planned = {item["name"]: Decimal(item["planned"]) for item in body["items"]}
+    assert planned == {"적금": Decimal("300000"), "펀드": Decimal("100000")}
+    assert Decimal(body["savings"]["planned"]) == Decimal("300000")
+    assert Decimal(body["investment"]["planned"]) == Decimal("100000")
+
+
+def test_plan_summary_rejects_malformed_year_month(client):
+    assert client.get("/api/v1/savings-products/plan", params={"year_month": "2026-13"}).status_code == 422
