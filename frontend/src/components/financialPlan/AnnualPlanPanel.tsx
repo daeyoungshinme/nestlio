@@ -50,13 +50,16 @@ export default function AnnualPlanPanel() {
   const analysisRef = useRef<HTMLElement>(null);
   const scrollToAnalysis = searchParams.get("section") === PLAN_ANALYSIS_SECTION;
 
-  const { data, isLoading, isError, refetch } = useAnnualPlan(year);
+  // 해를 넘기면 이전 해를 흐리게 보여 주며 받는다 — 화면 전체가 스켈레톤으로 깜빡이지 않게.
+  const { data, isLoading, isError, isPlaceholderData, refetch } = useAnnualPlan(year, { keepPrevious: true });
   const {
     data: savingsAnnualData,
     isLoading: savingsLoading,
     isError: savingsError,
+    isPlaceholderData: savingsPlaceholder,
     refetch: refetchSavings,
-  } = useSavingsProductsAnnualPlan(year);
+  } = useSavingsProductsAnnualPlan(year, { keepPrevious: true });
+  const switchingYear = isPlaceholderData || savingsPlaceholder;
   const { data: users } = useUsers();
   const { data: categories } = useCategories();
 
@@ -86,18 +89,49 @@ export default function AnnualPlanPanel() {
     if (scrollToAnalysis && loaded) analysisRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
   }, [scrollToAnalysis, loaded]);
 
+  // 연도 이동은 로딩·실패 중에도 남긴다 — 없는 해로 넘어가 실패하면 되돌아갈 방법이 없었다.
+  const yearNav = (
+    <div className="flex items-center justify-center gap-4">
+      <button
+        type="button"
+        onClick={() => setYear((y) => y - 1)}
+        className={`${TOUCH_TARGET_MIN} flex items-center justify-center rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800`}
+        aria-label="이전 해"
+      >
+        <ChevronLeft size={18} />
+      </button>
+      <span className="text-base font-bold text-gray-900 dark:text-gray-50">{year}년 연간계획</span>
+      <button
+        type="button"
+        onClick={() => setYear((y) => y + 1)}
+        className={`${TOUCH_TARGET_MIN} flex items-center justify-center rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800`}
+        aria-label="다음 해"
+      >
+        <ChevronRight size={18} />
+      </button>
+    </div>
+  );
+
   if (isError || savingsError) {
     return (
-      <ErrorState
-        onRetry={() => {
-          void refetch();
-          void refetchSavings();
-        }}
-      />
+      <div className="space-y-4">
+        {yearNav}
+        <ErrorState
+          onRetry={() => {
+            void refetch();
+            void refetchSavings();
+          }}
+        />
+      </div>
     );
   }
   if (isLoading || savingsLoading || !data) {
-    return <SkeletonCard rows={6} />;
+    return (
+      <div className="space-y-4">
+        {yearNav}
+        <SkeletonCard rows={6} />
+      </div>
+    );
   }
 
   const summary = data.summary;
@@ -166,45 +200,33 @@ export default function AnnualPlanPanel() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-center gap-4">
-        <button
-          type="button"
-          onClick={() => setYear((y) => y - 1)}
-          className={`${TOUCH_TARGET_MIN} flex items-center justify-center rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800`}
-          aria-label="이전 해"
-        >
-          <ChevronLeft size={18} />
-        </button>
-        <span className="text-base font-bold text-gray-900 dark:text-gray-50">{year}년 연간계획</span>
-        <button
-          type="button"
-          onClick={() => setYear((y) => y + 1)}
-          className={`${TOUCH_TARGET_MIN} flex items-center justify-center rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800`}
-          aria-label="다음 해"
-        >
-          <ChevronRight size={18} />
-        </button>
+      {yearNav}
+
+      {/* 받는 동안은 이전 해 데이터라 편집·마법사를 막는다(저장하면 엉뚱한 해의 정렬 순서가 들어간다). */}
+      <div
+        className={`space-y-4 transition-opacity ${switchingYear ? "opacity-50 pointer-events-none" : ""}`}
+        aria-busy={switchingYear}
+      >
+        {!switchingYear && data.items.length === 0 && <PlanYearStartWizard year={year} />}
+
+        <PlanBalanceSummary
+          periodLabel={`${year}년`}
+          income={Number(summary.income.annual_target)}
+          expense={Number(summary.expense_total)}
+          savingsPlanned={savingsAnnualData ? plannedSavingsInvestmentAnnualTotal : null}
+        />
+
+        <PlanSectionAccordion sections={sections} />
+
+        <CollapsibleHint summary="섹션마다 올해 지금까지의 목표 대비 실적이에요.">
+          여기서 입력한 월별 금액이 곧 "이번 달" 계획이고, 이번 달 화면에서 조정한 금액도 여기에 그대로 반영돼요. 개별
+          재무목표 진행은{" "}
+          <Link to={ROUTES.goals} className="font-semibold underline hover:no-underline">
+            목표 탭
+          </Link>
+          에서 확인해요.
+        </CollapsibleHint>
       </div>
-
-      {data.items.length === 0 && <PlanYearStartWizard year={year} />}
-
-      <PlanBalanceSummary
-        periodLabel={`${year}년`}
-        income={Number(summary.income.annual_target)}
-        expense={Number(summary.expense_total)}
-        savingsPlanned={savingsAnnualData ? plannedSavingsInvestmentAnnualTotal : null}
-      />
-
-      <PlanSectionAccordion sections={sections} />
-
-      <CollapsibleHint summary="섹션마다 올해 지금까지의 목표 대비 실적이에요.">
-        여기서 입력한 월별 금액이 곧 "이번 달" 계획이고, 이번 달 화면에서 조정한 금액도 여기에 그대로 반영돼요. 개별
-        재무목표 진행은{" "}
-        <Link to={ROUTES.goals} className="font-semibold underline hover:no-underline">
-          목표 탭
-        </Link>
-        에서 확인해요.
-      </CollapsibleHint>
 
       <section ref={analysisRef} className="space-y-4 scroll-mt-16">
         <h2 className="text-base font-bold text-gray-900 dark:text-gray-50">{year}년 실적 분석</h2>

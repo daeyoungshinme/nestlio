@@ -897,3 +897,19 @@ def test_plan_totals_for_months_matches_per_month_and_spans_years(seeded_db, cou
     assert batch["2025-12"] == (Decimal("50000"), Decimal("60000"))
     assert batch["2026-01"] == (Decimal("70000"), Decimal("80000"))
     assert n[0] <= 4  # 상품 1 + 연도별 목표 2 + 실적 1
+
+
+def test_plan_view_defaults_to_this_month_and_uses_household_budget_thresholds(seeded_db):
+    """라우터가 하던 조합(달 기본값·가구 임계값)을 서비스가 한다 — 가구가 바꾼 예산 %로 상태가 나와야 한다."""
+    from app.services import coaching_settings_service
+
+    db = seeded_db["db"]
+    savings_product_service.create_product(db, "적금", Decimal("0"), Decimal("100000"), "savings")
+    view = savings_product_plan_service.plan_view(db, None, date(2026, 7, 15))
+    assert view["year_month"] == "2026-07"
+
+    with patch.object(coaching_settings_service, "budget_thresholds", return_value=(10.0, 20.0)) as thresholds:
+        savings_product_plan_service.plan_view(db, "2026-06", date(2026, 7, 15))
+        annual = savings_product_plan_service.annual_plan_view(db, None, date(2026, 7, 15))
+    assert thresholds.call_count == 2
+    assert annual["year"] == 2026

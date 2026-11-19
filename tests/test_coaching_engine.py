@@ -606,3 +606,20 @@ def test_compute_surplus_allocation_without_emergency_fund_invests_everything(se
 
     result = savings_coaching_service.compute_surplus_allocation(seeded_db["db"], date(2026, 7, 1), Decimal("500000"))
     assert result == {"emergency_fund_portion": Decimal("0"), "investable_portion": Decimal("500000")}
+
+
+def test_compute_insights_budget_rows_use_the_given_breakdown(seeded_db):
+    """넘겨받은 지출 분해를 예산 대비 실적에도 쓴다(같은 달을 다시 조회하지 않는다)."""
+    from unittest.mock import patch
+
+    db, user, food = seeded_db["db"], seeded_db["user"], seeded_db["food"]
+    cashflow_plan_service.upsert_item(
+        db, None, food.type, None, food.name, Decimal("100000"), 0, "2026-07", user.id, category_id=food.id
+    )
+    breakdown = [{"category_id": food.id, "name": food.name, "color": "#000", "type": food.type, "amount": Decimal("100000")}]
+
+    with patch("app.services.budget_service.category_breakdown") as requery:
+        insights = coaching_engine.compute_insights(db, "2026-07", breakdown=breakdown, today=_AFTER_JULY)
+
+    requery.assert_not_called()
+    assert "budget_overrun" in {i.rule_code for i in insights}  # 거래가 없어도 넘긴 분해 기준 100%

@@ -53,7 +53,6 @@ export default function CashflowPlanQuickAddModal({ item, categories, onClose, o
               savingsProducts={savingsProductsQuery.data!}
               users={usersQuery.data!}
               currentUserId={currentUserId ?? undefined}
-              layout="stack"
               isNew={false}
               submitLabel="추가"
               submitting={quickAddMutation.isPending}

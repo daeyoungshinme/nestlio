@@ -304,7 +304,12 @@ def compute_insights(
     )
     trailing_avg = transaction_trend_service.trailing_average_by_category(db, month_start, months=3)
     budget_rows = budget_service.budget_vs_actual(
-        db, year_month, thresholds["budget_warn_pct"], thresholds["budget_critical_pct"], suggested=trailing_avg
+        db,
+        year_month,
+        thresholds["budget_warn_pct"],
+        thresholds["budget_critical_pct"],
+        suggested=trailing_avg,
+        breakdown=breakdown,
     )
     goal_rows = goals if goals is not None else goal_service.list_goals(db)
     planned_savings, deposits = savings_product_plan_service.plan_totals_for_month(db, year_month)

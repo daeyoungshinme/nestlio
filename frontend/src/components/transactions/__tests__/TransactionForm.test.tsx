@@ -36,7 +36,6 @@ function renderForm(onSubmit = vi.fn(), formAccounts: AccountWithBalanceOut[] = 
         users={[]}
         submitLabel="추가"
         onSubmit={onSubmit}
-        layout="stack"
         isNew
       />
     </QueryClientProvider>,
@@ -124,7 +123,6 @@ describe("TransactionForm savings prefill", () => {
           users={[]}
           submitLabel="추가"
           onSubmit={onSubmit}
-          layout="stack"
           isNew
           initialValues={{ transaction_date: "2026-11-19", type: "expense", amount: "300000", savings_product_id: "5" }}
         />

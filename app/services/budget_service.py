@@ -105,6 +105,7 @@ def budget_vs_actual(
     *,
     suggested: dict[int, Decimal] | None = None,
     with_suggested: bool = True,
+    breakdown: list[dict] | None = None,
 ) -> list[dict]:
     """For every active category, compare this month's actual expense against its budget (0 if unset).
     warn_pct/critical_pct default to the env-configured thresholds but callers (e.g. coaching_engine)
@@ -112,10 +113,13 @@ def budget_vs_actual(
 
     `suggested_amount`(직전 3개월 카테고리 평균)는 3개월치 집계 쿼리가 필요하다 — 호출부가 이미
     계산해뒀으면 `suggested`로 넘겨 재계산을 피하고, 필요 없으면 `with_suggested=False`로 건너뛴다
-    (예: 거래 저장마다 도는 예산 경고 알림)."""
+    (예: 거래 저장마다 도는 예산 경고 알림). `breakdown`도 같다 — 그 달 지출 카테고리 분해
+    (`category_breakdown(..., "expense")`)를 이미 가진 호출부(코칭 엔진)는 넘겨 재조회를 피한다."""
     month_start = parse_year_month(year_month)
     start, end = month_bounds(month_start)
-    actuals = {row["category_id"]: row["amount"] for row in category_breakdown(db, start, end, "expense")}
+    if breakdown is None:
+        breakdown = category_breakdown(db, start, end, "expense")
+    actuals = {row["category_id"]: row["amount"] for row in breakdown}
     budgets = get_budgets_for_month(db, year_month)
     if suggested is None and with_suggested:
         suggested = trailing_average_by_category(db, month_start, months=3, type_="expense")

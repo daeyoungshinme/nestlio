@@ -11,6 +11,8 @@ from app.models.user import User
 from app.services import (
     account_service,
     card_service,
+    transaction_import_inference,
+    transaction_import_parsing,
     transaction_import_service,
     transaction_service,
     transaction_trend_service,
@@ -224,18 +226,18 @@ def test_import_blank_category_without_memo_history_is_skipped(seeded_db):
     ["2026-07-05", "2026.07.05", "2026.7.5", "2026/07/05", "2026. 07. 05.", "20260705", "2026.07.05 13:24", " 2026.07.05 "],
 )
 def test_parse_date_accepts_bank_export_formats(raw):
-    assert transaction_import_service._parse_date(raw) == date(2026, 7, 5)
+    assert transaction_import_parsing.parse_date(raw) == date(2026, 7, 5)
 
 
 @pytest.mark.parametrize("raw", ["07.05.2026", "2026.13.01", "어제", ""])
 def test_parse_date_rejects_unreadable_dates(raw):
     with pytest.raises(ValueError):
-        transaction_import_service._parse_date(raw)
+        transaction_import_parsing.parse_date(raw)
 
 
 @pytest.mark.parametrize("raw", ["12000", "12,000", "12,000원", " ₩12,000 ", "12000.50"])
 def test_parse_amount_strips_separators(raw):
-    assert transaction_import_service._parse_amount(raw) in (Decimal("12000"), Decimal("12000.50"))
+    assert transaction_import_parsing.parse_amount(raw) in (Decimal("12000"), Decimal("12000.50"))
 
 
 def test_import_accepts_dotted_dates_and_comma_amounts(seeded_db):
@@ -272,9 +274,9 @@ def test_keyword_category_prefers_longest_keyword_and_skips_missing_category(see
     by_name = {c.name: c for c in db.query(Category).all()}
 
     # "쿠팡이츠"(식비)가 "쿠팡"(장보기 — seeded_db엔 없음)보다 길다
-    assert transaction_import_service._keyword_category("쿠팡이츠 주문", by_name).name == "식비"
+    assert transaction_import_inference.keyword_category("쿠팡이츠 주문", by_name).name == "식비"
     # 장보기 카테고리가 없는 가구라 키워드는 무시된다
-    assert transaction_import_service._keyword_category("이마트 성수점", by_name) is None
+    assert transaction_import_inference.keyword_category("이마트 성수점", by_name) is None
 
 
 def test_import_unmatched_rows_go_to_fallback_category(seeded_db):
@@ -508,14 +510,14 @@ def test_import_headerless_nine_column_row_reads_owner_by_position(seeded_db):
     ],
 )
 def test_parse_payment_method(raw, expected):
-    assert transaction_import_service._parse_payment_method(raw) == expected
+    assert transaction_import_parsing.parse_payment_method(raw) == expected
 
 
 def test_match_account_prefers_exact_then_longest_partial(seeded_db):
     db = seeded_db["db"]
     shinhan = account_service.create_account(db, "신한", "bank", Decimal("0"))
     shinhan_main = account_service.create_account(db, "신한통장(본인)", "bank", Decimal("0"))
-    accounts = transaction_import_service._NameIndex([shinhan, shinhan_main])
+    accounts = transaction_import_parsing.NameIndex([shinhan, shinhan_main])
 
     assert accounts.match("신한") is shinhan
     assert accounts.match("신한통장") is shinhan_main
