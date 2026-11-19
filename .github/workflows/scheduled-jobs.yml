@@ -30,6 +30,11 @@ concurrency:
 permissions:
   contents: read
 
+# 스텝 조건의 `!cancelled()`: 명시적 if는 암묵적 success()가 붙어 앞 스텝이 실패하면 뒤 스텝이 건너뛰어진다 —
+# 1일이 월요일이면 주간 메일 실패가 월간 메일을, 15분 틱이면 일정 알림 실패가 growlio 깨우기를 막았다. 잡끼리는
+# 독립이라 앞 실패와 무관하게 돌리고, 실패한 스텝이 하나라도 있으면 워크플로는 그대로 실패로 남는다.
+# 시크릿 확인이 실패하면 curl이 전부 같은 이유로 실패하므로 그때만 건너뛴다.
+
 jobs:
   call-internal-job:
     runs-on: ubuntu-24.04
@@ -42,6 +47,7 @@ jobs:
       FORCE_RUN: ${{ github.event_name == 'workflow_dispatch' && '1' || '' }}
     steps:
       - name: verify required secrets
+        id: secrets
         run: |
           missing=""
           [ -z "$APP_URL" ] && missing="$missing APP_URL"
@@ -52,7 +58,7 @@ jobs:
           fi
 
       - name: daily_due_date_check
-        if: github.event.schedule == '0 22 * * *' || github.event_name == 'workflow_dispatch'
+        if: ${{ !cancelled() && steps.secrets.outcome == 'success' && (github.event.schedule == '0 22 * * *' || github.event_name == 'workflow_dispatch') }}
         run: |
           curl -sS --fail-with-body --retry 2 --retry-delay 15 --retry-all-errors --max-time 170 -X POST "$APP_URL/internal/jobs/daily-due-date-check" \
             -H "X-Internal-Job-Secret: $INTERNAL_JOB_SECRET"
@@ -61,7 +67,7 @@ jobs:
       # KST로는 여전히 "월요일 08시대 / 1일 08시대"라 판정이 흔들리지 않는다. 재실행돼도
       # 서버 쪽 already_sent/스냅샷 upsert가 중복을 막는다.
       - name: weekly_summary_email (Mon 08:00 KST = Sun 23:00 UTC)
-        if: github.event.schedule == '0 23 * * *' || github.event_name == 'workflow_dispatch'
+        if: ${{ !cancelled() && steps.secrets.outcome == 'success' && (github.event.schedule == '0 23 * * *' || github.event_name == 'workflow_dispatch') }}
         run: |
           if [ "$(TZ=Asia/Seoul date +%u)" = "1" ] || [ -n "$FORCE_RUN" ]; then
             curl -sS --fail-with-body --retry 2 --retry-delay 15 --retry-all-errors --max-time 170 -X POST "$APP_URL/internal/jobs/weekly-summary-email" \
@@ -71,7 +77,7 @@ jobs:
           fi
 
       - name: monthly_summary_email (1st 08:00 KST = last day of month 23:00 UTC)
-        if: github.event.schedule == '0 23 * * *' || github.event_name == 'workflow_dispatch'
+        if: ${{ !cancelled() && steps.secrets.outcome == 'success' && (github.event.schedule == '0 23 * * *' || github.event_name == 'workflow_dispatch') }}
         run: |
           if [ "$(TZ=Asia/Seoul date +%d)" = "01" ] || [ -n "$FORCE_RUN" ]; then
             curl -sS --fail-with-body --retry 2 --retry-delay 15 --retry-all-errors --max-time 170 -X POST "$APP_URL/internal/jobs/monthly-summary-email" \
@@ -81,7 +87,7 @@ jobs:
           fi
 
       - name: monthly_net_worth_snapshot (1st 08:05 KST = last day of month 23:05 UTC)
-        if: github.event.schedule == '5 23 * * *' || github.event_name == 'workflow_dispatch'
+        if: ${{ !cancelled() && steps.secrets.outcome == 'success' && (github.event.schedule == '5 23 * * *' || github.event_name == 'workflow_dispatch') }}
         run: |
           if [ "$(TZ=Asia/Seoul date +%d)" = "01" ] || [ -n "$FORCE_RUN" ]; then
             curl -sS --fail-with-body --retry 2 --retry-delay 15 --retry-all-errors --max-time 170 -X POST "$APP_URL/internal/jobs/monthly-net-worth-snapshot" \
@@ -91,13 +97,13 @@ jobs:
           fi
 
       - name: daily_threshold_safety_net
-        if: github.event.schedule == '0 11 * * *' || github.event_name == 'workflow_dispatch'
+        if: ${{ !cancelled() && steps.secrets.outcome == 'success' && (github.event.schedule == '0 11 * * *' || github.event_name == 'workflow_dispatch') }}
         run: |
           curl -sS --fail-with-body --retry 2 --retry-delay 15 --retry-all-errors --max-time 170 -X POST "$APP_URL/internal/jobs/daily-threshold-safety-net" \
             -H "X-Internal-Job-Secret: $INTERNAL_JOB_SECRET"
 
       - name: event_reminder_check
-        if: github.event.schedule == '*/15 * * * *' || github.event_name == 'workflow_dispatch'
+        if: ${{ !cancelled() && steps.secrets.outcome == 'success' && (github.event.schedule == '*/15 * * * *' || github.event_name == 'workflow_dispatch') }}
         run: |
           curl -sS --fail-with-body --retry 2 --retry-delay 15 --retry-all-errors --max-time 170 -X POST "$APP_URL/internal/jobs/event-reminder-check" \
             -H "X-Internal-Job-Secret: $INTERNAL_JOB_SECRET"
@@ -108,7 +114,7 @@ jobs:
       # 이 잡이 이미 15분 간격으로 도는 김에 growlio도 함께 깨워둔다. 실패해도(시크릿 미설정
       # 포함) 다른 잡을 막지 않는 best-effort라 || true로 무시한다.
       - name: warm_up_growlio
-        if: github.event.schedule == '*/15 * * * *' || github.event_name == 'workflow_dispatch'
+        if: ${{ !cancelled() && steps.secrets.outcome == 'success' && (github.event.schedule == '*/15 * * * *' || github.event_name == 'workflow_dispatch') }}
         env:
           GROWLIO_APP_URL: ${{ secrets.GROWLIO_APP_URL }}
         run: |

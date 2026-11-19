@@ -75,7 +75,7 @@ growlio API 응답을 새로 쓰거나 형태를 바꾸면 growlio(`d:\project\g
 
 백엔드: `ruff check` · `pip check` · `pip-audit` · `pytest`. `migration-drift`: `scripts/check_migration_drift.py`(임베디드 Postgres)로 모델 == 마이그레이션 head. `api-types-drift`: 스키마 ↔ `api.generated.ts`. 프론트: `npm audit --omit=dev --audit-level=high`(게이트), raw `emerald-`/`indigo-`/`red-`/`rose-` 색상 grep 가드, `npm run lint`/`test`/`build`/`check:bundle-size`.
 
-PR은 `changes` job(dorny/paths-filter)이 바뀐 경로의 job만 돌린다(main push·CI 설정 변경은 전부). 공통 setup은 `.github/actions/setup-python-deps`·`setup-frontend-deps` composite action. `render.yaml`의 `PYTHON_VERSION`/`NODE_VERSION`은 `.python-version`/`.nvmrc`와 같아야 한다(`tests/test_dev_tooling.py`).
+PR은 `changes` job(dorny/paths-filter)이 바뀐 경로의 job만 돌린다(main push·CI 설정 변경은 전부). `migration-drift`는 모델·마이그레이션 경로만, `api-types-drift`는 OpenAPI에 들어가는 경로(`app/schemas`·`routers`·`main.py`·`dependencies.py`·`constants`·`utils`)만 본다. 공통 setup은 `.github/actions/setup-python-deps`·`setup-frontend-deps` composite action. `render.yaml`의 `PYTHON_VERSION`/`NODE_VERSION`은 `.python-version`/`.nvmrc`와 같아야 하고, 예약 워크플로의 `/internal/jobs/*` 경로는 `JOB_REGISTRY`와, `.env.example` 키는 `Settings` 필드(문자열 설정은 전부 문서화)와 맞아야 한다(`tests/test_dev_tooling.py`).
 
 ## 마이그레이션
 
