@@ -72,15 +72,18 @@ export function useTransactionForm({
   const nonSavingsCategories = categories.filter((c) => !c.is_savings);
 
   const initialCategory = categories.find((c) => String(c.id) === (initialValues?.category_id ?? ""));
-  const [uiType, setUiType] = useState<UiType>(
-    initialCategory?.is_savings ? "savings" : (initialValues?.type ?? "expense"),
+  // 저축상품이 프리필되면(홈 "저축 기록" 등) 카테고리 없이 들어와도 저축/투자다 — 아니면 지출 + 상품 누락으로 저장된다.
+  const initialIsSavings = Boolean(
+    initialCategory?.is_savings || (initialValues?.savings_product_id && savingsCategory),
   );
+  const [uiType, setUiType] = useState<UiType>(initialIsSavings ? "savings" : (initialValues?.type ?? "expense"));
 
   const [values, setValues] = useState<TransactionFormValues>({
     amount: initialValues?.amount ? toAmountInputValue(initialValues.amount) : "",
-    type: initialValues?.type ?? "expense",
+    type: initialIsSavings ? "expense" : (initialValues?.type ?? "expense"),
     // 신규 입력은 일부러 비워 둔다 — 첫 카테고리를 미리 골라 두면 바꾸지 않고 저장해 오분류된다.
-    category_id: initialValues?.category_id ?? "",
+    category_id:
+      initialValues?.category_id || (initialIsSavings && savingsCategory ? String(savingsCategory.id) : ""),
     transaction_date: initialValues?.transaction_date ?? currentDateIso(),
     description: initialValues?.description ?? "",
     payment_method: initialValues?.payment_method ?? "",

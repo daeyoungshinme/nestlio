@@ -227,6 +227,7 @@ export default function TransactionsPage() {
                   expenseTypeFilter={filters.expenseTypeFilter}
                   userFilter={filters.userFilter}
                   showExpenseGroups={filters.showExpenseGroups}
+                  searchActive={debouncedQuery !== ""}
                   filteredTransactions={filters.filteredTransactions}
                   transactionsByCategory={filters.transactionsByCategory}
                   totalExpense={month.totals?.expense ?? "0"}

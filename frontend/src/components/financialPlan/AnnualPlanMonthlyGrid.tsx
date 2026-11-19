@@ -6,7 +6,7 @@ import Button from "@/components/common/Button";
 import CollapsibleGroup from "@/components/common/CollapsibleGroup";
 import { FORM_LABEL, INPUT_SM } from "@/constants/inputStyles";
 import { TOUCH_TARGET_MIN_MOBILE_ONLY } from "@/constants/uiSizes";
-import { useMonthlyTargetGrid } from "@/hooks/useMonthlyTargetGrid";
+import { canDistribute, useMonthlyTargetGrid } from "@/hooks/useMonthlyTargetGrid";
 import { amountInputPreview, formatKrw, formatKrwCompact, formatMonthOnly } from "@/utils/format";
 import type { AnnualPlanItemMonthlyTargetIn } from "@/types";
 
@@ -119,7 +119,14 @@ export default function AnnualPlanMonthlyGrid({
       </div>
       <div className="flex items-center justify-between gap-2">
         <span className="text-xs text-gray-500 dark:text-gray-400">{amountInputPreview(sameAmount) ?? ""}</span>
-        <Button type="button" variant="secondary" size="sm" onClick={() => handleDistributeEvenly(distributeAmount)}>
+        <Button
+          type="button"
+          variant="secondary"
+          size="sm"
+          disabled={!canDistribute(distributeAmount) || months.length === 0}
+          title={canDistribute(distributeAmount) ? undefined : "나눌 총액을 먼저 입력하세요"}
+          onClick={() => handleDistributeEvenly(distributeAmount)}
+        >
           총액 균등분배
         </Button>
       </div>

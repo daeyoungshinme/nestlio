@@ -10,6 +10,9 @@ import { invalidateKeys } from "@/utils/queryClient";
 import { ROUTES } from "@/constants/routes";
 import { COACHING_THRESHOLD_PRESETS } from "@/constants/coachingPresets";
 import { toast } from "@/utils/toast";
+import { errorMessageTextClass } from "@/utils/colors";
+import { coachingThresholdErrors } from "@/components/settings/coachingThresholdErrors";
+import type { ThresholdDraft } from "@/components/settings/coachingThresholdErrors";
 import type { CoachingThresholdsOut } from "@/types";
 
 const THRESHOLD_FIELDS: { key: keyof CoachingThresholdsOut; label: string }[] = [
@@ -45,9 +48,11 @@ const COACHING_THRESHOLD_KEYS = [
 
 export default function CoachingThresholdsSection({ thresholds }: { thresholds: CoachingThresholdsOut }) {
   const queryClient = useQueryClient();
-  const [thresholdEdits, setThresholdEdits] = useState<Partial<CoachingThresholdsOut>>({});
+  const [thresholdEdits, setThresholdEdits] = useState<Partial<ThresholdDraft>>({});
   const [activePresetKey, setActivePresetKey] = useState<string | null>(null);
   const hasEdits = Object.keys(thresholdEdits).length > 0;
+  const draft: ThresholdDraft = { ...thresholds, ...thresholdEdits };
+  const errors = hasEdits ? coachingThresholdErrors(draft) : [];
 
   const thresholdsMutation = useMutation({
     mutationFn: setCoachingThresholds,
@@ -103,21 +108,31 @@ export default function CoachingThresholdsSection({ thresholds }: { thresholds: 
               min={0}
               max={100}
               step={1}
-              value={thresholdEdits[key] ?? thresholds[key]}
+              value={draft[key]}
               onChange={(e) => {
-                setThresholdEdits((prev) => ({ ...prev, [key]: Number(e.target.value) }));
+                // 비운 칸은 ""로 둔다 — Number("")=0을 그대로 저장하면 기준이 0%가 된다.
+                const raw = e.target.value;
+                setThresholdEdits((prev) => ({ ...prev, [key]: raw === "" ? "" : Number(raw) }));
                 setActivePresetKey(null);
               }}
             />
           ))}
         </div>
-        {hasEdits && <p className="text-xs text-gray-500 dark:text-gray-400">저장하면 적용돼요.</p>}
+        {errors.length > 0 ? (
+          <ul role="alert" className={`text-xs space-y-0.5 ${errorMessageTextClass()}`}>
+            {errors.map((msg) => (
+              <li key={msg}>{msg}</li>
+            ))}
+          </ul>
+        ) : (
+          hasEdits && <p className="text-xs text-gray-500 dark:text-gray-400">저장하면 적용돼요.</p>
+        )}
 
         <Button
           size="sm"
-          disabled={!hasEdits}
+          disabled={!hasEdits || errors.length > 0}
           loading={thresholdsMutation.isPending}
-          onClick={() => thresholdsMutation.mutate({ ...thresholds, ...thresholdEdits })}
+          onClick={() => thresholdsMutation.mutate(draft as CoachingThresholdsOut)}
         >
           저장
         </Button>

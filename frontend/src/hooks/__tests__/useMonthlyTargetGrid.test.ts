@@ -46,15 +46,15 @@ describe("useMonthlyTargetGrid", () => {
     ]);
   });
 
-  it("handleDistributeEvenly treats an empty amount as 0", () => {
+  // 총액이 비었거나 0이면 이미 입력한 달 값을 0으로 지우지 않는다.
+  it("handleDistributeEvenly does nothing for an empty or zero amount", () => {
     const onChange = vi.fn();
-    const { result } = renderHook(() => useMonthlyTargetGrid("2026-09", "2026-10", [], onChange));
+    const targets = [{ year_month: "2026-09", target_amount: "100000" }];
+    const { result } = renderHook(() => useMonthlyTargetGrid("2026-09", "2026-10", targets, onChange));
 
     result.current.handleDistributeEvenly("");
+    result.current.handleDistributeEvenly("0");
 
-    expect(onChange).toHaveBeenCalledWith([
-      { year_month: "2026-09", target_amount: "0" },
-      { year_month: "2026-10", target_amount: "0" },
-    ]);
+    expect(onChange).not.toHaveBeenCalled();
   });
 });

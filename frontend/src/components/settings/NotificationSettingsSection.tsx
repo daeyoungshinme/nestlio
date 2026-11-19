@@ -12,7 +12,7 @@ import { invalidateKeys } from "@/utils/queryClient";
 import { MAX_NOTIFY_RECIPIENTS } from "@/constants/settings";
 import { cautionTextClass, connectionStatusBadgeClass, connectionStatusLabel, dangerActionClass } from "@/utils/colors";
 import { toast } from "@/utils/toast";
-import type { NotificationPrefsOut } from "@/types";
+import type { NotificationPrefsOut, SettingsOut } from "@/types";
 
 const NOTIF_PREF_FIELDS: { key: keyof NotificationPrefsOut; label: string; hint: string }[] = [
   { key: "email_weekly", label: "주간 요약", hint: "매주 가계부 요약 이메일" },
@@ -49,7 +49,10 @@ export default function NotificationSettingsSection({ prefs, notifyEmails, gmail
   const gmailStatus = gmailConnected ? "connected" : "disconnected";
   const queryClient = useQueryClient();
   const [newNotifyEmail, setNewNotifyEmail] = useState("");
-  const invalidateSettings = () => {
+  /** 저장 응답(최신 설정 전체)을 캐시에 바로 넣는다 — 재조회가 끝나기 전에 다음 변경을 하면 옛 prefs에
+   * 덮어써 앞 변경이 되돌아가던 문제를 막는다. */
+  const applySavedSettings = (saved: SettingsOut) => {
+    queryClient.setQueryData(QUERY_KEYS.settings, saved);
     invalidateKeys(queryClient, [QUERY_KEYS.settings, QUERY_KEYS.dashboardBootstrap]);
   };
 
@@ -65,23 +68,23 @@ export default function NotificationSettingsSection({ prefs, notifyEmails, gmail
 
   const notifyEmailsMutation = useMutation({
     mutationFn: setNotifyEmails,
-    onSuccess: () => {
-      invalidateSettings();
+    onSuccess: (saved) => {
+      applySavedSettings(saved);
       setNewNotifyEmail("");
     },
   });
 
   const notificationPrefsMutation = useMutation({
     mutationFn: setNotificationPrefs,
-    onSuccess: () => {
-      invalidateSettings();
+    onSuccess: (saved) => {
+      applySavedSettings(saved);
       toast("알림 설정을 저장했습니다.", "success");
     },
   });
 
-  const pendingPrefKey = notificationPrefsMutation.isPending
-    ? NOTIF_PREF_FIELDS.find(({ key }) => notificationPrefsMutation.variables?.[key] !== prefs[key])?.key
-    : undefined;
+  // 저장 중엔 보낸 값을 먼저 보여 주고 모든 토글을 잠근다 — 동시에 두 요청이 나가면 늦게 끝난 쪽이 앞 변경을 덮는다.
+  const savingPrefs = notificationPrefsMutation.isPending ? notificationPrefsMutation.variables : undefined;
+  const shownPrefs = savingPrefs ?? prefs;
 
   const isRemovingEmail =
     notifyEmailsMutation.isPending &&
@@ -119,8 +122,8 @@ export default function NotificationSettingsSection({ prefs, notifyEmails, gmail
               <ToggleRow
                 label={label}
                 hint={hint}
-                checked={prefs[key]}
-                disabled={key === pendingPrefKey}
+                checked={shownPrefs[key]}
+                disabled={savingPrefs !== undefined}
                 onChange={(next) => notificationPrefsMutation.mutate({ ...prefs, [key]: next })}
               />
             </li>

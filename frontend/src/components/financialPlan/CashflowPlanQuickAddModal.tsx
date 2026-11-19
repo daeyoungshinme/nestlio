@@ -1,4 +1,5 @@
 import Modal from "@/components/common/Modal";
+import QueryBoundary from "@/components/common/QueryBoundary";
 import SkeletonCard from "@/components/common/SkeletonCard";
 import TransactionForm from "@/components/transactions/TransactionForm";
 import { useAuthStore } from "@/stores/authStore";
@@ -20,9 +21,9 @@ interface Props {
 }
 
 export default function CashflowPlanQuickAddModal({ item, categories, onClose, onAdded }: Props) {
-  const { data: accounts } = useAccounts();
-  const { data: savingsProducts } = useSavingsProducts();
-  const { data: users } = useUsers();
+  const accountsQuery = useAccounts();
+  const savingsProductsQuery = useSavingsProducts();
+  const usersQuery = useUsers();
   const currentUserId = useAuthStore((s) => s.userId);
 
   const quickAddMutation = useCreateTransaction(() => {
@@ -39,29 +40,34 @@ export default function CashflowPlanQuickAddModal({ item, categories, onClose, o
             이 계획 항목엔 카테고리가 없어요. 아래에서 카테고리를 확인해 주세요.
           </p>
         )}
-        {!accounts || !savingsProducts || !users ? (
-          <SkeletonCard rows={4} />
-        ) : (
-          <TransactionForm
-            categories={categories}
-            accounts={accounts}
-            savingsProducts={savingsProducts}
-            users={users}
-            currentUserId={currentUserId ?? undefined}
-            layout="stack"
-            isNew={false}
-            submitLabel="추가"
-            submitting={quickAddMutation.isPending}
-            initialValues={{
-              amount: item.amount,
-              type: item.section === "income" ? "income" : "expense",
-              category_id: item.category_id !== null ? String(item.category_id) : "",
-              transaction_date: currentDateIso(),
-              description: item.category_id === null ? item.name : "",
-            }}
-            onSubmit={(payload) => quickAddMutation.mutate(payload)}
-          />
-        )}
+        {/* 조회가 실패하면 스켈레톤에 갇히지 않고 다시 시도할 수 있어야 한다. */}
+        <QueryBoundary
+          queries={[accountsQuery, savingsProductsQuery, usersQuery]}
+          loadingFallback={<SkeletonCard rows={4} />}
+          errorMessage="입력 양식을 불러오지 못했습니다."
+        >
+          {() => (
+            <TransactionForm
+              categories={categories}
+              accounts={accountsQuery.data!}
+              savingsProducts={savingsProductsQuery.data!}
+              users={usersQuery.data!}
+              currentUserId={currentUserId ?? undefined}
+              layout="stack"
+              isNew={false}
+              submitLabel="추가"
+              submitting={quickAddMutation.isPending}
+              initialValues={{
+                amount: item.amount,
+                type: item.section === "income" ? "income" : "expense",
+                category_id: item.category_id !== null ? String(item.category_id) : "",
+                transaction_date: currentDateIso(),
+                description: item.category_id === null ? item.name : "",
+              }}
+              onSubmit={(payload) => quickAddMutation.mutate(payload)}
+            />
+          )}
+        </QueryBoundary>
       </div>
     </Modal>
   );
