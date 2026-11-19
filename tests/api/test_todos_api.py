@@ -114,8 +114,7 @@ def test_spouse_can_edit_complete_and_delete_each_others_todos(client, seeded_db
 
 
 @patch("app.services.notification_service.gmail_service.send_email")
-@patch("app.services.notification_service.is_connected", return_value=True)
-def test_notification_flow_across_crud(mock_connected, mock_send, client, seeded_db, spouse2):
+def test_notification_flow_across_crud(mock_send, client, seeded_db, spouse2, gmail_connected):
     db = seeded_db["db"]
 
     created = client.post(BASE, json={"title": "세금 신고", "assignee_id": str(spouse2.id)}).json()
@@ -175,8 +174,7 @@ def test_each_completes_flow_and_partner_inbox(client, seeded_db, spouse2, as_sp
 
 
 @patch("app.services.notification_service.gmail_service.send_email")
-@patch("app.services.notification_service.is_connected", return_value=True)
-def test_recurring_next_occurrence_leaves_no_extra_notification(mock_connected, mock_send, client, seeded_db, spouse2):
+def test_recurring_next_occurrence_leaves_no_extra_notification(mock_send, client, seeded_db, spouse2, gmail_connected):
     db = seeded_db["db"]
     created = client.post(
         BASE,
@@ -196,8 +194,7 @@ def test_recurring_next_occurrence_leaves_no_extra_notification(mock_connected, 
 
 
 @patch("app.services.notification_service.gmail_service.send_email", side_effect=RuntimeError("boom"))
-@patch("app.services.notification_service.is_connected", return_value=True)
-def test_mail_failure_does_not_block_save(mock_connected, mock_send, client, spouse2):
+def test_mail_failure_does_not_block_save(mock_send, client, spouse2, gmail_connected):
     resp = client.post(BASE, json={"title": "저장은 성공", "assignee_id": str(spouse2.id)})
 
     assert resp.status_code == 201

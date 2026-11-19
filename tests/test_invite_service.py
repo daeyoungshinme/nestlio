@@ -16,8 +16,7 @@ from app.services.invite_service import (
 NOW = datetime(2026, 8, 3, 12, 0, 0)
 
 
-@patch("app.services.invite_service.is_connected", return_value=False)
-def test_create_invite_creates_pending_invite(mock_connected, seeded_db):
+def test_create_invite_creates_pending_invite(seeded_db, gmail_disconnected):
     db, user = seeded_db["db"], seeded_db["user"]
     invite = invite_service.create_invite(db, user.id, "spouse2@example.com", now=NOW)
 
@@ -29,8 +28,7 @@ def test_create_invite_creates_pending_invite(mock_connected, seeded_db):
 
 
 @patch("app.services.invite_service.gmail_service.send_email")
-@patch("app.services.invite_service.is_connected", return_value=True)
-def test_create_invite_sends_email_when_connected(mock_connected, mock_send_email, seeded_db):
+def test_create_invite_sends_email_when_connected(mock_send_email, seeded_db, gmail_connected):
     db, user = seeded_db["db"], seeded_db["user"]
     invite = invite_service.create_invite(db, user.id, "spouse2@example.com", now=NOW)
 
@@ -41,8 +39,7 @@ def test_create_invite_sends_email_when_connected(mock_connected, mock_send_emai
 
 
 @patch("app.services.invite_service.gmail_service.send_email")
-@patch("app.services.invite_service.is_connected", return_value=False)
-def test_create_invite_skips_email_when_not_connected(mock_connected, mock_send_email, seeded_db):
+def test_create_invite_skips_email_when_not_connected(mock_send_email, seeded_db, gmail_disconnected):
     db, user = seeded_db["db"], seeded_db["user"]
     invite = invite_service.create_invite(db, user.id, "spouse2@example.com", now=NOW)
 
@@ -51,8 +48,7 @@ def test_create_invite_skips_email_when_not_connected(mock_connected, mock_send_
 
 
 @patch("app.services.invite_service.gmail_service.send_email", side_effect=Exception("boom"))
-@patch("app.services.invite_service.is_connected", return_value=True)
-def test_create_invite_survives_email_send_failure(mock_connected, mock_send_email, seeded_db):
+def test_create_invite_survives_email_send_failure(mock_send_email, seeded_db, gmail_connected):
     db, user = seeded_db["db"], seeded_db["user"]
     invite = invite_service.create_invite(db, user.id, "spouse2@example.com", now=NOW)
 
@@ -61,8 +57,7 @@ def test_create_invite_survives_email_send_failure(mock_connected, mock_send_ema
     assert invite_service.list_invites(db)[0].id == invite.id
 
 
-@patch("app.services.invite_service.is_connected", return_value=False)
-def test_create_invite_fails_when_household_full(mock_connected, seeded_db):
+def test_create_invite_fails_when_household_full(seeded_db, gmail_disconnected):
     db, user = seeded_db["db"], seeded_db["user"]
     invite_service.accept_invite(
         db,
@@ -77,8 +72,7 @@ def test_create_invite_fails_when_household_full(mock_connected, seeded_db):
         invite_service.create_invite(db, user.id, "third@example.com", now=NOW)
 
 
-@patch("app.services.invite_service.is_connected", return_value=False)
-def test_create_invite_reuses_pending_invite_for_same_email(mock_connected, seeded_db):
+def test_create_invite_reuses_pending_invite_for_same_email(seeded_db, gmail_disconnected):
     db, user = seeded_db["db"], seeded_db["user"]
     first = invite_service.create_invite(db, user.id, "spouse2@example.com", now=NOW)
     first_id, first_token = first.id, first.token
@@ -91,14 +85,12 @@ def test_create_invite_reuses_pending_invite_for_same_email(mock_connected, seed
     assert len(invite_service.list_invites(db)) == 1
 
 
-@patch("app.services.invite_service.is_connected", return_value=False)
-def test_get_invite_by_token_not_found(mock_connected, seeded_db):
+def test_get_invite_by_token_not_found(seeded_db, gmail_disconnected):
     with pytest.raises(InviteNotFoundError):
         invite_service.get_invite_by_token(seeded_db["db"], "nonexistent-token", now=NOW)
 
 
-@patch("app.services.invite_service.is_connected", return_value=False)
-def test_get_invite_by_token_expired(mock_connected, seeded_db):
+def test_get_invite_by_token_expired(seeded_db, gmail_disconnected):
     db, user = seeded_db["db"], seeded_db["user"]
     invite = invite_service.create_invite(db, user.id, "spouse2@example.com", now=NOW)
 
@@ -108,8 +100,7 @@ def test_get_invite_by_token_expired(mock_connected, seeded_db):
         )
 
 
-@patch("app.services.invite_service.is_connected", return_value=False)
-def test_accept_invite_creates_user_and_marks_accepted(mock_connected, seeded_db):
+def test_accept_invite_creates_user_and_marks_accepted(seeded_db, gmail_disconnected):
     db, user = seeded_db["db"], seeded_db["user"]
     invite = invite_service.create_invite(db, user.id, "spouse2@example.com", now=NOW)
     new_user_id = uuid.uuid4()
@@ -129,8 +120,7 @@ def test_accept_invite_creates_user_and_marks_accepted(mock_connected, seeded_db
         invite_service.get_invite_by_token(db, invite.token, now=NOW)
 
 
-@patch("app.services.invite_service.is_connected", return_value=False)
-def test_accept_invite_rejects_mismatched_email(mock_connected, seeded_db):
+def test_accept_invite_rejects_mismatched_email(seeded_db, gmail_disconnected):
     db, user = seeded_db["db"], seeded_db["user"]
     invite = invite_service.create_invite(db, user.id, "spouse2@example.com", now=NOW)
 
@@ -140,8 +130,7 @@ def test_accept_invite_rejects_mismatched_email(mock_connected, seeded_db):
         )
 
 
-@patch("app.services.invite_service.is_connected", return_value=False)
-def test_cancel_invite(mock_connected, seeded_db):
+def test_cancel_invite(seeded_db, gmail_disconnected):
     db, user = seeded_db["db"], seeded_db["user"]
     invite = invite_service.create_invite(db, user.id, "spouse2@example.com", now=NOW)
 
@@ -152,8 +141,7 @@ def test_cancel_invite(mock_connected, seeded_db):
         invite_service.cancel_invite(db, invite.id)
 
 
-@patch("app.services.invite_service.is_connected", return_value=False)
-def test_cancel_accepted_invite_raises(mock_connected, seeded_db):
+def test_cancel_accepted_invite_raises(seeded_db, gmail_disconnected):
     db, user = seeded_db["db"], seeded_db["user"]
     invite = invite_service.create_invite(db, user.id, "spouse2@example.com", now=NOW)
     invite_service.accept_invite(db, invite.token, uuid.uuid4(), "spouse2@example.com", "배우자", now=NOW)

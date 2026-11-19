@@ -399,6 +399,9 @@ def test_savings_streak_stops_at_month_without_target():
 
 # --- end-to-end wiring through compute_insights (uses real DB-backed services) -------------
 
+# 끝난 달(2026-07)로 평가한다 — today를 안 넘기면 실제 시계를 읽어, 7월 중에 돌리면 목표 페이스가 경과일 비례로 바뀐다.
+_AFTER_JULY = date(2026, 8, 1)
+
 def test_compute_insights_end_to_end(seeded_db):
     db, user, food, rent = seeded_db["db"], seeded_db["user"], seeded_db["food"], seeded_db["rent"]
     ym = "2026-07"
@@ -409,7 +412,7 @@ def test_compute_insights_end_to_end(seeded_db):
     )
     transaction_service.create_transaction(db, user_id=user.id, category_id=food.id, type_="expense", amount=Decimal("100000"), transaction_date=date(2026, 7, 10))
 
-    insights = coaching_engine.compute_insights(db, ym)
+    insights = coaching_engine.compute_insights(db, ym, today=_AFTER_JULY)
 
     rule_codes = {i.rule_code for i in insights}
     assert "fixed_cost_ratio" in rule_codes  # 53% fixed >= 50% critical
@@ -433,8 +436,8 @@ def test_compute_insights_uses_precomputed_totals_breakdown_goals_when_given(see
     breakdown = transaction_report_service.category_breakdown(db, start, end, "expense")
     goals = goal_service.list_goals(db)
 
-    baseline = coaching_engine.compute_insights(db, ym)
-    with_precomputed = coaching_engine.compute_insights(db, ym, totals=totals, breakdown=breakdown, goals=goals)
+    baseline = coaching_engine.compute_insights(db, ym, today=_AFTER_JULY)
+    with_precomputed = coaching_engine.compute_insights(db, ym, totals=totals, breakdown=breakdown, goals=goals, today=_AFTER_JULY)
 
     assert {i.rule_code for i in with_precomputed} == {i.rule_code for i in baseline}
     baseline_savings_rate = next(i for i in baseline if i.rule_code == "savings_rate")
@@ -442,7 +445,9 @@ def test_compute_insights_uses_precomputed_totals_breakdown_goals_when_given(see
 
     # passing deliberately different totals proves the override path is actually used, not silently ignored
     fabricated_totals = _totals(1_000_000, 950_000, 0, 950_000)  # 5% savings rate -> critical
-    overridden = coaching_engine.compute_insights(db, ym, totals=fabricated_totals, breakdown=breakdown, goals=goals)
+    overridden = coaching_engine.compute_insights(
+        db, ym, totals=fabricated_totals, breakdown=breakdown, goals=goals, today=_AFTER_JULY
+    )
     overridden_savings_rate = next(i for i in overridden if i.rule_code == "savings_rate")
     assert overridden_savings_rate.severity == "critical"
 
@@ -453,7 +458,7 @@ def test_compute_insights_includes_goal_pace_when_goals_exist(seeded_db):
     transaction_service.create_transaction(db, user_id=user.id, category_id=seeded_db["salary"].id, type_="income", amount=Decimal("2000000"), transaction_date=date(2026, 7, 1))
     transaction_service.create_transaction(db, user_id=user.id, category_id=food.id, type_="expense", amount=Decimal("1800000"), transaction_date=date(2026, 7, 2))
 
-    insights = coaching_engine.compute_insights(db, "2026-07")
+    insights = coaching_engine.compute_insights(db, "2026-07", today=_AFTER_JULY)
 
     assert any(i.rule_code == "goal_pace" for i in insights)
 
@@ -538,7 +543,7 @@ def test_compute_insights_includes_emergency_fund_when_balance_set(seeded_db):
         db, "비상금", Decimal("2000000"), Decimal("0"), product_type="emergency_fund"
     )
 
-    insights = coaching_engine.compute_insights(db, "2026-07")
+    insights = coaching_engine.compute_insights(db, "2026-07", today=_AFTER_JULY)
 
     assert any(i.rule_code == "emergency_fund" for i in insights)
 

@@ -87,8 +87,7 @@ def _removed_spouse(seeded_db):
     return spouse_id
 
 
-@patch("app.services.invite_service.is_connected", return_value=False)
-def test_reinvited_removed_spouse_is_restored_and_can_use_the_app(mock_connected, seeded_db):
+def test_reinvited_removed_spouse_is_restored_and_can_use_the_app(seeded_db, gmail_disconnected):
     db, user = seeded_db["db"], seeded_db["user"]
     spouse_id = _removed_spouse(seeded_db)
     with pytest.raises(HTTPException) as blocked:
@@ -106,8 +105,7 @@ def test_reinvited_removed_spouse_is_restored_and_can_use_the_app(mock_connected
     assert {u.id for u in user_service.list_users(db)} == {user.id, spouse_id}
 
 
-@patch("app.services.invite_service.is_connected", return_value=False)
-def test_removed_spouse_cannot_be_restored_when_household_is_full(mock_connected, seeded_db):
+def test_removed_spouse_cannot_be_restored_when_household_is_full(seeded_db, gmail_disconnected):
     db, user = seeded_db["db"], seeded_db["user"]
     spouse_id = _removed_spouse(seeded_db)
     invite = invite_service.create_invite(db, user.id, "spouse@example.com", now=NOW)

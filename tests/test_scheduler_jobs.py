@@ -138,3 +138,51 @@ def test_event_reminder_check_logs_in_app_without_google(seeded_db, monkeypatch)
 
     db.expire_all()
     assert db.query(NotificationLog).filter(NotificationLog.notif_type == "event_reminder").count() == 1
+
+
+@pytest.mark.parametrize(
+    "job_name,today,notif_type",
+    [
+        ("weekly_summary_email", date(2026, 7, 13), "email_weekly"),  # 월요일
+        ("monthly_summary_email", date(2026, 8, 1), "email_monthly"),
+    ],
+)
+def test_summary_email_jobs_log_in_app_once_without_google(seeded_db, monkeypatch, job_name, today, notif_type):
+    """Gmail 미연결이어도 요약은 인앱 알림함에 남고, 같은 기간에 다시 돌면(curl 재시도·수동 실행) 중복으로 남지 않는다."""
+    db = seeded_db["db"]
+    monkeypatch.setattr(jobs, "today_kst", lambda: today)
+    job = getattr(jobs, job_name)
+
+    job()
+    job()
+
+    db.expire_all()
+    assert db.query(NotificationLog).filter(NotificationLog.notif_type == notif_type).count() == 1
+
+
+def test_summary_email_job_passes_kst_today(seeded_db, monkeypatch):
+    seen: list[date] = []
+    monkeypatch.setattr(jobs.notification_service, "send_weekly_summary", lambda db, today: seen.append(today))
+    monkeypatch.setattr(jobs, "today_kst", lambda: date(2026, 7, 13))
+
+    jobs.weekly_summary_email()
+
+    assert seen == [date(2026, 7, 13)]
+
+
+def test_monthly_net_worth_snapshot_upserts_one_row_per_month(seeded_db, monkeypatch):
+    from app.models.net_worth_snapshot import NetWorthSnapshot
+    from app.services import savings_product_service
+
+    db = seeded_db["db"]
+    savings_product_service.create_product(db, "적금", Decimal("1000000"), Decimal("0"), "savings")
+    monkeypatch.setattr(jobs, "today_kst", lambda: date(2026, 8, 1))
+
+    jobs.monthly_net_worth_snapshot()
+    savings_product_service.create_product(db, "펀드", Decimal("500000"), Decimal("0"), "investment")
+    jobs.monthly_net_worth_snapshot()  # 같은 달 재실행은 새 행이 아니라 갱신
+
+    db.expire_all()
+    [snapshot] = db.query(NetWorthSnapshot).all()
+    assert (snapshot.year_month, snapshot.snapshot_date) == ("2026-08", date(2026, 8, 1))
+    assert snapshot.savings_total == Decimal("1500000")

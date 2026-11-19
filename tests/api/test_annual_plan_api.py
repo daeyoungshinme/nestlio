@@ -226,3 +226,41 @@ def _item_payload(**overrides):
 )
 def test_upsert_item_rejects_invalid_monthly_targets_with_422(client, overrides):
     assert client.put("/api/v1/annual-plan/items", json=_item_payload(**overrides)).status_code == 422
+
+
+def test_seed_from_previous_year_then_409_when_year_has_items(client, frozen_today):
+    """"새해 계획 시작" — 빈 해는 작년 항목을 월만 옮겨 채우고, 이미 항목이 있으면 덮어쓰지 않고 409."""
+    client.put(
+        "/api/v1/annual-plan/items",
+        json={
+            "id": None,
+            "year": 2025,
+            "section": "income",
+            "owner_user_id": None,
+            "name": "월급",
+            "category_id": None,
+            "sort_order": 0,
+            "start_month": "2025-01",
+            "end_month": "2025-12",
+            "monthly_targets": [{"year_month": "2025-03", "target_amount": "3000000"}],
+        },
+    )
+
+    resp = client.post("/api/v1/annual-plan/seed", json={"year": 2026, "source": "previous_year"})
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["year"] == 2026
+    [item] = body["items"]
+    assert item["name"] == "월급"
+    assert [(t["year_month"], Decimal(t["target_amount"])) for t in item["monthly_targets"]] == [
+        ("2026-03", Decimal("3000000"))
+    ]
+
+    again = client.post("/api/v1/annual-plan/seed", json={"year": 2026, "source": "recurring"})
+    assert again.status_code == 409
+    assert len(client.get("/api/v1/annual-plan", params={"year": 2026}).json()["items"]) == 1
+
+
+def test_seed_rejects_unknown_source(client):
+    assert client.post("/api/v1/annual-plan/seed", json={"year": 2026, "source": "magic"}).status_code == 422

@@ -5,8 +5,7 @@ import pytest
 from app.services import coaching_settings_service
 
 
-@patch("app.services.settings_service.is_connected", return_value=False)
-def test_get_settings_reflects_config(mock_is_connected, client):
+def test_get_settings_reflects_config(client, gmail_disconnected):
     resp = client.get("/api/v1/settings")
     assert resp.status_code == 200
     body = resp.json()
@@ -14,15 +13,13 @@ def test_get_settings_reflects_config(mock_is_connected, client):
     assert "budget_warn_pct" in body["coaching_thresholds"]
 
 
-@patch("app.services.settings_service.is_connected", return_value=False)
-def test_get_settings_defaults_notify_emails_to_signup_email(mock_is_connected, client, seeded_db):
+def test_get_settings_defaults_notify_emails_to_signup_email(client, seeded_db, gmail_disconnected):
     resp = client.get("/api/v1/settings")
     assert resp.status_code == 200
     assert resp.json()["notify_emails"] == [seeded_db["user"].email]
 
 
-@patch("app.services.settings_service.is_connected", return_value=False)
-def test_set_notify_emails_overrides_and_persists(mock_is_connected, client):
+def test_set_notify_emails_overrides_and_persists(client, gmail_disconnected):
     resp = client.put("/api/v1/settings/notify-emails", json={"emails": ["a@example.com", "b@example.com"]})
     assert resp.status_code == 200
     assert resp.json()["notify_emails"] == ["a@example.com", "b@example.com"]
@@ -31,27 +28,23 @@ def test_set_notify_emails_overrides_and_persists(mock_is_connected, client):
     assert client.get("/api/v1/settings").json()["notify_emails"] == ["a@example.com", "b@example.com"]
 
 
-@patch("app.services.settings_service.is_connected", return_value=False)
-def test_set_notify_emails_rejects_empty_list(mock_is_connected, client):
+def test_set_notify_emails_rejects_empty_list(client, gmail_disconnected):
     resp = client.put("/api/v1/settings/notify-emails", json={"emails": []})
     assert resp.status_code == 422
 
 
-@patch("app.services.settings_service.is_connected", return_value=False)
-def test_set_notify_emails_rejects_invalid_format(mock_is_connected, client):
+def test_set_notify_emails_rejects_invalid_format(client, gmail_disconnected):
     resp = client.put("/api/v1/settings/notify-emails", json={"emails": ["not-an-email"]})
     assert resp.status_code == 422
 
 
-@patch("app.services.settings_service.is_connected", return_value=False)
-def test_set_notify_emails_normalizes_case_and_dedupes(mock_is_connected, client):
+def test_set_notify_emails_normalizes_case_and_dedupes(client, gmail_disconnected):
     resp = client.put("/api/v1/settings/notify-emails", json={"emails": ["A@example.com", " a@example.com "]})
     assert resp.status_code == 200
     assert resp.json()["notify_emails"] == ["a@example.com"]
 
 
-@patch("app.services.settings_service.is_connected", return_value=False)
-def test_set_coaching_thresholds_overrides_and_persists(mock_is_connected, client):
+def test_set_coaching_thresholds_overrides_and_persists(client, gmail_disconnected):
     payload = {
         "savings_rate_warn": 25,
         "savings_rate_critical": 15,
@@ -93,33 +86,29 @@ def _thresholds(**overrides):
         ({"fixed_cost_ratio_warn": 50, "fixed_cost_ratio_critical": 50}, "고정비율"),
     ],
 )
-@patch("app.services.settings_service.is_connected", return_value=False)
-def test_set_coaching_thresholds_rejects_out_of_range_or_inverted_pairs(mock_is_connected, client, overrides, message):
+def test_set_coaching_thresholds_rejects_out_of_range_or_inverted_pairs(client, overrides, message, gmail_disconnected):
     resp = client.put("/api/v1/settings/coaching-thresholds", json=_thresholds(**overrides))
     assert resp.status_code == 422
     if message:
         assert message in str(resp.json()["detail"])
 
 
-@patch("app.services.notification_service.is_connected", return_value=False)
-def test_test_weekly_email_without_google_returns_409(mock_is_connected, client):
+def test_test_weekly_email_without_google_returns_409(client, gmail_disconnected):
     # google_oauth_tokens에 행이 없는 (Google 미연결) 상태 - GoogleNotConnectedError -> 409
     resp = client.post("/api/v1/settings/test-weekly-email")
     assert resp.status_code == 409
 
 
-@patch("app.services.notification_service.is_connected", return_value=True)
 @patch("app.services.notification_service.gmail_service.send_email")
-def test_test_weekly_email_sends_when_connected(mock_send_email, mock_service_connected, client):
+def test_test_weekly_email_sends_when_connected(mock_send_email, client, gmail_connected):
     resp = client.post("/api/v1/settings/test-weekly-email")
     assert resp.status_code == 200
     assert resp.json()["sent"] is True
     mock_send_email.assert_called_once()
 
 
-@patch("app.services.notification_service.is_connected", return_value=True)
 @patch("app.services.notification_service.gmail_service.send_email")
-def test_test_email_does_not_block_scheduled_summary(mock_send_email, mock_connected, client, seeded_db):
+def test_test_email_does_not_block_scheduled_summary(mock_send_email, client, seeded_db, gmail_connected):
     """테스트 발송이 정규 발송 기록(log_sent)을 남기면 그 주·그 달 예약 발송이 dedup에 막힌다."""
     from datetime import date
 
@@ -137,8 +126,7 @@ def test_test_email_does_not_block_scheduled_summary(mock_send_email, mock_conne
 
 
 @pytest.mark.parametrize("path", ["/api/v1/settings/test-weekly-email", "/api/v1/settings/test-monthly-email"])
-@patch("app.services.notification_service.is_connected", return_value=True)
-def test_test_email_reports_gmail_failure(mock_connected, client, path):
+def test_test_email_reports_gmail_failure(client, path, gmail_connected):
     """전에는 Gmail이 실패해도 "발송했습니다"로 응답했다 — 연동 확인용 버튼이라 실패를 그대로 보여 준다."""
     from app.services.gmail_service import GmailSendError
 
@@ -152,9 +140,8 @@ def test_test_email_reports_gmail_failure(mock_connected, client, path):
     assert "Gmail 서버에 연결하지 못했습니다" in resp.json()["detail"]
 
 
-@patch("app.services.notification_service.is_connected", return_value=True)
 @patch("app.services.notification_service.gmail_service.send_email")
-def test_test_email_without_recipients_returns_409(mock_send_email, mock_connected, client):
+def test_test_email_without_recipients_returns_409(mock_send_email, client, gmail_connected):
     with patch("app.services.notification_service.notification_settings_service.get_recipients", return_value=[]):
         resp = client.post("/api/v1/settings/test-weekly-email")
 
@@ -162,15 +149,13 @@ def test_test_email_without_recipients_returns_409(mock_send_email, mock_connect
     mock_send_email.assert_not_called()
 
 
-@patch("app.services.settings_service.is_connected", return_value=False)
-def test_get_settings_notification_prefs_default_all_on(mock_is_connected, client):
+def test_get_settings_notification_prefs_default_all_on(client, gmail_disconnected):
     resp = client.get("/api/v1/settings")
     assert resp.status_code == 200
     assert all(resp.json()["notification_prefs"].values())
 
 
-@patch("app.services.settings_service.is_connected", return_value=False)
-def test_set_notification_prefs_overrides_and_persists(mock_is_connected, client):
+def test_set_notification_prefs_overrides_and_persists(client, gmail_disconnected):
     payload = {
         "email_weekly": False,
         "email_monthly": True,
@@ -190,8 +175,7 @@ def test_set_notification_prefs_overrides_and_persists(mock_is_connected, client
     assert client.get("/api/v1/settings").json()["notification_prefs"] == payload
 
 
-@patch("app.services.notification_service.is_connected", return_value=True)
-def test_test_weekly_email_returns_409_when_pref_disabled(mock_is_connected, client):
+def test_test_weekly_email_returns_409_when_pref_disabled(client, gmail_connected):
     client.put(
         "/api/v1/settings/notification-prefs",
         json={
@@ -207,8 +191,7 @@ def test_test_weekly_email_returns_409_when_pref_disabled(mock_is_connected, cli
     assert resp.status_code == 409
 
 
-@patch("app.services.settings_service.is_connected", return_value=False)
-def test_get_settings_survives_photo_storage_outage(mock_is_connected, client):
+def test_get_settings_survives_photo_storage_outage(client, gmail_disconnected):
     """사진 스토리지 장애(네트워크·5xx)가 설정 화면 전체를 500으로 만들지 않고 "사진 없음"으로 내려간다."""
     from app.services import couple_photo_service
 
@@ -249,8 +232,7 @@ def test_couple_photo_storage_outage_is_502_and_missing_is_404(client):
         assert client.get("/media/couple-photo").status_code == 404
 
 
-@patch("app.services.settings_service.is_connected", return_value=False)
-def test_insurance_targets_default_and_update(mock_is_connected, client):
+def test_insurance_targets_default_and_update(client, gmail_disconnected):
     from decimal import Decimal
 
     targets = client.get("/api/v1/settings").json()["insurance_targets"]
@@ -265,3 +247,55 @@ def test_insurance_targets_default_and_update(mock_is_connected, client):
     assert client.put("/api/v1/settings/insurance-targets", json={**payload, "cancer": "-1"}).status_code == 422
     # 안내 문구용 감액 허용 %도 함께 내려간다.
     assert client.get("/api/v1/settings").json()["insurance_over_coverage_tolerance_pct"] == 20
+
+
+def _configure_photo_storage(monkeypatch):
+    from app.services import couple_photo_service
+
+    monkeypatch.setattr(couple_photo_service.settings, "supabase_project_url", "https://example.supabase.co")
+    monkeypatch.setattr(couple_photo_service.settings, "supabase_service_role_key", "service-role-key")
+
+
+def _storage_ok(method):
+    import httpx
+
+    return httpx.Response(200, request=httpx.Request(method, "https://example.com"))
+
+
+def test_upload_then_delete_couple_photo(client, monkeypatch, gmail_disconnected):
+    _configure_photo_storage(monkeypatch)
+
+    with patch("app.services.couple_photo_service.httpx.put", return_value=_storage_ok("PUT")) as put:
+        resp = client.post(
+            "/api/v1/settings/couple-photo", files={"file": ("us.jpg", b"jpeg-bytes", "image/jpeg")}
+        )
+    assert resp.status_code == 200
+    assert resp.json()["couple_photo_url"].startswith("/media/couple-photo?v=")
+    assert put.call_args.kwargs["content"] == b"jpeg-bytes"
+
+    with patch("app.services.couple_photo_service.httpx.request", return_value=_storage_ok("DELETE")):
+        resp = client.delete("/api/v1/settings/couple-photo")
+    assert resp.status_code == 200
+    assert resp.json()["couple_photo_url"] is None
+
+
+def test_upload_couple_photo_over_limit_is_rejected_before_storage(client, monkeypatch, gmail_disconnected):
+    """라우터는 상한+1바이트까지만 읽고, 넘으면 스토리지에 보내지 않고 400."""
+    from app.config import settings
+
+    _configure_photo_storage(monkeypatch)
+    monkeypatch.setattr(settings, "max_upload_size_mb", 0.001)  # ≈ 1KB
+    with patch("app.services.couple_photo_service.httpx.put") as put:
+        resp = client.post(
+            "/api/v1/settings/couple-photo", files={"file": ("big.jpg", b"x" * 5000, "image/jpeg")}
+        )
+    assert resp.status_code == 400
+    put.assert_not_called()
+
+
+def test_upload_couple_photo_rejects_non_image(client, monkeypatch, gmail_disconnected):
+    _configure_photo_storage(monkeypatch)
+    with patch("app.services.couple_photo_service.httpx.put") as put:
+        resp = client.post("/api/v1/settings/couple-photo", files={"file": ("a.txt", b"hello", "text/plain")})
+    assert resp.status_code == 400
+    put.assert_not_called()

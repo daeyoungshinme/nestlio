@@ -38,12 +38,19 @@ MailResult = Literal["sent", "skipped", "failed"]
 
 
 def send_email_best_effort(
-    db: Session, subject: str, body: str, *, html_body: str | None = None, to: list[str] | None = None
+    db: Session,
+    subject: str,
+    body: str,
+    *,
+    html_body: str | None = None,
+    to: list[str] | None = None,
+    today: date | None = None,
 ) -> MailResult:
     """모든 알림 메일의 단일 발송 경로. 알림 메일은 부가 채널이다 — 인앱 알림(NotificationLog)이 정본이라,
     메일 발송 실패가 호출부의 log_sent까지 막아 인앱 알림이 유실되거나 예약 잡이 500으로 끝나면 안 된다.
     그래서 예외를 던지지 않고 결과만 돌려준다. 토큰 만료는 부부가 알아야 고칠 수 있으므로 인앱 알림도
-    (월 1회) 남긴다. `to`를 안 주면 설정된 수신자 전원(notification_settings_service.get_recipients)."""
+    (월 1회 — 날짜를 아는 호출부는 `today`를 넘긴다) 남긴다. `to`를 안 주면 설정된 수신자 전원
+    (notification_settings_service.get_recipients)."""
     if not is_connected():
         return "skipped"
     recipients = to if to is not None else notification_settings_service.get_recipients(db)
@@ -53,7 +60,7 @@ def send_email_best_effort(
         gmail_service.send_email(subject, body, to=recipients, html_body=html_body)
     except GoogleAuthError as exc:
         logger.warning("알림 메일 미발송 — 구글 재연결 필요: %s", subject)
-        _log_google_reauth_needed(db, str(exc))
+        _log_google_reauth_needed(db, str(exc), today=today or today_kst())
         return "skipped"
     except GmailSendError:
         logger.warning("알림 메일 발송 실패: %s", subject, exc_info=True)
@@ -96,8 +103,8 @@ def _send_email_detached(subject: str, body: str, html_body: str | None, recipie
         db.close()
 
 
-def _log_google_reauth_needed(db: Session, message: str) -> None:
-    period_key = year_month_str(today_kst())
+def _log_google_reauth_needed(db: Session, message: str, *, today: date) -> None:
+    period_key = year_month_str(today)
     if notification_log_service.already_sent(db, GOOGLE_REAUTH_NOTIF_TYPE, period_key):
         return
     notification_log_service.log_sent(db, GOOGLE_REAUTH_NOTIF_TYPE, period_key, detail=message)
@@ -173,7 +180,7 @@ def _send_summary(
     if notification_log_service.already_sent(db, setting_key, period_key):
         return False
     subject, body, html = build(db, today)
-    send_email_best_effort(db, subject, body, html_body=html)
+    send_email_best_effort(db, subject, body, html_body=html, today=today)
     notification_log_service.log_sent(db, setting_key, period_key, detail=body[:500])
     return True
 
@@ -249,7 +256,7 @@ def _celebrate_goal_milestone(
     if notification_log_service.milestone_already_logged(db, notif_type, goal.id, milestone):
         return False
     subject, body = email_templates.goal_milestone_message(goal, milestone, current_amount, today)
-    send_email_best_effort(db, subject, body)
+    send_email_best_effort(db, subject, body, today=today)
     notification_log_service.log_milestone(db, notif_type, related_type, goal.id, milestone, body)
     return True
 
@@ -323,7 +330,7 @@ def check_savings_pace_reminder(db: Session, today: date | None = None) -> bool:
         return False
     streak = _savings_streak(db, today, today)
     subject, body = email_templates.savings_pace_reminder_message(planned, remaining, streak)
-    send_email_best_effort(db, subject, body)
+    send_email_best_effort(db, subject, body, today=today)
     notification_log_service.log_sent(db, "savings_pace_reminder", year_month, detail=body)
     return True
 

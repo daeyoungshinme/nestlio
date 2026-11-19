@@ -167,7 +167,6 @@ def test_set_completed_toggles_completed_at(seeded_db):
 
 
 _SEND = "app.services.notification_service.gmail_service.send_email"
-_CONNECTED = "app.services.notification_service.is_connected"
 
 
 def _event_with_reminder(db, user, title="병원"):
@@ -181,8 +180,7 @@ def _reminder_logs(db):
 
 
 @patch(_SEND)
-@patch(_CONNECTED, return_value=True)
-def test_crud_itself_sends_no_mail_and_notify_excludes_actor(mock_connected, mock_send, seeded_db):
+def test_crud_itself_sends_no_mail_and_notify_excludes_actor(mock_send, seeded_db, gmail_connected):
     """배우자 알림은 라우터가 저장 뒤 따로 부른다 — event_service(CRUD)는 알림 모듈에 의존하지 않는다."""
     db, user = seeded_db["db"], seeded_db["user"]
     spouse2 = _spouse2(db)
@@ -198,8 +196,7 @@ def test_crud_itself_sends_no_mail_and_notify_excludes_actor(mock_connected, moc
 
 
 @patch(_SEND, side_effect=RuntimeError("boom"))
-@patch(_CONNECTED, return_value=True)
-def test_notify_other_spouse_swallows_unexpected_errors(mock_connected, mock_send, seeded_db):
+def test_notify_other_spouse_swallows_unexpected_errors(mock_send, seeded_db, gmail_connected):
     db, user = seeded_db["db"], seeded_db["user"]
     _spouse2(db)
     event = event_service.create_event(db, created_by=user.id, title="여행", start_at=datetime(2026, 8, 1, 9, 0))
@@ -208,8 +205,7 @@ def test_notify_other_spouse_swallows_unexpected_errors(mock_connected, mock_sen
 
 
 @patch(_SEND)
-@patch(_CONNECTED, return_value=False)
-def test_notify_other_spouse_skips_mail_when_google_not_connected(mock_connected, mock_send, seeded_db):
+def test_notify_other_spouse_skips_mail_when_google_not_connected(mock_send, seeded_db, gmail_disconnected):
     db, user = seeded_db["db"], seeded_db["user"]
     _spouse2(db)
     event = event_service.create_event(db, created_by=user.id, title="여행", start_at=datetime(2026, 8, 1, 9, 0))
@@ -220,8 +216,7 @@ def test_notify_other_spouse_skips_mail_when_google_not_connected(mock_connected
 
 
 @patch(_SEND)
-@patch(_CONNECTED, return_value=True)
-def test_send_due_reminders_is_deduped(mock_connected, mock_send, seeded_db):
+def test_send_due_reminders_is_deduped(mock_send, seeded_db, gmail_connected):
     db, user = seeded_db["db"], seeded_db["user"]
     _spouse2(db)
     event = _event_with_reminder(db, user)
@@ -239,8 +234,7 @@ def test_send_due_reminders_is_deduped(mock_connected, mock_send, seeded_db):
 
 
 @patch(_SEND)
-@patch(_CONNECTED, return_value=True)
-def test_send_due_reminders_wide_window_catches_delayed_tick(mock_connected, mock_send, seeded_db):
+def test_send_due_reminders_wide_window_catches_delayed_tick(mock_send, seeded_db, gmail_connected):
     """리마인더 시각(09:00)을 겨냥한 cron 틱이 통째로 밀려도, 다음 틱이 30분 윈도우로
     소급해서 잡아야 한다 — GitHub Actions cron이 best-effort라서."""
     db, user = seeded_db["db"], seeded_db["user"]
@@ -253,8 +247,7 @@ def test_send_due_reminders_wide_window_catches_delayed_tick(mock_connected, moc
 
 
 @patch(_SEND)
-@patch(_CONNECTED, return_value=True)
-def test_send_due_reminders_retries_after_gmail_failure(mock_connected, mock_send, seeded_db):
+def test_send_due_reminders_retries_after_gmail_failure(mock_send, seeded_db, gmail_connected):
     """Gmail 일시 장애로 실패한 리마인더는 기록되지 않아 다음 틱에 다시 보낸다."""
     db, user = seeded_db["db"], seeded_db["user"]
     _spouse2(db)
@@ -269,8 +262,7 @@ def test_send_due_reminders_retries_after_gmail_failure(mock_connected, mock_sen
 
 
 @patch(_SEND)
-@patch(_CONNECTED, return_value=True)
-def test_one_unexpected_reminder_error_does_not_block_others(mock_connected, mock_send, seeded_db):
+def test_one_unexpected_reminder_error_does_not_block_others(mock_send, seeded_db, gmail_connected):
     db, user = seeded_db["db"], seeded_db["user"]
     _spouse2(db)
     _event_with_reminder(db, user, title="병원")
@@ -285,8 +277,7 @@ def test_one_unexpected_reminder_error_does_not_block_others(mock_connected, moc
 
 
 @patch(_SEND)
-@patch(_CONNECTED, return_value=False)
-def test_reminders_still_logged_in_app_when_google_not_connected(mock_connected, mock_send, seeded_db):
+def test_reminders_still_logged_in_app_when_google_not_connected(mock_send, seeded_db, gmail_disconnected):
     """Gmail이 끊겨도 인앱 리마인더는 남는다 — 메일만 건너뛴다(재시도해도 같으므로 다시 시도하지 않음)."""
     db, user = seeded_db["db"], seeded_db["user"]
     _event_with_reminder(db, user)
@@ -321,8 +312,7 @@ def test_reminder_scan_loads_only_events_that_can_be_due(seeded_db):
 
 
 @patch(_SEND)
-@patch(_CONNECTED, return_value=False)
-def test_reminder_scan_horizon_uses_largest_offset(mock_connected, mock_send, seeded_db):
+def test_reminder_scan_horizon_uses_largest_offset(mock_send, seeded_db, gmail_disconnected):
     """horizon은 가장 큰 리마인더 오프셋 기준 — 하루 전 리마인더 일정도 후보에 든다."""
     db, user = seeded_db["db"], seeded_db["user"]
     day_before = event_service.create_event(
@@ -338,8 +328,7 @@ def _change_logs(db):
     return db.query(NotificationLog).filter_by(notif_type="event_change").all()
 
 
-@patch("app.services.notification_service.is_connected", return_value=False)
-def test_notify_other_spouse_logs_inbox_even_without_gmail(mock_connected, seeded_db):
+def test_notify_other_spouse_logs_inbox_even_without_gmail(seeded_db, gmail_disconnected):
     db, user = seeded_db["db"], seeded_db["user"]
     spouse2 = _spouse2(db)
     event = event_service.create_event(db, created_by=user.id, title="여행", start_at=datetime(2026, 8, 1, 9, 0))
@@ -357,8 +346,7 @@ def test_notify_other_spouse_logs_inbox_even_without_gmail(mock_connected, seede
 
 
 @patch("app.services.notification_service.gmail_service.send_email")
-@patch("app.services.notification_service.is_connected", return_value=True)
-def test_notify_other_spouse_respects_event_reminder_pref(mock_connected, mock_send, seeded_db):
+def test_notify_other_spouse_respects_event_reminder_pref(mock_send, seeded_db, gmail_connected):
     db, user = seeded_db["db"], seeded_db["user"]
     _spouse2(db)
     notification_settings_service.set_prefs(db, {"event_reminder": False}, user.id)
@@ -371,8 +359,7 @@ def test_notify_other_spouse_respects_event_reminder_pref(mock_connected, mock_s
 
 
 @patch("app.services.notification_service.gmail_service.send_email")
-@patch("app.services.notification_service.is_connected", return_value=True)
-def test_inbox_failure_rolls_back_and_still_mails(mock_connected, mock_send, seeded_db):
+def test_inbox_failure_rolls_back_and_still_mails(mock_send, seeded_db, gmail_connected):
     db, user = seeded_db["db"], seeded_db["user"]
     _spouse2(db)
     event = event_service.create_event(db, created_by=user.id, title="여행", start_at=datetime(2026, 8, 1, 9, 0))
@@ -386,8 +373,7 @@ def test_inbox_failure_rolls_back_and_still_mails(mock_connected, mock_send, see
 
 
 @patch("app.services.notification_service.gmail_service.send_email")
-@patch("app.services.notification_service.is_connected", return_value=True)
-def test_completed_one_off_event_gets_no_reminder(mock_connected, mock_send, seeded_db):
+def test_completed_one_off_event_gets_no_reminder(mock_send, seeded_db, gmail_connected):
     db, user = seeded_db["db"], seeded_db["user"]
     event = event_service.create_event(
         db, created_by=user.id, title="병원", start_at=datetime(2026, 7, 15, 10, 0), reminder_minutes_before=60
@@ -502,8 +488,7 @@ def test_list_events_loads_completions_without_n_plus_one(seeded_db, count_selec
 
 
 @patch("app.services.notification_service.gmail_service.send_email")
-@patch("app.services.notification_service.is_connected", return_value=True)
-def test_completed_occurrence_gets_no_reminder_but_next_does(mock_connected, mock_send, seeded_db):
+def test_completed_occurrence_gets_no_reminder_but_next_does(mock_send, seeded_db, gmail_connected):
     db = seeded_db["db"]
     event = _weekly(seeded_db, reminder_minutes_before=60)
     event_service.set_completed(db, event.id, completed=True, occurrence_date=date(2026, 7, 8))

@@ -16,8 +16,7 @@ def _accept_as(client, email: str):
     return new_user_id
 
 
-@patch("app.services.invite_service.is_connected", return_value=False)
-def test_create_and_list_invite(mock_connected, client):
+def test_create_and_list_invite(client, gmail_disconnected):
     resp = client.post("/api/v1/invites", json={"email": "spouse2@example.com"})
     assert resp.status_code == 201
     body = resp.json()
@@ -32,16 +31,14 @@ def test_create_and_list_invite(mock_connected, client):
 
 
 @patch("app.services.invite_service.gmail_service.send_email")
-@patch("app.services.invite_service.is_connected", return_value=True)
-def test_create_invite_reports_email_sent(mock_connected, mock_send_email, client):
+def test_create_invite_reports_email_sent(mock_send_email, client, gmail_connected):
     resp = client.post("/api/v1/invites", json={"email": "spouse2@example.com"})
     assert resp.status_code == 201
     assert resp.json()["email_sent"] is True
     mock_send_email.assert_called_once()
 
 
-@patch("app.services.invite_service.is_connected", return_value=False)
-def test_household_full_returns_409(mock_connected, client):
+def test_household_full_returns_409(client, gmail_disconnected):
     create_resp = client.post("/api/v1/invites", json={"email": "spouse2@example.com"})
     token = create_resp.json()["accept_url"].split("token=")[1]
     _accept_as(client, "spouse2@example.com")
@@ -51,8 +48,7 @@ def test_household_full_returns_409(mock_connected, client):
     assert resp.status_code == 409
 
 
-@patch("app.services.invite_service.is_connected", return_value=False)
-def test_validate_is_public_and_accept_requires_matching_jwt(mock_connected, client):
+def test_validate_is_public_and_accept_requires_matching_jwt(client, gmail_disconnected):
     # 초대 생성은 인증된 client 픽스처로 하되, 토큰 검증은 인증 없이도 접근 가능해야 한다.
     create_resp = client.post("/api/v1/invites", json={"email": "spouse2@example.com"})
     token = create_resp.json()["accept_url"].split("token=")[1]
@@ -71,8 +67,7 @@ def test_validate_is_public_and_accept_requires_matching_jwt(mock_connected, cli
     assert resp.json()["display_name"] == "배우자"
 
 
-@patch("app.services.invite_service.is_connected", return_value=False)
-def test_accept_invite_rejects_mismatched_email(mock_connected, client):
+def test_accept_invite_rejects_mismatched_email(client, gmail_disconnected):
     create_resp = client.post("/api/v1/invites", json={"email": "spouse2@example.com"})
     token = create_resp.json()["accept_url"].split("token=")[1]
 
@@ -86,8 +81,7 @@ def test_validate_unknown_token_returns_404(client):
     assert resp.status_code == 404
 
 
-@patch("app.services.invite_service.is_connected", return_value=False)
-def test_cancel_invite(mock_connected, client):
+def test_cancel_invite(client, gmail_disconnected):
     create_resp = client.post("/api/v1/invites", json={"email": "spouse2@example.com"})
     invite_id = create_resp.json()["id"]
 
@@ -96,8 +90,7 @@ def test_cancel_invite(mock_connected, client):
     assert client.get("/api/v1/invites").json() == []
 
 
-@patch("app.services.invite_service.is_connected", return_value=False)
-def test_accept_invite_with_non_uuid_sub_returns_401(mock_connected, client):
+def test_accept_invite_with_non_uuid_sub_returns_401(client, gmail_disconnected):
     create_resp = client.post("/api/v1/invites", json={"email": "spouse2@example.com"})
     token = create_resp.json()["accept_url"].split("token=")[1]
     client.app.dependency_overrides[get_token_payload] = lambda: {"sub": "not-a-uuid", "email": "spouse2@example.com"}

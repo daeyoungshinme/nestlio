@@ -1,7 +1,8 @@
-"""Seed default categories.
+"""기본 데이터 시드 — 카테고리, 이번 달 0원짜리 기본 계획 항목(연간계획), 기본 저축·투자 상품.
 
-Run with: .venv/Scripts/python.exe scripts/seed_data.py
-Safe to re-run: skips categories that already exist.
+Run with: `dev.sh migrate`(마이그레이션 뒤 이 스크립트를 돈다 — 로컬 DATABASE_URL은 대개 운영과 공유하는 DB라
+기본 `dev.sh` 실행은 건너뛴다) 또는 .venv/Scripts/python.exe scripts/seed_data.py
+Safe to re-run: 이미 있는 카테고리·계획 항목(같은 해·구역·이름)·상품(같은 이름)은 건너뛴다.
 
 Users are no longer seeded here — spouse1/spouse2 already exist as Supabase Auth
 accounts (shared with growlio) and their local `household.users` row is created
