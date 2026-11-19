@@ -26,11 +26,19 @@ EXTERNAL_REF_PREFIX = "nestlio:"
 # 한 번의 화면 로드에서 재전송하는 최대 건수 — 오래 밀린 큐가 백그라운드 작업을 붙잡지 않게.
 FLUSH_BATCH = 20
 # 확정 오류(4xx — 계좌 연동이 끊긴 경우 등)로 이 횟수만큼 실패한 행은 자동으로 보내지 않는다. 자산 화면이
-# `list_failed`로 보여 주고 사용자가 `retry`로 다시 보낸다. 일시 오류는 횟수에 넣지 않는다(`_is_transient`).
+# `list_failed`로 보여 주고 사용자가 `retry`로 다시 보낸다.
 MAX_ATTEMPTS = 10
-_TRANSIENT_STATUSES = {401, 408, 429}
+# growlio 5xx는 행 자체의 문제일 수도(같은 행만 계속 500), 잠깐의 장애일 수도 있어 따로 세고 더 넉넉한 상한에서 포기한다.
+# 세지 않으면 그런 행이 큐에 영원히 남아 실패 배너에도 뜨지 않는다.
+MAX_SERVER_ERRORS = 30
+# 접속 실패·토큰 만료(401)·408·429·미설정 — growlio 전체가 지금 받지 못하는 상태라 행 탓이 아니다. 세지 않고 재전송을 멈춘다.
+_OFFLINE_STATUSES = {401, 408, 429}
+# 공동 상품 행에서 이 상태는 "이 토큰의 주인은 그 growlio 계좌를 모른다" — 계좌 주인인 배우자는 보낼 수 있다.
+_DENIED_STATUSES = {403, 404}
 
-SENT, TRANSIENT, PERMANENT = "sent", "transient", "permanent"
+# 전송 결과: SENT 성공 / OFFLINE growlio가 지금 못 받음(재전송 멈춤) / SERVER_ERROR 5xx(그 행만 건너뜀) /
+# DENIED 공동 행을 이 사용자가 보낼 수 없음(그 사용자 재전송에서 뺌) / PERMANENT 확정 오류(attempts +1).
+SENT, OFFLINE, SERVER_ERROR, DENIED, PERMANENT = "sent", "offline", "server_error", "denied", "permanent"
 
 
 def external_ref(row: GrowlioPushQueue) -> str:
@@ -64,13 +72,16 @@ def stage(
     return row
 
 
-def _is_transient(exc: Exception) -> bool:
-    """다시 보내면 성공할 수 있는 실패인가 — 미설정·접속 실패·타임아웃·5xx·401(토큰 만료)·408·429.
-    이런 실패는 행 자체의 문제가 아니라 attempts를 올리지 않는다(growlio가 오래 잠들어도 행을 포기하지 않게)."""
+def _classify(exc: Exception) -> str:
+    """실패를 OFFLINE / SERVER_ERROR / PERMANENT로 나눈다(DENIED는 행·호출자를 알아야 해 `_send`가 가른다)."""
     if isinstance(exc, growlio_client.GrowlioNotConfiguredError):
-        return True
+        return OFFLINE
     status = getattr(exc, "upstream_status", None)
-    return status is None or status >= 500 or status in _TRANSIENT_STATUSES
+    if status is None or status in _OFFLINE_STATUSES:
+        return OFFLINE
+    if status >= 500:
+        return SERVER_ERROR
+    return PERMANENT
 
 
 def _commit_or_rollback(db: Session, row_id: int) -> None:
@@ -83,8 +94,16 @@ def _commit_or_rollback(db: Session, row_id: int) -> None:
         logger.exception("growlio_push_record_failed queue_id=%s", row_id)
 
 
-def _send(db: Session, row: GrowlioPushQueue, bearer_token: str, now: datetime | None = None) -> str:
-    """한 행을 보내고 결과를 SENT / TRANSIENT / PERMANENT 중 하나로 돌려준다. 절대 raise하지 않는다."""
+def _send(
+    db: Session,
+    row: GrowlioPushQueue,
+    bearer_token: str,
+    *,
+    user_id: uuid.UUID | None = None,
+    now: datetime | None = None,
+) -> str:
+    """한 행을 보내고 결과(SENT / OFFLINE / SERVER_ERROR / DENIED / PERMANENT)를 돌려준다. 절대 raise하지 않는다.
+    `user_id`는 토큰 주인 — 공동 행의 403/404를 그 사람만의 거부(DENIED)로 볼지 가르는 데 쓴다."""
     now = now or now_kst()
     row_id = row.id
     try:
@@ -97,29 +116,64 @@ def _send(db: Session, row: GrowlioPushQueue, bearer_token: str, now: datetime |
             external_ref=external_ref(row),
         )
     except (growlio_client.GrowlioNotConfiguredError, growlio_client.GrowlioRequestError) as exc:
-        transient = _is_transient(exc)
-        if not transient:
-            row.attempts += 1
+        result = _classify(exc)
+        if result == SERVER_ERROR:
+            row.server_errors += 1
+        elif result == PERMANENT:
+            first_denial = (
+                row.owner_user_id is None
+                and row.denied_user_id is None
+                and user_id is not None
+                and getattr(exc, "upstream_status", None) in _DENIED_STATUSES
+            )
+            if first_denial:
+                row.denied_user_id = user_id
+                result = DENIED
+            else:
+                row.attempts += 1
         row.last_error = str(exc)[:200]
         _commit_or_rollback(db, row_id)
-        return TRANSIENT if transient else PERMANENT
+        return result
     row.sent_at = now
     _commit_or_rollback(db, row_id)
     return SENT
 
 
-def send(db: Session, row: GrowlioPushQueue, bearer_token: str, now: datetime | None = None) -> bool:
+def send(
+    db: Session,
+    row: GrowlioPushQueue,
+    bearer_token: str,
+    now: datetime | None = None,
+    user_id: uuid.UUID | None = None,
+) -> bool:
     """한 행을 growlio에 보낸다. 성공(새로 기록됐거나 이미 기록돼 있던 경우 모두)이면 sent_at을 채우고 True.
-    실패는 last_error를 남기고 False — 확정 오류(그 밖의 4xx)만 attempts를 올린다. 절대 raise하지 않는다."""
-    return _send(db, row, bearer_token, now) == SENT
+    실패는 last_error를 남기고 False(카운터 규칙은 `_send`). 절대 raise하지 않는다."""
+    return _send(db, row, bearer_token, user_id=user_id, now=now) == SENT
 
 
-def send_staged(db: Session, row: GrowlioPushQueue, bearer_token: str | None) -> bool:
-    """커밋된 큐 행을 바로 보내 본다. 보냈으면 True, 남겨 두었으면 False(호출자가 경고 헤더를 띄운다).
-    토큰이 없으면(예약 작업 등) 보내지 않고 남겨 둔다 — 다음 화면 로드 때 `flush_pending`이 보낸다."""
+def _claim(db: Session, row_id: int, query=None) -> GrowlioPushQueue | None:
+    """아직 안 보낸 그 행을 행 잠금으로 가져온다 — 다른 요청·백그라운드 재전송이 잡고 있으면 None. 잠금은 `_send`의
+    커밋까지라 같은 행을 두 곳에서 동시에 보내지 않는다(external_ref를 모르는 구버전 growlio는 두 번 기록한다).
+    SQLite(테스트)는 FOR UPDATE를 무시한다."""
+    if query is None:
+        query = db.query(GrowlioPushQueue).filter(GrowlioPushQueue.sent_at.is_(None))
+    return query.filter(GrowlioPushQueue.id == row_id).with_for_update(skip_locked=True).one_or_none()
+
+
+def send_staged(
+    db: Session, row: GrowlioPushQueue, bearer_token: str | None, *, caller_id: uuid.UUID | None = None
+) -> bool:
+    """커밋된 큐 행을 바로 보내 본다. 경고가 필요 없으면 True(보냈거나, 보낼 사람이 따로 있음), 호출자가 경고 헤더를
+    띄워야 하면 False. 토큰이 없으면(예약 작업 등) 보내지 않고 남겨 둔다 — 다음 화면 로드 때 `flush_pending`이 보낸다.
+    배우자 소유 상품의 행은 호출자 토큰으로 보내지 않는다(그 growlio 계좌를 모르는 토큰이라 확정 오류만 쌓인다) —
+    배우자의 다음 화면 로드 때 보낸다."""
     if not bearer_token:
         return False
-    ok = send(db, row, bearer_token)
+    if row.owner_user_id is not None and caller_id is not None and row.owner_user_id != caller_id:
+        return True
+    if _claim(db, row.id) is None:
+        return True  # 이미 보냈거나 다른 재전송이 지금 보내는 중
+    ok = send(db, row, bearer_token, user_id=caller_id)
     if not ok:
         logger.warning(
             "growlio_push_queued queue_id=%s type=%s amount=%s (거래는 정상 저장됨, 다음 화면 로드 때 재전송)",
@@ -130,31 +184,53 @@ def send_staged(db: Session, row: GrowlioPushQueue, bearer_token: str | None) ->
     return ok
 
 
+def _not_abandoned():
+    return (GrowlioPushQueue.attempts < MAX_ATTEMPTS) & (GrowlioPushQueue.server_errors < MAX_SERVER_ERRORS)
+
+
+def _abandoned():
+    return or_(GrowlioPushQueue.attempts >= MAX_ATTEMPTS, GrowlioPushQueue.server_errors >= MAX_SERVER_ERRORS)
+
+
 def pending_query(db: Session, user_id: uuid.UUID):
+    """`user_id`의 토큰으로 자동 재전송할 행 — 안 보냈고, 포기하지 않았고, 호출자·공동 소유이고, 이 사용자가 거부한
+    공동 행이 아닌 것."""
     return (
         db.query(GrowlioPushQueue)
         .filter(
             GrowlioPushQueue.sent_at.is_(None),
-            GrowlioPushQueue.attempts < MAX_ATTEMPTS,
+            _not_abandoned(),
             _owned_by(user_id),
+            or_(GrowlioPushQueue.denied_user_id.is_(None), GrowlioPushQueue.denied_user_id != user_id),
         )
         .order_by(GrowlioPushQueue.id)
     )
 
 
 def flush_pending(bearer_token: str, user_id: uuid.UUID, *, now: datetime | None = None) -> int:
-    """남은 행을 오래된 순으로 다시 보낸다(호출자·공동 소유만, 최대 FLUSH_BATCH건). 화면 로드 시 BackgroundTasks로
-    불린다 — 자체 세션을 열고 절대 raise하지 않는다. growlio가 아직 응답하지 않으면(일시 오류) 첫 실패에서 멈춘다(매
-    행마다 타임아웃을 기다리지 않게). 확정 오류는 그 행만의 문제라 건너뛰고 다음 행을 보낸다. 보낸 건수를 반환한다."""
+    """남은 행을 오래된 순으로 다시 보낸다(최대 FLUSH_BATCH건). 화면 로드 시 BackgroundTasks로 불린다 — 자체 세션을
+    열고 절대 raise하지 않는다. growlio가 지금 받지 못하면(OFFLINE) 첫 실패에서 멈춘다(매 행마다 타임아웃을 기다리지
+    않게). 5xx·확정 오류·거부는 그 행만의 문제일 수 있어 건너뛰고 다음 행을 보낸다 — 행 하나가 큐 전체를 막지 않게.
+    행은 하나씩 잠가 가져온다(`_claim`과 같은 이유) — 다른 요청이 보내는 중인 행은 건너뛴다. 보낸 건수를 반환한다."""
     from app.database import SessionLocal
 
     now = now or now_kst()
     db = SessionLocal()
     sent = 0
+    last_id = 0
     try:
-        for row in pending_query(db, user_id).limit(FLUSH_BATCH).all():
-            result = _send(db, row, bearer_token, now=now)
-            if result == TRANSIENT:
+        for _ in range(FLUSH_BATCH):
+            row = (
+                pending_query(db, user_id)
+                .filter(GrowlioPushQueue.id > last_id)
+                .with_for_update(skip_locked=True)
+                .first()
+            )
+            if row is None:
+                break
+            last_id = row.id
+            result = _send(db, row, bearer_token, user_id=user_id, now=now)
+            if result == OFFLINE:
                 break
             if result == SENT:
                 sent += 1
@@ -166,19 +242,18 @@ def flush_pending(bearer_token: str, user_id: uuid.UUID, *, now: datetime | None
     return sent
 
 
-
 def _owned_by(user_id: uuid.UUID):
     return or_(GrowlioPushQueue.owner_user_id.is_(None), GrowlioPushQueue.owner_user_id == user_id)
 
 
 def list_failed(db: Session, user_id: uuid.UUID) -> list[dict]:
-    """자동 재전송을 포기한 행(확정 오류로 MAX_ATTEMPTS회 실패, 호출자·공동 소유) — 자산 화면 경고용.
+    """자동 재전송을 포기한 행(확정 오류 MAX_ATTEMPTS회 또는 5xx MAX_SERVER_ERRORS회, 호출자·공동 소유) — 자산 화면 경고용.
     상품 이름은 같은 growlio 계좌에 연동된 저축상품에서 찾는다(상품이 지워졌으면 None)."""
     rows = (
         db.query(GrowlioPushQueue)
         .filter(
             GrowlioPushQueue.sent_at.is_(None),
-            GrowlioPushQueue.attempts >= MAX_ATTEMPTS,
+            _abandoned(),
             _owned_by(user_id),
         )
         .order_by(GrowlioPushQueue.id)
@@ -208,18 +283,21 @@ def list_failed(db: Session, user_id: uuid.UUID) -> list[dict]:
 
 
 def retry(db: Session, row_id: int, user_id: uuid.UUID, bearer_token: str) -> bool:
-    """포기한 행을 사용자가 다시 보낸다. 성공하면 True. 일시 오류면 대기 상태로 돌려 자동 재전송에 맡기고, 확정
-    오류면 다시 포기 상태로 둬 목록에 새 사유와 함께 남긴다."""
-    row = (
-        db.query(GrowlioPushQueue)
-        .filter(GrowlioPushQueue.id == row_id, GrowlioPushQueue.sent_at.is_(None), _owned_by(user_id))
-        .one_or_none()
-    )
-    if row is None:
+    """포기한 행을 사용자가 다시 보낸다. 성공하면 True. 일시 오류(OFFLINE·5xx)면 카운터를 비워 자동 재전송에 맡기고,
+    확정 오류·거부면 포기 상태 그대로 새 사유와 함께 목록에 남긴다. 카운터는 결과가 나온 뒤에만 바꾼다 — 먼저 비우면
+    결과 기록 커밋이 실패했을 때 포기 상태가 풀린 채 남는다."""
+    query = db.query(GrowlioPushQueue).filter(GrowlioPushQueue.sent_at.is_(None), _owned_by(user_id))
+    if query.filter(GrowlioPushQueue.id == row_id).one_or_none() is None:
         raise NotFoundError("다시 보낼 growlio 반영 내역을 찾을 수 없습니다.")
-    row.attempts = 0
-    result = _send(db, row, bearer_token)
-    if result == PERMANENT:
-        row.attempts = MAX_ATTEMPTS
+    row = _claim(db, row_id, query)
+    if row is None:
+        return False  # 다른 요청이 지금 보내는 중 — 목록 새로고침에 맡긴다
+    result = _send(db, row, bearer_token, user_id=user_id)
+    if result in (OFFLINE, SERVER_ERROR):
+        row.attempts = 0
+        row.server_errors = 0
+        _commit_or_rollback(db, row.id)
+    elif result in (PERMANENT, DENIED):
+        row.attempts = max(row.attempts, MAX_ATTEMPTS)
         _commit_or_rollback(db, row.id)
     return result == SENT

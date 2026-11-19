@@ -32,6 +32,14 @@ class GrowlioPushQueue(Base):
     amount: Mapped[Decimal] = mapped_column(Numeric(12, 2))
     transaction_date: Mapped[date] = mapped_column(Date)
     attempts: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    # growlio 5xx 횟수 — 행 하나만 계속 5xx를 받으면 큐 맨 앞을 영원히 막지 않게 따로 세고 상한에서 포기한다
+    # (growlio_push_service.MAX_SERVER_ERRORS). 확정 오류(attempts)보다 상한이 넉넉하다(잠깐의 배포·장애는 견딤).
+    server_errors: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    # 공동 상품 행을 403/404로 거부한 첫 사용자 — growlio 계좌는 한 사람 소유라 배우자 토큰의 거부는 행의 잘못이
+    # 아니다. 이 사용자의 재전송에서는 빼고, 다른 사용자도 거부해야 attempts를 올린다.
+    denied_user_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id", name="fk_growlio_push_queue_denied_user_id_users"), nullable=True
+    )
     last_error: Mapped[str | None] = mapped_column(String(200), nullable=True)
     # 채워지면 growlio에 반영 완료(nullable timestamp = 상태 마커).
     sent_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)

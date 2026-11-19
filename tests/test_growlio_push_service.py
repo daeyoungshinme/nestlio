@@ -169,23 +169,22 @@ def _permanent():
     "exc",
     [
         _transient(),
-        _transient(500),
-        _transient(503),
         _transient(401),
+        _transient(408),
         _transient(429),
         growlio_client.GrowlioNotConfiguredError("off"),
     ],
 )
 def test_transient_failures_never_abandon_row(seeded_db, exc):
-    """growlio가 오래 잠들거나 토큰이 만료돼도 행을 포기하지 않는다 — 전에는 10번이면 조용히 사라졌다."""
+    """growlio가 오래 잠들거나(접속 실패) 토큰이 만료돼도 행을 포기하지 않는다 — 전에는 10번이면 조용히 사라졌다."""
     db, user = seeded_db["db"], seeded_db["user"]
     _push(db, _product(db), token=None)
     row = db.query(GrowlioPushQueue).one()
     with patch.object(growlio_client, "push_transaction", side_effect=exc):
-        for _ in range(growlio_push_service.MAX_ATTEMPTS + 2):
+        for _ in range(growlio_push_service.MAX_SERVER_ERRORS + 2):
             assert growlio_push_service.send(db, row, "token") is False
 
-    assert row.attempts == 0
+    assert (row.attempts, row.server_errors) == (0, 0)
     assert growlio_push_service.pending_query(db, user.id).count() == 1
     assert growlio_push_service.list_failed(db, user.id) == []
 
@@ -208,8 +207,8 @@ def test_permanent_failure_counts_and_abandons_after_max_attempts(seeded_db):
 
 def test_flush_skips_permanent_failure_and_sends_following_rows(seeded_db):
     db, user = seeded_db["db"], seeded_db["user"]
-    _push(db, _product(db, "g-broken"), token=None)
-    _push(db, _product(db, "g-ok"), token=None)
+    _push(db, _product(db, "g-broken", owner_user_id=user.id), token=None)
+    _push(db, _product(db, "g-ok", owner_user_id=user.id), token=None)
 
     def fake_push(token, account_id, *args, **kwargs):
         if account_id == "g-broken":
@@ -293,3 +292,93 @@ def test_retry_rejects_spouse_owned_and_sent_rows(seeded_db):
     db.commit()
     with pytest.raises(NotFoundError):
         growlio_push_service.retry(db, mine.id, user.id, "token")
+
+
+def _spouse(db, email="spouse4@example.com"):
+    spouse = User(email=email, display_name="Spouse 4")
+    db.add(spouse)
+    db.commit()
+    return spouse
+
+
+def test_flush_skips_row_with_server_error_and_sends_following_rows(seeded_db):
+    """행 하나만 계속 5xx를 받아도 뒤 행은 보낸다 — 전에는 일시 오류로 보고 멈춰 큐 전체가 영원히 막혔다."""
+    db, user = seeded_db["db"], seeded_db["user"]
+    _push(db, _product(db, "g-500"), token=None)
+    _push(db, _product(db, "g-ok"), token=None)
+
+    def fake_push(token, account_id, *args, **kwargs):
+        if account_id == "g-500":
+            raise _transient(500)
+
+    with patch.object(growlio_client, "push_transaction", side_effect=fake_push):
+        assert _flush(db, user.id) == 1
+
+    rows = {r.growlio_account_id: r for r in db.query(GrowlioPushQueue).all()}
+    assert rows["g-ok"].sent_at == NOW
+    assert (rows["g-500"].server_errors, rows["g-500"].attempts) == (1, 0)
+
+
+def test_row_with_repeated_server_errors_is_abandoned_and_listed(seeded_db):
+    db, user = seeded_db["db"], seeded_db["user"]
+    _push(db, _product(db), token=None)
+    row = db.query(GrowlioPushQueue).one()
+    with patch.object(growlio_client, "push_transaction", side_effect=_transient(500)):
+        for _ in range(growlio_push_service.MAX_SERVER_ERRORS):
+            growlio_push_service.send(db, row, "token")
+
+    assert growlio_push_service.pending_query(db, user.id).count() == 0
+    [failed] = growlio_push_service.list_failed(db, user.id)
+    assert failed["id"] == row.id
+
+
+def test_flush_still_stops_when_growlio_is_offline(seeded_db):
+    db, user = seeded_db["db"], seeded_db["user"]
+    _push(db, _product(db, "g-1"), token=None)
+    _push(db, _product(db, "g-2"), token=None)
+    with patch.object(growlio_client, "push_transaction", side_effect=_transient()) as push:
+        assert _flush(db, user.id) == 0
+    assert push.call_count == 1
+
+
+def test_shared_row_denied_by_one_spouse_is_left_for_the_other(seeded_db):
+    """공동 상품이어도 growlio 계좌는 한 사람 것 — 계좌를 모르는 배우자 토큰의 404는 행을 소진하지 않는다."""
+    db, user = seeded_db["db"], seeded_db["user"]
+    spouse = _spouse(db)
+    _push(db, _product(db, "g-shared"), token=None)
+    row = db.query(GrowlioPushQueue).one()
+
+    with patch.object(growlio_client, "push_transaction", side_effect=_permanent()):
+        assert _flush(db, user.id) == 0
+    assert (row.denied_user_id, row.attempts) == (user.id, 0)
+    assert growlio_push_service.pending_query(db, user.id).count() == 0
+    assert growlio_push_service.pending_query(db, spouse.id).count() == 1
+
+    with patch.object(growlio_client, "push_transaction", side_effect=_permanent()):
+        assert _flush(db, spouse.id) == 0
+    assert row.attempts == 1  # 두 사람 모두 거부 — 이제 행의 문제
+
+
+def test_send_staged_leaves_spouse_owned_row_for_its_owner(seeded_db):
+    db, user = seeded_db["db"], seeded_db["user"]
+    spouse = _spouse(db)
+    product = _product(db, "g-theirs", owner_user_id=spouse.id)
+    row = growlio_push_service.stage(db, product.id, "DEPOSIT", Decimal("1"), date(2026, 10, 8))
+    db.commit()
+
+    with patch.object(growlio_client, "push_transaction") as push:
+        assert growlio_push_service.send_staged(db, row, "token", caller_id=user.id) is True
+    push.assert_not_called()
+    assert (row.sent_at, row.attempts) == (None, 0)
+
+
+def test_retry_keeps_row_abandoned_when_recording_fails(seeded_db):
+    """카운터를 먼저 0으로 돌리지 않는다 — 결과 기록 커밋이 실패해도 포기 상태가 풀리지 않는다."""
+    db, user = seeded_db["db"], seeded_db["user"]
+    row = _abandoned(db, _product(db))
+    with (
+        patch.object(growlio_client, "push_transaction", side_effect=_permanent()),
+        patch.object(db, "commit", side_effect=RuntimeError("db gone")),
+    ):
+        assert growlio_push_service.retry(db, row.id, user.id, "token") is False
+    assert [f["id"] for f in growlio_push_service.list_failed(db, user.id)] == [row.id]

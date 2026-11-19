@@ -64,8 +64,16 @@ class GrowlioSyncError(ConflictError):
 
 
 def _request(
-    method: str, path: str, bearer_token: str, *, json: dict | None = None, params: dict | None = None
+    method: str,
+    path: str,
+    bearer_token: str,
+    *,
+    json: dict | None = None,
+    params: dict | None = None,
+    body_required: bool = True,
 ) -> dict | list:
+    """`body_required=False`(본문을 쓰지 않는 쓰기 호출)면 2xx인데 본문이 JSON이 아니어도(201/204 빈 본문 등) 성공으로
+    보고 `{}`를 돌려준다 — 실패로 보면 아웃박스가 이미 기록된 행을 "응답 해석 실패"로 영원히 다시 보낸다."""
     if not settings.growlio_api_base_url:
         raise GrowlioNotConfiguredError("growlio 연동이 설정되지 않았습니다 (GROWLIO_API_BASE_URL).")
     url = f"{settings.growlio_api_base_url.rstrip('/')}/api/v1/external/{path}"
@@ -74,6 +82,11 @@ def _request(
             method, url, json=json, params=params, headers={"Authorization": f"Bearer {bearer_token}"}, timeout=_TIMEOUT
         )
         response.raise_for_status()
+        if not body_required:
+            try:
+                return response.json()
+            except ValueError:
+                return {}
         # 200이어도 본문이 JSON이 아니면(프록시 HTML 에러 페이지, 빈 본문 등) ValueError가 난다 —
         # 호출부는 GrowlioRequestError만 잡으므로 여기서 변환해야 500으로 새지 않는다.
         return response.json()
@@ -168,7 +181,7 @@ def push_transaction(
     }
     if external_ref is not None:
         payload["external_ref"] = external_ref
-    return _request("POST", "transactions", bearer_token, json=payload)
+    return _request("POST", "transactions", bearer_token, json=payload, body_required=False)
 
 
 def fetch_account_performance(bearer_token: str, account_ids: list[str]) -> dict:

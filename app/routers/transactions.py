@@ -144,10 +144,12 @@ def import_csv(
 def bulk_delete_transactions(
     payload: BulkDeleteIn,
     db: Session = Depends(get_db),
-    _: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_user),
     bearer_token: str = Depends(get_bearer_token),
 ):
-    deleted, failed = transaction_service.bulk_delete_transactions(db, payload.ids, bearer_token=bearer_token)
+    deleted, failed = transaction_service.bulk_delete_transactions(
+        db, payload.ids, bearer_token=bearer_token, caller_id=current_user.id
+    )
     return {"deleted": deleted, "failed": failed}
 
 
@@ -158,13 +160,14 @@ def update_transaction(
     payload: TransactionUpdateIn,
     response: Response,
     db: Session = Depends(get_db),
-    _: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_user),
     bearer_token: str = Depends(get_bearer_token),
 ):
     tx = transaction_service.update_transaction(
         db,
         tx_id,
         bearer_token=bearer_token,
+        caller_id=current_user.id,
         amount=payload.amount,
         type=payload.type,
         category_id=payload.category_id,
@@ -189,9 +192,9 @@ def update_transaction(
 def delete_transaction(
     tx_id: int,
     db: Session = Depends(get_db),
-    _: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_user),
     bearer_token: str = Depends(get_bearer_token),
 ):
-    deleted = transaction_service.delete_transaction(db, tx_id, bearer_token=bearer_token)
+    deleted = transaction_service.delete_transaction(db, tx_id, bearer_token=bearer_token, caller_id=current_user.id)
     if not deleted:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="거래 내역을 찾을 수 없습니다.")

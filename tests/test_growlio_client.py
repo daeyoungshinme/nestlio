@@ -90,6 +90,25 @@ def test_request_wraps_non_json_body_as_growlio_request_error(monkeypatch):
         growlio_client.fetch_account_balances("token")
 
 
+@pytest.mark.parametrize(("status", "text"), [(201, ""), (204, ""), (200, "<html>ok</html>")])
+def test_push_transaction_treats_2xx_without_json_body_as_success(monkeypatch, status, text):
+    """push는 응답 본문을 쓰지 않는다 — 2xx 빈 본문을 "응답 해석 실패"로 보면 아웃박스가 이미 기록된 행을 영원히
+    다시 보내고 그 뒤 행이 전부 막힌다."""
+    from datetime import date
+    from decimal import Decimal
+
+    import httpx
+
+    monkeypatch.setattr(growlio_client.settings, "growlio_api_base_url", "https://growlio.example.com")
+    monkeypatch.setattr(
+        growlio_client.httpx,
+        "request",
+        lambda *a, **k: httpx.Response(status, text=text, request=httpx.Request("POST", "https://growlio.example.com")),
+    )
+
+    assert growlio_client.push_transaction("t", "g-1", "DEPOSIT", Decimal("1"), date(2026, 10, 8)) == {}
+
+
 @pytest.mark.parametrize("status", [404, 503])
 def test_request_error_keeps_upstream_status(monkeypatch, status):
     """아웃박스가 일시 오류(5xx)와 확정 오류(4xx)를 가를 수 있게 growlio 응답 상태를 남긴다. 응답 상태(502)는 그대로."""
