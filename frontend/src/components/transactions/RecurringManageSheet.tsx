@@ -94,7 +94,7 @@ export default function RecurringManageSheet({ categories, onClose }: Props) {
   });
 
   const handleSubmit = (values: RecurringFormValues) => {
-    const payload = buildRecurringPayload(values);
+    const payload = buildRecurringPayload(values, categories);
     if (formTarget && formTarget !== "new") {
       updateMutation.mutate({ id: formTarget.id, payload });
     } else {

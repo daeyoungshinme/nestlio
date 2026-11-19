@@ -3933,6 +3933,8 @@ export interface components {
              * @default 3
              */
             reminder_days_before: number;
+            /** Savings Product Id */
+            savings_product_id?: number | null;
         };
         /** RecurringListOut */
         RecurringListOut: {
@@ -3982,6 +3984,8 @@ export interface components {
             next_due_date: string;
             /** Is Active */
             is_active: boolean;
+            /** Savings Product Id */
+            savings_product_id?: number | null;
             category: components["schemas"]["CategoryOut"];
         };
         /** RecurringUpdateIn */
@@ -4004,6 +4008,8 @@ export interface components {
             end_date?: string | null;
             /** Reminder Days Before */
             reminder_days_before?: number | null;
+            /** Savings Product Id */
+            savings_product_id?: number | null;
         };
         /** SavingOpportunityOut */
         SavingOpportunityOut: {

@@ -19,6 +19,7 @@ describe("expenseGroupsFromTransactions", () => {
       tx(3, food, "8000"),
       tx(4, food, "3000000", { type: "income" }),
       tx(5, savings, "300000", { savings_product_id: 4 }),
+      tx(6, savings, "100000"), // 상품 없이 저축 카테고리로 들어온 거래(CSV·예전 반복거래)도 저축
     ]);
     expect(groups).toEqual([
       { category_id: 2, name: "월세", color: "#222", type: "fixed", amount: "500000" },

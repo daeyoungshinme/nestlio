@@ -8,6 +8,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
 from app.models.category import Category
+from app.models.savings_product import SavingsProduct
 
 
 class RecurringExpense(Base):
@@ -29,5 +30,12 @@ class RecurringExpense(Base):
     next_due_date: Mapped[date] = mapped_column(Date)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     created_by: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=True)
+    # 저축 카테고리 반복거래가 납입할 저축·투자 상품. 자동 생성 거래에 그대로 넘겨 상품 잔액·growlio 반영이 오른다
+    # (transaction_service.create_transaction). 저축 카테고리 지출일 때만(validate_savings_link).
+    savings_product_id: Mapped[int | None] = mapped_column(
+        ForeignKey("savings_products.id", name="fk_recurring_expenses_savings_product_id_savings_products"),
+        nullable=True,
+    )
 
     category: Mapped["Category"] = relationship(lazy="joined")
+    savings_product: Mapped["SavingsProduct | None"] = relationship(lazy="joined")

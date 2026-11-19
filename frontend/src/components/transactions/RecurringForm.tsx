@@ -4,6 +4,8 @@ import AmountInput from "@/components/common/AmountInput";
 import Button from "@/components/common/Button";
 import FormInput from "@/components/common/FormInput";
 import CategoryPicker from "@/components/common/CategoryPicker";
+import { SavingsProductSelect } from "@/components/transactions/TransactionFormFields";
+import { useSavingsProducts } from "@/hooks/useReferenceData";
 import { INPUT_SM, LABEL_SM } from "@/constants/inputStyles";
 import { TOUCH_TARGET_COMPACT_MOBILE_ONLY } from "@/constants/uiSizes";
 import { recurringSelectedChipClass } from "@/utils/colors";
@@ -20,11 +22,18 @@ export interface RecurringFormValues {
   start_date: string;
   end_date: string;
   reminder_days_before: string;
+  /** 저축 카테고리 지출일 때만 — 자동 생성 거래가 이 상품의 잔액을 올린다. */
+  savings_product_id: string;
+}
+
+function isSavingsCategory(categories: CategoryOut[], categoryId: string): boolean {
+  return categories.some((c) => String(c.id) === categoryId && c.is_savings);
 }
 
 /** RecurringFormValues -> API 생성/수정 페이로드. 폼을 쓰는 모든 곳(반복 내역 관리 시트,
  * 현금흐름계획의 "반복내역으로 등록" 흐름)이 이 변환을 공유해 로직이 갈라지지 않게 한다. */
-export function buildRecurringPayload(values: RecurringFormValues) {
+export function buildRecurringPayload(values: RecurringFormValues, categories: CategoryOut[]) {
+  const forSavings = values.type === "expense" && isSavingsCategory(categories, values.category_id);
   return {
     name: values.name,
     category_id: Number(values.category_id),
@@ -35,6 +44,7 @@ export function buildRecurringPayload(values: RecurringFormValues) {
     start_date: values.start_date,
     end_date: values.end_date || null,
     reminder_days_before: Number(values.reminder_days_before),
+    savings_product_id: forSavings && values.savings_product_id ? Number(values.savings_product_id) : null,
   };
 }
 
@@ -51,7 +61,7 @@ const DAYS_IN_MONTH = Array.from({ length: 31 }, (_, i) => i + 1);
 type RecurringPrefill = Partial<
   Pick<
     RecurringOut,
-    "name" | "category_id" | "amount" | "type" | "frequency" | "days_of_month" | "start_date" | "end_date" | "reminder_days_before"
+    "name" | "category_id" | "amount" | "type" | "frequency" | "days_of_month" | "start_date" | "end_date" | "reminder_days_before" | "savings_product_id"
   >
 >;
 
@@ -75,7 +85,12 @@ export default function RecurringForm({ categories, initial, submitLabel, submit
     start_date: initial?.start_date ?? "",
     end_date: initial?.end_date ?? "",
     reminder_days_before: String(initial?.reminder_days_before ?? 3),
+    savings_product_id: initial?.savings_product_id != null ? String(initial.savings_product_id) : "",
   });
+  const forSavings = values.type === "expense" && isSavingsCategory(categories, values.category_id);
+  // 저축 카테고리를 골랐을 때만 상품 목록이 필요하다.
+  const savingsProductsQuery = useSavingsProducts({ enabled: forSavings });
+  const activeProducts = (savingsProductsQuery.data ?? []).filter((p) => p.is_active);
 
   const toggleDay = (day: number) => {
     setValues((v) => ({
@@ -126,6 +141,15 @@ export default function RecurringForm({ categories, initial, submitLabel, submit
         className="w-full"
         required
       />
+      {forSavings && (
+        <SavingsProductSelect
+          id={`${fieldId}-product`}
+          selectClassName="w-full"
+          value={values.savings_product_id}
+          savingsProducts={activeProducts}
+          onChange={(productId) => setValues((v) => ({ ...v, savings_product_id: productId }))}
+        />
+      )}
       <AmountInput
         label="금액"
         value={values.amount}

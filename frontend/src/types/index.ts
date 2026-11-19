@@ -331,6 +331,7 @@ export interface RecurringOut {
   reminder_days_before: number;
   next_due_date: string;
   is_active: boolean;
+  savings_product_id: number | null;
   category: CategoryOut;
 }
 
@@ -349,6 +350,7 @@ export interface RecurringCreateIn {
   start_date: string;
   end_date?: string | null;
   reminder_days_before?: number;
+  savings_product_id?: number | null;
 }
 
 export interface RecurringUpdateIn {
@@ -361,6 +363,7 @@ export interface RecurringUpdateIn {
   start_date?: string;
   end_date?: string | null;
   reminder_days_before?: number;
+  savings_product_id?: number | null;
 }
 
 export interface YearlyMonthRowOut {

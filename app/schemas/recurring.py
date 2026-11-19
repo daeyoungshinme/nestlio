@@ -36,6 +36,7 @@ class RecurringOut(BaseModel):
     reminder_days_before: int
     next_due_date: date
     is_active: bool
+    savings_product_id: int | None = None
     category: CategoryOut
 
 
@@ -54,6 +55,7 @@ class RecurringCreateIn(BaseModel):
     start_date: date
     end_date: date | None = None
     reminder_days_before: DbInt = 3
+    savings_product_id: DbInt | None = None
 
     _validate_days_of_month = field_validator("days_of_month")(_validate_days_of_month)
 
@@ -68,5 +70,6 @@ class RecurringUpdateIn(BaseModel):
     start_date: date | None = None
     end_date: date | None = None
     reminder_days_before: DbInt | None = None
+    savings_product_id: DbInt | None = None
 
     _validate_days_of_month = field_validator("days_of_month")(_validate_days_of_month)

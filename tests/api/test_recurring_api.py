@@ -140,3 +140,31 @@ def test_create_recurring_rejects_invalid_days_of_month(client, seeded_db):
         },
     )
     assert resp.status_code == 422
+
+
+def test_recurring_savings_product_round_trip(client, seeded_db):
+    from app.models.category import Category
+    from app.models.savings_product import SavingsProduct
+
+    db = seeded_db["db"]
+    savings = Category(name="저축/투자", type="fixed", color="#10b981", is_savings=True, sort_order=0)
+    product = SavingsProduct(name="적금", current_balance=Decimal("0"), monthly_saving_amount=Decimal("0"))
+    db.add_all([savings, product])
+    db.commit()
+
+    resp = client.post(
+        "/api/v1/recurring",
+        json={
+            "name": "적금",
+            "category_id": savings.id,
+            "amount": "500000",
+            "frequency": "monthly",
+            "start_date": "2026-07-05",
+            "savings_product_id": product.id,
+        },
+    )
+    assert resp.status_code == 201
+    assert resp.json()["savings_product_id"] == product.id
+
+    bad = client.put(f"/api/v1/recurring/{resp.json()['id']}", json={"category_id": seeded_db["food"].id})
+    assert bad.status_code == 400
