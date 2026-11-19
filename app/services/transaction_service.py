@@ -76,19 +76,24 @@ def _apply_card(db: Session, card_id: int) -> tuple[int | None, str]:
 
 
 def _send_staged_pushes(
-    db: Session, tx: Transaction, rows: list[GrowlioPushQueue | None], bearer_token: str | None
+    db: Session,
+    tx: Transaction,
+    rows: list[GrowlioPushQueue | None],
+    bearer_token: str | None,
+    caller_id: uuid.UUID | None = None,
 ) -> None:
     """커밋 뒤에 호출 — 거래와 같은 커밋으로 남긴 growlio 큐 행(`growlio_push_service.stage`)을 바로 보내 본다.
 
     growlio가 잠들어있거나 응답하지 않아도 가계부 저장 자체는 이미 끝난 뒤이므로 절대 raise하지 않는다 — 보내지
     못한 동작은 큐에 남아 다음 화면 로드 때 재전송되고, 이번 응답에는 tx의 비영속 플래그
     `Transaction.growlio_sync_failed`(모델에 선언된 클래스 속성, DB 컬럼 아님)를 True로 세팅해 라우터가 응답 헤더로
-    알린다(TransactionOut 스키마 변경 없이 소비). 토큰이 없으면(예약 작업 등) 큐에만 남긴다.
+    알린다(TransactionOut 스키마 변경 없이 소비). 토큰이 없으면(예약 작업 등) 큐에만 남긴다. 배우자 소유 상품의 행은
+    호출자 토큰으로 보내지 않는다(`caller_id`, growlio_push_service.send_staged).
     """
     for row in rows:
         if row is None:
             continue
-        if not growlio_push_service.send_staged(db, row, bearer_token) and bearer_token:
+        if not growlio_push_service.send_staged(db, row, bearer_token, caller_id=caller_id) and bearer_token:
             tx.growlio_sync_failed = True
 
 
@@ -140,11 +145,13 @@ def create_transaction(
         )
     db.commit()
     db.refresh(tx)
-    _send_staged_pushes(db, tx, pushes, bearer_token)
+    _send_staged_pushes(db, tx, pushes, bearer_token, caller_id=user_id)
     return tx
 
 
-def update_transaction(db: Session, tx_id: int, bearer_token: str | None = None, **fields) -> Transaction | None:
+def update_transaction(
+    db: Session, tx_id: int, bearer_token: str | None = None, caller_id: uuid.UUID | None = None, **fields
+) -> Transaction | None:
     tx = db.get(Transaction, tx_id)
     if tx is None:
         return None
@@ -197,7 +204,7 @@ def update_transaction(db: Session, tx_id: int, bearer_token: str | None = None,
             )
     db.commit()
     db.refresh(tx)
-    _send_staged_pushes(db, tx, pushes, bearer_token)
+    _send_staged_pushes(db, tx, pushes, bearer_token, caller_id)
     return tx
 
 
@@ -215,18 +222,20 @@ def _stage_delete(db: Session, tx: Transaction) -> GrowlioPushQueue | None:
     return row
 
 
-def delete_transaction(db: Session, tx_id: int, bearer_token: str | None = None) -> bool:
+def delete_transaction(
+    db: Session, tx_id: int, bearer_token: str | None = None, caller_id: uuid.UUID | None = None
+) -> bool:
     tx = db.get(Transaction, tx_id)
     if tx is None:
         return False
     pushes = [_stage_delete(db, tx)]
     db.commit()
-    _send_staged_pushes(db, tx, pushes, bearer_token)
+    _send_staged_pushes(db, tx, pushes, bearer_token, caller_id)
     return True
 
 
 def bulk_delete_transactions(
-    db: Session, tx_ids: list[int], bearer_token: str | None = None
+    db: Session, tx_ids: list[int], bearer_token: str | None = None, caller_id: uuid.UUID | None = None
 ) -> tuple[int, list[int]]:
     """가져오기 되돌리기 등에서 여러 건을 한 번에 지울 때 쓴다. 단건 삭제와 같은 저축잔액 롤백·growlio 큐 행을
     전부 세션에 올린 뒤 **한 번에 커밋**한다 — 중간에 DB 오류가 나면 아무것도 지워지지 않는다(행마다
@@ -251,7 +260,7 @@ def bulk_delete_transactions(
         if gave_up:
             tx.growlio_sync_failed = bool(bearer_token)
             continue
-        _send_staged_pushes(db, tx, [row], bearer_token)
+        _send_staged_pushes(db, tx, [row], bearer_token, caller_id)
         gave_up = tx.growlio_sync_failed
     return len(deleted), [tx_id for tx_id in unique_ids if tx_id not in found]
 
