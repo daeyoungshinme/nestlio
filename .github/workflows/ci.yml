@@ -25,6 +25,7 @@ jobs:
       backend: ${{ github.event_name == 'push' || steps.filter.outputs.backend == 'true' || steps.filter.outputs.ci == 'true' }}
       frontend: ${{ github.event_name == 'push' || steps.filter.outputs.frontend == 'true' || steps.filter.outputs.ci == 'true' }}
       api_types: ${{ github.event_name == 'push' || steps.filter.outputs.api_types == 'true' || steps.filter.outputs.ci == 'true' }}
+      migrations: ${{ github.event_name == 'push' || steps.filter.outputs.migrations == 'true' || steps.filter.outputs.ci == 'true' }}
     steps:
       - uses: actions/checkout@v7
       - uses: dorny/paths-filter@v4
@@ -47,11 +48,27 @@ jobs:
               - ".pre-commit-config.yaml"
               - "render.yaml"
               - ".nvmrc"
+            # 모델 ↔ 마이그레이션 드리프트(임베디드 Postgres라 느림) — 모델·마이그레이션·검사 스크립트가 바뀔 때만.
+            migrations:
+              - "app/models/**"
+              - "app/database.py"
+              - "migrations/**"
+              - "alembic.ini"
+              - "scripts/check_migration_drift.py"
+              - "requirements*.txt"
             frontend:
               - "frontend/**"
               - ".nvmrc"
+            # OpenAPI에 들어가는 것만 — 서비스·모델 변경까지 매번 재생성 job을 돌릴 필요는 없다. 스키마가 끌어오는
+            # 타입(app/utils의 PlanStatus 등, app/constants의 Literal)과 라우터·보안 의존성은 포함한다.
+            # 빠진 경로가 있어도 main push는 전부 돌아 거기서 잡힌다.
             api_types:
-              - "app/**"
+              - "app/schemas/**"
+              - "app/routers/**"
+              - "app/main.py"
+              - "app/dependencies.py"
+              - "app/constants/**"
+              - "app/utils/**"
               - "requirements.txt"
               - "frontend/src/types/**"
               - "frontend/scripts/**"
@@ -77,7 +94,7 @@ jobs:
   # 임베디드 Postgres(household 스키마)가 필요해 backend job과 분리한다.
   migration-drift:
     needs: changes
-    if: needs.changes.outputs.backend == 'true'
+    if: needs.changes.outputs.migrations == 'true'
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
