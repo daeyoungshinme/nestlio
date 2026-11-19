@@ -268,3 +268,24 @@ def test_real_estate_net_is_zero_without_real_estate(db_session):
     _loan(db_session, "신용대출", "10000000")
     assert real_estate_service.real_estate_net(db_session) == Decimal("0")
     assert real_estate_service.mortgage_loan_ids(db_session) == set()
+
+
+def test_deactivating_real_estate_also_deactivates_its_mortgage_and_reimport_restores_it(db_session):
+    """상품 연동을 지우면 짝을 찾을 수 없어 대출이 평범한 대출로 남았다 — 순자산·"부동산 제외" 목표에서 계속 빠지고
+    자금원 차단도 풀렸다. 다시 가져오면 같은 대출이 되살아나야 한다(전에는 비활성 그대로 재사용)."""
+    from app.services import savings_product_service
+
+    now = datetime(2026, 8, 11, 9, 0)
+    with _patch_fetch([_GROWLIO_ITEM]):
+        [(product, loan)] = real_estate_service.import_from_growlio(db_session, ["growlio-re-1"], "token", _OWNER_ID, now=now)
+
+    savings_product_service.deactivate_product(db_session, product.id)
+    db_session.refresh(loan)
+    assert loan.is_active is False
+    assert loan.growlio_account_id == "growlio-re-1"
+
+    with _patch_fetch([_GROWLIO_ITEM]):
+        [(_, again)] = real_estate_service.import_from_growlio(db_session, ["growlio-re-1"], "token", _OWNER_ID, now=now)
+    assert again.id == loan.id
+    assert again.is_active is True
+    assert db_session.query(Loan).count() == 1

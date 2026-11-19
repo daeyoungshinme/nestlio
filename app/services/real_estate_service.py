@@ -78,6 +78,8 @@ def _upsert_linked_loan(
     0원이면 새로 만들지 않는다. 이미 연동된 대출을 갱신할 땐 소유자를 건드리지 않는다."""
     loan = _update_linked_loan_balance(db, growlio_account_id, mortgage_balance_krw, now)
     if loan is not None:
+        # 부동산을 비활성화하면 짝 대출도 함께 내려간다(savings_product_service.deactivate_product) — 다시 가져오면 되살린다.
+        loan.is_active = True
         return loan
     if mortgage_balance_krw <= 0:
         return None

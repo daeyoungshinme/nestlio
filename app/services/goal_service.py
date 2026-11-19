@@ -45,9 +45,73 @@ class CombinedGoalExistsError(ConflictError):
 _DERIVED_KINDS = ("net_worth", combined_goal_service.KIND)
 
 
+_MALFORMED_GROWLIO_DETAIL = "growlio 응답 형태가 예상과 다릅니다."
+
+
+def _opt_float(raw: dict, key: str) -> float | None:
+    value = raw.get(key)
+    return None if value is None else float(value)
+
+
+def _shape_or_502(shape, raw):
+    """growlio 원본 dict를 응답 모델이 요구하는 칸으로 골라 형 변환한다 — 원본을 그대로 넘기면 형태가 다를 때 응답
+    직렬화에서 500이 난다. 형태가 다르면 다른 growlio 실패처럼 502(GrowlioRequestError)."""
+    try:
+        return shape(raw)
+    except (*growlio_client.MALFORMED_RESPONSE_ERRORS, AttributeError) as exc:  # AttributeError: dict가 아닌 응답
+        raise growlio_client.GrowlioRequestError(_MALFORMED_GROWLIO_DETAIL) from exc
+
+
+def _goal_settings_shape(raw: dict) -> dict:
+    start = raw.get("goal_start_date")
+    return {
+        "is_configured": bool(raw["is_configured"]),
+        "goal_amount": _opt_float(raw, "goal_amount"),
+        "goal_annual_return_pct": _opt_float(raw, "goal_annual_return_pct"),
+        "goal_start_date": None if start is None else date.fromisoformat(str(start)[:10]),
+        "goal_initial_amount": _opt_float(raw, "goal_initial_amount"),
+        "annual_deposit_goal": _opt_float(raw, "annual_deposit_goal"),
+        "annual_dividend_goal": _opt_float(raw, "annual_dividend_goal"),
+    }
+
+
+_PERFORMANCE_KEYS = (
+    "xirr_pct",
+    "annual_return_pct",
+    "cumulative_return_pct",
+    "goal_annual_return_pct",
+    "return_goal_gap_pct",
+    "annual_deposit_goal",
+    "annual_deposit_current",
+    "deposit_achievement_pct",
+)
+
+
+def _performance_shape(raw: dict) -> dict:
+    return {key: _opt_float(raw, key) for key in _PERFORMANCE_KEYS}
+
+
+def _feasibility_shape(raw: dict) -> dict:
+    note = raw.get("note")
+    return {
+        "required_return_pct": _opt_float(raw, "required_return_pct"),
+        "pv": float(raw["pv"]),
+        "n_months": int(raw["n_months"]),
+        "note": None if note is None else str(note),
+        "deposit_guide": [
+            {
+                "annual_return_pct": float(guide["annual_return_pct"]),
+                "required_monthly_deposit": _opt_float(guide, "required_monthly_deposit"),
+                "required_annual_deposit": _opt_float(guide, "required_annual_deposit"),
+            }
+            for guide in raw.get("deposit_guide") or []
+        ],
+    }
+
+
 def fetch_growlio_goal_settings(bearer_token: str) -> dict:
     """재무목표 신규 작성 폼을 미리 채우기 위해 growlio 투자목표 설정값을 전달한다."""
-    return growlio_client.fetch_investment_goal(bearer_token)
+    return _shape_or_502(_goal_settings_shape, growlio_client.fetch_investment_goal(bearer_token))
 
 
 def list_goals(db: Session) -> list[FinancialGoal]:
@@ -351,14 +415,15 @@ def fetch_growlio_insight(db: Session, goal: FinancialGoal, bearer_token: str, t
     (feasibility: 현재 금액·목표 금액·남은 개월·월 계획으로 필요 연수익률과 프리셋별 필요 적립액)을 묶는다.
     목표일이 없으면 기간을 알 수 없어 feasibility는 None. growlio 미설정/실패는 전역 핸들러가 501/502로 바꾼다."""
     out = goal_progress_service.to_out(db, goal, today)
-    performance = growlio_client.fetch_performance(bearer_token)
+    performance = _shape_or_502(_performance_shape, growlio_client.fetch_performance(bearer_token))
     feasibility = None
     if out["months_remaining"]:
-        feasibility = growlio_client.fetch_goal_feasibility(
+        raw_feasibility = growlio_client.fetch_goal_feasibility(
             bearer_token,
             goal.required_amount,
             out["current_amount"],
             out["months_remaining"],
             out["planned_monthly_amount"],
         )
+        feasibility = _shape_or_502(_feasibility_shape, raw_feasibility)
     return {"performance": performance, "feasibility": feasibility, **_linked_growlio_extras(goal, out, bearer_token, today)}

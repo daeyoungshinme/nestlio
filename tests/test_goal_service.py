@@ -13,7 +13,7 @@ from app.services import (
     savings_product_service,
     transaction_service,
 )
-from app.services.growlio_client import GrowlioNotConfiguredError
+from app.services.growlio_client import GrowlioNotConfiguredError, GrowlioRequestError
 from tests.factories import make_challenge
 
 
@@ -323,7 +323,20 @@ def test_fetch_growlio_goal_settings_returns_growlio_response():
     with patch("app.services.goal_service.growlio_client.fetch_investment_goal", return_value=payload):
         result = goal_service.fetch_growlio_goal_settings("token")
 
-    assert result == payload
+    assert result["is_configured"] is True
+    assert result["goal_amount"] == 100000000.0
+    assert result["goal_start_date"] is None
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [{}, {"is_configured": True, "goal_amount": "많이"}, {"is_configured": True, "goal_start_date": "언젠가"}, []],
+)
+def test_fetch_growlio_goal_settings_malformed_response_is_502_not_500(payload):
+    """원본 dict를 그대로 넘기면 형태가 다를 때 응답 직렬화에서 500이 났다 — 다른 growlio 실패처럼 502."""
+    with patch("app.services.goal_service.growlio_client.fetch_investment_goal", return_value=payload):
+        with pytest.raises(GrowlioRequestError):
+            goal_service.fetch_growlio_goal_settings("token")
 
 
 def test_fetch_growlio_goal_settings_propagates_not_configured_error():

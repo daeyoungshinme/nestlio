@@ -1,11 +1,18 @@
 import uuid
 from decimal import Decimal
 
-from sqlalchemy import func
+from sqlalchemy import func, update
 from sqlalchemy.orm import Session
 
 from app.constants.sort_order import DEFAULT_SORT_ORDER
+from app.errors import ConflictError
+from app.models.loan import Loan
 from app.models.savings_product import SavingsProduct
+from app.services import growlio_client
+
+
+class GrowlioAccountAlreadyLinkedError(ConflictError):
+    """growlio 계좌 하나를 저축·투자 상품 둘에 연결하면 같은 잔액이 순자산에 두 번 잡히고 입출금도 두 번 나간다."""
 
 
 def list_products(db: Session, active_only: bool = True) -> list[SavingsProduct]:
@@ -79,6 +86,14 @@ def deactivate_product(db: Session, product_id: int) -> bool:
     product = db.get(SavingsProduct, product_id)
     if product is None:
         return False
+    if product.product_type == "real_estate" and product.growlio_account_id:
+        # 짝 담보대출(같은 growlio_account_id — real_estate_service.mortgage_loan_ids)도 함께 내린다. 아래에서 상품의
+        # 연동을 지우면 짝을 찾을 수 없게 돼, 대출이 평범한 대출로 남아 순자산·"부동산 제외" 목표에서 계속 빠지고
+        # 자금원 차단도 풀린다. 대출의 growlio_account_id는 남겨 다시 가져오면 같은 대출을 되살린다
+        # (real_estate_service._upsert_linked_loan).
+        db.query(Loan).filter(Loan.growlio_account_id == product.growlio_account_id, Loan.is_active.is_(True)).update(
+            {Loan.is_active: False}, synchronize_session="fetch"
+        )
     product.is_active = False
     product.growlio_account_id = None
     product.auto_sync_enabled = False
@@ -88,10 +103,16 @@ def deactivate_product(db: Session, product_id: int) -> bool:
 
 
 def adjust_balance(db: Session, product_id: int, delta: Decimal) -> None:
-    """커밋하지 않는다 — 호출부(transaction_service)가 거래 저장과 같은 커밋으로 묶는다."""
-    product = db.get(SavingsProduct, product_id)
-    if product is not None:
-        product.current_balance += delta
+    """커밋하지 않는다 — 호출부(transaction_service)가 거래 저장과 같은 커밋으로 묶는다.
+
+    DB에서 `current_balance = current_balance + delta`로 더한다. 읽고-더하고-쓰면 두 사람이 같은 상품에 동시에 저축을
+    넣거나 백그라운드 growlio 동기화와 겹칠 때 한쪽 변경이 사라진다(lost update)."""
+    db.execute(
+        update(SavingsProduct)
+        .where(SavingsProduct.id == product_id)
+        .values(current_balance=SavingsProduct.current_balance + delta)
+        .execution_options(synchronize_session="fetch")
+    )
 
 
 def set_growlio_link(
@@ -100,6 +121,10 @@ def set_growlio_link(
     product = db.get(SavingsProduct, product_id)
     if product is None:
         return None
+    if growlio_account_id and growlio_account_id != product.growlio_account_id:
+        # 연동을 지운 비활성 상품은 growlio_account_id가 비어 있어 활성 상품만 보면 된다.
+        if growlio_account_id in growlio_client.already_linked_growlio_ids(db, SavingsProduct):
+            raise GrowlioAccountAlreadyLinkedError("이미 다른 저축·투자 상품에 연결된 growlio 계좌입니다.")
     product.growlio_account_id = growlio_account_id
     product.auto_sync_enabled = auto_sync_enabled if growlio_account_id else False
     if growlio_account_id is None:
