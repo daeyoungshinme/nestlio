@@ -2,7 +2,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import TransactionForm from "@/components/transactions/TransactionForm";
-import type { AccountWithBalanceOut, CategoryOut } from "@/types";
+import type { AccountWithBalanceOut, CategoryOut, SavingsProductOut } from "@/types";
 
 vi.mock("@/api/transactions", () => ({ fetchRecentTransactions: vi.fn().mockResolvedValue([]) }));
 vi.mock("@/api/cashflowPlan", () => ({ fetchCashflowPlan: vi.fn().mockResolvedValue({ items: [] }) }));
@@ -104,5 +104,37 @@ describe("TransactionForm type toggle", () => {
     fireEvent.click(screen.getByRole("button", { name: "추가" }));
 
     expect(onSubmit).toHaveBeenCalledWith(expect.objectContaining({ type: "income", payment_method: null }));
+  });
+});
+
+// 홈 "저축 기록"은 카테고리 없이 저축상품·금액만 채워 연다 — 지출로 저장되며 상품이 빠지면 안 된다.
+describe("TransactionForm savings prefill", () => {
+  it("opens as savings with the savings category when a savings product is prefilled", () => {
+    const onSubmit = vi.fn();
+    const withSavings = [
+      ...categories,
+      { id: 9, name: "저축", kind: "expense", type: "fixed", color: "#000", is_active: true, sort_order: 3, is_savings: true },
+    ] as CategoryOut[];
+    render(
+      <QueryClientProvider client={new QueryClient()}>
+        <TransactionForm
+          categories={withSavings}
+          accounts={[]}
+          savingsProducts={[{ id: 5, name: "청년적금" }] as SavingsProductOut[]}
+          users={[]}
+          submitLabel="추가"
+          onSubmit={onSubmit}
+          layout="stack"
+          isNew
+          initialValues={{ transaction_date: "2026-11-19", type: "expense", amount: "300000", savings_product_id: "5" }}
+        />
+      </QueryClientProvider>,
+    );
+    expect(screen.getByLabelText("저축상품")).toHaveValue("5");
+
+    fireEvent.click(screen.getByRole("button", { name: "추가" }));
+    expect(onSubmit).toHaveBeenCalledWith(
+      expect.objectContaining({ type: "expense", category_id: 9, savings_product_id: 5, amount: "300000" }),
+    );
   });
 });

@@ -4,6 +4,8 @@ import { Copy, UserMinus, UserPlus } from "lucide-react";
 import Button from "@/components/common/Button";
 import ConfirmModal from "@/components/common/ConfirmModal";
 import FormInput from "@/components/common/FormInput";
+import QueryBoundary from "@/components/common/QueryBoundary";
+import SkeletonCard from "@/components/common/SkeletonCard";
 import { SettingsSectionCard } from "@/components/settings/shared";
 import { cancelInvite, createInvite, fetchInvites } from "@/api/invites";
 import { removeUser } from "@/api/users";
@@ -15,9 +17,10 @@ import type { InviteStatus } from "@/utils/colors";
 import { toast } from "@/utils/toast";
 import type { InviteOut } from "@/types";
 
-function inviteStatus(invite: InviteOut): InviteStatus {
+/** `now`는 화면을 연 시각(ms) — 렌더마다 `new Date()`를 부르면 같은 목록이 렌더마다 달라질 수 있다. */
+function inviteStatus(invite: InviteOut, now: number): InviteStatus {
   if (invite.accepted_at) return "accepted";
-  if (new Date(invite.expires_at) < new Date()) return "expired";
+  if (Date.parse(invite.expires_at) < now) return "expired";
   return "pending";
 }
 
@@ -26,7 +29,7 @@ export default function HouseholdSection() {
   const usersQuery = useUsers();
   const invitesQuery = useQuery({ queryKey: QUERY_KEYS.invites, queryFn: fetchInvites });
   const spouse = useSpouse();
-  const householdFull = (usersQuery.data?.length ?? 0) >= 2;
+  const [openedAt] = useState(() => Date.now());
 
   const [inviteEmail, setInviteEmail] = useState("");
   const [removeSpouseOpen, setRemoveSpouseOpen] = useState(false);
@@ -75,52 +78,62 @@ export default function HouseholdSection() {
   return (
     <SettingsSectionCard title="가구·초대">
       <div className="space-y-3">
-        {householdFull ? (
-          <div className="flex items-center justify-between gap-2">
-            <p className="text-xs text-gray-500 dark:text-gray-400">이미 배우자가 등록되어 있어요.</p>
-            {spouse && (
-              <Button
-                variant="danger"
-                size="sm"
-                icon={<UserMinus size={14} />}
-                onClick={() => setRemoveSpouseOpen(true)}
-              >
-                배우자 제거
-              </Button>
-            )}
-          </div>
-        ) : (
-          <>
-            <p className="text-xs text-gray-500 dark:text-gray-400">
-              이메일로 초대를 보내면, 배우자가 링크를 눌러 직접 계정을 만들 수 있어요.
-            </p>
-            <div className="flex gap-2 items-end">
-              <div className="flex-1">
-                <FormInput
-                  label="배우자 이메일"
-                  type="email"
-                  value={inviteEmail}
-                  onChange={(e) => setInviteEmail(e.target.value)}
-                  placeholder="spouse@example.com"
-                />
+        {/* 사용자 목록을 받기 전·실패 시 "정원 미달"로 보고 두 명 가구에 초대 폼을 띄우면 안 된다. */}
+        <QueryBoundary
+          query={usersQuery}
+          compact
+          errorMessage="가구 구성원을 불러오지 못했습니다."
+          loadingFallback={<SkeletonCard rows={1} bare />}
+        >
+          {(users) =>
+            users.length >= 2 ? (
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-xs text-gray-500 dark:text-gray-400">이미 배우자가 등록되어 있어요.</p>
+                {spouse && (
+                  <Button
+                    variant="danger"
+                    size="sm"
+                    icon={<UserMinus size={14} />}
+                    onClick={() => setRemoveSpouseOpen(true)}
+                  >
+                    배우자 제거
+                  </Button>
+                )}
               </div>
-              <Button
-                size="sm"
-                icon={<UserPlus size={14} />}
-                disabled={!inviteEmail}
-                loading={createInviteMutation.isPending}
-                onClick={() => createInviteMutation.mutate(inviteEmail)}
-              >
-                초대
-              </Button>
-            </div>
-          </>
-        )}
+            ) : (
+              <>
+                <p className="text-xs text-gray-500 dark:text-gray-400">
+                  이메일로 초대를 보내면, 배우자가 링크를 눌러 직접 계정을 만들 수 있어요.
+                </p>
+                <div className="flex gap-2 items-end">
+                  <div className="flex-1">
+                    <FormInput
+                      label="배우자 이메일"
+                      type="email"
+                      value={inviteEmail}
+                      onChange={(e) => setInviteEmail(e.target.value)}
+                      placeholder="spouse@example.com"
+                    />
+                  </div>
+                  <Button
+                    size="sm"
+                    icon={<UserPlus size={14} />}
+                    disabled={!inviteEmail}
+                    loading={createInviteMutation.isPending}
+                    onClick={() => createInviteMutation.mutate(inviteEmail)}
+                  >
+                    초대
+                  </Button>
+                </div>
+              </>
+            )
+          }
+        </QueryBoundary>
 
         {!!invitesQuery.data?.length && (
           <ul className="space-y-2">
             {invitesQuery.data.map((invite) => {
-              const status = inviteStatus(invite);
+              const status = inviteStatus(invite, openedAt);
               return (
                 <li
                   key={invite.id}

@@ -5,6 +5,7 @@ import QueryBoundary from "@/components/common/QueryBoundary";
 import SkeletonCard from "@/components/common/SkeletonCard";
 import DailyTransactionGroups from "@/components/transactions/DailyTransactionGroups";
 import ExpenseCategoryGroups from "@/components/transactions/ExpenseCategoryGroups";
+import { expenseGroupsFromTransactions } from "@/components/transactions/expenseGroups";
 import SavingsLinkedTransactionsSection from "@/components/transactions/SavingsLinkedTransactionsSection";
 import type {
   ExpenseTypeFilter,
@@ -13,6 +14,7 @@ import type {
 } from "@/components/transactions/TransactionFilterBar";
 import { fetchCategoryBreakdown } from "@/api/transactions";
 import { QUERY_KEYS } from "@/constants/queryKeys";
+import { sumAmounts } from "@/utils/amount";
 import type { TransactionOut, UserOut } from "@/types";
 
 interface Props {
@@ -22,6 +24,8 @@ interface Props {
   expenseTypeFilter: ExpenseTypeFilter;
   userFilter: UserFilter;
   showExpenseGroups: boolean;
+  /** 검색어가 걸려 있으면 카테고리 그룹을 서버 분해 대신 화면의 검색 결과로 만든다. */
+  searchActive: boolean;
   filteredTransactions: TransactionOut[];
   transactionsByCategory: Map<number, TransactionOut[]>;
   totalExpense: string;
@@ -39,6 +43,7 @@ export default function LedgerResults({
   expenseTypeFilter,
   userFilter,
   showExpenseGroups,
+  searchActive,
   filteredTransactions,
   transactionsByCategory,
   totalExpense,
@@ -58,8 +63,13 @@ export default function LedgerResults({
         user_id: userFilter === "all" ? undefined : userFilter,
       }),
     placeholderData: keepPreviousData,
-    enabled: showExpenseGroups,
+    enabled: showExpenseGroups && !searchActive,
   });
+  // 서버 분해는 검색어를 모른다 — 검색 중엔 결과 거래로 그룹을 만들고 비율도 그 합계 대비로 낸다.
+  const searchGroups = useMemo(
+    () => (searchActive && showExpenseGroups ? expenseGroupsFromTransactions(filteredTransactions) : null),
+    [searchActive, showExpenseGroups, filteredTransactions],
+  );
 
   const expenseGroups = useMemo(() => {
     const breakdown = breakdownQuery.data;
@@ -73,6 +83,19 @@ export default function LedgerResults({
     ) : (
       <SavingsLinkedTransactionsSection
         transactions={filteredTransactions}
+        onEdit={onEdit}
+        showUser={showUser}
+        users={users}
+      />
+    );
+  }
+
+  if (searchGroups) {
+    return (
+      <ExpenseCategoryGroups
+        groups={searchGroups}
+        transactionsByCategory={transactionsByCategory}
+        totalExpense={String(sumAmounts(searchGroups, (g) => g.amount))}
         onEdit={onEdit}
         showUser={showUser}
         users={users}
