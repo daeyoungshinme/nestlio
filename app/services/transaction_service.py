@@ -45,7 +45,8 @@ class InvalidTransactionReferenceError(InvalidInputError):
     pass
 
 
-def _validate_savings_link(db: Session, category_id: int, type_: str, savings_product_id: int | None) -> None:
+def validate_savings_link(db: Session, category_id: int, type_: str, savings_product_id: int | None) -> None:
+    """저축상품은 저축 카테고리 지출에만 연결한다 — 거래와 반복거래(recurring_service)가 공유한다."""
     if savings_product_id is None:
         return
     if type_ != "expense":
@@ -115,7 +116,7 @@ def create_transaction(
     bearer_token: str | None = None,
 ) -> Transaction:
     validate_category_kind(db, category_id, type_)
-    _validate_savings_link(db, category_id, type_, savings_product_id)
+    validate_savings_link(db, category_id, type_, savings_product_id)
     _validate_references(db, account_id, savings_product_id, owner_user_id)
     if card_id is not None:
         account_id, payment_method = _apply_card(db, card_id)
@@ -159,7 +160,7 @@ def update_transaction(
     new_category_id = fields.get("category_id", tx.category_id)
     new_savings_product_id = fields.get("savings_product_id", tx.savings_product_id)
     validate_category_kind(db, new_category_id, new_type)
-    _validate_savings_link(db, new_category_id, new_type, new_savings_product_id)
+    validate_savings_link(db, new_category_id, new_type, new_savings_product_id)
     _validate_references(
         db, fields.get("account_id", tx.account_id), new_savings_product_id, fields.get("owner_user_id", tx.owner_user_id)
     )

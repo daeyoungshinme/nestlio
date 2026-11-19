@@ -5,10 +5,11 @@ from decimal import Decimal
 
 from sqlalchemy.orm import Session
 
-from app.errors import ConflictError, PartialFailureError
+from app.errors import ConflictError, InvalidInputError, PartialFailureError
 from app.models.recurring_expense import RecurringExpense
+from app.models.savings_product import SavingsProduct
 from app.models.transaction import Transaction
-from app.services.transaction_service import create_transaction, validate_category_kind
+from app.services.transaction_service import create_transaction, validate_category_kind, validate_savings_link
 from app.utils.dates import advance_recurring_date, first_monthly_date_on_or_after, today_kst
 
 logger = logging.getLogger(__name__)
@@ -17,6 +18,19 @@ logger = logging.getLogger(__name__)
 _ADVANCE_GUARD = 240
 # 바꾸면 다음 기한을 다시 계산해야 하는 일정 칸.
 _SCHEDULE_FIELDS = ("frequency", "start_date", "days_of_month")
+
+
+class RecurringSavingsProductError(InvalidInputError):
+    """연결할 저축상품이 없거나 비활성 — 그대로 두면 매달 자동 생성이 실패한다."""
+
+
+def _validate_savings_product(db: Session, category_id: int, type_: str, savings_product_id: int | None) -> None:
+    validate_savings_link(db, category_id, type_, savings_product_id)
+    if savings_product_id is None:
+        return
+    product = db.get(SavingsProduct, savings_product_id)
+    if product is None or not product.is_active:
+        raise RecurringSavingsProductError("저축상품을 찾을 수 없습니다.")
 
 
 class RecurringEndedError(ConflictError):
@@ -92,9 +106,11 @@ def create_recurring(
     reminder_days_before: int = 3,
     type_: str = "expense",
     days_of_month: list[int] | None = None,
+    savings_product_id: int | None = None,
 ) -> RecurringExpense:
     # 어긋난 채 등록되면 generate_due_transactions가 예외를 삼키고 매번 거래를 만들지 못한다.
     validate_category_kind(db, category_id, type_)
+    _validate_savings_product(db, category_id, type_, savings_product_id)
     day_of_month = min(days_of_month) if days_of_month else start_date.day
     next_due_date = first_monthly_date_on_or_after(start_date, days_of_month) if days_of_month else start_date
     recurring = RecurringExpense(
@@ -111,6 +127,7 @@ def create_recurring(
         next_due_date=next_due_date,
         created_by=created_by,
         is_active=True,
+        savings_product_id=savings_product_id,
     )
     db.add(recurring)
     db.commit()
@@ -125,7 +142,14 @@ def update_recurring(db: Session, recurring_id: int, today: date | None = None, 
     recurring = db.get(RecurringExpense, recurring_id)
     if recurring is None:
         return None
-    validate_category_kind(db, fields.get("category_id", recurring.category_id), fields.get("type", recurring.type))
+    category_id = fields.get("category_id", recurring.category_id)
+    type_ = fields.get("type", recurring.type)
+    validate_category_kind(db, category_id, type_)
+    if "savings_product_id" in fields and fields["savings_product_id"] != recurring.savings_product_id:
+        _validate_savings_product(db, category_id, type_, fields["savings_product_id"])
+    else:
+        # 카테고리·유형만 바뀌어도 기존 연결이 여전히 유효한지 본다(비활성 상품은 그대로 둬도 된다).
+        validate_savings_link(db, category_id, type_, fields.get("savings_product_id", recurring.savings_product_id))
     # day_of_month(단일 앵커 일자)는 days_of_month/start_date에서 파생된다 — create_recurring과
     # 같은 규칙을 여기서도 적용해 라우터가 계산하지 않게 한다.
     if fields.get("days_of_month"):
@@ -214,6 +238,7 @@ def generate_due_transactions(db: Session, today: date | None = None) -> list[Tr
                     transaction_date=due_date,
                     description=recurring.name,
                     recurring_expense_id=recurring.id,
+                    savings_product_id=recurring.savings_product_id,
                 )
                 created.append(tx)
         except Exception:

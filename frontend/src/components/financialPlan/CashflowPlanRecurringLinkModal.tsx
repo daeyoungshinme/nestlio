@@ -26,7 +26,7 @@ export default function CashflowPlanRecurringLinkModal({ item, categories, onClo
   });
 
   const handleSubmit = (values: RecurringFormValues) => {
-    createRecurringMutation.mutate(buildRecurringPayload(values), {
+    createRecurringMutation.mutate(buildRecurringPayload(values, categories), {
       onSuccess: (created) => {
         linkRecurringMutation.mutate(
           { itemId: item.id, payload: { recurring_expense_id: created.id, year_month: item.year_month } },

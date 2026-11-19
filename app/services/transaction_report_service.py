@@ -3,7 +3,7 @@ from datetime import date
 from decimal import Decimal
 from typing import Literal
 
-from sqlalchemy import func, or_
+from sqlalchemy import func, not_, or_, select
 from sqlalchemy.orm import Session
 
 from app.models.category import Category
@@ -21,10 +21,18 @@ def _period_filters(date_from: date, date_to: date):
     )
 
 
+def is_savings_transaction():
+    """저축·투자로 보는 거래 조건 — 저축상품이 연결됐거나 **저축 카테고리**(`Category.is_savings`)인 거래.
+    상품 없이 저축 카테고리로 들어온 거래(CSV 가져오기·예전 반복거래)도 지출이 아니라 저축이다 — 가계부 화면
+    (`category.is_savings`)과 같은 기준. Category 조인 여부와 상관없이 쓰도록 서브쿼리로 판정한다."""
+    savings_category_ids = select(Category.id).where(Category.is_savings.is_(True))
+    return or_(Transaction.savings_product_id.isnot(None), Transaction.category_id.in_(savings_category_ids))
+
+
 def period_expense_filters(date_from: date, date_to: date):
-    """집계 쿼리 공통 필터: 기간 내 + 저축상품 연결이 아닌(=순수 수입/지출) 거래.
+    """집계 쿼리 공통 필터: 기간 내 + 저축·투자가 아닌(=순수 수입/지출) 거래(`is_savings_transaction` 참고).
     `db.query(...).filter(*period_expense_filters(a, b), 추가조건)` 형태로 쓴다."""
-    return (*_period_filters(date_from, date_to), Transaction.savings_product_id.is_(None))
+    return (*_period_filters(date_from, date_to), not_(is_savings_transaction()))
 
 
 def empty_totals() -> dict:
@@ -114,7 +122,7 @@ def totals_by_owner(db: Session, date_from: date, date_to: date) -> list[dict]:
         db.query(Transaction.owner_user_id, func.sum(Transaction.amount))
         .filter(
             *_period_filters(date_from, date_to),
-            Transaction.savings_product_id.isnot(None),
+            is_savings_transaction(),
         )
         .group_by(Transaction.owner_user_id)
         .all()

@@ -1,8 +1,7 @@
 import { useMemo } from "react";
 import GroupedTransactionList from "@/components/transactions/GroupedTransactionList";
 import { formatDayHeader } from "@/utils/date";
-import { sumAmounts } from "@/utils/amount";
-import { formatKrw } from "@/utils/format";
+import { dayCashflow, formatSignedNet } from "@/utils/dayCashflow";
 import type { TransactionOut, UserOut } from "@/types";
 
 interface Props {
@@ -34,11 +33,12 @@ export default function DailyTransactionGroups({ transactions, onEdit, showUser,
     }
     const expandAll = transactions.length <= EXPAND_ALL_MAX_TRANSACTIONS;
     return Array.from(byDate.entries()).map(([date, txs], index) => {
-      const net = sumAmounts(txs, (tx) => (tx.type === "income" ? 1 : -1) * Number(tx.amount));
+      // 달력 칸·날짜 상세와 같은 기준(저축 제외) — 적금 납입이 그날 지출로 보이지 않게.
+      const { net } = dayCashflow(txs);
       return {
         key: date,
         name: formatDayHeader(date),
-        amountLabel: `${net >= 0 ? "+" : "-"}${formatKrw(Math.abs(net))}`,
+        amountLabel: formatSignedNet(net),
         transactions: txs,
         defaultOpen: expandAll || index < RECENT_OPEN_DAYS,
       };

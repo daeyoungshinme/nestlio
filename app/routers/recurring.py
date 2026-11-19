@@ -43,6 +43,7 @@ def create_recurring(
         reminder_days_before=payload.reminder_days_before,
         type_=payload.type,
         days_of_month=payload.days_of_month,
+        savings_product_id=payload.savings_product_id,
     )
 
 
