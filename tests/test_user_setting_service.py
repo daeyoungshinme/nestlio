@@ -66,3 +66,30 @@ def test_key_is_unique_across_household(seeded_db):
     with pytest.raises(IntegrityError):
         db.commit()
     db.rollback()
+
+
+def test_set_shared_settings_recovers_from_concurrent_first_insert(seeded_db):
+    """두 사람이 같은 키를 처음 저장하는 순간이 겹치면 한쪽 INSERT가 유니크 위반 — 재시도로 상대 행을 갱신한다."""
+    from unittest.mock import patch
+
+    from app.models.user_setting import UserSetting
+
+    db, user = seeded_db["db"], seeded_db["user"]
+    real_apply = user_setting_service._apply_shared_settings
+    calls = {"n": 0}
+
+    def racing_apply(session, values, user_id):
+        calls["n"] += 1
+        if calls["n"] == 1:
+            # 상대가 먼저 커밋한 행을 흉내 낸 뒤, 이쪽도 "없다"고 보고 INSERT한다
+            session.add(UserSetting(user_id=user_id, key="k", value="theirs"))
+            session.commit()
+            session.add(UserSetting(user_id=user_id, key="k", value="mine"))
+            session.flush()
+        else:
+            real_apply(session, values, user_id)
+
+    with patch.object(user_setting_service, "_apply_shared_settings", side_effect=racing_apply):
+        user_setting_service.set_shared_settings(db, {"k": "mine"}, user.id)
+
+    assert user_setting_service.get_shared_setting(db, "k") == "mine"

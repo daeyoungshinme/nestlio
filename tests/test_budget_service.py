@@ -154,3 +154,16 @@ def test_get_budgets_for_months_matches_single_month_lookup(seeded_db):
 
     assert batched == {m: budget_service.get_budgets_for_month(db, m) for m in months}
     assert batched["2026-06"] == {}
+
+
+def test_build_category_rows_keeps_inactive_category_with_spending(seeded_db):
+    db, food, rent = seeded_db["db"], seeded_db["food"], seeded_db["rent"]
+    food.is_active = False
+    rent.is_active = False
+    db.commit()
+
+    rows = budget_service.build_category_rows(db, actuals={food.id: Decimal("50000")}, budgets={})
+
+    ids = [row["category_id"] for row in rows]
+    assert food.id in ids  # 비활성이지만 이번 달 지출이 있다
+    assert rent.id not in ids  # 비활성이고 실적·예산 없음

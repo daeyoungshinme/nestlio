@@ -2,6 +2,7 @@ import logging
 import uuid
 from collections.abc import Callable, Iterable
 
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.models.user_setting import UserSetting
@@ -32,6 +33,18 @@ def set_shared_settings(db: Session, values: dict[str, str], user_id: uuid.UUID)
     키마다 커밋하면 중간 실패 시 일부만 저장돼 warn < critical 같은 짝이 깨진다."""
     if not values:
         return
+    try:
+        _apply_shared_settings(db, values, user_id)
+        db.commit()
+    except IntegrityError:
+        # 두 사람이 같은 키를 처음 저장하는 순간이 겹치면 둘 다 INSERT해 uq_user_settings_key 위반(500)이 난다 —
+        # 되돌리고 이번엔 상대가 만든 행을 갱신한다(나중 저장이 이긴다, 평소와 같은 규칙).
+        db.rollback()
+        _apply_shared_settings(db, values, user_id)
+        db.commit()
+
+
+def _apply_shared_settings(db: Session, values: dict[str, str], user_id: uuid.UUID) -> None:
     existing = {row.key: row for row in db.query(UserSetting).filter(UserSetting.key.in_(list(values))).all()}
     for key, value in values.items():
         row = existing.get(key)
@@ -40,7 +53,7 @@ def set_shared_settings(db: Session, values: dict[str, str], user_id: uuid.UUID)
         else:
             row.value = value
             row.user_id = user_id  # 마지막으로 저장한 사람(행은 key당 하나라 소유자가 아니다)
-    db.commit()
+    db.flush()
 
 
 def get_overrides[T](

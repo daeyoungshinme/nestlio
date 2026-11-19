@@ -8,7 +8,7 @@ from app.constants.sort_order import DEFAULT_SORT_ORDER
 from app.errors import ConflictError
 from app.models.loan import Loan
 from app.models.savings_product import SavingsProduct
-from app.services import growlio_client
+from app.services import growlio_client, user_service
 
 
 class GrowlioAccountAlreadyLinkedError(ConflictError):
@@ -42,6 +42,7 @@ def create_product(
     principal_amount: Decimal | None = None,
     owner_user_id: uuid.UUID | None = None,
 ) -> SavingsProduct:
+    user_service.validate_owner(db, owner_user_id)
     product = SavingsProduct(
         name=name,
         current_balance=current_balance,
@@ -61,17 +62,21 @@ def update_product(
     db: Session,
     product_id: int,
     name: str,
-    current_balance: Decimal,
+    current_balance: Decimal | None,
     monthly_saving_amount: Decimal,
     product_type: str,
     principal_amount: Decimal | None = None,
     owner_user_id: uuid.UUID | None = None,
 ) -> SavingsProduct | None:
+    """`current_balance=None`이면 잔액은 그대로 — 수정 폼을 연 사이 배우자가 기록한 납입(adjust_balance)을
+    폼의 옛 잔액으로 덮지 않게, 프론트는 잔액을 직접 바꿨을 때만 보낸다."""
     product = db.get(SavingsProduct, product_id)
     if product is None:
         return None
+    user_service.validate_owner(db, owner_user_id, current=product.owner_user_id)
     product.name = name
-    product.current_balance = current_balance
+    if current_balance is not None:
+        product.current_balance = current_balance
     product.monthly_saving_amount = monthly_saving_amount
     product.product_type = product_type
     product.principal_amount = principal_amount

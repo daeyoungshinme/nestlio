@@ -9,7 +9,7 @@ from app.constants.sort_order import DEFAULT_SORT_ORDER
 from app.models.account import Account
 from app.models.card import Card
 from app.models.transaction import Transaction
-from app.services import growlio_client
+from app.services import growlio_client, user_service
 from app.services.growlio_client import GrowlioSyncError
 
 
@@ -23,6 +23,7 @@ def list_accounts(db: Session, active_only: bool = True) -> list[Account]:
 def create_account(
     db: Session, name: str, account_type: str, initial_balance: Decimal, owner_user_id: uuid.UUID | None = None
 ) -> Account:
+    user_service.validate_owner(db, owner_user_id)
     account = Account(
         name=name,
         account_type=account_type,
@@ -56,6 +57,7 @@ def update_account(
     account = db.get(Account, account_id)
     if account is None:
         return None
+    user_service.validate_owner(db, owner_user_id, current=account.owner_user_id)
     _rebase_initial_balance(account, current_balance_value, current_balance(db, account))
     account.name = name
     account.account_type = account_type

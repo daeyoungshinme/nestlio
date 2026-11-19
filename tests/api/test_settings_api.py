@@ -299,3 +299,12 @@ def test_upload_couple_photo_rejects_non_image(client, monkeypatch, gmail_discon
         resp = client.post("/api/v1/settings/couple-photo", files={"file": ("a.txt", b"hello", "text/plain")})
     assert resp.status_code == 400
     put.assert_not_called()
+
+
+def test_notify_emails_rejects_overlong_addresses(client):
+    long_local = "a" * 250
+    resp = client.put("/api/v1/settings/notify-emails", json={"emails": [f"{long_local}@example.com"]})
+    assert resp.status_code == 422
+    # 각각은 유효하지만 합치면 저장 칸(500자)을 넘는 목록
+    emails = [f"{'b' * 95}{i}@example.com" for i in range(5)]
+    assert client.put("/api/v1/settings/notify-emails", json={"emails": emails}).status_code == 422

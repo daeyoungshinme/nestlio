@@ -152,10 +152,10 @@ def update_recurring(db: Session, recurring_id: int, today: date | None = None, 
         validate_savings_link(db, category_id, type_, fields.get("savings_product_id", recurring.savings_product_id))
     # day_of_month(단일 앵커 일자)는 days_of_month/start_date에서 파생된다 — create_recurring과
     # 같은 규칙을 여기서도 적용해 라우터가 계산하지 않게 한다.
-    if fields.get("days_of_month"):
-        fields["day_of_month"] = min(fields["days_of_month"])
-    elif "start_date" in fields:
-        fields["day_of_month"] = fields["start_date"].day
+    if "days_of_month" in fields or "start_date" in fields:
+        days = fields.get("days_of_month", recurring.days_of_month)
+        # 지정일을 비우면 시작일 기준으로 돌아간다(예전 최소 지정일이 남으면 25일 → 5일로 바뀐다).
+        fields["day_of_month"] = min(days) if days else fields.get("start_date", recurring.start_date).day
     schedule_changed = any(key in fields and fields[key] != getattr(recurring, key) for key in _SCHEDULE_FIELDS)
     for key, value in fields.items():
         setattr(recurring, key, value)

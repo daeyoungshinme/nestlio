@@ -7,9 +7,11 @@ from sqlalchemy.orm import Session
 
 from app.constants.sort_order import DEFAULT_SORT_ORDER
 from app.errors import ConflictError, InvalidInputError, NotFoundError
+from app.models.account import Account
 from app.models.financial_goal import FinancialGoal
 from app.models.goal_funding_source import GoalFundingSource
 from app.models.goal_monthly_target import GoalMonthlyTarget
+from app.models.loan import Loan
 from app.models.savings_product import SavingsProduct
 from app.services import combined_goal_service, goal_progress_service, growlio_client, plan_targets, real_estate_service
 from app.utils.dates import now_kst, shift_month, year_month_str
@@ -23,6 +25,10 @@ class MonthlyTargetNotFoundError(NotFoundError):
 
 class DuplicateFundingSourceProductError(ConflictError):
     pass
+
+
+class FundingSourceNotFoundError(InvalidInputError):
+    """자금원으로 지정한 상품·계좌·대출이 없다 — 그대로 넣으면 Postgres FK 위반(500)."""
 
 
 class RealEstateFundingSourceError(InvalidInputError):
@@ -135,9 +141,12 @@ def _apply_funding_sources(db: Session, goal: FinancialGoal, funding_sources: li
         if key in seen:
             continue
         seen.add(key)
+        model = {"savings_product": SavingsProduct, "account": Account, "loan": Loan}.get(source_type)
+        source = db.get(model, source_id) if model is not None else None
+        if source is None:
+            raise FundingSourceNotFoundError("자금원으로 지정한 항목을 찾을 수 없습니다.")
         if source_type == "savings_product":
-            product = db.get(SavingsProduct, source_id)
-            if product is not None and product.product_type == "real_estate":
+            if source.product_type == "real_estate":
                 raise RealEstateFundingSourceError(REAL_ESTATE_FUNDING_DETAIL)
             existing_key = (source_id, None, None)
             if existing_key not in existing_by_key:

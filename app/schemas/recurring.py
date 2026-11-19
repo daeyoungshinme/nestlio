@@ -2,10 +2,10 @@ from datetime import date
 from decimal import Decimal
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, field_validator
+from pydantic import BaseModel, ConfigDict, field_validator, model_validator
 
 from app.schemas.category import CategoryOut
-from app.schemas.common import DbInt, KrwAmount, bounded_str
+from app.schemas.common import DbInt, KrwAmount, bounded_str, reject_explicit_nulls
 
 
 def _validate_days_of_month(days: list[int] | None) -> list[int] | None:
@@ -73,3 +73,11 @@ class RecurringUpdateIn(BaseModel):
     savings_product_id: DbInt | None = None
 
     _validate_days_of_month = field_validator("days_of_month")(_validate_days_of_month)
+
+    @model_validator(mode="before")
+    @classmethod
+    def _reject_nulls(cls, data):
+        # null로 비울 수 있는 건 종료일·지정일(→ 시작일 기준)·저축상품뿐
+        return reject_explicit_nulls(
+            data, ("name", "category_id", "amount", "type", "frequency", "start_date", "reminder_days_before")
+        )
