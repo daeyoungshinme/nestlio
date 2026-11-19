@@ -22,9 +22,11 @@ interface Row {
 
 interface Props {
   plan: CashflowPlanListOut | undefined;
-  /** 계획 조회 실패 — 카드를 숨기지 않고 본문 자리에 다시 시도를 보여준다(footer는 계획과 무관하게 남긴다). */
+  /** 계획(현금흐름·저축 계획 중 하나라도) 조회 실패 — 카드를 숨기지 않고 본문 자리에 다시 시도를 보여준다
+   * (footer는 계획과 무관하게 남긴다). */
   planError?: boolean;
   onRetryPlan?: () => void;
+  /** 저축·투자 계획. 아직 없으면 스켈레톤 — 0원으로 그리면 저축만 계획한 달이 "계획이 없어요"가 됐다. */
   savingsPlan: SavingsProductPlanListOut | undefined;
   /** 막대 아래에 붙는 행동 영역 — 홈은 "남은 여유자금 → 저축·투자 기록"(InvestSurplusCard embedded)을 넣는다. */
   footer?: ReactNode;
@@ -46,7 +48,7 @@ export default function MonthFlowCard({ plan, planError, onRetryPlan, savingsPla
           <ChevronRight size={16} aria-hidden="true" />
         </span>
       </Link>
-      {plan ? (
+      {plan && savingsPlan ? (
         <FlowRows plan={plan} savingsPlan={savingsPlan} />
       ) : planError ? (
         <ErrorState compact message="이번 달 계획을 불러오지 못했어요" onRetry={onRetryPlan} />
@@ -58,7 +60,7 @@ export default function MonthFlowCard({ plan, planError, onRetryPlan, savingsPla
   );
 }
 
-function FlowRows({ plan, savingsPlan }: { plan: CashflowPlanListOut; savingsPlan: SavingsProductPlanListOut | undefined }) {
+function FlowRows({ plan, savingsPlan }: { plan: CashflowPlanListOut; savingsPlan: SavingsProductPlanListOut }) {
   const summary = plan.summary;
   const savingsPlanned = savingsInvestmentPlanned(savingsPlan);
   const savingsActual = savingsInvestmentActual(savingsPlan);
@@ -75,7 +77,7 @@ function FlowRows({ plan, savingsPlan }: { plan: CashflowPlanListOut; savingsPla
       planned: savingsPlanned,
       actual: savingsActual,
       pct: pctOf(savingsActual, savingsPlanned),
-      status: savingsPlan ? worseStatus(savingsPlan.savings.status, savingsPlan.investment.status) : null,
+      status: worseStatus(savingsPlan.savings.status, savingsPlan.investment.status),
     },
   ];
   const hasAnyPlan = rows.some((row) => row.planned > 0);

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import MonthPicker from "@/components/common/MonthPicker";
 import QueryBoundary from "@/components/common/QueryBoundary";
 import SkeletonCard from "@/components/common/SkeletonCard";
@@ -29,6 +29,8 @@ export default function SavingsReviewPage() {
     queryKey: QUERY_KEYS.savingsReview(yearMonth, ownerParam),
     queryFn: () => fetchSavingsReview(yearMonth, ownerParam),
     staleTime: STALE_TIME.MEDIUM,
+    // 달·사람 탭을 바꾸는 동안 이전 결과를 두어 탭·카드가 스켈레톤으로 사라지지 않게(흐리게만).
+    placeholderData: keepPreviousData,
   });
 
   return (
@@ -42,7 +44,10 @@ export default function SavingsReviewPage() {
 
       <QueryBoundary query={reviewQuery} errorMessage="절감 점검을 불러오지 못했어요." loadingFallback={<SkeletonCard rows={4} />}>
         {(data) => (
-          <div className="space-y-4">
+          <div
+            className={`space-y-4 ${reviewQuery.isPlaceholderData ? "opacity-60 transition-opacity" : ""}`}
+            aria-busy={reviewQuery.isPlaceholderData}
+          >
             <div className="card">
               <p className="text-xs text-gray-500 dark:text-gray-400">월 절감 여력</p>
               <p className="mt-1 text-2xl font-bold text-gray-900 dark:text-gray-50">월 {formatKrw(data.total_estimated_monthly_saving)}</p>

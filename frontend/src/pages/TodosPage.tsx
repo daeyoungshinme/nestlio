@@ -21,7 +21,8 @@ export default function TodosPage() {
   const today = currentDateIso();
 
   const { data: users } = useUsers();
-  const { data: me } = useMe();
+  const meQuery = useMe();
+  const me = meQuery.data;
   const todosQuery = useTodos(status);
   const { openCreate, openEdit, openDelete, toggleComplete, modals } = useTodoActions({ users });
 
@@ -36,8 +37,10 @@ export default function TodosPage() {
         </Button>
       </div>
 
-      <QueryBoundary query={todosQuery} errorMessage="할일을 불러오지 못했어요.">
-        {(todos) => {
+      {/* "나"/"배우자" 필터는 내 id가 있어야 가를 수 있다 — 그 전엔 "담당 할일이 없어요"가 아니라 로딩으로 */}
+      <QueryBoundary queries={[todosQuery, meQuery]} errorMessage="할일을 불러오지 못했어요.">
+        {() => {
+          const todos = todosQuery.data!;
           const assigned = filterTodosByAssignee(todos, assigneeFilter, me?.id);
           // 진행 중은 무엇부터 할지(긴급도 → 중요) 순, 완료는 서버의 최근 완료순 그대로.
           const filtered = activeTab === "완료" ? assigned : sortOpenTodos(assigned, today);

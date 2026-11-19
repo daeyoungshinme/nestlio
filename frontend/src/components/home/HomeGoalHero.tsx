@@ -13,8 +13,8 @@ import {
   progressStatusLabel,
   savingsStreakBadgeStyle,
 } from "@/utils/colors";
-import { computeCardStatus, daysUntil } from "@/utils/goalStatus";
-import { formatKrw, formatKrwCompact } from "@/utils/format";
+import { computeCardStatus, formatDday } from "@/utils/goalStatus";
+import { formatKrw, formatKrwCompact, formatYearMonth } from "@/utils/format";
 import type { CoupleContribution } from "@/utils/contribution";
 import type { FinancialGoalOut, NotificationReactionOut } from "@/types";
 import { TOUCH_TARGET_COMPACT_MOBILE_ONLY, TOUCH_TARGET_MIN_HEIGHT } from "@/constants/uiSizes";
@@ -110,7 +110,7 @@ export default function HomeGoalHero({
 
   const badges: GoalProgressCardBadge[] = [];
   if (goal.target_date !== null) {
-    badges.push({ label: `D-${daysUntil(goal.target_date)}`, toneClassName: goalDeadlineBadgeStyle() });
+    badges.push({ label: formatDday(goal.target_date), toneClassName: goalDeadlineBadgeStyle() });
   }
   const status = computeCardStatus(goal);
   badges.push({ label: progressStatusLabel(status), toneClassName: progressStatusBadgeClass(status) });
@@ -135,7 +135,7 @@ export default function HomeGoalHero({
           primaryDetail={
             <>
               {formatKrwCompact(Number(goal.current_amount))} / {formatKrwCompact(Number(goal.required_amount))}
-              {goal.eta_year_month && ` · 예상 달성 ${goal.eta_year_month.replace("-", "년 ")}월`}
+              {goal.eta_year_month && ` · 예상 달성 ${formatYearMonth(goal.eta_year_month)}`}
             </>
           }
           pinnedDetail={

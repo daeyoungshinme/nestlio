@@ -1,5 +1,5 @@
-import { describe, expect, it } from "vitest";
-import { computeCardStatus, computeGoalStatus, daysUntil, isGoalAchieved } from "@/utils/goalStatus";
+import { describe, expect, it, afterEach, vi } from "vitest";
+import { computeCardStatus, computeGoalStatus, daysUntil, formatDday, isGoalAchieved } from "@/utils/goalStatus";
 import type { FinancialGoalOut } from "@/types";
 
 function makeGoal(overrides: Partial<FinancialGoalOut>): FinancialGoalOut {
@@ -51,6 +51,18 @@ describe("daysUntil", () => {
 
   it("is positive for a future date", () => {
     expect(daysUntil(isoDaysFromNow(5))).toBeGreaterThan(0);
+  });
+});
+
+describe("formatDday", () => {
+  afterEach(() => vi.useRealTimers());
+
+  it("counts down, shows D-day today, and counts up once passed", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(2026, 6, 15, 9, 0));
+    expect(formatDday("2026-07-20")).toBe("D-5");
+    expect(formatDday("2026-07-15")).toBe("D-day");
+    expect(formatDday("2026-07-12")).toBe("D+3");
   });
 });
 

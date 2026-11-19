@@ -58,7 +58,7 @@ export default function DashboardPage() {
   });
   // 계획 탭과 같은 쿼리 키 — 두 탭을 오가도 캐시를 재사용한다.
   const planQuery = useCashflowPlan(yearMonth);
-  const { data: savingsPlanData } = useSavingsProductsPlan(yearMonth);
+  const savingsPlanQuery = useSavingsProductsPlan(yearMonth);
   const { data: notifications } = useNotifications();
   const { data: me } = useMe();
   // settings/net-worth/financial-goals/savings-products/users를 한 요청으로 묶어서 가져온다.
@@ -150,9 +150,12 @@ export default function DashboardPage() {
 
       <MonthFlowCard
         plan={planQuery.data}
-        planError={planQuery.isError}
-        onRetryPlan={() => void planQuery.refetch()}
-        savingsPlan={savingsPlanData}
+        planError={planQuery.isError || savingsPlanQuery.isError}
+        onRetryPlan={() => {
+          void planQuery.refetch();
+          void savingsPlanQuery.refetch();
+        }}
+        savingsPlan={savingsPlanQuery.data}
         footer={
           <InvestSurplusCard
             embedded
