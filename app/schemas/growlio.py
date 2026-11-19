@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from app.schemas.common import bounded_str
 
@@ -10,7 +10,7 @@ class GrowlioImportIn(BaseModel):
     여기 하나로 정의하고 각 스키마 모듈이 리소스별 이름으로 alias해서 쓴다.
     """
 
-    growlio_account_ids: list[bounded_str(36)]
+    growlio_account_ids: list[bounded_str(36)] = Field(max_length=100)
 
 
 class GrowlioSyncFailureOut(BaseModel):

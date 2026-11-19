@@ -225,6 +225,75 @@ def test_reactivate_recurring_advances_next_due_date_past_dormant_period(seeded_
     assert created == []
 
 
+def test_update_recurring_schedule_change_recomputes_next_due_date(seeded_db):
+    """매달 25일 -> 5일로 바꿨는데 다음 기한이 이번 달 25일로 남아 한 번 더 생성되던 문제."""
+    db, user, rent = seeded_db["db"], seeded_db["user"], seeded_db["rent"]
+    recurring = recurring_service.create_recurring(
+        db, name="관리비", category_id=rent.id, amount=Decimal("100000"),
+        frequency="monthly", start_date=date(2026, 6, 25), created_by=user.id,
+    )
+    recurring_service.generate_due_transactions(db, today=date(2026, 6, 25))
+    assert recurring.next_due_date == date(2026, 7, 25)
+
+    updated = recurring_service.update_recurring(
+        db, recurring.id, today=date(2026, 7, 10), start_date=date(2026, 6, 5), days_of_month=[5]
+    )
+
+    assert updated.next_due_date == date(2026, 8, 5)  # 7/5는 이미 지났다 — 소급 생성하지 않는다
+
+
+def test_update_recurring_moving_start_into_future_moves_next_due_date(seeded_db):
+    db, user, rent = seeded_db["db"], seeded_db["user"], seeded_db["rent"]
+    recurring = recurring_service.create_recurring(
+        db, name="보험", category_id=rent.id, amount=Decimal("50000"),
+        frequency="monthly", start_date=date(2026, 7, 20), created_by=user.id,
+    )
+
+    updated = recurring_service.update_recurring(db, recurring.id, today=date(2026, 7, 10), start_date=date(2026, 9, 1))
+
+    assert updated.next_due_date == date(2026, 9, 1)
+
+
+def test_update_recurring_schedule_change_skips_due_date_already_generated_today(seeded_db):
+    db, user, rent = seeded_db["db"], seeded_db["user"], seeded_db["rent"]
+    recurring = recurring_service.create_recurring(
+        db, name="통신비", category_id=rent.id, amount=Decimal("60000"),
+        frequency="monthly", start_date=date(2026, 7, 10), created_by=user.id,
+    )
+    recurring_service.generate_due_transactions(db, today=date(2026, 7, 10))
+
+    updated = recurring_service.update_recurring(db, recurring.id, today=date(2026, 7, 10), days_of_month=[10, 20])
+
+    assert updated.next_due_date == date(2026, 7, 20)  # 오늘(7/10) 이미 만든 기한은 건너뛴다
+
+
+def test_update_recurring_without_schedule_change_keeps_next_due_date(seeded_db):
+    db, user, rent = seeded_db["db"], seeded_db["user"], seeded_db["rent"]
+    recurring = recurring_service.create_recurring(
+        db, name="월세", category_id=rent.id, amount=Decimal("800000"),
+        frequency="monthly", start_date=date(2026, 7, 5), created_by=user.id,
+    )
+    # 수정 폼은 모든 칸을 보낸다 — 값이 같으면 일정 변경이 아니다
+    updated = recurring_service.update_recurring(
+        db, recurring.id, today=date(2026, 8, 20), amount=Decimal("1"), start_date=date(2026, 7, 5), frequency="monthly"
+    )
+    assert updated.next_due_date == date(2026, 7, 5)
+
+
+def test_reactivate_recurring_past_end_date_is_conflict(seeded_db):
+    db, user, rent = seeded_db["db"], seeded_db["user"], seeded_db["rent"]
+    recurring = recurring_service.create_recurring(
+        db, name="할부", category_id=rent.id, amount=Decimal("100000"),
+        frequency="monthly", start_date=date(2026, 1, 1), end_date=date(2026, 6, 1), created_by=user.id,
+    )
+    recurring_service.deactivate_recurring(db, recurring.id)
+
+    with pytest.raises(recurring_service.RecurringEndedError):
+        recurring_service.reactivate_recurring(db, recurring.id, today=date(2026, 7, 15))
+    db.refresh(recurring)
+    assert recurring.is_active is False
+
+
 def test_reactivate_recurring_returns_none_for_missing(seeded_db):
     db = seeded_db["db"]
     assert recurring_service.reactivate_recurring(db, -1) is None

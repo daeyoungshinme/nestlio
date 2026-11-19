@@ -103,12 +103,15 @@ def _log_google_reauth_needed(db: Session, message: str) -> None:
     notification_log_service.log_sent(db, GOOGLE_REAUTH_NOTIF_TYPE, period_key, detail=message)
 
 
-def _savings_streak(db: Session, end: date) -> int:
+def _savings_streak(db: Session, end: date, today: date) -> int:
     """대시보드(GET /dashboard)와 같은 계산(savings_coaching_service.savings_streak_months)을 재사용해
-    주간/월간 요약 알림에도 "연속 몇 개월째 목표 페이스를 지키고 있는지"를 함께 보여준다."""
+    주간/월간 요약 알림에도 "연속 몇 개월째 목표 페이스를 지키고 있는지"를 함께 보여준다. `end`가 속한 달이 아직
+    진행 중이면(`today` 기준) 그 달은 달성했을 때만 센다."""
     goals = goal_service.list_goals(db)
     trend = transaction_trend_service.monthly_trend(db, months=6, anchor=end)
-    return savings_coaching_service.savings_streak_months(savings_coaching_service.savings_pace_history(db, trend, goals))
+    return savings_coaching_service.savings_streak_months(
+        savings_coaching_service.savings_pace_history(db, trend, goals), last_in_progress=month_bounds(end)[1] >= today
+    )
 
 
 def _weekly_period(today: date) -> tuple[date, date, str]:
@@ -123,7 +126,7 @@ def _weekly_mail(db: Session, today: date) -> tuple[str, str, str]:
     start, end, _ = _weekly_period(today)
     snapshot = transaction_report_service.period_snapshot(db, start, end)
     totals, breakdown, owner_totals = snapshot["totals"], snapshot["breakdown"], snapshot["owner_totals"]
-    streak = _savings_streak(db, end)
+    streak = _savings_streak(db, end, today)
     body = email_templates.summary_text(
         "주간 가계부 요약", start, end, totals, breakdown, owner_totals=owner_totals, streak=streak
     )
@@ -138,7 +141,7 @@ def _monthly_mail(db: Session, today: date) -> tuple[str, str, str]:
     r = dashboard_service.build_retrospective(db, today)
     start, end, period_key = r["start"], r["end"], r["year_month"]
     totals, breakdown, owner_totals, insights = r["totals"], r["breakdown"], r["owner_totals"], r["insights"]
-    streak = _savings_streak(db, end)
+    streak = _savings_streak(db, end, today)
     body = email_templates.summary_text(
         "월간 가계부 요약", start, end, totals, breakdown, owner_totals=owner_totals, streak=streak, insights=insights
     )
@@ -318,7 +321,7 @@ def check_savings_pace_reminder(db: Session, today: date | None = None) -> bool:
     remaining = planned - deposits
     if planned <= 0 or remaining <= 0:
         return False
-    streak = _savings_streak(db, today)
+    streak = _savings_streak(db, today, today)
     subject, body = email_templates.savings_pace_reminder_message(planned, remaining, streak)
     send_email_best_effort(db, subject, body)
     notification_log_service.log_sent(db, "savings_pace_reminder", year_month, detail=body)

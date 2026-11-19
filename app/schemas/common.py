@@ -49,6 +49,34 @@ def bounded_str(max_length: int) -> Any:
 # 입력 스키마(*In)와 쿼리 파라미터에만 쓰고, 출력 스키마는 서버가 만든 값이라 str 그대로 둔다.
 YearMonth = Annotated[str, StringConstraints(pattern=r"^\d{4}-(0[1-9]|1[0-2])$")]
 
+
+def _unique_year_months(items: list) -> list:
+    """월별 목표 목록에 같은 달이 두 번 있으면 422 — 그대로 저장하면 월별 유니크 제약에서 IntegrityError(500)가 난다."""
+    seen: set[str] = set()
+    for item in items:
+        if item.year_month in seen:
+            raise ValueError(f"{item.year_month} 금액이 두 번 들어 있습니다.")
+        seen.add(item.year_month)
+    return items
+
+
+def monthly_targets_list(item_type: Any, max_length: int) -> Any:
+    """`year_month`를 가진 월별 목표 입력 목록 — 길이 상한 + 같은 달 중복 금지."""
+    return Annotated[list[item_type], Field(max_length=max_length), AfterValidator(_unique_year_months)]
+
+
+def check_plan_year(year: int, start_month: str, end_month: str, monthly_targets: list) -> None:
+    """연간 계획(그 해 하나) 입력의 기간·월별 목표가 모두 `year` 안인지 — 다른 해의 달이 섞이면 그 해 연간 화면엔 안 보이고
+    그 달 예산(budget_service는 year_month로만 거른다)에만 합산된다. 어긋나면 ValueError(422)."""
+    prefix = f"{year:04d}-"
+    if not (start_month.startswith(prefix) and end_month.startswith(prefix)):
+        raise ValueError(f"기간은 {year}년 안이어야 합니다.")
+    if start_month > end_month:
+        raise ValueError("시작 월이 종료 월보다 늦습니다.")
+    outside = sorted({t.year_month for t in monthly_targets if not t.year_month.startswith(prefix)})
+    if outside:
+        raise ValueError(f"{year}년이 아닌 달의 금액이 있습니다: {', '.join(outside)}")
+
 # Postgres INTEGER(id·FK·정렬·연도 등) 범위 — 넘으면 Postgres는 DataError(500)를 내지만 테스트 SQLite는 받아 주므로
 # 스키마에서 422로 막는다. 입력 스키마의 int 필드는 이것(또는 더 좁은 Field 범위)을 쓴다(test_schemas_krw_amount 가드).
 DbInt = Annotated[int, Field(ge=-(2**31), le=2**31 - 1)]

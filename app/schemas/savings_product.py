@@ -3,9 +3,17 @@ from datetime import datetime
 from decimal import Decimal
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, model_validator
 
-from app.schemas.common import KrwAmount, KrwBalance, PlanYear, YearMonth, bounded_str
+from app.schemas.common import (
+    KrwAmount,
+    KrwBalance,
+    PlanYear,
+    YearMonth,
+    bounded_str,
+    check_plan_year,
+    monthly_targets_list,
+)
 from app.schemas.growlio import GrowlioImportIn, GrowlioSyncAllOut
 from app.utils.plan_status import PlanStatus
 
@@ -124,7 +132,12 @@ class SavingsProductAnnualPlanUpsertIn(BaseModel):
     year: PlanYear
     start_month: YearMonth
     end_month: YearMonth
-    monthly_targets: list[SavingsProductAnnualPlanMonthlyTargetIn]
+    monthly_targets: monthly_targets_list(SavingsProductAnnualPlanMonthlyTargetIn, 12)
+
+    @model_validator(mode="after")
+    def _within_year(self):
+        check_plan_year(self.year, self.start_month, self.end_month, self.monthly_targets)
+        return self
 
 
 class SavingsProductGrowlioLinkIn(BaseModel):
