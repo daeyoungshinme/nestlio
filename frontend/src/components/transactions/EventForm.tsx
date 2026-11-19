@@ -93,7 +93,12 @@ export default function EventForm({ initialValues, submitLabel, submitting, user
       all_day: form.all_day,
       start_at: `${form.start_date}T${time}:00`,
       // 종료 시각을 비우면 시작 시각으로 — "00:00"이면 같은 날 오후 일정의 종료가 시작보다 앞서 저장이 거부된다.
-      end_at: form.end_date ? `${form.end_date}T${form.all_day ? "00:00" : form.end_time || time}:00` : null,
+      // 종료 시간만 적고 종료일을 비우면 시작일의 그 시각 — 조용히 버리면 입력한 종료 시간이 사라진다.
+      end_at: form.end_date
+        ? `${form.end_date}T${form.all_day ? "00:00" : form.end_time || time}:00`
+        : !form.all_day && form.end_time
+          ? `${form.start_date}T${form.end_time}:00`
+          : null,
       frequency: form.frequency,
       recurrence_end_date: form.frequency !== "once" && form.recurrence_end_date ? form.recurrence_end_date : null,
       reminder_minutes_before: form.reminder_minutes_before ? Number(form.reminder_minutes_before) : null,

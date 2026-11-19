@@ -15,7 +15,7 @@ import { invalidateKeys } from "@/utils/queryClient";
 import { useLoans, useNetWorth, useSavingsProducts } from "@/hooks/useReferenceData";
 import { formatKrw, formatKrwCompact } from "@/utils/format";
 import { computeRealEstateNet, splitSavingsAndRealEstate } from "@/utils/netWorth";
-import { netWorthTextColor } from "@/utils/colors";
+import { netWorthTextColor, errorMessageTextClass } from "@/utils/colors";
 import { extractErrorMessage } from "@/utils/error";
 import { toast } from "@/utils/toast";
 import type { GrowlioSyncAllOut, GrowlioSyncFailureOut } from "@/types";
@@ -42,16 +42,22 @@ export default function AccountsSnapshotCard() {
 
   // growlio에 있지만 아직 안 가져온 자산 — growlio HTTP를 2회 더 부르므로 화면 로드마다 자동
   // 실행하지 않고(대시보드에서 이 카드로 옮기면서 그 비용도 함께 뺐다) 버튼으로만 조회한다.
+  // 수동 조회라 무효화돼도 다시 부르지 않는다 — 가져오기·동기화로 무효화(isStale)되면 낡은 "+X (N건)" 대신 버튼을 다시 보인다.
+  // staleTime: Infinity라 시간이 지나서가 아니라 무효화될 때만 낡은 것으로 본다.
   const {
     data: growlioUnlinked,
     isFetching: unlinkedFetching,
+    isStale: unlinkedStale,
+    isError: unlinkedError,
     refetch: refetchUnlinked,
   } = useQuery({
     queryKey: QUERY_KEYS.netWorthGrowlioUnlinked,
     queryFn: fetchGrowlioUnlinkedNetWorth,
     enabled: false,
     retry: false,
+    staleTime: Infinity,
   });
+  const unlinkedFresh = growlioUnlinked && !unlinkedStale ? growlioUnlinked : undefined;
 
   // 계좌/저축·투자/부동산 탭에 흩어진 growlio 연동 항목을 한 번에 새로고침 — 각 리소스의 개별
   // "동기화" 버튼(건당 1개 항목)과 별개로, 이 카드가 모든 탭에 공통으로 뜨는 상단 요약이라 여기 둔다.
@@ -165,25 +171,31 @@ export default function AccountsSnapshotCard() {
       </CollapsibleGroup>
 
       <div className="px-1">
-        {growlioUnlinked && growlioUnlinked.item_count > 0 ? (
+        {unlinkedFresh && unlinkedFresh.item_count > 0 ? (
           <p className="text-xs text-primary-600 dark:text-primary-400">
-            growlio 미연동 자산 +{formatKrw(growlioUnlinked.net_total)} ({growlioUnlinked.item_count}건) — 각 섹션의
+            growlio 미연동 자산 +{formatKrw(unlinkedFresh.net_total)} ({unlinkedFresh.item_count}건) — 각 섹션의
             "growlio에서 가져오기"로 추가하세요.
           </p>
-        ) : growlioUnlinked ? (
+        ) : unlinkedFresh ? (
           <p className="text-xs text-gray-400 dark:text-gray-500">growlio에 아직 안 가져온 자산이 없어요.</p>
         ) : (
-          <Button variant="ghost" size="sm" loading={unlinkedFetching} onClick={() => void refetchUnlinked()}>
-            growlio 미연동 자산 확인
-          </Button>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button variant="ghost" size="sm" loading={unlinkedFetching} onClick={() => void refetchUnlinked()}>
+              growlio 미연동 자산 {growlioUnlinked ? "다시 " : ""}확인
+            </Button>
+            {unlinkedError && !unlinkedFetching && (
+              <span className={`text-xs ${errorMessageTextClass()}`}>growlio에서 확인하지 못했어요.</span>
+            )}
+          </div>
         )}
       </div>
 
       {syncFailures != null && (
         <Modal title="건너뛴 항목" onClose={() => setSyncFailures(null)} size="sm" closeOnBackdrop>
           <ul className="p-4 space-y-2 overflow-y-auto">
-            {syncFailures.map((failure) => (
-              <li key={failure.id} className="text-sm">
+            {/* 계좌·상품·대출 id가 겹칠 수 있어 id만으로는 key가 충돌한다 */}
+            {syncFailures.map((failure, index) => (
+              <li key={`${index}-${failure.id}`} className="text-sm">
                 <span className="font-medium text-gray-900 dark:text-gray-50">{failure.name}</span>
                 <span className="text-gray-400 dark:text-gray-500"> — {failure.reason}</span>
               </li>

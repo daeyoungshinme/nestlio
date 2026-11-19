@@ -20,4 +20,21 @@ describe("EventForm end time", () => {
       expect.objectContaining({ start_at: "2026-07-01T14:00:00", end_at: "2026-07-01T14:00:00" }),
     );
   });
+
+  it("keeps an end time entered without an end date on the start date", () => {
+    const onSubmit = vi.fn();
+    render(
+      <EventForm
+        initialValues={{ ...emptyEventFormValues("2026-07-01"), title: "회의", start_time: "10:00", end_time: "11:00" }}
+        submitLabel="저장"
+        onSubmit={onSubmit}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "저장" }));
+
+    expect(onSubmit).toHaveBeenCalledWith(
+      expect.objectContaining({ start_at: "2026-07-01T10:00:00", end_at: "2026-07-01T11:00:00" }),
+    );
+  });
 });

@@ -87,12 +87,15 @@ export function useEventActions({
     },
     openEdit: setFormTarget,
     openDelete,
-    toggleComplete: (event) =>
+    // 처리 중 연타는 무시 — 두 번째 탭도 같은 낡은 상태로 계산해 "체크 → 해제"가 "체크 두 번"이 된다.
+    toggleComplete: (event) => {
+      if (completeMutation.isPending) return;
       completeMutation.mutate({
         id: event.id,
         completed: !event.completed_at,
         occurrenceDate: occurrenceDate(event.occurrence_start),
-      }),
+      });
+    },
     modals,
   };
 }

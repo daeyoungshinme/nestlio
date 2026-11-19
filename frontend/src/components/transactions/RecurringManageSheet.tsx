@@ -113,7 +113,8 @@ export default function RecurringManageSheet({ categories, onClose }: Props) {
         onClose={onClose}
         title={showingForm ? (formTarget === "new" ? "반복 내역 추가" : "반복 내역 수정") : "반복 내역 관리"}
         size={showingForm ? "sm" : "md"}
-        closeOnBackdrop
+        // 폼을 쓰는 중엔 바깥을 잘못 눌러도 입력이 사라지지 않게 닫지 않는다(목록일 땐 닫힘).
+        closeOnBackdrop={!showingForm}
       >
         {showingForm ? (
           <div className="p-4 overflow-y-auto">

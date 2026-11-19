@@ -114,6 +114,7 @@ export default function Header() {
                 <button
                   type="button"
                   onClick={() => readAllMutation.mutate()}
+                  disabled={readAllMutation.isPending}
                   className={`${TOUCH_TARGET_MIN_HEIGHT} px-2 text-xs font-medium text-primary-600 dark:text-primary-400 hover:underline`}
                 >
                   모두 읽음
