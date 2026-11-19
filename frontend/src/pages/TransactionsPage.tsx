@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Repeat } from "lucide-react";
 import { useSearchParams } from "react-router-dom";
 import { LEDGER_VIEWS } from "@/constants/routes";
@@ -14,6 +14,7 @@ import QuickAddFab from "@/components/common/QuickAddFab";
 import LedgerCalendar from "@/components/transactions/LedgerCalendar";
 import LedgerListControls from "@/components/transactions/LedgerListControls";
 import LedgerResults from "@/components/transactions/LedgerResults";
+import LedgerSearchInput from "@/components/transactions/LedgerSearchInput";
 import LedgerDayDetail from "@/components/transactions/LedgerDayDetail";
 import RecurringManageSheet from "@/components/transactions/RecurringManageSheet";
 import { useSwipeMonth } from "@/hooks/useSwipeMonth";
@@ -61,7 +62,8 @@ export default function TransactionsPage() {
     setYearMonth((prev) => shiftYearMonth(prev, direction));
     setSelectedDate(null);
   });
-  const toggleDate = (date: string) => setSelectedDate((prev) => (prev === date ? null : date));
+  // 칸(LedgerDayCell)이 memo라 렌더마다 새 함수를 넘기면 42칸이 전부 다시 그려진다.
+  const toggleDate = useCallback((date: string) => setSelectedDate((prev) => (prev === date ? null : date)), []);
 
   // 모바일은 캘린더가 화면 대부분을 차지해 아래 상세가 안 보일 수 있다 — 고르면 상세가 보이게 스크롤한다.
   useEffect(() => {
@@ -84,8 +86,8 @@ export default function TransactionsPage() {
     currentUserId: me?.id,
   });
 
-  // ?date=YYYY-MM-DD로 들어오면(옛 일정 경로 리다이렉트 등) 그 달로 이동해 그 날 모달을 열고 파라미터를
-  // 지운다. 이미 마운트된 상태에서 파라미터만 바뀌어도 맞는 달의 거래를 보이도록 달도 함께 맞춘다.
+  // ?date=YYYY-MM-DD로 들어오면(옛 일정 경로 리다이렉트·알림 딥링크 등) 그 달로 이동해 그 날을 선택하고(아래 날짜
+  // 상세) 파라미터를 지운다. 이미 마운트된 상태에서 파라미터만 바뀌어도 맞는 달의 거래를 보이도록 달도 함께 맞춘다.
   useConsumeSearchParam("date", (d) => {
     if (!ISO_DATE_RE.test(d)) return;
     setYearMonth(d.slice(0, 7));
@@ -152,30 +154,41 @@ export default function TransactionsPage() {
         </div>
 
         {selectedDate ? (
-          <div ref={dayDetailRef} className="scroll-mt-4">
+          <div ref={dayDetailRef} className="scroll-mt-4 space-y-3">
+            {/* 검색어가 걸린 채 날짜를 고르면 상세도 검색 결과만 보인다 — 검색창을 남겨 지울 수 있게 한다. */}
+            {view === "내역" && searchInput !== "" && (
+              <LedgerSearchInput value={searchInput} onChange={setSearchInput} />
+            )}
             <QueryBoundary
               queries={[month.transactionsQuery, month.eventsQuery]}
               compact
               errorMessage="이 날 이력을 불러오지 못했습니다."
               loadingFallback={<SkeletonCard rows={3} />}
             >
-              <LedgerDayDetail
-                date={selectedDate}
-                view={view}
-                transactions={month.transactionsByDate.get(selectedDate) ?? []}
-                events={month.eventsByDate.get(selectedDate) ?? []}
-                recurringDue={month.recurringDueByDate.get(selectedDate) ?? []}
-                searchActive={debouncedQuery !== ""}
-                showUser={showUser}
-                users={users}
-                onClear={() => setSelectedDate(null)}
-                onAddTransaction={() => txActions.openCreate(selectedDate)}
-                onEditTransaction={txActions.openEdit}
-                onAddEvent={() => eventActions.openCreate(selectedDate)}
-                onEditEvent={eventActions.openEdit}
-                onDeleteEvent={eventActions.openDelete}
-                onToggleEventComplete={eventActions.toggleComplete}
-              />
+              {/* 다른 달로 막 옮겼으면 아직 이전 달 데이터라 "이 날 내역 없음"으로 보인다 — 받을 때까지 스켈레톤. */}
+              {() =>
+                month.isPlaceholder ? (
+                  <SkeletonCard rows={3} />
+                ) : (
+                  <LedgerDayDetail
+                    date={selectedDate}
+                    view={view}
+                    transactions={month.transactionsByDate.get(selectedDate) ?? []}
+                    events={month.eventsByDate.get(selectedDate) ?? []}
+                    recurringDue={month.recurringDueByDate.get(selectedDate) ?? []}
+                    searchActive={debouncedQuery !== ""}
+                    showUser={showUser}
+                    users={users}
+                    onClear={() => setSelectedDate(null)}
+                    onAddTransaction={() => txActions.openCreate(selectedDate)}
+                    onEditTransaction={txActions.openEdit}
+                    onAddEvent={() => eventActions.openCreate(selectedDate)}
+                    onEditEvent={eventActions.openEdit}
+                    onDeleteEvent={eventActions.openDelete}
+                    onToggleEventComplete={eventActions.toggleComplete}
+                  />
+                )
+              }
             </QueryBoundary>
           </div>
         ) : view === "일정" ? (

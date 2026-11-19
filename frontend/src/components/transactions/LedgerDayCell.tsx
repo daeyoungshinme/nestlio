@@ -6,7 +6,7 @@ import { formatDayHeader } from "@/utils/date";
 import { formatKrw, formatKrwAxis, formatKrwCompact } from "@/utils/format";
 import { LEDGER_DAY_CELL_MIN_HEIGHT } from "@/constants/uiSizes";
 import type { EventOut, RecurringOut, TransactionOut } from "@/types";
-import { sumAmounts } from "@/utils/amount";
+import { dayCashflow } from "@/utils/dayCashflow";
 import { eventPreviewLines, txPreviewLines } from "@/components/transactions/ledgerCellPreview";
 import type { CellPreview } from "@/components/transactions/ledgerCellPreview";
 
@@ -63,14 +63,9 @@ function LedgerDayCell({
   recurringDue,
   onSelect,
 }: Props) {
-  const income = sumAmounts(transactions.filter((t) => t.type === "income"), (t) => t.amount);
-  const expense = sumAmounts(
-    transactions.filter((t) => t.type === "expense" && !t.category.is_savings),
-    (t) => t.amount,
-  );
   // 모바일은 셀이 좁아(~36px) 금액·이름을 다 넣으면 행 높이가 들쭉날쭉해진다 — 내역 탭은 순액 한 줄,
-  // 일정 탭은 첫 일정 한 줄만 보여주고 상세는 날짜를 눌러 캘린더 아래에서 본다.
-  const net = income - expense;
+  // 일정 탭은 첫 일정 한 줄만 보여주고 상세는 날짜를 눌러 캘린더 아래에서 본다. 순액은 상세와 같은 기준(저축 제외).
+  const { income, expense, net } = dayCashflow(transactions);
 
   const incomeRecurring = recurringDue.filter((r) => r.type === "income");
   const expenseRecurring = recurringDue.filter((r) => r.type === "expense");
@@ -80,7 +75,6 @@ function LedgerDayCell({
       type="button"
       disabled={!inCurrentMonth}
       aria-pressed={inCurrentMonth ? isSelected : undefined}
-      aria-label={formatDayHeader(date)}
       onClick={() => onSelect(date)}
       className={`flex flex-col items-start gap-0.5 min-w-0 ${LEDGER_DAY_CELL_MIN_HEIGHT} p-1 sm:p-1.5 rounded-lg border bg-white dark:bg-gray-900 text-left transition-colors ${
         isSelected
@@ -88,7 +82,10 @@ function LedgerDayCell({
           : "border-gray-100 dark:border-gray-800"
       } ${inCurrentMonth ? "hover:bg-gray-50 dark:hover:bg-gray-800" : "opacity-40 cursor-default"}`}
     >
+      {/* 날짜는 화면엔 숫자만, 스크린리더엔 "11월 19일 (목)"으로 — aria-label로 덮으면 칸의 금액·미리보기가 안 읽힌다. */}
+      <span className="sr-only">{formatDayHeader(date)}</span>
       <span
+        aria-hidden="true"
         className={`text-xs sm:text-sm font-medium ${
           isToday
             ? "bg-primary-600 text-white rounded-full w-5 h-5 sm:w-6 sm:h-6 flex items-center justify-center"
