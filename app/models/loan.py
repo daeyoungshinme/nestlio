@@ -2,7 +2,7 @@ import uuid
 from datetime import datetime
 from decimal import Decimal
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, Numeric, String, false, func
+from sqlalchemy import Boolean, DateTime, ForeignKey, Index, Integer, Numeric, String, false, func, text
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -12,6 +12,17 @@ from app.utils.dates import now_kst
 
 class Loan(Base):
     __tablename__ = "loans"
+    # growlio 계좌 하나는 활성 행 하나에만 연결한다 — 같은 계좌가 둘이면 잔액이 순자산에 두 번 잡히고 입출금도
+    # 두 번 나간다. 가져오기 연타·동시 요청은 서비스의 사전 검사를 둘 다 통과하므로 DB가 마지막으로 막는다.
+    __table_args__ = (
+        Index(
+            "uq_loans_active_growlio_account_id",
+            "growlio_account_id",
+            unique=True,
+            postgresql_where=text("is_active AND growlio_account_id IS NOT NULL"),
+            sqlite_where=text("is_active AND growlio_account_id IS NOT NULL"),
+        ),
+    )
 
     id: Mapped[int] = mapped_column(primary_key=True)
     name: Mapped[str] = mapped_column(String(100))

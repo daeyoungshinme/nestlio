@@ -238,7 +238,10 @@ def generate_due_transactions(db: Session, today: date | None = None) -> list[Tr
                     transaction_date=due_date,
                     description=recurring.name,
                     recurring_expense_id=recurring.id,
-                    savings_product_id=recurring.savings_product_id,
+                    # 그 사이 상품을 비활성화했으면 상품 없이(저축 카테고리 거래로) 만든다 — 매일 실패하지 않게.
+                    savings_product_id=recurring.savings_product_id
+                    if recurring.savings_product is not None and recurring.savings_product.is_active
+                    else None,
                 )
                 created.append(tx)
         except Exception:

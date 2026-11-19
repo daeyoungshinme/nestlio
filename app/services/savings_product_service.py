@@ -5,14 +5,12 @@ from sqlalchemy import func, update
 from sqlalchemy.orm import Session
 
 from app.constants.sort_order import DEFAULT_SORT_ORDER
-from app.errors import ConflictError
 from app.models.loan import Loan
 from app.models.savings_product import SavingsProduct
 from app.services import growlio_client
 
-
-class GrowlioAccountAlreadyLinkedError(ConflictError):
-    """growlio 계좌 하나를 저축·투자 상품 둘에 연결하면 같은 잔액이 순자산에 두 번 잡히고 입출금도 두 번 나간다."""
+# growlio_client로 옮김(계좌·대출 가져오기도 쓴다). 기존 import 경로 유지.
+GrowlioAccountAlreadyLinkedError = growlio_client.GrowlioAccountAlreadyLinkedError
 
 
 def list_products(db: Session, active_only: bool = True) -> list[SavingsProduct]:
@@ -129,6 +127,6 @@ def set_growlio_link(
     product.auto_sync_enabled = auto_sync_enabled if growlio_account_id else False
     if growlio_account_id is None:
         product.last_synced_at = None
-    db.commit()
+    growlio_client.commit_growlio_links(db)
     db.refresh(product)
     return product
