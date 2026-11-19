@@ -121,8 +121,9 @@ def import_from_growlio(
             owner_user_id=owner_user_id,
         )
         db.add(new_account)
+        already_linked.add(account_id)  # 같은 id가 요청에 두 번 와도 한 번만 만든다
         created.append(new_account)
-    db.commit()
+    growlio_client.commit_growlio_links(db)
     for account in created:
         db.refresh(account)
     return created

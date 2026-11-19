@@ -132,6 +132,7 @@ def import_from_growlio(
             owner_user_id=owner_user_id,
         )
         db.add(product)
+        already_linked.add(account_id)  # 같은 id가 요청에 두 번 와도 한 번만 만든다
         loan = _upsert_linked_loan(
             db,
             growlio_account_id=account_id,
@@ -141,7 +142,7 @@ def import_from_growlio(
             now=now,
         )
         created.append((product, loan))
-    db.commit()
+    growlio_client.commit_growlio_links(db)
     for product, loan in created:
         db.refresh(product)
         if loan is not None:

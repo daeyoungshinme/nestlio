@@ -57,14 +57,25 @@ def validate_savings_link(db: Session, category_id: int, type_: str, savings_pro
 
 
 def _validate_references(
-    db: Session, account_id: int | None, savings_product_id: int | None, owner_user_id: uuid.UUID | None
+    db: Session,
+    account_id: int | None,
+    savings_product_id: int | None,
+    owner_user_id: uuid.UUID | None,
+    *,
+    new_account: bool = True,
+    new_product: bool = True,
 ) -> None:
-    """없는 id만 거른다(Postgres는 FK 위반으로 500을 낸다). 비활성 계좌·제거된 소유자는 통과시킨다 — 지난 거래를
-    고칠 때 그대로 돌아오는 값이다."""
-    if account_id is not None and db.get(Account, account_id) is None:
-        raise InvalidTransactionReferenceError("계좌를 찾을 수 없습니다.")
-    if savings_product_id is not None and db.get(SavingsProduct, savings_product_id) is None:
-        raise InvalidTransactionReferenceError("저축상품을 찾을 수 없습니다.")
+    """없는 id를 거른다(Postgres는 FK 위반으로 500을 낸다). **새로 지정하는** 계좌·저축상품은 활성이어야 한다 —
+    비활성 항목은 잔액·순자산 집계에서 빠져 그 돈이 사라진다. 지난 거래를 고칠 때 그대로 돌아오는 값(`new_*=False`)과
+    제거된 소유자는 통과시킨다."""
+    if account_id is not None:
+        account = db.get(Account, account_id)
+        if account is None or (new_account and not account.is_active):
+            raise InvalidTransactionReferenceError("계좌를 찾을 수 없습니다.")
+    if savings_product_id is not None:
+        product = db.get(SavingsProduct, savings_product_id)
+        if product is None or (new_product and not product.is_active):
+            raise InvalidTransactionReferenceError("저축상품을 찾을 수 없습니다.")
     if owner_user_id is not None and db.get(User, owner_user_id) is None:
         raise InvalidTransactionReferenceError("소유자를 찾을 수 없습니다.")
 
@@ -161,8 +172,14 @@ def update_transaction(
     new_savings_product_id = fields.get("savings_product_id", tx.savings_product_id)
     validate_category_kind(db, new_category_id, new_type)
     validate_savings_link(db, new_category_id, new_type, new_savings_product_id)
+    new_account_id = fields.get("account_id", tx.account_id)
     _validate_references(
-        db, fields.get("account_id", tx.account_id), new_savings_product_id, fields.get("owner_user_id", tx.owner_user_id)
+        db,
+        new_account_id,
+        new_savings_product_id,
+        fields.get("owner_user_id", tx.owner_user_id),
+        new_account=new_account_id != tx.account_id,
+        new_product=new_savings_product_id != tx.savings_product_id,
     )
     new_card_id = fields.get("card_id", tx.card_id)
     if new_card_id is not None and new_card_id != tx.card_id:

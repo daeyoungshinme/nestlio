@@ -14,6 +14,7 @@ from datetime import date, datetime
 from decimal import Decimal
 
 import httpx
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.config import settings
@@ -53,6 +54,10 @@ class GrowlioRequestError(UpstreamError):
     def __init__(self, message: str, upstream_status: int | None = None):
         super().__init__(message)
         self.upstream_status = upstream_status
+
+
+class GrowlioAccountAlreadyLinkedError(ConflictError):
+    """growlio 계좌 하나를 활성 계좌·상품·대출 둘에 연결하면 같은 잔액이 순자산에 두 번 잡히고 입출금도 두 번 나간다."""
 
 
 class GrowlioSyncError(ConflictError):
@@ -260,3 +265,13 @@ def already_linked_growlio_ids(db: Session, model, *, active_only: bool = True) 
     if active_only:
         query = query.filter(model.is_active.is_(True))
     return {growlio_id for (growlio_id,) in query}
+
+
+def commit_growlio_links(db: Session) -> None:
+    """growlio 연결을 만든·바꾼 변경을 커밋한다. 동시 가져오기(연타·두 탭)는 `already_linked_growlio_ids` 사전 검사를
+    둘 다 통과하므로 활성 연결 유니크 인덱스(`uq_*_active_growlio_account_id`)가 막고, 그 위반을 409로 바꾼다."""
+    try:
+        db.commit()
+    except IntegrityError as exc:
+        db.rollback()
+        raise GrowlioAccountAlreadyLinkedError("이미 다른 항목에 연결된 growlio 계좌입니다.") from exc
