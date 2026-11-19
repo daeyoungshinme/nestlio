@@ -346,6 +346,36 @@ def test_growlio_insight_combines_performance_and_feasibility(client, seeded_db)
     assert args[4] == Decimal("500000")
 
 
+@pytest.mark.parametrize(
+    ("performance", "feasibility"),
+    [
+        ({"xirr_pct": "높음"}, None),
+        ({"xirr_pct": 7.5}, {"required_return_pct": 4.2, "n_months": 39}),  # pv 누락
+    ],
+)
+def test_growlio_insight_malformed_response_is_502(client, seeded_db, performance, feasibility):
+    from unittest.mock import patch
+
+    goal_id = client.post(
+        "/api/v1/financial-goals",
+        json={
+            "priority": 1,
+            "name": "내집마련",
+            "required_amount": "30000000",
+            "monthly_saving_amount": "500000",
+            "target_date": "2029-12-31",
+            "current_amount": "10000000",
+        },
+    ).json()["id"]
+    with (
+        patch("app.services.goal_service.growlio_client.fetch_performance", return_value=performance),
+        patch("app.services.goal_service.growlio_client.fetch_goal_feasibility", return_value=feasibility or {}),
+    ):
+        resp = client.get(f"/api/v1/financial-goals/{goal_id}/growlio-insight")
+
+    assert resp.status_code == 502
+
+
 def test_growlio_insight_404(client, seeded_db):
     assert client.get("/api/v1/financial-goals/999/growlio-insight").status_code == 404
 

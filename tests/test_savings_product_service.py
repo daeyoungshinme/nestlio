@@ -130,6 +130,49 @@ def test_set_growlio_link_clearing_id_resets_auto_sync_and_last_synced(db_sessio
     assert cleared.last_synced_at is None
 
 
+def test_set_growlio_link_rejects_account_already_linked_to_another_product(db_session):
+    """같은 growlio 계좌를 두 상품에 연결하면 순자산에 두 번 잡히고 입출금도 두 번 나간다."""
+    first = savings_product_service.create_product(db_session, "ETF", Decimal("0"), Decimal("0"))
+    second = savings_product_service.create_product(db_session, "ETF 2", Decimal("0"), Decimal("0"))
+    savings_product_service.set_growlio_link(db_session, first.id, "growlio-acc-1", True)
+
+    with pytest.raises(savings_product_service.GrowlioAccountAlreadyLinkedError):
+        savings_product_service.set_growlio_link(db_session, second.id, "growlio-acc-1", True)
+    # 같은 상품에 다시 저장(자동 동기화 토글 등)은 허용
+    assert savings_product_service.set_growlio_link(db_session, first.id, "growlio-acc-1", False) is not None
+
+
+def test_set_growlio_link_allows_account_of_deactivated_product(db_session):
+    old = savings_product_service.create_product(db_session, "옛 ETF", Decimal("0"), Decimal("0"))
+    savings_product_service.set_growlio_link(db_session, old.id, "growlio-acc-1", True)
+    savings_product_service.deactivate_product(db_session, old.id)
+    new = savings_product_service.create_product(db_session, "새 ETF", Decimal("0"), Decimal("0"))
+
+    assert savings_product_service.set_growlio_link(db_session, new.id, "growlio-acc-1", True) is not None
+
+
+def test_adjust_balance_adds_in_database_not_on_stale_copy(db_session):
+    """읽고-더하고-쓰면 그 사이 다른 쓰기(배우자의 동시 저축, 백그라운드 동기화)가 사라졌다."""
+    from sqlalchemy import update
+
+    from app.models.savings_product import SavingsProduct
+
+    product = savings_product_service.create_product(db_session, "적금", Decimal("100"), Decimal("0"))
+    assert product.current_balance == Decimal("100")  # 세션에 100으로 올라와 있다
+    db_session.execute(
+        update(SavingsProduct)
+        .where(SavingsProduct.id == product.id)
+        .values(current_balance=Decimal("300"))
+        .execution_options(synchronize_session=False)
+    )  # 다른 쓰기가 300으로 바꿈 — 세션 사본은 여전히 100
+
+    savings_product_service.adjust_balance(db_session, product.id, Decimal("50"))
+    db_session.commit()
+    db_session.refresh(product)
+
+    assert product.current_balance == Decimal("350")
+
+
 def test_deactivate_product_clears_growlio_link(db_session):
     product = savings_product_service.create_product(db_session, "적금", Decimal("0"), Decimal("0"))
     savings_product_service.set_growlio_link(db_session, product.id, "growlio-acc-1", True)
