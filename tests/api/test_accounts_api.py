@@ -195,3 +195,12 @@ def test_growlio_import_creates_one_account_per_selected_bank_account(client, se
     assert body[0]["initial_balance"] == "1500000.00"
     # 가져오기를 실행한 로그인 사용자가 그 계좌의 소유자로 자동 설정된다
     assert body[0]["owner_user_id"] == str(seeded_db["user"].id)
+
+
+def test_create_account_with_unknown_owner_is_400(client):
+    resp = client.post(
+        "/api/v1/accounts",
+        json={"name": "통장", "account_type": "bank", "initial_balance": "0",
+              "owner_user_id": "00000000-0000-0000-0000-000000000001"},
+    )
+    assert resp.status_code == 400

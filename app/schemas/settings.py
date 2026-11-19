@@ -1,3 +1,4 @@
+import json
 import re
 from decimal import Decimal
 
@@ -7,6 +8,9 @@ from app.config import threshold_order_errors
 from app.schemas.common import KrwBalance
 
 MAX_NOTIFY_RECIPIENTS = 5
+# 이메일 주소 최대 길이(RFC 5321). 목록은 JSON으로 user_settings.value(String(500))에 저장되므로 그 길이도 본다.
+MAX_EMAIL_LENGTH = 254
+_NOTIFY_EMAILS_STORAGE_LIMIT = 500
 _EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 
 
@@ -111,10 +115,13 @@ class NotifyEmailsIn(BaseModel):
         normalized: dict[str, None] = {}
         for raw in emails:
             email = raw.strip().lower()
-            if not _EMAIL_RE.match(email):
-                raise ValueError(f"'{raw}'는 올바른 이메일 형식이 아닙니다.")
+            if len(email) > MAX_EMAIL_LENGTH or not _EMAIL_RE.match(email):
+                raise ValueError(f"'{raw[:50]}'는 올바른 이메일 형식이 아닙니다.")
             normalized.setdefault(email, None)
-        return list(normalized)
+        result = list(normalized)
+        if len(json.dumps(result)) > _NOTIFY_EMAILS_STORAGE_LIMIT:
+            raise ValueError("수신자 이메일이 너무 깁니다. 수신자를 줄여 주세요.")
+        return result
 
 
 class TestEmailResultOut(BaseModel):

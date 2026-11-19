@@ -1008,7 +1008,8 @@ export interface SavingsProductCreateIn {
   owner_user_id?: string | null;
 }
 
-export type SavingsProductUpdateIn = SavingsProductCreateIn;
+/** `current_balance`를 생략하면 잔액은 그대로 — 폼을 연 사이 기록된 납입을 옛 잔액으로 덮지 않게 바꿨을 때만 보낸다. */
+export type SavingsProductUpdateIn = Omit<SavingsProductCreateIn, "current_balance"> & { current_balance?: string };
 
 export interface SavingsProductGrowlioLinkIn {
   growlio_account_id: string | null;

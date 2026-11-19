@@ -556,3 +556,17 @@ def test_second_net_worth_goal_returns_409(client, seeded_db):
     resp = client.post("/api/v1/financial-goals", json=body)
 
     assert resp.status_code == 409
+
+
+def test_create_goal_with_missing_funding_source_is_400(client):
+    resp = client.post(
+        "/api/v1/financial-goals",
+        json={
+            "priority": 1,
+            "name": "여행자금",
+            "required_amount": "5000000",
+            "monthly_saving_amount": "200000",
+            "funding_sources": [{"type": "account", "id": 999999}],
+        },
+    )
+    assert resp.status_code == 400

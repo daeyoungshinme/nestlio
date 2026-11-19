@@ -50,3 +50,12 @@ def test_deactivate_loan_excludes_it_from_default_list(client):
 
 def test_deactivate_loan_404_when_missing(client):
     assert client.post("/api/v1/loans/99999/deactivate").status_code == 404
+
+
+def test_create_loan_with_unknown_owner_is_400(client):
+    resp = client.post(
+        "/api/v1/loans",
+        json={"name": "전세대출", "balance": "0", "monthly_payment": "0",
+              "owner_user_id": "00000000-0000-0000-0000-000000000001"},
+    )
+    assert resp.status_code == 400

@@ -9,6 +9,7 @@
   override에 자동으로 합쳐지지 않는다).
 """
 import json
+import logging
 import uuid
 
 from sqlalchemy.orm import Session
@@ -16,6 +17,8 @@ from sqlalchemy.orm import Session
 from app.config import settings
 from app.models.user import User
 from app.services import user_setting_service
+
+logger = logging.getLogger(__name__)
 
 # 설정 화면에서 켜고 끌 수 있는 알림 종류. 사용자가 직접 누르는 발송(테스트 메일·초대장)과 목표 응원은
 # 토글 대상이 아니다. 일정 변경 알림(event_change)은 event_reminder 토글을 함께 쓴다.
@@ -67,10 +70,25 @@ def _default_recipients(db: Session) -> list[str]:
 
 
 def get_recipients(db: Session) -> list[str]:
+    """저장한 수신자 목록(없으면 현재 구성원 이메일). 가구에서 제거된 배우자의 이메일은 저장 목록에 남아 있어도
+    뺀다 — 제거 뒤에도 가계 요약·예산 경보가 그 주소로 계속 나갔다. 손상된 값은 기본값으로 폴백."""
     saved = user_setting_service.get_shared_setting(db, NOTIFY_RECIPIENT_EMAILS_KEY, None)
-    if saved is not None:
-        return json.loads(saved)
-    return _default_recipients(db)
+    if saved is None:
+        return _default_recipients(db)
+    try:
+        emails = json.loads(saved)
+        if not isinstance(emails, list) or not all(isinstance(e, str) for e in emails):
+            raise ValueError("not a list of strings")
+    except ValueError:
+        logger.warning("알림 수신자 설정이 손상돼 기본값을 씁니다: %r", saved[:100])
+        return _default_recipients(db)
+    removed = {
+        email.lower()
+        for (email,) in db.query(User.email).filter(User.removed_at.isnot(None)).all()
+        if email
+    }
+    kept = [email for email in emails if email.lower() not in removed]
+    return kept or _default_recipients(db)
 
 
 def recipients_excluding(db: Session, actor_id: uuid.UUID) -> list[str]:

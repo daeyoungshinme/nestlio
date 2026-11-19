@@ -551,3 +551,55 @@ def test_split_item_for_rest_of_year_uses_remaining_months(seeded_db):
     item = annual_plan_service.list_items(db, 2026)[0]
     assert sorted(t.year_month for t in item.monthly_targets) == [f"2026-{m:02d}" for m in range(7, 13)]
     assert sum(t.target_amount for t in item.monthly_targets) == Decimal("600000")
+
+
+def test_link_recurring_rejects_weekly_and_multi_day_and_wrong_kind(seeded_db):
+    db, user, rent, salary = seeded_db["db"], seeded_db["user"], seeded_db["rent"], seeded_db["salary"]
+    item = cashflow_plan_service.upsert_item(
+        db, None, "fixed", None, "헬스", Decimal("130000"), 0, "2026-07", user.id, category_id=rent.id
+    )
+    weekly = recurring_service.create_recurring(
+        db, name="헬스", category_id=rent.id, amount=Decimal("30000"),
+        frequency="weekly", start_date=date(2026, 7, 1), created_by=user.id,
+    )
+    twice = recurring_service.create_recurring(
+        db, name="용돈", category_id=rent.id, amount=Decimal("100000"),
+        frequency="monthly", start_date=date(2026, 7, 1), created_by=user.id, days_of_month=[5, 25],
+    )
+    income = recurring_service.create_recurring(
+        db, name="급여", category_id=salary.id, amount=Decimal("3000000"), type_="income",
+        frequency="monthly", start_date=date(2026, 7, 25), created_by=user.id,
+    )
+    for recurring in (weekly, twice, income):
+        with pytest.raises(cashflow_plan_service.RecurringNotLinkableError):
+            cashflow_plan_service.link_recurring(db, item.id, recurring.id)
+
+
+def test_copy_from_previous_month_skips_installments(seeded_db):
+    db, user, food = seeded_db["db"], seeded_db["user"], seeded_db["food"]
+    cashflow_plan_service.split_item_into_months(
+        db, "variable", None, "노트북", Decimal("1000000"), "2026-09", 4, 0, user.id, category_id=food.id
+    )
+
+    assert cashflow_plan_service.copy_from_previous_month(db, "2027-01", user.id) == 0
+    assert cashflow_plan_service.list_items(db, "2027-01") == []
+
+
+def test_upsert_item_rejects_unknown_owner_category_and_kind_mismatch(seeded_db):
+    import uuid
+
+    from app.services.user_service import InvalidOwnerError
+
+    db, user, food, salary = seeded_db["db"], seeded_db["user"], seeded_db["food"], seeded_db["salary"]
+    with pytest.raises(InvalidOwnerError):
+        cashflow_plan_service.upsert_item(
+            db, None, "variable", uuid.uuid4(), "식비", Decimal("1"), 0, "2026-07", user.id, category_id=food.id
+        )
+    with pytest.raises(annual_plan_service.InvalidPlanReferenceError):
+        cashflow_plan_service.upsert_item(
+            db, None, "variable", None, "식비", Decimal("1"), 0, "2026-07", user.id, category_id=999999
+        )
+    with pytest.raises(annual_plan_service.InvalidPlanReferenceError):
+        cashflow_plan_service.upsert_item(
+            db, None, "variable", None, "급여", Decimal("1"), 0, "2026-07", user.id, category_id=salary.id
+        )

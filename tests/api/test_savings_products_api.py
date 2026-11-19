@@ -360,3 +360,31 @@ def test_plan_summary_for_month(client):
 
 def test_plan_summary_rejects_malformed_year_month(client):
     assert client.get("/api/v1/savings-products/plan", params={"year_month": "2026-13"}).status_code == 422
+
+
+def test_update_without_current_balance_keeps_concurrent_deposit(client, seeded_db):
+    """수정 폼을 연 사이 배우자가 기록한 납입을 폼의 옛 잔액으로 덮지 않는다 — 잔액을 생략하면 그대로."""
+    from app.services import savings_product_service
+
+    product = client.post(
+        "/api/v1/savings-products",
+        json={"name": "적금", "current_balance": "1000000", "monthly_saving_amount": "0", "product_type": "savings"},
+    ).json()
+    savings_product_service.adjust_balance(seeded_db["db"], product["id"], Decimal("100000"))
+    seeded_db["db"].commit()
+
+    resp = client.put(
+        f"/api/v1/savings-products/{product['id']}",
+        json={"name": "적금(이름변경)", "monthly_saving_amount": "0", "product_type": "savings"},
+    )
+    assert resp.status_code == 200
+    assert Decimal(resp.json()["current_balance"]) == Decimal("1100000")
+
+
+def test_create_product_with_unknown_owner_is_400(client):
+    resp = client.post(
+        "/api/v1/savings-products",
+        json={"name": "적금", "current_balance": "0", "monthly_saving_amount": "0", "product_type": "savings",
+              "owner_user_id": "00000000-0000-0000-0000-000000000001"},
+    )
+    assert resp.status_code == 400

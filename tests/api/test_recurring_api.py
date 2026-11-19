@@ -168,3 +168,27 @@ def test_recurring_savings_product_round_trip(client, seeded_db):
 
     bad = client.put(f"/api/v1/recurring/{resp.json()['id']}", json={"category_id": seeded_db["food"].id})
     assert bad.status_code == 400
+
+
+def test_update_recurring_rejects_explicit_null_for_required_fields(client, seeded_db):
+    created = client.post(
+        "/api/v1/recurring",
+        json={"name": "넷플릭스", "category_id": seeded_db["food"].id, "amount": "17000",
+              "frequency": "monthly", "start_date": "2026-07-01"},
+    ).json()
+    for field in ("name", "amount", "start_date", "frequency", "reminder_days_before"):
+        resp = client.put(f"/api/v1/recurring/{created['id']}", json={field: None})
+        assert resp.status_code == 422, field
+    # 종료일은 비울 수 있다
+    assert client.put(f"/api/v1/recurring/{created['id']}", json={"end_date": None}).status_code == 200
+
+
+def test_clearing_days_of_month_falls_back_to_start_date_day(client, seeded_db):
+    created = client.post(
+        "/api/v1/recurring",
+        json={"name": "용돈", "category_id": seeded_db["food"].id, "amount": "100000",
+              "frequency": "monthly", "start_date": "2026-07-25", "days_of_month": [5, 25]},
+    ).json()
+    resp = client.put(f"/api/v1/recurring/{created['id']}", json={"days_of_month": None})
+    assert resp.status_code == 200
+    assert resp.json()["day_of_month"] == 25

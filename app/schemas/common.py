@@ -65,6 +65,16 @@ def monthly_targets_list(item_type: Any, max_length: int) -> Any:
     return Annotated[list[item_type], Field(max_length=max_length), AfterValidator(_unique_year_months)]
 
 
+def reject_explicit_nulls(data: Any, fields: tuple[str, ...]) -> Any:
+    """수정(`*UpdateIn`) 스키마의 `mode="before"` 검사: 칸을 **생략**하면 "그대로"지만 `null`을 보내면 NOT NULL 컬럼에
+    None이 들어가 500(IntegrityError·AttributeError)이 난다 — 비울 수 없는 칸의 명시적 null을 422로 막는다."""
+    if isinstance(data, dict):
+        nulls = [field for field in fields if field in data and data[field] is None]
+        if nulls:
+            raise ValueError(f"{', '.join(nulls)}은(는) 비울 수 없습니다.")
+    return data
+
+
 def check_plan_year(year: int, start_month: str, end_month: str, monthly_targets: list) -> None:
     """연간 계획(그 해 하나) 입력의 기간·월별 목표가 모두 `year` 안인지 — 다른 해의 달이 섞이면 그 해 연간 화면엔 안 보이고
     그 달 예산(budget_service는 year_month로만 거른다)에만 합산된다. 어긋나면 ValueError(422)."""

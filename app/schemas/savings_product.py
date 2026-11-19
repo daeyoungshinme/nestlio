@@ -50,7 +50,8 @@ class SavingsProductCreateIn(BaseModel):
 
 class SavingsProductUpdateIn(BaseModel):
     name: bounded_str(100)
-    current_balance: KrwBalance
+    # 생략(None)하면 잔액은 그대로 — 폼을 연 사이 배우자가 기록한 납입을 옛 잔액으로 덮지 않게 프론트는 바꿨을 때만 보낸다.
+    current_balance: KrwBalance | None = None
     monthly_saving_amount: KrwAmount
     product_type: Literal["savings", "investment", "real_estate", "emergency_fund"]
     principal_amount: KrwBalance | None = None

@@ -22,6 +22,10 @@ class UserError(DomainError):
     pass
 
 
+class InvalidOwnerError(InvalidInputError):
+    """소유자로 지정한 사용자가 없거나(Postgres FK 위반 → 500) 가구에서 제거됨."""
+
+
 class CannotRemoveSelfError(UserError, InvalidInputError):
     pass
 
@@ -73,6 +77,15 @@ def ensure_mirrored_user(db: Session, user_id: uuid.UUID, email: str) -> User:
 
 def get_user(db: Session, user_id: uuid.UUID) -> User | None:
     return db.get(User, user_id)
+
+
+def validate_owner(db: Session, owner_user_id: uuid.UUID | None, *, current: uuid.UUID | None = None) -> None:
+    """계좌·상품·대출·계획 항목의 `owner_user_id` 검사 — 없는 사용자는 FK 위반(500)이라 400으로 막고, 제거된 배우자는
+    **새로** 지정할 때만 막는다(지난 항목을 고칠 때 그대로 돌아오는 값은 통과)."""
+    if owner_user_id is None or owner_user_id == current:
+        return
+    if get_active_user(db, owner_user_id) is None:
+        raise InvalidOwnerError("소유자를 찾을 수 없습니다.")
 
 
 def get_active_user(db: Session, user_id: uuid.UUID) -> User | None:

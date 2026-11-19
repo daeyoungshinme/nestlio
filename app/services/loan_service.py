@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 
 from app.constants.sort_order import DEFAULT_SORT_ORDER
 from app.models.loan import Loan
+from app.services import user_service
 
 
 def list_loans(db: Session, active_only: bool = True) -> list[Loan]:
@@ -25,6 +26,7 @@ def create_loan(
     repayment_method: str | None,
     owner_user_id: uuid.UUID | None = None,
 ) -> Loan:
+    user_service.validate_owner(db, owner_user_id)
     loan = Loan(
         name=name,
         balance=balance,
@@ -57,6 +59,7 @@ def update_loan(
     loan = db.get(Loan, loan_id)
     if loan is None:
         return None
+    user_service.validate_owner(db, owner_user_id, current=loan.owner_user_id)
     loan.name = name
     loan.balance = balance
     loan.monthly_payment = monthly_payment

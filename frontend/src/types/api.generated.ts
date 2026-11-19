@@ -4252,7 +4252,7 @@ export interface components {
             /** Name */
             name: string;
             /** Current Balance */
-            current_balance: number | string;
+            current_balance?: (number | string) | null;
             /** Monthly Saving Amount */
             monthly_saving_amount: number | string;
             /**

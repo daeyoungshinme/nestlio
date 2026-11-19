@@ -30,6 +30,11 @@ class RecurringExpenseNotFoundError(NotFoundError):
     pass
 
 
+class RecurringNotLinkableError(InvalidInputError):
+    """연동하면 계획 금액이 반복거래 1회 금액(read-through)이 되므로 매달 한 번 나가는 같은 구분의 반복거래만 연결한다
+    — 매주 3만원을 연결하면 예산이 월 3만원, 매년 12만원이면 매달 12만원이 된다."""
+
+
 class AlreadyLinkedError(ConflictError):
     pass
 
@@ -105,12 +110,14 @@ def upsert_item(
     없는 id거나 다른 해의 항목이면 None(라우터가 404)."""
     year = int(year_month[:4])
     if id is None:
+        annual_plan_service.validate_item_references(db, section, category_id, owner_user_id)
         item = AnnualPlanItem(year=year, start_month=year_month, end_month=year_month, monthly_targets=[])
         db.add(item)
     else:
         item = db.get(AnnualPlanItem, id)
         if item is None or item.year != year:
             return None
+        annual_plan_service.validate_item_references(db, section, category_id, owner_user_id, current=item)
     item.section = section
     item.owner_user_id = owner_user_id
     item.name = name
@@ -148,6 +155,7 @@ def split_item_into_months(
     month_strs = [year_month_str(shift_month(start, i)) for i in range(months)]
     if month_strs[-1][:4] != month_strs[0][:4]:
         raise InvalidInputError("할부 분할은 한 해 안에서만 가능합니다.")
+    annual_plan_service.validate_item_references(db, section, category_id, owner_user_id)
     item = AnnualPlanItem(
         year=start.year,
         section=section,
@@ -212,6 +220,10 @@ def link_recurring(db: Session, item_id: int, recurring_expense_id: int) -> Annu
     recurring = db.get(RecurringExpense, recurring_expense_id)
     if recurring is None:
         raise RecurringExpenseNotFoundError("반복내역을 찾을 수 없습니다.")
+    if recurring.frequency != "monthly" or len(recurring.days_of_month or []) > 1:
+        raise RecurringNotLinkableError("매달 한 번 나가는 반복내역만 계획에 연결할 수 있습니다.")
+    if (recurring.type == "income") != (item.section == "income"):
+        raise RecurringNotLinkableError("수입 항목에는 수입 반복내역, 지출 항목에는 지출 반복내역만 연결할 수 있습니다.")
     item.recurring_expense_id = recurring_expense_id
     # 연동이 끊겼을 때(SET NULL) 되돌아갈 카테고리도 최근 연동 값으로 맞춰 둔다.
     item.category_id = recurring.category_id
@@ -256,7 +268,7 @@ def _budget_line_key(section: str, category_id: int | None, name: str) -> tuple:
 def copy_from_previous_month(db: Session, year_month: str, updated_by: uuid.UUID) -> int:
     """전월에 금액이 있고 이번 달엔 같은 줄(_budget_line_key)이 없는 항목의 금액을 이번 달로 복사한다. 같은 해면 같은 항목에 이번 달
     금액만 더하고, 1월로 복사할 때(전월이 작년)는 올해의 같은 항목(_item_key)을 찾아 쓰거나 새로 만든다
-    (반복거래 연동도 이어받는다). 복사한 항목 수를 반환한다."""
+    (반복거래 연동도 이어받는다). 할부 항목은 복사하지 않는다. 복사한 항목 수를 반환한다."""
     this_month_start = parse_year_month(year_month)
     prev_month_str = year_month_str(shift_month(this_month_start, -1))
     year = this_month_start.year
@@ -264,6 +276,9 @@ def copy_from_previous_month(db: Session, year_month: str, updated_by: uuid.UUID
     this_year_by_key = {_item_key(item): item for item in annual_plan_service.list_items(db, year)}
     copied = 0
     for prev_item, _ in annual_plan_service.monthly_targets_for_month(db, prev_month_str):
+        # 할부는 정해진 회차만 — 다음 달로 복사하면 끝난 할부가 한 회차 늘거나(7/6) 새해에 다시 생긴다.
+        if prev_item.installment_total:
+            continue
         line_key = _budget_line_key(prev_item.section, prev_item.effective_category_id, prev_item.name)
         if line_key in this_month_keys:
             continue

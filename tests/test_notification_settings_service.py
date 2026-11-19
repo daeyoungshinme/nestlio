@@ -83,3 +83,25 @@ def test_get_recipients_default_excludes_removed_spouse(seeded_db):
     user_service.remove_user(db, target=spouse, requested_by=user, now=datetime(2026, 9, 1, 9, 0))
 
     assert notification_settings_service.get_recipients(db) == [user.email]
+
+
+def test_get_recipients_drops_removed_spouse_from_saved_list(seeded_db):
+    from datetime import datetime
+
+    db, user = seeded_db["db"], seeded_db["user"]
+    spouse = _second_user(db)
+    notification_settings_service.set_recipients(db, [user.email, spouse.email], user.id)
+    spouse.removed_at = datetime(2026, 7, 1)
+    db.commit()
+
+    assert notification_settings_service.get_recipients(db) == [user.email]
+
+
+def test_get_recipients_falls_back_on_corrupted_value(seeded_db):
+    from app.services import user_setting_service
+
+    db, user = seeded_db["db"], seeded_db["user"]
+    user_setting_service.set_shared_setting(
+        db, notification_settings_service.NOTIFY_RECIPIENT_EMAILS_KEY, "{not json", user.id
+    )
+    assert notification_settings_service.get_recipients(db) == [user.email]

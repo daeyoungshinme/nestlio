@@ -17,6 +17,7 @@ from app.services import (
     recurring_service,
     transaction_report_service,
     transaction_trend_service,
+    user_service,
 )
 from app.utils.dates import year_bounds, year_month_of
 from app.utils.money import monthly_equivalent
@@ -64,6 +65,30 @@ def set_month_target(item: AnnualPlanItem, year_month: str, amount: Decimal) -> 
     item.end_month = max(item.end_month, year_month)
 
 
+class InvalidPlanReferenceError(InvalidInputError):
+    """계획 항목의 카테고리가 없거나(FK 위반 → 500) 섹션과 구분이 다름(수입 섹션에 지출 카테고리 등)."""
+
+
+def validate_item_references(
+    db: Session,
+    section: str,
+    category_id: int | None,
+    owner_user_id: uuid.UUID | None,
+    current: AnnualPlanItem | None = None,
+) -> None:
+    """계획 항목 저장 전 참조 검사 — 이번 달·연간·할부 저장이 공유한다. 기존 항목에서 그대로 돌아오는 값은 통과."""
+    user_service.validate_owner(db, owner_user_id, current=current.owner_user_id if current else None)
+    if category_id is None:
+        return
+    if current is not None and current.category_id == category_id and current.section == section:
+        return
+    category = db.get(Category, category_id)
+    if category is None:
+        raise InvalidPlanReferenceError("카테고리를 찾을 수 없습니다.")
+    if (category.kind == "income") != (section == "income"):
+        raise InvalidPlanReferenceError("수입 항목에는 수입 카테고리, 지출 항목에는 지출 카테고리만 쓸 수 있습니다.")
+
+
 def upsert_item(
     db: Session,
     id: int | None,
@@ -81,12 +106,14 @@ def upsert_item(
     """id가 없으면 새 항목을 만들고, 있으면 그 항목을 고친다. 없는 id면 None(라우터가 404) — 조용히 새 항목을
     만들면 이미 지워진 항목을 다른 탭에서 저장할 때 중복 항목이 생긴다(cashflow_plan_service.upsert_item과 같은 규칙)."""
     if id is None:
+        validate_item_references(db, section, category_id, owner_user_id)
         item = AnnualPlanItem(year=year, section=section)
         db.add(item)
     else:
         item = db.get(AnnualPlanItem, id)
         if item is None:
             return None
+        validate_item_references(db, section, category_id, owner_user_id, current=item)
         item.year = year
         item.section = section
     item.owner_user_id = owner_user_id
@@ -299,7 +326,8 @@ def _recurring_monthly_amounts(recurring, year: int) -> tuple[dict[str, Decimal]
 def seed_year(db: Session, year: int, source: str, updated_by: uuid.UUID, today: date) -> int:
     """빈 해의 연간계획을 한 번에 채운다(계획 탭의 "새해 계획 시작" 마법사). 이미 항목이 있으면
     PlanAlreadyExistsError — 덮어쓰기/중복 생성을 막는다. 만든 항목 수를 반환한다.
-      - previous_year: 작년 항목을 월만 올해로 옮겨 그대로 복사(반복거래 연동·할부 메타 포함)
+      - previous_year: 작년 항목을 월만 올해로 옮겨 그대로 복사(반복거래 연동 포함). 할부 항목은 뺀다 — 할부는
+        한 해 안에서 끝나므로(split_item_into_months) 올해로 옮기면 끝난 할부가 "1/4"부터 다시 생긴다
       - recurring: 활성 반복거래(수입·지출)로 항목 생성 — 저축 카테고리는 저축·투자 계획이 따로 있어 제외
       - recent_average: today 기준 직전 3개월 카테고리별 평균 실적으로 매달 같은 금액의 항목 생성
     """
@@ -311,6 +339,8 @@ def seed_year(db: Session, year: int, source: str, updated_by: uuid.UUID, today:
     created: list[AnnualPlanItem] = []
     if source == "previous_year":
         for prev in list_items(db, year - 1):
+            if prev.installment_total:
+                continue
             monthly = {f"{year}{mt.year_month[4:]}": mt.target_amount for mt in prev.monthly_targets}
             if not monthly:
                 continue

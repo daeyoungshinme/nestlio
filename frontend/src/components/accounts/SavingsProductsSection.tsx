@@ -71,7 +71,11 @@ export default function SavingsProductsSection({ users }: Props) {
 
   const handleSubmit = (draft: Draft) => {
     const payload = toSavingsProductPayload(draft);
-    section.submit(payload, payload);
+    // 잔액을 직접 바꾸지 않았으면 보내지 않는다 — 폼을 연 사이 배우자가 기록한 납입을 옛 잔액으로 덮지 않게.
+    const balanceUnchanged =
+      section.editing !== null && draft.current_balance === draftFromProduct(section.editing).current_balance;
+    const { current_balance: _unchanged, ...withoutBalance } = payload;
+    section.submit(payload, balanceUnchanged ? withoutBalance : payload);
   };
 
   return (

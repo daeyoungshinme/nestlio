@@ -587,3 +587,19 @@ def test_set_month_target_outside_period_appends_and_widens_range():
 
     assert sorted(mt.year_month for mt in item.monthly_targets) == ["2026-01", "2026-09"]
     assert (item.start_month, item.end_month) == ("2026-01", "2026-09")
+
+
+def test_seed_year_from_previous_year_skips_finished_installments(seeded_db):
+    from app.services import cashflow_plan_service
+
+    db, user, food, rent = seeded_db["db"], seeded_db["user"], seeded_db["food"], seeded_db["rent"]
+    cashflow_plan_service.split_item_into_months(
+        db, "variable", None, "노트북", Decimal("1000000"), "2026-09", 4, 0, user.id, category_id=food.id
+    )
+    annual_plan_service.upsert_item(
+        db, None, 2026, "fixed", None, "월세", rent.id, 0, user.id, "2026-01", "2026-12",
+        monthly_targets=[{"year_month": "2026-03", "target_amount": Decimal("800000")}],
+    )
+
+    assert annual_plan_service.seed_year(db, 2027, "previous_year", user.id, date(2026, 12, 20)) == 1
+    assert [item.name for item in annual_plan_service.list_items(db, 2027)] == ["월세"]
