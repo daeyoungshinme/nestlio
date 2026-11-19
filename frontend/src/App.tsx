@@ -1,6 +1,6 @@
 import { lazy, Suspense, useEffect } from "react";
 import type { LazyExoticComponent } from "react";
-import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
+import { BrowserRouter, Navigate, Route, Routes, useLocation } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import AppLayout from "./components/layout/AppLayout";
 import ErrorBoundary from "./components/ErrorBoundary";
@@ -37,8 +37,11 @@ function PrivateRoute({ children }: { children: React.ReactNode }) {
 }
 
 function LazyRoute({ Component }: { Component: LazyExoticComponent<() => React.JSX.Element> }) {
+  // 모든 라우트가 같은 자리의 같은 컴포넌트라 React가 경계 인스턴스를 재사용한다 — 경로를 key로 줘서 한 페이지의
+  // 오류 화면이 다른 탭으로 옮겨 가도 남아 있지 않게(새로고침해야만 풀리던 문제).
+  const { pathname } = useLocation();
   return (
-    <ErrorBoundary>
+    <ErrorBoundary key={pathname}>
       <Suspense fallback={<PageLoader />}>
         <Component />
       </Suspense>

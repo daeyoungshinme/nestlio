@@ -76,7 +76,11 @@ export function useTodoActions({ users }: { users: UserOut[] | undefined }): {
     openEdit: setFormTarget,
     openDelete,
     // 각자 완료 할일은 내 몫 기준으로 토글한다(배우자만 체크한 상태에서 누르면 내 몫을 체크).
-    toggleComplete: (todo) => completeMutation.mutate({ id: todo.id, completed: !isCheckedBy(todo, me?.id) }),
+    // 처리 중 연타는 무시 — 두 번째 탭도 같은 낡은 상태로 계산해 "체크 → 해제"가 "체크 두 번"이 된다.
+    toggleComplete: (todo) => {
+      if (completeMutation.isPending) return;
+      completeMutation.mutate({ id: todo.id, completed: !isCheckedBy(todo, me?.id) });
+    },
     modals,
   };
 }

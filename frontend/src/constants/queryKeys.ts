@@ -121,7 +121,7 @@ export const CATEGORY_RELATED_KEYS: QueryKey[] = [
 
 /** 가구 구성원의 표시 이름을 응답에 박아 두는 캐시 묶음 — 본인/배우자 이름 변경, 배우자 제거 시
  * 전부 무효화한다. 거래 기록자(TransactionOut.user), 일정·할일 작성자·담당자(EventOut·TodoOut), 알림 응원
- * 반응, 대시보드·월간 회고의 부부 기여도(OwnerTotalsOut)가 여기에 해당한다. */
+ * 반응, 대시보드·월간 회고의 부부 기여도(OwnerTotalsOut), 통합 목표 구성 이름이 여기에 해당한다. */
 export const USER_RELATED_KEYS: QueryKey[] = [
   QUERY_KEYS.me,
   QUERY_KEYS.users,
@@ -132,6 +132,8 @@ export const USER_RELATED_KEYS: QueryKey[] = [
   QUERY_KEYS.dashboardAll,
   QUERY_KEYS.dashboardBootstrap,
   QUERY_KEYS.monthlyRetrospective,
+  // 통합 목표 구성 이름("{표시 이름}의 growlio 투자목표")
+  QUERY_KEYS.financialGoals,
 ];
 
 /** 거래 추가/수정/삭제/가져오기가 바꾸는 캐시 묶음 — 거래 목록, 대시보드, 카테고리 분해, 저축·투자 상품,

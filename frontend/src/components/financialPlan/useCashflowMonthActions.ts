@@ -86,7 +86,16 @@ export function useCashflowMonthActions(yearMonth: string, data: CashflowPlanLis
     ownerFallback?: string | null;
   }) => {
     const nextPlan = await fetchCashflowPlan(nextYearMonth);
-    const existing = nextPlan.items.find(opts.match);
+    const matches = nextPlan.items.filter(opts.match);
+    // 같은 카테고리 항목이 여럿이면 어느 쪽을 바꿔도 합계가 제안값과 달라진다 — 직접 고르게 한다.
+    if (matches.length > 1) {
+      throw new Error(`${nextYearMonthLabel} 계획에 같은 항목이 여러 개라 반영할 곳을 정할 수 없어요. 직접 조정해 주세요.`);
+    }
+    const existing = matches[0];
+    // 반복거래 연동 항목은 금액을 반복거래에서 읽어서 저장해도 바뀌지 않는다(성공 토스트만 뜨던 문제).
+    if (existing?.recurring_expense_id != null) {
+      throw new Error("반복거래와 연결된 항목이에요. 반복 내역의 금액을 바꿔 주세요.");
+    }
     return upsertCashflowPlanItem({
       id: existing?.id ?? null,
       section: opts.section,

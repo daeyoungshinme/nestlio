@@ -71,6 +71,15 @@ export default function LedgerResults({
     [searchActive, showExpenseGroups, filteredTransactions],
   );
 
+  // 사용자 필터가 걸리면 분해도 그 사람 몫만이라, 분모도 가구 전체 지출이 아니라 그 사람 몫 합계여야 한다.
+  const breakdownTotal = useMemo(
+    () =>
+      userFilter !== "all" && breakdownQuery.data
+        ? String(sumAmounts(breakdownQuery.data, (g) => g.amount))
+        : totalExpense,
+    [userFilter, breakdownQuery.data, totalExpense],
+  );
+
   const expenseGroups = useMemo(() => {
     const breakdown = breakdownQuery.data;
     if (!breakdown) return breakdown;
@@ -116,7 +125,7 @@ export default function LedgerResults({
             <ExpenseCategoryGroups
               groups={expenseGroups}
               transactionsByCategory={transactionsByCategory}
-              totalExpense={totalExpense}
+              totalExpense={breakdownTotal}
               onEdit={onEdit}
               showUser={showUser}
               users={users}
