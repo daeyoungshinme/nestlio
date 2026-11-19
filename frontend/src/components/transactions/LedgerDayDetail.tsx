@@ -5,10 +5,9 @@ import RecurringDueCards from "@/components/schedule/RecurringDueCards";
 import ScheduleEventList from "@/components/schedule/ScheduleEventList";
 import TransactionListItem from "@/components/transactions/TransactionListItem";
 import type { LedgerView } from "@/constants/routes";
-import { sumAmounts } from "@/utils/amount";
-import { transactionAmountTextColor } from "@/utils/colors";
+import { dayCashflow, formatSignedNet } from "@/utils/dayCashflow";
+import { amountToneClass, transactionAmountTextColor } from "@/utils/colors";
 import { formatDayHeader } from "@/utils/date";
-import { formatKrw } from "@/utils/format";
 import type { EventOut, RecurringOut, TransactionOut, UserOut } from "@/types";
 
 interface Props {
@@ -51,10 +50,7 @@ export default function LedgerDayDetail({
   onToggleEventComplete,
 }: Props) {
   const isLedger = view === "내역";
-  const net = sumAmounts(
-    transactions.filter((tx) => !tx.category.is_savings),
-    (tx) => (tx.type === "income" ? 1 : -1) * Number(tx.amount),
-  );
+  const { net, count } = dayCashflow(transactions);
   const sortedTransactions = transactions.slice().sort((a, b) => a.id - b.id);
 
   return (
@@ -63,14 +59,19 @@ export default function LedgerDayDetail({
         <div className="min-w-0">
           <h2 className="text-sm font-semibold text-gray-900 dark:text-gray-50">
             {formatDayHeader(date)}
-            {isLedger && transactions.length > 0 && (
-              <span className={`ml-2 tabular-nums ${transactionAmountTextColor(net >= 0 ? "income" : "expense")}`}>
-                {net >= 0 ? "+" : "-"}
-                {formatKrw(Math.abs(net))}
+            {/* 저축만 있는 날은 순액을 보여줄 거리가 없다(칸과 같은 기준). */}
+            {isLedger && count > 0 && (
+              <span
+                className={`ml-2 tabular-nums ${
+                  net === 0 ? amountToneClass("default") : transactionAmountTextColor(net > 0 ? "income" : "expense")
+                }`}
+              >
+                {formatSignedNet(net)}
               </span>
             )}
           </h2>
-          {searchActive && <p className="text-xs text-gray-500 dark:text-gray-400">검색어가 적용된 내역만 보여요</p>}
+          {/* 검색은 거래에만 걸린다 — 일정 탭엔 안내하지 않는다. */}
+          {isLedger && searchActive && <p className="text-xs text-gray-500 dark:text-gray-400">검색어가 적용된 내역만 보여요</p>}
         </div>
         <div className="flex items-center gap-2">
           <Button size="sm" variant="secondary" onClick={onClear}>

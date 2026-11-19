@@ -11,8 +11,8 @@ import { occurrenceDate } from "@/utils/date";
 import { toast } from "@/utils/toast";
 import type { EventOut, UserOut } from "@/types";
 
-/** 부부 일정(Event)의 추가/수정/삭제/완료와 그 폼·확인 모달을 한 곳에 모은 훅. 가계부의 날짜 모달과
- * "일정" 보기가 같은 동작을 공유한다(구 독립 `/schedule` 페이지의 로직을 가계부로 옮긴 것). 반환된 `modals`를
+/** 부부 일정(Event)의 추가/수정/삭제/완료와 그 폼·확인 모달을 한 곳에 모은 훅. 가계부의 날짜 상세(`LedgerDayDetail`)와
+ * "일정" 목록이 같은 동작을 공유한다(구 독립 `/schedule` 페이지의 로직을 가계부로 옮긴 것). 반환된 `modals`를
  * 호출 화면이 그대로 렌더한다. */
 export function useEventActions({
   users,

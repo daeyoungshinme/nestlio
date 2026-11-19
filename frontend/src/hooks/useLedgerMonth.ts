@@ -67,6 +67,8 @@ export function useLedgerMonth(yearMonth: string, debouncedQuery: string) {
     eventsQuery,
     items,
     totals: transactionsQuery.data?.totals,
+    /** 달을 옮긴 직후 아직 이전 달 데이터를 보여 주는 중(keepPreviousData) — 날짜 상세가 "내역 없음"으로 깜빡이지 않게. */
+    isPlaceholder: transactionsQuery.isPlaceholderData || eventsQuery.isPlaceholderData,
     transactionsByDate,
     eventsByDate,
     recurringDueByDate,
