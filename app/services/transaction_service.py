@@ -2,7 +2,7 @@ import uuid
 from datetime import date, timedelta
 from decimal import Decimal
 
-from sqlalchemy import or_
+from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
 from app.constants.payment_methods import PAYMENT_METHOD_BY_CARD_TYPE
@@ -161,9 +161,18 @@ def create_transaction(
     return tx
 
 
+def _lock_transactions(db: Session, tx_ids: list[int]) -> None:
+    """수정·삭제할 거래 행을 읽기 전에 잠근다(Postgres, SQLite는 무시). 두 사람이 같은 저축 거래를 동시에 고치면
+    둘 다 옛 금액을 빼고 새 금액을 더해 상품 잔액이 틀어지고 growlio에도 같은 입출금이 두 번 간다. id만 잠그는
+    이유: Transaction의 lazy="joined" 관계가 outer join이라 엔티티째 FOR UPDATE를 걸면 Postgres가 거부한다."""
+    if tx_ids:
+        db.execute(select(Transaction.id).where(Transaction.id.in_(tx_ids)).with_for_update())
+
+
 def update_transaction(
     db: Session, tx_id: int, bearer_token: str | None = None, caller_id: uuid.UUID | None = None, **fields
 ) -> Transaction | None:
+    _lock_transactions(db, [tx_id])
     tx = db.get(Transaction, tx_id)
     if tx is None:
         return None
@@ -243,6 +252,7 @@ def _stage_delete(db: Session, tx: Transaction) -> GrowlioPushQueue | None:
 def delete_transaction(
     db: Session, tx_id: int, bearer_token: str | None = None, caller_id: uuid.UUID | None = None
 ) -> bool:
+    _lock_transactions(db, [tx_id])
     tx = db.get(Transaction, tx_id)
     if tx is None:
         return False
@@ -261,6 +271,7 @@ def bulk_delete_transactions(
     지운다(그 경우의 부분 성공은 의도된 동작). growlio 출금은 커밋 후 best-effort로 보내고, 한 건이라도 실패하면
     나머지는 큐에 남긴다."""
     unique_ids = list(dict.fromkeys(tx_ids))
+    _lock_transactions(db, unique_ids)
     found = {tx.id: tx for tx in db.query(Transaction).filter(Transaction.id.in_(unique_ids))} if unique_ids else {}
     deleted = [found[tx_id] for tx_id in unique_ids if tx_id in found]
     try:

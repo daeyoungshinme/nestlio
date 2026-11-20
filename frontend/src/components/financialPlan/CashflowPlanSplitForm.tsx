@@ -43,7 +43,7 @@ export default function CashflowPlanSplitForm({
 
   const months = monthsRemainingInYear(values.start_year_month);
   const perMonth = Number(values.total_amount) > 0 ? Number(values.total_amount) / months : 0;
-  const irregularCategories = categories.filter((c) => c.type === "irregular");
+  const irregularCategories = categories.filter((c) => c.type === "irregular" && !c.is_savings);
 
   return (
     <form onSubmit={handleSubmit} className="flex flex-col gap-3">

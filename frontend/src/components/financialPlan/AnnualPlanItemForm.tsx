@@ -55,7 +55,7 @@ export default function AnnualPlanItemForm({
   const sectionCategories =
     section === "income"
       ? categories.filter((c) => c.kind === "income")
-      : categories.filter((c) => c.kind === "expense" && c.type === section);
+      : categories.filter((c) => c.kind === "expense" && c.type === section && !c.is_savings);
   const handleSubmit = (e: FormEvent) => {
     e.preventDefault();
     if (!name.trim()) return;

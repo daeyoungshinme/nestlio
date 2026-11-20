@@ -19,7 +19,7 @@ from app.services import (
     transaction_trend_service,
     user_service,
 )
-from app.utils.dates import year_bounds, year_month_of
+from app.utils.dates import parse_year_month, year_bounds, year_month_of, year_month_str
 from app.utils.money import monthly_equivalent
 from app.utils.plan_status import pct_of
 
@@ -87,6 +87,10 @@ def validate_item_references(
         raise InvalidPlanReferenceError("카테고리를 찾을 수 없습니다.")
     if (category.kind == "income") != (section == "income"):
         raise InvalidPlanReferenceError("수입 항목에는 수입 카테고리, 지출 항목에는 지출 카테고리만 쓸 수 있습니다.")
+    if category.is_savings:
+        # 저축 카테고리 거래는 지출 실적(period_expense_filters)에서 빠지므로 이 항목의 실적은 영원히 0이 되고,
+        # 저축·투자 상품 계획과 이중으로 잡힌다. seed_year도 같은 이유로 저축 카테고리를 뺀다.
+        raise InvalidPlanReferenceError("저축 카테고리는 저축·투자 상품 계획에서 관리합니다.")
 
 
 def upsert_item(
@@ -311,11 +315,19 @@ def _section_for(category) -> str:
 
 def _recurring_monthly_amounts(recurring, year: int) -> tuple[dict[str, Decimal], bool]:
     """반복거래 하나를 그 해 월별 계획 금액으로 바꾼다. (월별 금액, 연동 가능 여부) — 매달 한 번 나가는
-    항목만 반복거래 연동(read-through)이 월 금액과 같아 연동하고, 한 달에 여러 번/매주/매년은 금액만 채운다."""
-    months = [year_month_of(year, m) for m in range(1, 13)]
+    항목만 반복거래 연동(read-through)이 월 금액과 같아 연동하고, 한 달에 여러 번/매주/매년은 금액만 채운다.
+    시작일 전·종료일 뒤 달은 채우지 않는다(2027-03에 끝나는 할부금이 2027년 내내 잡히지 않게)."""
+    first = year_month_str(recurring.start_date) if recurring.start_date else None
+    last = year_month_str(recurring.end_date) if recurring.end_date else None
+    months = [
+        ym
+        for ym in (year_month_of(year, m) for m in range(1, 13))
+        if (first is None or ym >= first) and (last is None or ym <= last)
+    ]
     if recurring.frequency == "yearly":
         due = recurring.next_due_date or recurring.start_date
-        return {year_month_of(year, due.month): recurring.amount}, False
+        ym = year_month_of(year, due.month)
+        return ({ym: recurring.amount} if ym in months else {}), False
     if recurring.frequency == "weekly":
         monthly = monthly_equivalent(recurring.amount, "weekly")
         return dict.fromkeys(months, monthly), False
@@ -341,18 +353,16 @@ def seed_year(db: Session, year: int, source: str, updated_by: uuid.UUID, today:
         for prev in list_items(db, year - 1):
             if prev.installment_total:
                 continue
-            monthly = {f"{year}{mt.year_month[4:]}": mt.target_amount for mt in prev.monthly_targets}
+            monthly = {
+                year_month_of(year, parse_year_month(mt.year_month).month): mt.target_amount
+                for mt in prev.monthly_targets
+            }
             if not monthly:
                 continue
             item = _seed_item(
                 year, prev.section, prev.name, prev.category_id, prev.sort_order, updated_by, monthly,
                 owner_user_id=prev.owner_user_id,
                 recurring_expense_id=prev.recurring_expense_id,
-                installment_total=prev.installment_total,
-                installment_total_amount=prev.installment_total_amount,
-                installment_start_month=(
-                    f"{year}{prev.installment_start_month[4:]}" if prev.installment_start_month else None
-                ),
             )
             created.append(item)
     elif source == "recurring":
@@ -361,6 +371,8 @@ def seed_year(db: Session, year: int, source: str, updated_by: uuid.UUID, today:
             if category is None or category.is_savings:
                 continue
             monthly, linkable = _recurring_monthly_amounts(recurring, year)
+            if not monthly:  # 그 해에 해당하는 달이 없다(이미 끝났거나 아직 시작 전)
+                continue
             created.append(
                 _seed_item(
                     year, _section_for(category), recurring.name, category.id, order, updated_by, monthly,
