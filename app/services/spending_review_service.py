@@ -438,9 +438,17 @@ def build_spending_review(
     lookback = settings.spending_review_lookback_months
     history_starts = recent_month_starts(anchor, lookback, include_anchor=False)
     history_months = [year_month_str(m) for m in history_starts]
-    window_start = history_starts[0] if history_starts else anchor
+    # 규칙마다 보는 기간 설정이 따로라(lookback·정기결제 감지 창·만성 초과 개월) 가장 이른 달부터 한 번에 읽는다 —
+    # lookback보다 긴 창을 설정하면 앞쪽 달이 빈 달로 보여 규칙이 아무 말 없이 꺼진다.
+    widest = max(lookback, settings.recurring_detect_window_months - 1, settings.chronic_overrun_months - 1, 0)
+    window_start = shift_month(anchor, -widest)
     all_rows = _tx_rows(db, window_start, month_bounds(anchor)[1])
     meta = _category_meta(categories if categories is not None else db.query(Category).all())
+    # 보험료 카테고리는 보험 점검이 계약 기준으로 본다 — 지출 추세·소액 반복·만성 초과에서도 빼야 절감 점검
+    # 합계(dashboard_service.build_savings_review가 두 점검을 더함)에 두 번 들어가지 않는다.
+    non_insurance_meta = {
+        cat_id: m for cat_id, m in meta.items() if not is_insurance_category(m.name, m.benchmark_group)
+    }
     thresholds = thresholds if thresholds is not None else coaching_settings_service.get_thresholds(db)
 
     # 기록이 시작되기 전 달까지 0원으로 평균에 넣으면 평균이 희석된다 — 거래가 하나라도 있는 달만 센다(가구 기준).
@@ -459,7 +467,7 @@ def build_spending_review(
             cat_id: whole_won(total / len(active_history)) for cat_id, total in _sum_by_category(history_rows).items()
         }
         candidates += trend_up_opportunities(
-            current, trailing_avg, meta, settings.variable_trend_flag_pct, len(active_history)
+            current, trailing_avg, non_insurance_meta, settings.variable_trend_flag_pct, len(active_history)
         )
 
     benchmark_months = [*active_history, year_month]
@@ -478,7 +486,7 @@ def build_spending_review(
 
     candidates += small_frequent_opportunities(
         current_rows,
-        meta,
+        non_insurance_meta,
         Decimal(settings.small_spend_max_amount),
         settings.small_spend_min_count,
         settings.small_spend_cut_pct,
@@ -499,7 +507,7 @@ def build_spending_review(
         overrun_months = [year_month_str(shift_month(anchor, -o)) for o in range(settings.chronic_overrun_months - 1, -1, -1)]
         budgets = budget_service.get_budgets_for_months(db, overrun_months)
         monthly = [(budgets[m], _sum_by_category(by_month.get(m, []))) for m in overrun_months]
-        candidates += chronic_overrun_opportunities(monthly, meta)
+        candidates += chronic_overrun_opportunities(monthly, non_insurance_meta)
         candidates += subscription_opportunities(recurrings, meta)
 
     items, total = merge_opportunities(candidates)

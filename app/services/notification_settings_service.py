@@ -94,7 +94,9 @@ def get_recipients(db: Session) -> list[str]:
 def recipients_excluding(db: Session, actor_id: uuid.UUID) -> list[str]:
     """설정된 수신자 중 행위자 본인을 뺀 목록 — 자기 자신에게 "방금 내가 한 행동" 메일을 보낼 필요는 없다."""
     actor = db.get(User, actor_id)
-    return [email for email in get_recipients(db) if actor is None or email != actor.email]
+    actor_email = (actor.email or "").lower() if actor is not None else None
+    # 설정 화면에 대소문자를 섞어 저장했어도 본인을 빼야 한다(get_recipients의 제거 계정 비교도 소문자).
+    return [email for email in get_recipients(db) if email.lower() != actor_email]
 
 
 def set_recipients(db: Session, emails: list[str], updated_by: uuid.UUID) -> list[str]:
