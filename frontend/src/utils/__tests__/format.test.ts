@@ -41,6 +41,11 @@ describe("formatKrwCompact", () => {
   it("abbreviates to 억원 at 1억 and above", () => {
     expect(formatKrwCompact(150000000)).toBe("1.50억원");
   });
+
+  it("moves to 억원 when rounding to 만원 would reach 1억", () => {
+    expect(formatKrwCompact(99_995_000)).toBe("1.00억원");
+    expect(formatKrwCompact(99_994_999)).toBe("9,999만원");
+  });
 });
 
 describe("formatKrwPreview", () => {
@@ -163,5 +168,9 @@ describe("formatKrwAxis", () => {
     expect(formatKrwAxis(200_000_000)).toBe("2억");
     expect(formatKrwAxis(5_000_000)).toBe("500만");
     expect(formatKrwAxis(3_000)).toBe("3,000");
+  });
+
+  it("never shows 10,000만 just under 1억", () => {
+    expect(formatKrwAxis(99_995_000)).toBe("1억");
   });
 });

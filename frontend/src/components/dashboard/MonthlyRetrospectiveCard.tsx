@@ -16,7 +16,7 @@ function MonthlyRetrospectiveCard() {
   });
 
   // 지난달 회고는 보조 위젯이라, 불러오지 못하면 대시보드에 에러를 띄우기보다 조용히 숨긴다.
-  if (isError) {
+  if (isError && !data) {
     return null;
   }
   if (isLoading || !data) {

@@ -43,7 +43,7 @@ npm run generate:icons      # public/favicon.svg → PNG/ICO
 - **금액**: 백엔드 응답의 `Decimal` 문자열 그대로 다루고, 표시 시점에만 `utils/format.ts`의 `formatKrw`/`formatKrwCompact`. 중간에 `parseFloat` 등으로 반올림하지 않는다. 표기 기준: 요약·헤더·차트 범례처럼 규모만 보면 되는 곳은 `formatKrwCompact`(아주 좁은 캘린더 셀·축은 `formatKrwAxis`), 항목 행·폼·툴팁처럼 정확한 값이 필요한 곳은 `formatKrw` — 만원 단위 반올림이라 "65,000원"이 "7만원"이 된다. 입력은 `common/AmountInput`(격자형은 `amountInputProps`). 수익률은 `formatReturnPct`(소수 첫째 자리, `signed`면 양수에 +).
 - **긴 안내 문단**: 화면 하단 설명은 `common/CollapsibleHint`(모바일 한 줄 + "자세히").
 - **터치 타깃**: 단독 액션 버튼은 `constants/uiSizes.ts`의 `TOUCH_TARGET_MIN`(44px), 조밀한 배지/탭은 `TOUCH_TARGET_COMPACT_MOBILE_ONLY`(36px). `Button`에 `!min-h-0 !py-1` 같은 override로 깎지 않는다. 글자는 `text-[11px]` 미만 금지 — 좁은 곳은 `formatKrwCompact`로 줄인다.
-- **로딩·실패 vs 없음**: 쿼리 데이터가 아직 없거나 실패한 상태를 빈 상태("~이 없어요")로 그리지 않는다 — `common/QueryBoundary`(카드 안이면 `compact` + `SkeletonCard bare`)로 감싼다. 확인 모달은 뮤테이션 `isPending`을 `ConfirmModal`의 `loading`으로 넘겨 연타를 막는다.
+- **로딩·실패 vs 없음**: 쿼리 데이터가 아직 없거나 실패한 상태를 빈 상태("~이 없어요")로 그리지 않는다 — `common/QueryBoundary`(카드 안이면 `compact` + `SkeletonCard bare`)로 감싼다. 반대로 **데이터가 있으면 재요청이 실패해도 에러 화면으로 바꾸지 않는다**(`isError && data === undefined`일 때만 에러) — 바꾸면 안에서 열린 폼 모달이 언마운트돼 입력이 날아간다. 직접 분기하는 화면(`DashboardPage`·`AnnualPlanPanel` 등)도 같은 규칙. 확인 모달은 뮤테이션 `isPending`을 `ConfirmModal`의 `loading`으로 넘겨 연타를 막는다.
 - **페이지 제목**: `Header.tsx`가 `<h1>`로 보여준다(`pageTitleFor`). 페이지 컴포넌트에 제목 `h1`을 두지 않는다.
 - **label 연결**: `FormInput`은 알아서 한다. 직접 쓰는 `<label>` + `<select>`/`<textarea>`는 `useId()`로 `htmlFor`/`id`를 건다(정적 id 금지). 칩 묶음은 `role="group"` + `aria-labelledby`.
 - **입력 스타일**: `constants/inputStyles.ts`의 `INPUT_SM`/`INPUT_MD`/`LABEL_SM`/`LABEL_MD`를 재사용한다.

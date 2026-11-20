@@ -8,13 +8,13 @@ import { formatKrw, formatReturnPct, formatYearMonth } from "@/utils/format";
 /** "투자 수익을 반영하면?" — growlio가 계산한 이 목표의 필요 연수익률과 실제 투자 수익률(XIRR)을 나란히 보여주고,
  * 가정 수익률별로 매달 얼마를 모아야 하는지 안내한다. growlio 미설정·접속 실패·목표일 없음이면 숨긴다. */
 export default function GrowlioInsightCard({ goalId }: { goalId: number }) {
-  const { data, isError } = useQuery({
+  const { data } = useQuery({
     queryKey: QUERY_KEYS.financialGoalGrowlioInsight(goalId),
     queryFn: () => fetchGoalGrowlioInsight(goalId),
     retry: false,
     staleTime: STALE_TIME.MEDIUM,
   });
-  if (isError || !data) return null;
+  if (!data) return null;
   const { performance, feasibility, linked_performance: linked, eta_with_actual_return_year_month: etaActual } = data;
   // 목표에 연동된 계좌의 수익률이 있으면 그것을, 없으면 growlio 전체 계좌 수익률을 "우리 실제 수익률"로 보여준다.
   const linkedReturn = linked?.xirr_pct ?? null;
