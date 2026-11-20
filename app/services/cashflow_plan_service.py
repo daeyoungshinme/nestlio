@@ -211,7 +211,7 @@ def link_recurring(db: Session, item_id: int, recurring_expense_id: int) -> Annu
     의도된 설계다 (app/services/CLAUDE.md의 컨벤션 참고): 주 리소스(path param인 item_id)가 없으면
     None을 반환해 라우터가 404로 변환하고, 요청 바디로 참조한 보조 리소스(recurring_expense_id)가 없으면
     전용 예외(RecurringExpenseNotFoundError)를 던져 원인이 다른 404임을 구분하며, 이미 연결된 상태 충돌은
-    ValueError로 라우터가 409로 변환한다."""
+    AlreadyLinkedError(ConflictError)로 전역 핸들러가 409로 바꾼다."""
     item = db.get(AnnualPlanItem, item_id)
     if item is None:
         return None

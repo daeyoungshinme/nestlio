@@ -105,3 +105,11 @@ def test_get_recipients_falls_back_on_corrupted_value(seeded_db):
         db, notification_settings_service.NOTIFY_RECIPIENT_EMAILS_KEY, "{not json", user.id
     )
     assert notification_settings_service.get_recipients(db) == [user.email]
+
+
+def test_recipients_excluding_ignores_email_case(seeded_db):
+    # 설정 화면에 대문자를 섞어 저장해도 행위자 본인에게 "방금 내가 한 일" 메일이 가지 않아야 한다.
+    db, user = seeded_db["db"], seeded_db["user"]
+    notification_settings_service.set_recipients(db, [user.email.upper(), "spouse2@example.com"], user.id)
+
+    assert notification_settings_service.recipients_excluding(db, user.id) == ["spouse2@example.com"]

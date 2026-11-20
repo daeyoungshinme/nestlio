@@ -310,3 +310,46 @@ def test_build_flags_small_frequent_and_unregistered_recurring(seeded_db):
     by_rule = {i["rule_code"]: i for i in review["items"]}
     assert by_rule["small_frequent"]["estimated_monthly_saving"] == D("12000")  # 40,000 × 30%
     assert by_rule["unregistered_recurring"]["category_id"] == subs.id
+
+
+def test_build_skips_insurance_categories_in_trend_and_overrun_rules(seeded_db):
+    # 보험료 증가·초과는 보험 점검이 본다 — 소비 점검이 같은 돈을 또 절감액으로 세면 합계가 이중이 된다.
+    from app.models.category import Category
+
+    db, user = seeded_db["db"], seeded_db["user"]
+    insurance = Category(name="보험료", type="variable", color="#8b5cf6")
+    db.add(insurance)
+    db.commit()
+    for month in (7, 8, 9):
+        ym = f"2026-{month:02d}"
+        cashflow_plan_service.upsert_item(
+            db, None, "variable", None, "보험", D("100000"), 0, ym, user.id, category_id=insurance.id
+        )
+    make_transaction(db, user, insurance, "100000", date(2026, 7, 5))
+    make_transaction(db, user, insurance, "130000", date(2026, 8, 5))
+    make_transaction(db, user, insurance, "300000", date(2026, 9, 5))
+
+    review = spending_review_service.build_spending_review(db, "2026-09", today=date(2026, 10, 15))
+
+    assert [i for i in review["items"] if i["category_id"] == insurance.id] == []
+
+
+def test_build_reads_far_enough_back_for_longer_rule_windows(seeded_db):
+    # 만성 초과 개월 수를 lookback보다 길게 설정해도 앞쪽 달 거래를 읽어야 규칙이 동작한다.
+    from unittest.mock import patch
+
+    db, user, food = seeded_db["db"], seeded_db["user"], seeded_db["food"]
+    for month in (5, 6, 7, 8, 9):
+        ym = f"2026-{month:02d}"
+        cashflow_plan_service.upsert_item(
+            db, None, "variable", None, "외식", D("100000"), 0, ym, user.id, category_id=food.id
+        )
+        make_transaction(db, user, food, "130000", date(2026, month, 10))
+
+    with (
+        patch.object(spending_review_service.settings, "spending_review_lookback_months", 2),
+        patch.object(spending_review_service.settings, "chronic_overrun_months", 5),
+    ):
+        review = spending_review_service.build_spending_review(db, "2026-09", today=date(2026, 10, 15))
+
+    assert any(i["rule_code"] == "chronic_overrun" for i in review["items"])
