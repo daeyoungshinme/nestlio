@@ -620,6 +620,12 @@ def test_unlinked_goal_without_monthly_targets_still_uses_manual_amount(seeded_d
     assert goal_progress_service.compute_current_amount(db, goal) == Decimal("1000000")
 
 
+def _linked_monthly_achieved(db, goal, year_months):
+    """목표 목록·상세(`to_out`)가 쓰는 실제 경로 — 거래 행을 한 번에 가져와 목표별로 나눈다."""
+    rows = goal_progress_service._linked_transaction_rows(db, [goal], year_months)
+    return goal_progress_service._bucket_linked_rows(goal, year_months, rows)
+
+
 def test_compute_linked_monthly_achieved_sums_account_transactions_by_income_expense(seeded_db):
     db, user, salary, food = seeded_db["db"], seeded_db["user"], seeded_db["salary"], seeded_db["food"]
     account = account_service.create_account(db, "입출금통장", "checking", Decimal("0"))
@@ -643,7 +649,7 @@ def test_compute_linked_monthly_achieved_sums_account_transactions_by_income_exp
     # 이 계좌와 무관한 거래(다른 카테고리, account_id 없음)는 집계에서 제외된다.
     transaction_service.create_transaction(db, user_id=user.id, category_id=food.id, type_="expense", amount=Decimal("999999"), transaction_date=date(2026, 9, 15))
 
-    result = goal_progress_service.compute_linked_monthly_achieved(db, goal, ["2026-09"])
+    result = _linked_monthly_achieved(db, goal, ["2026-09"])
     assert result == {"2026-09": Decimal("250000")}
 
 
@@ -678,7 +684,7 @@ def test_compute_linked_monthly_achieved_savings_product_deposits_always_add(see
         savings_product_id=product.id,
     )
 
-    result = goal_progress_service.compute_linked_monthly_achieved(db, goal, ["2026-09"])
+    result = _linked_monthly_achieved(db, goal, ["2026-09"])
     assert result == {"2026-09": Decimal("100000")}
 
 
@@ -724,7 +730,7 @@ def test_compute_linked_monthly_achieved_transfer_inside_goal_cancels_out(seeded
         db, user_id=user.id, category_id=food.id, type_="expense", amount=Decimal("5000"), transaction_date=date(2026, 9, 7), account_id=goal_account.id
     )  # 목표 계좌에서 지출 → −5000
 
-    result = goal_progress_service.compute_linked_monthly_achieved(db, goal, ["2026-09"])
+    result = _linked_monthly_achieved(db, goal, ["2026-09"])
     assert result == {"2026-09": Decimal("25000")}
 
 

@@ -1,7 +1,7 @@
 import { useState } from "react";
 import type { UserOut } from "@/types";
 
-export const ALL_OWNERS_TAB = "전체";
+const ALL_OWNERS_TAB = "전체";
 
 /** 전체 / 배우자 이름들 / 공통(또는 "공동") 탭 — 보고서·절감 점검·일정 목록이 같은 탭과 같은 판정을 쓴다.
  * `ownerParam`은 API의 owner 파라미터 모양: 전체면 undefined, 공통이면 "shared", 배우자면 그 user id
