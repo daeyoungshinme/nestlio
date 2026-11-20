@@ -85,7 +85,7 @@ export default function GoalListCard({
 
   // 아직 달성 못한 가장 이른 달 — 연동 목표는 거래내역 기반 자동계산값(is_auto_computed)이라
   // 저장 버튼 없이 읽기 전용으로 보여주고, 미연동 목표는 인라인 입력을 쓴다
-  // (app/services/goal_service.py::compute_linked_monthly_achieved 참고). 챌린지는 월별 계획
+  // (app/services/goal_progress_service.py::_bucket_linked_rows 참고). 챌린지는 월별 계획
   // 자체가 없어(toPayload에서 항상 monthly_targets: null로 저장) 이 블록이 자연히 no-op된다.
   const activeMonth = goal.monthly_targets.find((mt) => !mt.is_achieved) ?? null;
   const isAutoComputed = activeMonth?.is_auto_computed ?? false;

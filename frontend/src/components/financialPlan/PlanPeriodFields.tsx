@@ -7,7 +7,7 @@ import { formatMonthOnly } from "@/utils/format";
 import { buildYearMonthRange } from "@/utils/monthRange";
 
 /** 그 해 안의 적용 시작월·종료월 선택 — 시작월은 종료월 이하, 종료월은 시작월 이상만 고를 수 있다. */
-export function MonthRangeSelect({
+function MonthRangeSelect({
   year,
   startMonth,
   endMonth,

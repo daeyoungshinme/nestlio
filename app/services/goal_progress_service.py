@@ -101,23 +101,6 @@ def compute_current_amount(db: Session, goal: FinancialGoal) -> Decimal:
     return current_amount_from_breakdown(goal, funding_source_breakdown(db, goal))
 
 
-def compute_linked_monthly_achieved(db: Session, goal: FinancialGoal, year_months: list[str]) -> dict[str, Decimal]:
-    """연동된 저축상품/계좌로 유입된 금액을 월별로 집계해 kind="goal" 연동 목표의 '이번 달 달성액'
-    자동값으로 쓴다. 대출 연동은 Transaction에 loan_id가 없어 월별로 귀속시킬 수 없으므로 집계
-    대상에서 제외한다(대출 낀 목표는 이번 달 값도 계속 수동 입력을 받는다).
-
-    저축상품 연동 거래(savings_product_id)는 항상 type="expense"로만 기록되지만(체크통장에서
-    저축상품으로 돈이 나가는 지출 형태) 그 금액은 상품 잔액을 늘리는 입금이다
-    (transaction_service.create_transaction -> savings_product_service.adjust_balance(+amount)와
-    동일 규칙) — 그래서 income/expense와 무관하게 항상 +amount로 더한다. 계좌 연동 거래(account_id)는
-    반대로 일반적인 수입=+/지출=- 규칙을 그대로 따른다(account_service.current_balance와 동일 규칙).
-    한 거래가 계좌와 저축상품 양쪽에 걸려 있으면(같은 목표에 둘 다 연동된 경우, 계좌에서 상품으로
-    이체) 계좌 쪽 -amount와 상품 쪽 +amount가 상쇄돼 목표 내부 이동이 이중 집계되지 않는다.
-
-    year_months가 비었거나 연동된 저축상품/계좌가 없으면 0으로 채운 dict."""
-    return _bucket_linked_rows(goal, year_months, _linked_transaction_rows(db, [goal], year_months))
-
-
 def _linked_transaction_rows(db: Session, goals: list[FinancialGoal], year_months: list[str]) -> list:
     """목표들에 연동된 계좌·저축상품의 거래를 year_months 범위에서 한 번에 가져온다 — 목표마다 조회하면
     목표 목록이 N+1이 된다. 행을 어느 목표에 귀속할지는 _bucket_linked_rows가 정한다."""
@@ -149,8 +132,15 @@ def _linked_transaction_rows(db: Session, goals: list[FinancialGoal], year_month
 
 
 def _bucket_linked_rows(goal: FinancialGoal, year_months: list[str], rows: list) -> dict[str, Decimal]:
-    """compute_linked_monthly_achieved의 집계 규칙. rows에는 다른 목표 몫이 섞여 있을 수 있어 이 목표에
-    연동된 계좌·상품의 거래만 고른다."""
+    """연동된 저축상품/계좌로 유입된 금액을 월별로 집계한다 — kind="goal" 연동 목표의 '이번 달 달성액' 자동값
+    (`to_out`이 `_prefetch`의 `_linked_transaction_rows` 결과로 부른다). rows에는 다른 목표 몫이 섞여 있을 수 있어
+    이 목표에 연동된 계좌·상품의 거래만 고른다. 대출 연동은 Transaction에 loan_id가 없어 월별로 귀속시킬 수 없으므로
+    제외한다(대출 낀 목표는 이번 달 값도 수동 입력).
+
+    저축상품 연동 거래(savings_product_id)는 항상 type="expense"로 기록되지만 그 금액은 상품 잔액을 늘리는 입금이라
+    (savings_product_service.adjust_balance(+amount)와 같은 규칙) 유형과 무관하게 +amount. 계좌 연동 거래(account_id)는
+    수입=+/지출=-(account_service.current_balance와 같은 규칙). 한 거래가 같은 목표의 계좌와 상품 양쪽에 걸리면(계좌 →
+    상품 이체) -amount와 +amount가 상쇄돼 목표 내부 이동이 이중 집계되지 않는다. 연동이 없으면 0으로 채운 dict."""
     result = {ym: Decimal("0") for ym in year_months}
     account_ids = set(_linked_account_ids(goal))
     product_ids = set(_linked_product_ids(goal))
