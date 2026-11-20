@@ -1061,3 +1061,64 @@ def test_create_goal_keeps_creator_only_for_challenges(seeded_db):
 
     assert goal.created_by_id is None
     assert challenge.created_by_id == user.id
+
+
+def test_deactivated_product_drops_out_of_goal_amount_and_returns_on_reactivate(seeded_db):
+    # 적금 A를 해지(비활성화)하고 새 적금 B로 옮겨 연동하면, A의 멈춘 잔액이 목표에 이중으로 남으면 안 된다.
+    db = seeded_db["db"]
+    old = savings_product_service.create_product(db, "옛 적금", Decimal("5000000"), Decimal("100000"))
+    new = savings_product_service.create_product(db, "새 적금", Decimal("5000000"), Decimal("100000"))
+    goal = goal_service.create_goal(
+        db,
+        priority=1,
+        name="목돈",
+        target_age=None,
+        required_amount=Decimal("20000000"),
+        monthly_saving_amount=Decimal("0"),
+        funding_sources=[{"type": "savings_product", "id": old.id}, {"type": "savings_product", "id": new.id}],
+    )
+    savings_product_service.deactivate_product(db, old.id)
+    db.refresh(goal)
+
+    assert goal_progress_service.compute_current_amount(db, goal) == Decimal("5000000")
+    assert [fs["id"] for fs in goal_progress_service.funding_source_breakdown(db, goal)] == [new.id]
+    assert len(goal.funding_sources) == 2  # 연동 행은 남긴다
+
+    old.is_active = True
+    db.commit()
+    db.refresh(goal)
+    assert goal_progress_service.compute_current_amount(db, goal) == Decimal("10000000")
+
+
+def test_cannot_newly_link_inactive_funding_source_but_existing_link_survives_update(seeded_db):
+    db = seeded_db["db"]
+    product = savings_product_service.create_product(db, "적금", Decimal("1000000"), Decimal("100000"))
+    account = account_service.create_account(db, name="해지 통장", account_type="bank", initial_balance=Decimal("0"))
+    account_service.deactivate_account(db, account.id)
+
+    with pytest.raises(goal_service.FundingSourceNotFoundError):
+        goal_service.create_goal(
+            db,
+            priority=1,
+            name="목돈",
+            target_age=None,
+            required_amount=Decimal("5000000"),
+            monthly_saving_amount=Decimal("0"),
+            funding_sources=[{"type": "account", "id": account.id}],
+        )
+    db.rollback()
+
+    goal = goal_service.create_goal(
+        db,
+        priority=1,
+        name="목돈",
+        target_age=None,
+        required_amount=Decimal("5000000"),
+        monthly_saving_amount=Decimal("0"),
+        funding_sources=[{"type": "savings_product", "id": product.id}],
+    )
+    savings_product_service.deactivate_product(db, product.id)
+    db.refresh(goal)
+    # 이미 연결된 비활성 상품을 그대로 다시 보내는 수정은 거부하지 않는다.
+    goal_service._apply_funding_sources(db, goal, [{"type": "savings_product", "id": product.id}])
+    assert [fs.savings_product_id for fs in goal.funding_sources] == [product.id]
