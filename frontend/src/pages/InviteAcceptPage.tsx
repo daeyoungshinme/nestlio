@@ -2,30 +2,16 @@ import { useId, useState } from "react";
 import type { FormEvent } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { PiggyBank } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { useAuthStore } from "@/stores/authStore";
 import { acceptInvite, fetchInviteByToken } from "@/api/invites";
 import { INPUT_SM } from "@/constants/inputStyles";
 import { QUERY_KEYS } from "@/constants/queryKeys";
 import { extractErrorMessage, getHttpStatus } from "@/utils/error";
+import AuthCard from "@/components/common/AuthCard";
 import Button from "@/components/common/Button";
 import { ROUTES } from "@/constants/routes";
 import { errorMessageTextClass } from "@/utils/colors";
-
-function AuthCard({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="min-h-dvh flex items-center justify-center bg-gray-50 dark:bg-gray-950 px-4">
-      <div className="w-full max-w-sm bg-white dark:bg-gray-900 rounded-2xl shadow-xs border border-gray-200 dark:border-gray-700 p-6 sm:p-8">
-        <div className="flex items-center gap-2 mb-6 justify-center">
-          <PiggyBank className="text-primary-600 dark:text-primary-400" size={28} />
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-50">Nestlio</h1>
-        </div>
-        {children}
-      </div>
-    </div>
-  );
-}
 
 function InviteMessage({ message }: { message: string }) {
   return (
@@ -66,7 +52,29 @@ export default function InviteAcceptPage() {
 
   const acceptMutation = useMutation({
     mutationFn: (vars: { displayName: string }) => acceptInvite(token, { display_name: vars.displayName }),
+    // 실패는 폼 아래에 인라인으로 보여준다 — 비워 두면 전역 MutationCache가 같은 문구를 토스트로 한 번 더 띄운다.
+    onError: () => {},
   });
+
+  /** 막 받은 세션으로 초대를 수락한다. 실패하면 세션을 지운다 — 남겨 두면 다음 방문 때 `/users/me`가 이 계정을
+   * 초대 없이 가구에 자동 등록해(정원이 남았을 때) 입력한 표시 이름 대신 이메일 앞부분으로 들어간다. */
+  const acceptWithNewSession = async () => {
+    try {
+      await acceptMutation.mutateAsync({ displayName });
+    } catch (err) {
+      await supabase.auth.signOut();
+      throw err;
+    }
+    await checkAuth();
+    navigate(ROUTES.dashboard);
+  };
+
+  const switchToExistingAccount = () => {
+    setAlreadyRegistered(true);
+    setPassword("");
+    setPasswordConfirm("");
+    setError("이미 가입된 계정이에요. 기존 비밀번호를 입력해서 초대를 수락해주세요.");
+  };
 
   const handleSignInAndAccept = async () => {
     if (!inviteQuery.data) return;
@@ -80,9 +88,7 @@ export default function InviteAcceptPage() {
         setError("비밀번호가 일치하지 않습니다");
         return;
       }
-      await acceptMutation.mutateAsync({ displayName });
-      await checkAuth();
-      navigate("/");
+      await acceptWithNewSession();
     } catch (err) {
       setError(extractErrorMessage(err, "초대 수락 중 오류가 발생했습니다"));
     } finally {
@@ -125,10 +131,7 @@ export default function InviteAcceptPage() {
       if (signUpError || !data.user) {
         const msg = (signUpError?.message ?? "").toLowerCase();
         if (msg.includes("already registered") || msg.includes("already been registered")) {
-          setAlreadyRegistered(true);
-          setPassword("");
-          setPasswordConfirm("");
-          setError("이미 가입된 계정이에요. 기존 비밀번호를 입력해서 초대를 수락해주세요.");
+          switchToExistingAccount();
         } else if (msg.includes("should not be too common") || msg.includes("data breach")) {
           setError("유출된 적 있는 비밀번호입니다. 다른 비밀번호를 사용해주세요.");
         } else {
@@ -136,13 +139,17 @@ export default function InviteAcceptPage() {
         }
         return;
       }
+      // 이메일 확인이 켜져 있으면 Supabase는 이미 가입된 이메일에도 오류 없이 빈 identities를 돌려준다(가입 여부를
+      // 숨기려는 동작) — 확인 메일은 가지 않으므로 "메일을 확인하세요"로 두면 그대로 막힌다. growlio 사용자가 이 경우다.
+      if (data.user.identities?.length === 0) {
+        switchToExistingAccount();
+        return;
+      }
 
       if (data.session) {
         // 이메일 확인 없이 즉시 세션이 발급된 경우 - 방금 생긴 세션의 JWT로 바로 수락한다.
         // 확인이 필요한 경우엔 세션이 아직 없으므로, 수락은 AuthCallbackPage에서 처리한다.
-        await acceptMutation.mutateAsync({ displayName });
-        await checkAuth();
-        navigate("/");
+        await acceptWithNewSession();
       } else {
         setAwaitingConfirmation(true);
       }
