@@ -31,8 +31,6 @@ services:
         sync: false
       - key: SUPABASE_SERVICE_ROLE_KEY
         sync: false
-      - key: SUPABASE_STORAGE_BUCKET
-        value: nestlio-media
       # 실제 배포 도메인(Render가 할당하는 https://<service>.onrender.com)은 첫 배포 후에만
       # 알 수 있으므로 값을 미리 채우지 않는다 - 대시보드에서 배포 후 직접 채운다.
       - key: CORS_ORIGINS
@@ -49,8 +47,6 @@ services:
         sync: false
       - key: GOOGLE_OAUTH_CLIENT_SECRET
         sync: false
-      - key: MAX_UPLOAD_SIZE_MB
-        value: "5"
       # 코칭 임계값은 여기서 하드코딩하지 않는다 — 정본은 app/config.py 기본값이고, 부부가
       # 조정한 값은 설정 화면(coaching_settings_service, Postgres user_settings)이 우선한다.
       - key: VITE_SUPABASE_URL

@@ -8,7 +8,7 @@ import { TOUCH_TARGET_MIN_MOBILE_ONLY } from "@/constants/uiSizes";
 import { growlioLinkedBadgeStyle } from "@/utils/colors";
 import { formatSyncedAt } from "@/utils/format";
 
-export type AssetRowAction = AccountActionsMenuItem;
+type AssetRowAction = AccountActionsMenuItem;
 
 const ACTION_HOVER_CLASS = "hover:text-primary-600 hover:bg-primary-50 dark:hover:bg-primary-950";
 

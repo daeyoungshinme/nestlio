@@ -1,7 +1,7 @@
 import type { EventOut, RecurringOut, TransactionOut } from "@/types";
 
 /** 캘린더 칸 한 줄 미리보기. `muted`는 완료된 일정처럼 흐리게(취소선) 보여줄 항목. */
-export interface CellPreviewLine {
+interface CellPreviewLine {
   key: string;
   label: string;
   kind: "income" | "expense" | "event" | "recurring";

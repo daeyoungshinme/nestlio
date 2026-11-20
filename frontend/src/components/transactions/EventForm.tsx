@@ -15,7 +15,7 @@ const REMINDER_OPTIONS: { value: string; label: string }[] = [
   { value: "1440", label: "1일 전" },
 ];
 
-export interface EventFormValues {
+interface EventFormValues {
   title: string;
   description: string;
   location: string;
