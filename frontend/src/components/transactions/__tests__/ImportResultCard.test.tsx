@@ -1,6 +1,6 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
-import { ImportResultCard } from "@/pages/TransactionImportPage";
+import ImportResultCard from "@/components/transactions/ImportResultCard";
 import type { ImportResultOut } from "@/types";
 
 describe("ImportResultCard", () => {

@@ -27,7 +27,7 @@ export type LedgerView = (typeof LEDGER_VIEWS)[number];
 
 /** `/plan`의 세그먼트(`?view=`). PlanPage가 이 값을 그대로 탭 라벨로 쓴다. */
 export const PLAN_VIEWS = ["이번 달", "연간"] as const;
-export type PlanView = (typeof PLAN_VIEWS)[number];
+type PlanView = (typeof PLAN_VIEWS)[number];
 
 export function planViewLink(view: PlanView): string {
   return `${ROUTES.plan}?view=${view}`;
@@ -59,11 +59,10 @@ export function accountsSectionLink(section: AccountsSection): string {
 
 /** `/review`의 탭(`?tab=`). SavingsReviewPage가 이 값을 그대로 탭 라벨로 쓴다. */
 export const SAVINGS_REVIEW_TABS = ["소비", "보험"] as const;
-export type SavingsReviewTab = (typeof SAVINGS_REVIEW_TABS)[number];
+type SavingsReviewTab = (typeof SAVINGS_REVIEW_TABS)[number];
 
 /** `/todos`의 탭(`?tab=`). */
 export const TODO_TABS = ["진행 중", "완료"] as const;
-export type TodoTab = (typeof TODO_TABS)[number];
 
 export function savingsReviewLink(tab?: SavingsReviewTab): string {
   return tab ? `${ROUTES.savingsReview}?tab=${tab}` : ROUTES.savingsReview;

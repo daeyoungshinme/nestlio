@@ -6,7 +6,7 @@ interface CategorizedItem {
   category_color: string | null;
 }
 
-export interface CategoryGroup<T extends CategorizedItem> {
+interface CategoryGroup<T extends CategorizedItem> {
   category_id: number | null;
   category_name: string | null;
   category_color: string | null;

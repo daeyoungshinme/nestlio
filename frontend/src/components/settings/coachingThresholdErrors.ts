@@ -1,6 +1,6 @@
 import type { CoachingThresholdsOut } from "@/types";
 
-export type ThresholdKey = keyof CoachingThresholdsOut;
+type ThresholdKey = keyof CoachingThresholdsOut;
 /** 입력 중인 값 — 비운 칸은 ""로 둔다(Number("")가 0이라 그대로 저장하면 기준이 0%가 된다). */
 export type ThresholdDraft = Record<ThresholdKey, number | "">;
 

@@ -3,7 +3,7 @@ import EmptyState from "@/components/common/EmptyState";
 import TransactionListItem from "@/components/transactions/TransactionListItem";
 import type { TransactionOut, UserOut } from "@/types";
 
-export interface TransactionGroup {
+interface TransactionGroup {
   key: string | number;
   name: string;
   amountLabel: string;

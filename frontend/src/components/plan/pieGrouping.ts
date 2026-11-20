@@ -1,7 +1,7 @@
 import { CATEGORY_SWATCH_FALLBACK_COLOR } from "@/utils/colors";
 import type { CategoryAmountOut } from "@/types";
 
-export interface PieSlice {
+interface PieSlice {
   name: string;
   value: number;
   color: string;

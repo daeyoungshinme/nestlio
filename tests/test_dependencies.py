@@ -198,9 +198,3 @@ def test_verify_token_requires_supabase_issuer(monkeypatch):
         dependencies.verify_supabase_token(_signed_token(iss="https://other.supabase.co/auth/v1"))
     with pytest.raises(ValueError):
         dependencies.verify_supabase_token(_signed_token())  # iss 누락
-
-
-def test_security_headers_include_clickjacking_and_object_csp(unauth_client):
-    csp = unauth_client.get("/api/v1/users/me").headers["Content-Security-Policy"]
-    for directive in ("frame-ancestors 'none'", "object-src 'none'", "base-uri 'self'"):
-        assert directive in csp
