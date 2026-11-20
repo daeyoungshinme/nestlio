@@ -1,9 +1,10 @@
-import { PiggyBank } from "lucide-react";
 import { useId, useState } from "react";
 import type { FormEvent } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
+import AuthCard from "@/components/common/AuthCard";
 import Button from "@/components/common/Button";
+import { ROUTES } from "@/constants/routes";
 import { useAuthStore } from "@/stores/authStore";
 import { INPUT_SM } from "@/constants/inputStyles";
 import { extractErrorMessage } from "@/utils/error";
@@ -36,7 +37,7 @@ export default function LoginPage() {
         queryFn: () => fetchDashboard(yearMonth),
       });
       void queryClient.prefetchQuery({ queryKey: QUERY_KEYS.accounts, queryFn: fetchAccounts });
-      navigate("/");
+      navigate(ROUTES.dashboard);
     } catch (err) {
       if (import.meta.env.DEV) console.error("login failed", err);
       setError(extractErrorMessage(err, "로그인에 실패했습니다"));
@@ -46,14 +47,7 @@ export default function LoginPage() {
   };
 
   return (
-    // px-4: 360px에서 카드가 화면 가장자리에 붙지 않게. 모바일은 카드 안쪽 여백도 줄인다.
-    <div className="min-h-dvh flex items-center justify-center bg-gray-50 dark:bg-gray-950 px-4">
-      <div className="w-full max-w-sm bg-white dark:bg-gray-900 rounded-2xl shadow-xs border border-gray-200 dark:border-gray-700 p-6 sm:p-8">
-        <div className="flex items-center gap-2 mb-8 justify-center">
-          <PiggyBank className="text-primary-600 dark:text-primary-400" size={28} />
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-50">Nestlio</h1>
-        </div>
-
+    <AuthCard>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label htmlFor={`${fieldId}-email`} className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
@@ -93,7 +87,6 @@ export default function LoginPage() {
             로그인
           </Button>
         </form>
-      </div>
-    </div>
+    </AuthCard>
   );
 }

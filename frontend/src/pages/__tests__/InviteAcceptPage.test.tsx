@@ -5,11 +5,13 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const signUp = vi.fn();
 const signInWithPassword = vi.fn();
+const signOut = vi.fn(async () => ({ error: null }));
 vi.mock("@/lib/supabase", () => ({
   supabase: {
     auth: {
       signUp: (...args: unknown[]) => signUp(...args),
       signInWithPassword: (...args: unknown[]) => signInWithPassword(...args),
+      signOut: () => signOut(),
     },
   },
 }));
@@ -19,15 +21,19 @@ vi.mock("@/stores/authStore", () => ({
 }));
 const fetchInviteByToken = vi.fn();
 const acceptInvite = vi.fn();
+const toast = vi.fn();
+vi.mock("@/utils/toast", () => ({ toast: (...args: unknown[]) => toast(...args) }));
 vi.mock("@/api/invites", () => ({
   fetchInviteByToken: (...args: unknown[]) => fetchInviteByToken(...args),
   acceptInvite: (...args: unknown[]) => acceptInvite(...args),
 }));
 
 const { default: InviteAcceptPage } = await import("@/pages/InviteAcceptPage");
+const { createMutationCache } = await import("@/utils/queryClient");
 
 function renderAt(url: string) {
-  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  // 실제 앱처럼 전역 MutationCache를 달아 "토스트 + 인라인" 이중 표시를 잡는다.
+  const client = new QueryClient({ defaultOptions: { queries: { retry: false } }, mutationCache: createMutationCache() });
   return render(
     <QueryClientProvider client={client}>
       <MemoryRouter initialEntries={[url]}>
@@ -119,5 +125,39 @@ describe("InviteAcceptPage", () => {
 
     await waitFor(() => expect(acceptInvite).toHaveBeenCalledWith("abc", { display_name: "배우자" }));
     expect(signInWithPassword).toHaveBeenCalledWith({ email: "spouse@example.com", password: "existing-pass" });
+  });
+
+  it("treats an empty identities list as an already-registered email", async () => {
+    // 이메일 확인이 켜져 있으면 Supabase는 이미 가입된 이메일에도 오류 없이 identities: []를 돌려준다.
+    signUp.mockResolvedValue({ data: { user: { id: "u-2", identities: [] }, session: null }, error: null });
+    renderAt("/invite/accept?token=abc");
+    await screen.findByDisplayValue("spouse@example.com");
+    fill("표시 이름", "배우자");
+    fill("비밀번호", "password123");
+    fill("비밀번호 확인", "password123");
+    fireEvent.click(screen.getByRole("button", { name: "가입하기" }));
+
+    expect(await screen.findByRole("button", { name: "로그인하고 초대 수락" })).toBeInTheDocument();
+    expect(screen.queryByText(/가입 확인 이메일을 발송했습니다/)).not.toBeInTheDocument();
+  });
+
+  it("signs out and shows the error once when accepting fails after sign-in", async () => {
+    signUp.mockResolvedValue({ data: { user: null, session: null }, error: { message: "User already registered" } });
+    signInWithPassword.mockResolvedValue({ data: { user: { id: "u-2" } }, error: null });
+    acceptInvite.mockRejectedValue({ isAxiosError: true, response: { status: 403, data: { detail: "가구 정원이 찼습니다." } } });
+    renderAt("/invite/accept?token=abc");
+    await screen.findByDisplayValue("spouse@example.com");
+    fill("표시 이름", "배우자");
+    fill("비밀번호", "password123");
+    fill("비밀번호 확인", "password123");
+    fireEvent.click(screen.getByRole("button", { name: "가입하기" }));
+    const signInButton = await screen.findByRole("button", { name: "로그인하고 초대 수락" });
+    fill("기존 비밀번호", "existing-pass");
+    fireEvent.click(signInButton);
+
+    expect(await screen.findByText("가구 정원이 찼습니다.")).toBeInTheDocument();
+    expect(signOut).toHaveBeenCalledOnce();
+    expect(checkAuth).not.toHaveBeenCalled();
+    expect(toast).not.toHaveBeenCalled();
   });
 });
