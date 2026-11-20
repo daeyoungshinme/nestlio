@@ -12,16 +12,19 @@ export function formatKrw(value: string | number | null | undefined): string {
 
 /** 억원/만원 단위 축약 표기. 예: 150_000_000 -> "1.50억원", 5_000_000 -> "500만원", 3_000 -> "3,000원" */
 export function formatKrwCompact(n: number): string {
-  if (Math.abs(n) >= 1e8) return `${(n / 1e8).toFixed(2)}억원`;
-  if (Math.abs(n) >= 1e4) return `${KRW_FORMATTER.format(Math.round(n / 1e4))}만원`;
+  // 만원 단위로 반올림한 값이 1억이 되면 억 단위로 올린다 — 99_995_000이 "10,000만원"으로 보이지 않게.
+  const man = Math.round(n / 1e4);
+  if (Math.abs(n) >= 1e8 || Math.abs(man) >= 1e4) return `${(n / 1e8).toFixed(2)}억원`;
+  if (Math.abs(n) >= 1e4) return `${KRW_FORMATTER.format(man)}만원`;
   return `${KRW_FORMATTER.format(Math.floor(n))}원`;
 }
 
 /** 차트 축 눈금용 짧은 표기(단위 "원" 생략) — 모바일 폭에서 Y축이 그래프를 잡아먹지 않게 한다.
  * 예: 150_000_000 -> "1.5억", 5_000_000 -> "500만", 3_000 -> "3,000" */
 export function formatKrwAxis(n: number): string {
-  if (Math.abs(n) >= 1e8) return `${Number((n / 1e8).toFixed(1))}억`;
-  if (Math.abs(n) >= 1e4) return `${KRW_FORMATTER.format(Math.round(n / 1e4))}만`;
+  const man = Math.round(n / 1e4);
+  if (Math.abs(n) >= 1e8 || Math.abs(man) >= 1e4) return `${Number((n / 1e8).toFixed(1))}억`;
+  if (Math.abs(n) >= 1e4) return `${KRW_FORMATTER.format(man)}만`;
   return KRW_FORMATTER.format(Math.floor(n));
 }
 

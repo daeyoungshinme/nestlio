@@ -10,7 +10,10 @@ import { extractErrorMessage } from "@/utils/error";
  * - 단일 쿼리: `query` prop + render-prop children — children이 확정된 `data`를 인자로 받는다.
  * - 다중 쿼리: `queries` 배열 + children — 하나라도 데이터가 없으면 폴백, 하나라도 에러면 ErrorState.
  *   `data`의 속성을 읽는 내용은 반드시 render-prop(`{() => ...}`)으로 넘긴다. 일반 children은 boundary가
- *   판단하기 전에 부모 렌더에서 평가되므로 `query.data!.field`가 그 자리에서 터진다. */
+ *   판단하기 전에 부모 렌더에서 평가되므로 `query.data!.field`가 그 자리에서 터진다.
+ * - 에러는 **보여줄 데이터가 없을 때만** ErrorState로 바꾼다. TanStack Query v5는 백그라운드 재요청(창 포커스 등)이
+ *   실패해도 이전 data를 유지한 채 isError를 켠다 — 그때 화면을 에러로 갈아 끼우면 캐시된 내용이 사라지고 안에서
+ *   열려 있던 폼 모달까지 언마운트돼 입력이 날아간다. */
 interface BaseProps {
   /** 로딩 중 표시할 요소. 기본값 `<SkeletonCard rows={4} />`. */
   loadingFallback?: ReactNode;
@@ -36,7 +39,7 @@ export default function QueryBoundary<T>(props: SingleQueryProps<T> | MultiQuery
   const { loadingFallback = <SkeletonCard rows={4} />, errorMessage, compact } = props;
   const list = props.query ? [props.query] : props.queries;
 
-  const errored = list.find((q) => q.isError);
+  const errored = list.find((q) => q.isError && q.data === undefined);
   if (errored) {
     return (
       <ErrorState

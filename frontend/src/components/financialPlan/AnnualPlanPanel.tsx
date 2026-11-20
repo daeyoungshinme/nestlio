@@ -112,7 +112,8 @@ export default function AnnualPlanPanel() {
     </div>
   );
 
-  if (isError || savingsError) {
+  // 데이터가 있으면 백그라운드 재요청 실패여도 그대로 그린다(QueryBoundary와 같은 규칙 — 열린 항목 모달 유지).
+  if ((isError && !data) || (savingsError && !savingsAnnualData)) {
     return (
       <div className="space-y-4">
         {yearNav}

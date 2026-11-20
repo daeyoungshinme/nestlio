@@ -94,7 +94,7 @@ export default function AccountsSnapshotCard() {
     },
   });
 
-  if (isError) {
+  if (isError && !data) {
     return (
       <ErrorState
         title="자산 요약을 불러오지 못했어요"

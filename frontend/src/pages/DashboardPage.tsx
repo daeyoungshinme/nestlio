@@ -95,7 +95,8 @@ export default function DashboardPage() {
     setShowQuickAdd(true);
   };
 
-  if (isError) {
+  // 데이터가 있으면 백그라운드 재요청 실패여도 그대로 그린다(QueryBoundary와 같은 규칙 — 열린 빠른 입력 모달 유지).
+  if (isError && !data) {
     return (
       <ErrorState message={extractErrorMessage(error, "홈 정보를 불러오지 못했습니다.")} onRetry={() => void refetch()} />
     );

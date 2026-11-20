@@ -1,4 +1,4 @@
-import { act, render, renderHook, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, renderHook, screen, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -57,6 +57,35 @@ describe("useTransactionActions", () => {
 
     // mutationFn은 (변수, 컨텍스트)로 불린다 — 첫 인자만 본다.
     await waitFor(() => expect(deleteTransaction.mock.calls[0]?.[0]).toBe(42));
+  });
+
+  it("'취소'로 지워도 그 사이 새로 연 추가 폼은 닫지 않는다", async () => {
+    createTransaction.mockResolvedValue({ id: 42 });
+    deleteTransaction.mockResolvedValue(undefined);
+    function Harness() {
+      const actions = useTransactionActions(args);
+      return (
+        <>
+          <button type="button" onClick={() => actions.openCreate("2026-07-15")}>
+            열기
+          </button>
+          {actions.modals}
+        </>
+      );
+    }
+    render(<Harness />, { wrapper });
+
+    fireEvent.click(screen.getByRole("button", { name: "열기" }));
+    fireEvent.click(screen.getByRole("button", { name: "제출" }));
+    await waitFor(() => expect(toast).toHaveBeenCalledWith("내역을 추가했습니다.", "success", expect.anything()));
+    await waitFor(() => expect(screen.queryByRole("button", { name: "제출" })).not.toBeInTheDocument());
+
+    fireEvent.click(screen.getByRole("button", { name: "열기" }));
+    const action = toast.mock.calls[0][2] as { onClick: () => void };
+    act(() => action.onClick());
+
+    await waitFor(() => expect(toast).toHaveBeenCalledWith("내역을 삭제했습니다.", "success"));
+    expect(screen.getByRole("button", { name: "제출" })).toBeInTheDocument();
   });
 
   it("수정 폼은 카드·계좌·소유자·저축상품을 채운다", () => {

@@ -13,14 +13,15 @@ export function useConfirmDelete<T extends { id: number }>({
 }: {
   remove: (id: number) => Promise<unknown>;
   message: (target: T) => string;
-  onDeleted: () => void;
+  /** 지운 id를 받는다 — 호출 화면이 그 대상의 폼만 닫을 수 있게. */
+  onDeleted: (id: number) => void;
 }): { openDelete: (target: T) => void; deleteNow: (id: number) => void; modal: ReactNode } {
   const [target, setTarget] = useState<T | null>(null);
   const mutation = useMutation({
     mutationFn: remove,
-    onSuccess: () => {
+    onSuccess: (_, id) => {
       setTarget(null);
-      onDeleted();
+      onDeleted(id);
     },
   });
 
