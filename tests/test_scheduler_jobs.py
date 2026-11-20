@@ -31,6 +31,7 @@ def test_daily_due_date_check_posts_due_recurring_without_google(seeded_db, monk
     monkeypatch.setattr(jobs, "today_kst", lambda: date(2026, 7, 5))
 
     jobs.daily_due_date_check()  # Google 미연결이어도 반복거래 자동 기록은 성공해야 한다
+    jobs.daily_due_date_check()  # 같은 날 다시 돌아도(Actions 재실행·수동 실행) 한 번만 기록
 
     db.expire_all()
     posted = db.query(Transaction).filter(Transaction.recurring_expense_id.isnot(None)).all()
@@ -135,6 +136,7 @@ def test_event_reminder_check_logs_in_app_without_google(seeded_db, monkeypatch)
     monkeypatch.setattr(jobs, "now_kst", lambda: datetime(2026, 7, 15, 9, 0))
 
     jobs.event_reminder_check()
+    jobs.event_reminder_check()  # 15분 틱이 겹쳐도 같은 리마인더는 한 번
 
     db.expire_all()
     assert db.query(NotificationLog).filter(NotificationLog.notif_type == "event_reminder").count() == 1

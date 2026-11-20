@@ -19,7 +19,7 @@ npm run generate:icons      # public/favicon.svg → PNG/ICO
 
 백엔드까지 함께 띄우려면 루트 `dev.sh`/`dev.bat`.
 
-- 타입체크는 `strict: true`. oxlint(`.oxlintrc.json`)는 `correctness` 전체 + `react/exhaustive-deps` + `import/no-cycle`이 error.
+- 타입체크는 `strict: true`. oxlint(`.oxlintrc.json`)는 `correctness` 전체 + `react/rules-of-hooks`·`react/exhaustive-deps`·`react/button-has-type`·`import/no-cycle`·`import/no-self-import`이 error(정본은 `.oxlintrc.json`). vitest는 `TZ=Asia/Seoul`로 돈다(`vite.config.ts`) — 날짜 테스트는 `toISOString()`(UTC) 대신 `utils/date`의 로컬 날짜 헬퍼를 쓴다.
 - **아이콘**: 소스는 `public/favicon.svg` 하나다(앱 accent와 별개인 브랜드 마크). 수정하면 `npm run generate:icons`를 직접 돌려 `public/icons/*.png`·`favicon.ico`를 재생성한다 — 빌드에 포함되어 있지 않다.
 
 ## 환경 변수 (`frontend/.env`, `.env.example` 참고)

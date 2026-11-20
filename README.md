@@ -7,12 +7,13 @@
 ## 빠른 시작
 
 ```bash
-cp .env.example .env      # DATABASE_URL 등 채우기 (growlio와 공유하는 Supabase Postgres)
-./dev.sh                  # Windows: dev.bat
+cp .env.example .env                    # DATABASE_URL 등 채우기 (growlio와 공유하는 Supabase Postgres)
+cp frontend/.env.example frontend/.env  # VITE_SUPABASE_* — 빠지면 빌드한 화면이 에러 표시 없이 하얗게 빈다
+./dev.sh                                # Windows: dev.bat
 ```
 
 `dev.sh` 는 백엔드(uvicorn `--reload`)와 프론트(Vite dev 서버)를 함께 띄운다 —
-`http://localhost:5273` 접속. `dev.sh run` 은 `frontend/dist` 정적 빌드 후 단일 프로세스(8899)로 서빙.
+`http://localhost:5273` 접속(포트가 이미 쓰이면 다음 빈 포트 — 스크립트 출력 확인). `dev.sh run` 은 `frontend/dist` 정적 빌드 후 단일 프로세스(8899)로 서빙.
 마이그레이션/시드는 `dev.sh migrate` 로만 돌린다(`DATABASE_URL` 이 운영과 공유 DB라 기본 실행에서는 건너뜀).
 
 ## 개발 문서
