@@ -310,3 +310,32 @@ def test_generate_due_transactions_with_multiple_days_of_month(seeded_db):
     created = recurring_service.generate_due_transactions(db, today=date(2026, 7, 25))
 
     assert [tx.transaction_date for tx in created] == [date(2026, 7, 5), date(2026, 7, 25)]
+
+
+def test_recurring_turns_off_right_after_its_last_occurrence(seeded_db):
+    # 종료일(11-30) 전 마지막 회차(11-25)를 만든 뒤 다음 기한(12-25)이 예정 목록·캘린더에 남지 않아야 한다.
+    db, user, rent = seeded_db["db"], seeded_db["user"], seeded_db["rent"]
+    recurring = recurring_service.create_recurring(
+        db, name="월세", category_id=rent.id, amount=Decimal("800000"), frequency="monthly",
+        start_date=date(2026, 11, 25), end_date=date(2026, 11, 30), created_by=user.id,
+    )
+
+    created = recurring_service.generate_due_transactions(db, today=date(2026, 11, 25))
+
+    assert len(created) == 1
+    db.refresh(recurring)
+    assert recurring.is_active is False
+
+
+def test_upcoming_and_calendar_hide_due_dates_past_end_date(seeded_db):
+    # 이미 그런 상태로 남은 운영 행(다음 기한 > 종료일, 아직 활성)도 숨긴다.
+    db, user, rent = seeded_db["db"], seeded_db["user"], seeded_db["rent"]
+    recurring = recurring_service.create_recurring(
+        db, name="월세", category_id=rent.id, amount=Decimal("800000"), frequency="monthly",
+        start_date=date(2026, 11, 25), end_date=date(2026, 11, 30), created_by=user.id,
+    )
+    recurring.next_due_date = date(2026, 12, 25)
+    db.commit()
+
+    assert recurring_service.upcoming(db, within_days=30, today=date(2026, 12, 1)) == []
+    assert recurring_service.due_in_range(db, date(2026, 12, 1), date(2026, 12, 31)) == []

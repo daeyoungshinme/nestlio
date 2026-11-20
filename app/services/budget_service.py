@@ -66,7 +66,7 @@ def build_category_rows(
     *,
     suggested: dict[int, Decimal] | None = None,
 ) -> list[dict]:
-    """지출 카테고리별로 예산(미설정 시 0) 대비 실적 행을 만든다 — 활성 카테고리 전부 + 비활성이어도 그 기간 실적·예산이
+    """지출 카테고리(저축 카테고리 제외)별로 예산(미설정 시 0) 대비 실적 행을 만든다 — 활성 카테고리 전부 + 비활성이어도 그 기간 실적·예산이
     있는 카테고리(비활성화한 카테고리의 지출이 합계·코칭에는 잡히는데 행·경보에서만 사라지지 않게). 월간(budget_vs_actual)과
     연간(annual_plan_service.category_budget_vs_actual)이 이 골격을 공유한다 — actuals/budgets 맵만
     각자 만들어 넘긴다. suggested를 넘기면 각 행에 `suggested_amount`를 채운다(연 단위에선 생략).
@@ -75,6 +75,8 @@ def build_category_rows(
         db.query(Category)
         .filter(
             Category.kind == "expense",
+            # 저축 카테고리 거래는 지출 실적에서 빠지므로(period_expense_filters) 예산 행을 두면 실적이 항상 0이다.
+            Category.is_savings.is_(False),
             or_(
                 Category.is_active.is_(True),
                 Category.id.in_({cid for amounts in (budgets, actuals) for cid, v in amounts.items() if v}),

@@ -3,6 +3,7 @@ import uuid
 from datetime import date, timedelta
 from decimal import Decimal
 
+from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
 from app.errors import ConflictError, InvalidInputError, PartialFailureError
@@ -65,6 +66,12 @@ def list_recurring(db: Session, active_only: bool = True) -> list[RecurringExpen
     return query.order_by(RecurringExpense.next_due_date).all()
 
 
+def _not_past_end():
+    """다음 기한이 종료일을 넘은 반복거래는 더 생성되지 않으므로 예정 목록·캘린더에 보이지 않게 한다 — 자동 생성은
+    기한이 지나야 비활성으로 바꾸므로(generate_due_transactions) 그 전까지 남아 있는 행도 숨긴다."""
+    return or_(RecurringExpense.end_date.is_(None), RecurringExpense.next_due_date <= RecurringExpense.end_date)
+
+
 def upcoming(db: Session, within_days: int = 14, today: date | None = None) -> list[RecurringExpense]:
     today = today or today_kst()
     horizon = today + timedelta(days=within_days)
@@ -73,6 +80,7 @@ def upcoming(db: Session, within_days: int = 14, today: date | None = None) -> l
         .filter(
             RecurringExpense.is_active.is_(True),
             RecurringExpense.next_due_date <= horizon,
+            _not_past_end(),
         )
         .order_by(RecurringExpense.next_due_date)
         .all()
@@ -88,6 +96,7 @@ def due_in_range(db: Session, range_start: date, range_end: date) -> list[Recurr
             RecurringExpense.is_active.is_(True),
             RecurringExpense.next_due_date >= range_start,
             RecurringExpense.next_due_date <= range_end,
+            _not_past_end(),
         )
         .order_by(RecurringExpense.next_due_date)
         .all()
@@ -244,6 +253,9 @@ def generate_due_transactions(db: Session, today: date | None = None) -> list[Tr
                     else None,
                 )
                 created.append(tx)
+            if recurring.end_date and recurring.next_due_date > recurring.end_date:
+                # 마지막 회차를 만든 직후 끈다 — 다음 기한(종료일 뒤)까지 기다리면 그 사이 예정 목록에 남는다.
+                recurring.is_active = False
         except Exception:
             # idempotent per due date — a failed recurring is simply retried on the next run,
             # so one bad item shouldn't block the rest of due_items from being posted. Roll back
