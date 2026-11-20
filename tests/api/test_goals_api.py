@@ -1,3 +1,5 @@
+from decimal import Decimal
+
 import pytest
 
 
@@ -570,3 +572,42 @@ def test_create_goal_with_missing_funding_source_is_400(client):
         },
     )
     assert resp.status_code == 400
+_SNAPSHOT_FETCH = "app.services.growlio_goal_snapshot_service.growlio_client.fetch_investment_goal"
+_SNAPSHOT_PAYLOAD = {
+    "is_configured": True,
+    "goal_amount": 300_000_000.0,
+    "goal_annual_return_pct": 6.0,
+    "annual_deposit_goal": 12_000_000.0,
+    "annual_dividend_goal": None,
+    "monthly_deposit_amount": 1_000_000.0,
+    "retirement_target_year": 2045,
+    "investable_assets_krw": 120_000_000.4,
+    "annual_deposit_current": 9_000_000.0,
+    "estimated_annual_dividend": 1_500_000.0,
+    "actual_return_pct": 7.256,
+}
+
+
+def test_refresh_growlio_snapshot_returns_saved_values(client, seeded_db):
+    from unittest.mock import patch
+
+    with patch(_SNAPSHOT_FETCH, return_value=_SNAPSHOT_PAYLOAD) as fetch:
+        resp = client.post("/api/v1/financial-goals/growlio-snapshot/refresh")
+    assert resp.status_code == 200
+    fetch.assert_called_once_with("test-bearer-token")
+    body = resp.json()
+    assert body["user_id"] == str(seeded_db["user"].id)
+    assert body["is_configured"] is True
+    assert Decimal(body["goal_amount"]) == Decimal("300000000")
+    assert Decimal(body["monthly_deposit_amount"]) == Decimal("1000000")
+
+
+def test_refresh_growlio_snapshot_maps_growlio_errors(client):
+    from unittest.mock import patch
+
+    from app.services import growlio_client
+
+    with patch(_SNAPSHOT_FETCH, side_effect=growlio_client.GrowlioNotConfiguredError("off")):
+        assert client.post("/api/v1/financial-goals/growlio-snapshot/refresh").status_code == 501
+    with patch(_SNAPSHOT_FETCH, side_effect=growlio_client.GrowlioRequestError("down", upstream_status=503)):
+        assert client.post("/api/v1/financial-goals/growlio-snapshot/refresh").status_code == 502

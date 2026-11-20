@@ -39,6 +39,8 @@
   - `test_savings_product_service.py`: `savings_product_*` 세 모듈
   - `test_coaching_engine.py`: `coaching_engine` + `savings_coaching_service`
   - `test_todo_service.py`: `todo_service` + `todo_notification_service`
+  - CSV 가져오기 입력 상한(행 수·업로드 크기 `PayloadTooLargeError`·저장 범위 `DataError`)은 `test_csv_and_accounts.py`와 별도로 `test_csv_import_validation.py`
+  - 저축 분류(카테고리 기준 집계·반복거래 저축상품)는 `test_savings_classification.py`, growlio 연결 정합성(중복 연결·출금 계좌·비활성 참조)은 `test_growlio_link_integrity.py` — 여러 서비스에 걸친 규칙이라 규칙별 파일
   - `test_financial_plan_services.py`: `loan_service`(대출 CRUD·비활성화·소유자) + 목표·저축상품의 기본 CRUD 스모크 테스트(자세한 건 각 전용 파일)
-- 라우터 쪽 예외: `media`(`/media/couple-photo`)는 `tests/api/test_settings_api.py`가 부부 사진 설정과 함께 본다.
+- 라우터 쪽 예외: `/healthz`(`app/routers/health.py`)는 `tests/api/test_health_api.py`. `media`(`/media/couple-photo`)는 `tests/api/test_settings_api.py`가 부부 사진 설정과 함께 본다.
 - 전용 파일이 없는 모듈을 "간접 커버"에 맡길 때 주의 — "간접 커버"는 경로가 실행된다는 뜻이지 분기가 단언된다는 뜻이 아니다 — 분기가 있는 함수는 간접 커버에만 맡기지 않고 직접 테스트를 붙인다(2026-10-07 `annual_plan_service.set_month_target`, `email_templates.build_*_summary_html`, `exception_handlers.register_exception_handlers`(`tests/test_exception_handlers.py`), `savings_coaching_service.savings_pace_history`에 추가).

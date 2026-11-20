@@ -8,9 +8,9 @@ React + TypeScript + Vite + Tailwind CSS SPA. growlio의 디자인 시스템·�
 
 ```bash
 npm install                # 의존성 설치 (Node 22, .nvmrc)
-npm run dev                # Vite dev 서버 (5273 고정, /api → 127.0.0.1:8899 프록시)
+npm run dev                # Vite dev 서버 (기본 5273, VITE_DEV_PORT로 변경; /api → 127.0.0.1:8899 프록시, VITE_BACKEND_PORT)
 npm run build              # tsc -b && vite build → dist/
-npm run typecheck          # tsc --noEmit
+npm run typecheck          # tsc -b --noEmit (-b 없이 돌리면 루트 tsconfig가 references뿐이라 0개 파일을 검사하고 통과)
 npm run lint               # oxlint --deny-warnings (경고도 CI 실패)
 npm run test               # vitest run
 ```
