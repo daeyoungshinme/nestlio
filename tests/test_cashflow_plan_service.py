@@ -603,3 +603,13 @@ def test_upsert_item_rejects_unknown_owner_category_and_kind_mismatch(seeded_db)
         cashflow_plan_service.upsert_item(
             db, None, "variable", None, "급여", Decimal("1"), 0, "2026-07", user.id, category_id=salary.id
         )
+
+
+def test_suggested_totals_ignores_months_before_recording_started(seeded_db):
+    # 6월부터 기록을 시작했으면 4·5월을 0원으로 넣어 3으로 나누지 않는다.
+    db, user, food = seeded_db["db"], seeded_db["user"], seeded_db["food"]
+    make_transaction(db, user, food, "300000", date(2026, 6, 20), type_="expense")
+
+    suggested = cashflow_plan_service.suggested_totals(db, "2026-07")
+
+    assert suggested["variable"] == Decimal("300000")

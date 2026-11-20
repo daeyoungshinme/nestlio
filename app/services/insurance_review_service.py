@@ -493,8 +493,11 @@ def build_insurance_review(
     policies = insurance_service.list_policies(db)
     user_names = {u.id: u.display_name for u in db.query(User).all()}
 
-    total_monthly = sum((p.monthly_premium for p in policies), Decimal("0"))
-    savings_monthly = sum((p.monthly_premium for p in policies if p.policy_type == "savings"), Decimal("0"))
+    # 납입이 끝난 계약(보장만 남음)은 지금 내는 보험료가 아니므로 월 보험료 합계에서 뺀다 — 넣으면 보장성 비율이
+    # 부풀어 없는 절감액이 생기고, 실제 보험료 지출과 비교하는 미등록 판정도 등록분이 커 보여 놓친다.
+    paying = [p for p in policies if p.payment_end_date is None or p.payment_end_date >= today]
+    total_monthly = sum((p.monthly_premium for p in paying), Decimal("0"))
+    savings_monthly = sum((p.monthly_premium for p in paying if p.policy_type == "savings"), Decimal("0"))
     protection_monthly = total_monthly - savings_monthly
     avg_income = transaction_trend_service.trailing_average_by_section(
         db, today, months=settings.insurance_income_lookback_months, active_months_only=True

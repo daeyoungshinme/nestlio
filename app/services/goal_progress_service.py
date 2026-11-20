@@ -6,6 +6,7 @@ from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
 from app.models.financial_goal import FinancialGoal
+from app.models.goal_funding_source import GoalFundingSource
 from app.models.transaction import Transaction
 from app.services import (
     account_service,
@@ -18,12 +19,23 @@ from app.utils.dates import month_bounds, months_between, parse_year_month, shif
 from app.utils.money import whole_won
 
 
+def active_funding_sources(goal: FinancialGoal) -> list[GoalFundingSource]:
+    """비활성화한 저축상품·계좌·대출은 뺀 자금원 — 순자산(net_worth_service)이 활성 항목만 세는 것과 맞춘다.
+    상품을 해지·비활성화하고 새 상품을 연동하면 옛 상품의 멈춘 잔액이 목표에 이중으로 남기 때문이다. 연동 행은
+    지우지 않으므로 다시 활성화하면 되살아난다."""
+    return [
+        fs
+        for fs in goal.funding_sources
+        if (source := fs.savings_product or fs.account or fs.loan) is not None and source.is_active
+    ]
+
+
 def _linked_account_ids(goal: FinancialGoal) -> list[int]:
-    return [fs.account_id for fs in goal.funding_sources if fs.account_id is not None]
+    return [fs.account_id for fs in active_funding_sources(goal) if fs.account_id is not None]
 
 
 def _linked_product_ids(goal: FinancialGoal) -> list[int]:
-    return [fs.savings_product_id for fs in goal.funding_sources if fs.savings_product_id is not None]
+    return [fs.savings_product_id for fs in active_funding_sources(goal) if fs.savings_product_id is not None]
 
 
 def funding_source_breakdown(
@@ -34,7 +46,7 @@ def funding_source_breakdown(
         account_balances = account_service.balances_for(db, _linked_account_ids(goal))
 
     items: list[dict] = []
-    for fs in goal.funding_sources:
+    for fs in active_funding_sources(goal):
         if fs.savings_product_id is not None:
             items.append(
                 {
@@ -252,7 +264,7 @@ def planned_monthly_for_goal(goal: FinancialGoal, planned_by_product: dict[int, 
     저축·투자 상품의 그 달 계획 합(계획 탭 저축·투자 섹션 합계와 같은 값)이다."""
     if goal.kind == "net_worth":
         return sum(planned_by_product.values(), Decimal("0"))
-    product_ids = [fs.savings_product_id for fs in goal.funding_sources if fs.savings_product_id is not None]
+    product_ids = _linked_product_ids(goal)
     if not product_ids:
         return goal.monthly_saving_amount
     return sum((planned_by_product.get(pid, Decimal("0")) for pid in product_ids), Decimal("0"))
@@ -315,7 +327,7 @@ def _overlapping_sources(goal: FinancialGoal, growlio_user_ids: set) -> list[tup
     growlio 목표가 통합 목표에 합산되는 사람 소유. 부동산은 growlio 목표 기준(부동산 제외)에 없으므로 겹치지 않는다(지금은
     자금원으로 연동할 수 없지만 — goal_service.RealEstateFundingSourceError — 방어로 남긴다)."""
     keys: list[tuple[str, int]] = []
-    for fs in goal.funding_sources:
+    for fs in active_funding_sources(goal):
         product, account = fs.savings_product, fs.account
         if (
             product is not None

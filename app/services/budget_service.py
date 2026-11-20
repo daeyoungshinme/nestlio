@@ -129,5 +129,7 @@ def budget_vs_actual(
     actuals = {row["category_id"]: row["amount"] for row in breakdown}
     budgets = get_budgets_for_month(db, year_month)
     if suggested is None and with_suggested:
-        suggested = trailing_average_by_category(db, month_start, months=3, type_="expense")
+        suggested = trailing_average_by_category(
+            db, month_start, months=3, type_="expense", active_months_only=True
+        )
     return build_category_rows(db, actuals, budgets, warn_pct, critical_pct, suggested=suggested)

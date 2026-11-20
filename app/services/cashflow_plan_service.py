@@ -323,7 +323,7 @@ def actuals_for_month(db: Session, year_month: str) -> dict[str, Decimal]:
 def suggested_totals(db: Session, year_month: str) -> dict[str, Decimal]:
     """직전 3개월 실적 평균 — 부진한 섹션에 다음 달 계획 제안값으로 쓰인다."""
     month_start = parse_year_month(year_month)
-    return transaction_trend_service.trailing_average_by_section(db, month_start, months=3)
+    return transaction_trend_service.trailing_average_by_section(db, month_start, months=3, active_months_only=True)
 
 
 def _section_summary(
