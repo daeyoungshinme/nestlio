@@ -56,7 +56,8 @@ export default function CashflowPlanItemForm({
     onSubmit(values);
   };
 
-  const sectionCategories = categories.filter((c) => c.type === section);
+  // 저축 카테고리는 저축·투자 상품 계획에서 관리한다(서버도 400).
+  const sectionCategories = categories.filter((c) => c.type === section && !c.is_savings);
   const plannedForSelected = values.category_id ? categoryPlannedTotals[Number(values.category_id)] : undefined;
 
   return (

@@ -603,3 +603,60 @@ def test_seed_year_from_previous_year_skips_finished_installments(seeded_db):
 
     assert annual_plan_service.seed_year(db, 2027, "previous_year", user.id, date(2026, 12, 20)) == 1
     assert [item.name for item in annual_plan_service.list_items(db, 2027)] == ["월세"]
+
+
+def _savings_category(db):
+    from app.models.category import Category
+
+    cat = Category(name="청약저축", type="fixed", color="#000", sort_order=0, is_savings=True)
+    db.add(cat)
+    db.commit()
+    return cat
+
+
+def test_plan_item_rejects_newly_assigned_savings_category(seeded_db):
+    # 저축 카테고리 거래는 지출 실적에서 빠지므로 계획 항목에 두면 실적이 영원히 0이다.
+    db, user = seeded_db["db"], seeded_db["user"]
+    savings_cat = _savings_category(db)
+
+    with pytest.raises(annual_plan_service.InvalidPlanReferenceError):
+        annual_plan_service.upsert_item(
+            db, None, 2026, "fixed", None, "청약", savings_cat.id, 0, user.id, "2026-01", "2026-12",
+            monthly_targets=_monthly(jan="300000"),
+        )
+
+
+def test_budget_rows_skip_savings_categories(seeded_db):
+    db = seeded_db["db"]
+    savings_cat = _savings_category(db)
+
+    rows = budget_service.budget_vs_actual(db, "2026-07")
+
+    assert savings_cat.id not in {r["category_id"] for r in rows}
+    assert seeded_db["food"].id in {r["category_id"] for r in rows}
+
+
+def test_seed_year_from_recurring_respects_start_and_end_dates(seeded_db):
+    from app.services import recurring_service
+
+    db, user, rent, events = seeded_db["db"], seeded_db["user"], seeded_db["rent"], seeded_db["events"]
+    recurring_service.create_recurring(
+        db, name="자동차 할부", category_id=rent.id, amount=Decimal("400000"),
+        frequency="monthly", start_date=date(2025, 4, 10), end_date=date(2027, 3, 10), created_by=user.id,
+    )
+    recurring_service.create_recurring(
+        db, name="학원비", category_id=rent.id, amount=Decimal("200000"),
+        frequency="monthly", start_date=date(2027, 6, 1), created_by=user.id,
+    )
+    recurring_service.create_recurring(
+        db, name="자동차세", category_id=events.id, amount=Decimal("300000"),
+        frequency="yearly", start_date=date(2025, 6, 16), end_date=date(2026, 6, 16), created_by=user.id,
+    )
+
+    annual_plan_service.seed_year(db, 2027, "recurring", user.id, date(2026, 12, 20))
+
+    items = {i.name: i for i in annual_plan_service.list_items(db, 2027)}
+    assert sorted(mt.year_month for mt in items["자동차 할부"].monthly_targets) == ["2027-01", "2027-02", "2027-03"]
+    assert [mt.year_month for mt in items["학원비"].monthly_targets][0] == "2027-06"
+    assert len(items["학원비"].monthly_targets) == 7
+    assert "자동차세" not in items  # 2027년에 해당하는 달이 없다
