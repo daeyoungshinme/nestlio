@@ -369,8 +369,12 @@ def seed_year(db: Session, year: int, source: str, updated_by: uuid.UUID, today:
             )
     else:
         averages = {
-            **transaction_trend_service.trailing_average_by_category(db, today, months=3, type_="expense"),
-            **transaction_trend_service.trailing_average_by_category(db, today, months=3, type_="income"),
+            **transaction_trend_service.trailing_average_by_category(
+                db, today, months=3, type_="expense", active_months_only=True
+            ),
+            **transaction_trend_service.trailing_average_by_category(
+                db, today, months=3, type_="income", active_months_only=True
+            ),
         }
         categories = {c.id: c for c in db.query(Category).filter(Category.id.in_(list(averages))).all()}
         for order, (category_id, avg) in enumerate(sorted(averages.items())):

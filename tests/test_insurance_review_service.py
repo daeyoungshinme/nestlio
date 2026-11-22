@@ -436,3 +436,14 @@ def test_coverage_labels_cover_every_coverage_tag():
     from app.services.insurance_review_service import COVERAGE_LABELS
 
     assert set(COVERAGE_LABELS) == set(get_args(Coverage))
+
+
+def test_paid_up_policy_premium_is_not_counted(seeded_db):
+    # 납입이 끝난 종신보험(보장만 남음)은 지금 내는 보험료가 아니다 — 보장성 합계·소득 대비 비율에서 뺀다.
+    db, user = seeded_db["db"], seeded_db["user"]
+    _create(db, name="종신", policy_type="life", insured_user_id=user.id, premium_amount=D("150000"), payment_end_date=TODAY - timedelta(days=1))
+    _create(db, name="암보험", policy_type="diagnosis", insured_user_id=user.id, premium_amount=D("30000"), payment_end_date=TODAY)
+
+    summary = insurance_review_service.build_insurance_review(db, today=TODAY)["summary"]
+
+    assert summary["protection_monthly_premium"] == D("30000")

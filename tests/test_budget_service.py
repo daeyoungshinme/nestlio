@@ -167,3 +167,13 @@ def test_build_category_rows_keeps_inactive_category_with_spending(seeded_db):
     ids = [row["category_id"] for row in rows]
     assert food.id in ids  # 비활성이지만 이번 달 지출이 있다
     assert rent.id not in ids  # 비활성이고 실적·예산 없음
+
+
+def test_budget_vs_actual_suggested_amount_ignores_months_before_recording_started(seeded_db):
+    db, user, food = seeded_db["db"], seeded_db["user"], seeded_db["food"]
+    make_transaction(db, user, food, "150000", date(2026, 6, 5))
+
+    rows = budget_service.budget_vs_actual(db, year_month_str(date(2026, 7, 15)))
+    food_row = next(r for r in rows if r["category_id"] == food.id)
+
+    assert food_row["suggested_amount"] == Decimal("150000")

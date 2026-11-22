@@ -145,10 +145,18 @@ def _apply_funding_sources(db: Session, goal: FinancialGoal, funding_sources: li
         source = db.get(model, source_id) if model is not None else None
         if source is None:
             raise FundingSourceNotFoundError("자금원으로 지정한 항목을 찾을 수 없습니다.")
+        existing_key = {
+            "savings_product": (source_id, None, None),
+            "account": (None, source_id, None),
+            "loan": (None, None, source_id),
+        }[source_type]
+        if not source.is_active and existing_key not in existing_by_key:
+            # 비활성 항목은 목표 금액에서 빠지므로(goal_progress_service.active_funding_sources) 새로 연결하지
+            # 못하게 한다. 이미 연결된 행은 그대로 둬서 다시 활성화하면 되살아나게 한다.
+            raise FundingSourceNotFoundError("비활성화한 항목은 자금원으로 연결할 수 없습니다.")
         if source_type == "savings_product":
             if source.product_type == "real_estate":
                 raise RealEstateFundingSourceError(REAL_ESTATE_FUNDING_DETAIL)
-            existing_key = (source_id, None, None)
             if existing_key not in existing_by_key:
                 # 다른 목표가 이미 이 상품을 연동하고 있으면 잔액이 두 목표에 중복 집계되므로 막는다
                 # (goal_funding_sources.savings_product_id unique 제약과 짝). 한 목표에 상품을
@@ -167,14 +175,12 @@ def _apply_funding_sources(db: Session, goal: FinancialGoal, funding_sources: li
                     )
             new_sources.append(existing_by_key.get(existing_key) or GoalFundingSource(savings_product_id=source_id))
         elif source_type == "account":
-            existing_key = (None, source_id, None)
             new_sources.append(existing_by_key.get(existing_key) or GoalFundingSource(account_id=source_id))
         elif source_type == "loan":
             if mortgage_ids is None:
                 mortgage_ids = real_estate_service.mortgage_loan_ids(db)
             if source_id in mortgage_ids:
                 raise RealEstateFundingSourceError(REAL_ESTATE_FUNDING_DETAIL)
-            existing_key = (None, None, source_id)
             new_sources.append(existing_by_key.get(existing_key) or GoalFundingSource(loan_id=source_id))
     goal.funding_sources = new_sources
 
@@ -368,7 +374,7 @@ DIRECT_DEPOSIT_MONTHS = 6
 def _linked_growlio_account_ids(goal: FinancialGoal) -> list[str]:
     return [
         fs.savings_product.growlio_account_id
-        for fs in goal.funding_sources
+        for fs in goal_progress_service.active_funding_sources(goal)
         if fs.savings_product is not None and fs.savings_product.growlio_account_id
     ]
 

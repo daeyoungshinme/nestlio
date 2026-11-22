@@ -57,7 +57,12 @@ def test_planned_monthly_uses_linked_product_plans_else_manual_amount():
     linked = SimpleNamespace(
         kind="goal",
         monthly_saving_amount=Decimal("999"),
-        funding_sources=[SimpleNamespace(savings_product_id=1), SimpleNamespace(savings_product_id=None)],
+        funding_sources=[
+            SimpleNamespace(savings_product_id=1, savings_product=SimpleNamespace(is_active=True)),
+            SimpleNamespace(
+                savings_product_id=None, savings_product=None, account=SimpleNamespace(is_active=True), loan=None
+            ),
+        ],
     )
     manual = SimpleNamespace(kind="goal", monthly_saving_amount=Decimal("50000"), funding_sources=[])
     net_worth = SimpleNamespace(kind="net_worth", monthly_saving_amount=Decimal("0"), funding_sources=[])
