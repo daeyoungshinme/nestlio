@@ -12,4 +12,3 @@ export const SECTIONS = [
 
 export const SAVINGS_INVESTMENT_LABEL = "저축·투자" as const;
 
-export type SectionLabel = (typeof SECTIONS)[number]["label"] | typeof SAVINGS_INVESTMENT_LABEL;

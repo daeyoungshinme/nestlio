@@ -17,7 +17,7 @@
 ## 라우터/HTTP 테스트 (`tests/api/`)
 
 - `test_<router>_api.py`: 라우터 파일 1:1(예외: `categories`·`users`는 `test_categories_and_users_api.py` 하나, 거래 입력 상한·일괄 삭제 원자성은 `test_transactions_input_limits_api.py`). `client` 픽스처는 `app.dependency_overrides`로 `get_db` → `seeded_db` 세션, `get_current_user` → `seeded_db` 유저로 바꿔 "이미 인증된 요청"을 가정한다. 스키마 직렬화·상태 코드·404/409를 여기서 검증한다.
-- JWKS 인증 체인 자체(헤더 파싱 → 토큰 검증 → 유저 조회/미러링, 401/403 경로)는 `tests/test_dependencies.py`에서만 본다 — `app.dependencies.verify_supabase_token`을 monkeypatch한다.
+- JWKS 인증 체인 자체(헤더 파싱 → 토큰 검증 → 유저 조회/미러링, 401/403 경로)는 `tests/test_dependencies.py`에서만 본다 — `app.dependencies.verify_supabase_token`을 monkeypatch한다. 보안 헤더·정적 자산 캐시·GZip/CORS 미들웨어는 `tests/test_middleware.py`(작은 앱에 `register_middleware`를 등록해 빌드 산출물과 무관하게 본다).
 - `tests/api/test_internal_jobs_api.py`는 `JOB_REGISTRY`를 스텁으로 바꿔 인증/라우팅만, 실제 잡 본문은 `test_scheduler_jobs.py`가 본다.
 
 ## 시간 결정론

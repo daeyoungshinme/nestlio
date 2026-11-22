@@ -2,7 +2,7 @@ import { useState } from "react";
 import { sumAmounts } from "@/utils/amount";
 import { syncTargetsToPeriod } from "@/utils/monthRange";
 
-export interface MonthlyTargetIn {
+interface MonthlyTargetIn {
   year_month: string;
   target_amount: string;
 }

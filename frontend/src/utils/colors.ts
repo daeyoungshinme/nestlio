@@ -3,7 +3,7 @@
 
 import type { CoverageStatus } from "@/types";
 
-export type InsightSeverity = "info" | "warning" | "critical";
+type InsightSeverity = "info" | "warning" | "critical";
 
 const INSIGHT_SEVERITY_STYLE: Record<InsightSeverity, string> = {
   info: "bg-blue-50 dark:bg-blue-950 text-blue-700 dark:text-blue-300 border-blue-200 dark:border-blue-800",
@@ -144,7 +144,7 @@ export function inviteStatusLabel(status: InviteStatus): string {
   return INVITE_STATUS_LABEL[status];
 }
 
-export type ConnectionStatus = "connected" | "disconnected";
+type ConnectionStatus = "connected" | "disconnected";
 
 const CONNECTION_STATUS_BADGE: Record<ConnectionStatus, string> = {
   connected: "bg-primary-50 dark:bg-primary-950 text-primary-700 dark:text-primary-300",

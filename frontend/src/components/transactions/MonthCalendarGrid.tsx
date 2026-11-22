@@ -2,7 +2,7 @@ import { Fragment, useMemo } from "react";
 import type { ReactNode } from "react";
 import { currentDateIso, toDateIso, WEEKDAY_LABELS } from "@/utils/date";
 
-export interface MonthGridCell {
+interface MonthGridCell {
   date: string;
   day: number;
   inCurrentMonth: boolean;

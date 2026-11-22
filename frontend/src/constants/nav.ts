@@ -2,7 +2,7 @@ import { ClipboardList, Home, Landmark, Target, Wallet } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { ROUTES } from "@/constants/routes";
 
-export interface NavItem {
+interface NavItem {
   to: string;
   icon: LucideIcon;
   label: string;

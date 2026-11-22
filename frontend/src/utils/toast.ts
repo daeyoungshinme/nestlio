@@ -1,8 +1,8 @@
 import { APP_EVENTS } from "@/constants/events";
 
-export type ToastType = "error" | "success" | "info";
+type ToastType = "error" | "success" | "info";
 
-export interface ToastAction {
+interface ToastAction {
   label: string;
   onClick: () => void;
 }

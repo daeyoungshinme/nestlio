@@ -12,7 +12,7 @@ interface AuthMeCache {
   cachedAt: number;
 }
 
-export interface AuthState {
+interface AuthState {
   isAuthenticated: boolean;
   isAuthChecking: boolean;
   userId: string | null;

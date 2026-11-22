@@ -7,8 +7,8 @@ from app.config import settings
 
 async def add_security_headers(request: Request, call_next):
     response = await call_next(request)
-    if request.url.path.startswith("/assets/"):
-        # Vite 빌드 산출물은 콘텐츠 해시 파일명이라 장기 캐시가 안전하다.
+    if request.url.path.startswith("/assets/") and response.status_code == 200:
+        # Vite 빌드 산출물은 콘텐츠 해시 파일명이라 장기 캐시가 안전하다. 404는 캐시하지 않는다.
         response.headers["Cache-Control"] = "public, max-age=31536000, immutable"
     response.headers["X-Content-Type-Options"] = "nosniff"
     response.headers["X-Frame-Options"] = "DENY"

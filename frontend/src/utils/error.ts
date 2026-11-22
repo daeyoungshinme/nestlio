@@ -1,6 +1,6 @@
 type FastApiDetail = string | { msg: string; loc?: unknown[]; type?: string }[];
 
-export interface AxiosLikeError {
+interface AxiosLikeError {
   response?: {
     status?: number;
     data?: { detail?: FastApiDetail };

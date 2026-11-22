@@ -2,7 +2,7 @@ import { sumAmounts } from "@/utils/amount";
 import { formatKrw } from "@/utils/format";
 import type { TransactionOut } from "@/types";
 
-export interface DayCashflow {
+interface DayCashflow {
   income: number;
   expense: number;
   /** 수입 − 지출. */
