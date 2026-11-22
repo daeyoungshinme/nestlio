@@ -38,6 +38,22 @@ describe("QueryBoundary", () => {
     expect(screen.getByText("부부")).toBeInTheDocument();
   });
 
+  it("keeps rendering cached data when a background refetch fails", () => {
+    // TanStack Query v5는 재요청이 실패해도 이전 data를 유지한 채 isError를 켠다 — 에러 화면으로 갈아 끼우면
+    // 안에서 열린 폼까지 언마운트돼 입력이 날아간다.
+    render(
+      <QueryBoundary
+        queries={[mockQuery({ data: [] }), mockQuery({ data: ["캐시"], isError: true, error: new Error("") })]}
+        errorMessage="목록을 불러오지 못했습니다."
+      >
+        <p>본문</p>
+      </QueryBoundary>,
+    );
+
+    expect(screen.getByText("본문")).toBeInTheDocument();
+    expect(screen.queryByText("목록을 불러오지 못했습니다.")).not.toBeInTheDocument();
+  });
+
   it("shows ErrorState and refetches every query on retry", () => {
     const refetchA = vi.fn();
     const refetchB = vi.fn();

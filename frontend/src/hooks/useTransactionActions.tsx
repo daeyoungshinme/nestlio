@@ -62,10 +62,10 @@ export function useTransactionActions({
   const { openDelete, deleteNow, modal: deleteModal } = useConfirmDelete<TransactionOut>({
     remove: deleteTransaction,
     message: () => "이 내역을 삭제할까요? 되돌릴 수 없습니다.",
-    onDeleted: () => {
+    onDeleted: (deletedId) => {
       invalidateAll();
-      // 삭제는 수정 폼 안에서만 시작하므로 그 폼도 닫는다.
-      setFormTarget(null);
+      // 수정 폼에서 지운 거래면 그 폼을 닫는다. 추가 직후 "취소"(deleteNow)는 그 사이 새로 연 폼을 건드리지 않는다.
+      setFormTarget((current) => (current !== null && current !== "new" && current.id === deletedId ? null : current));
       toast("내역을 삭제했습니다.", "success");
     },
   });
