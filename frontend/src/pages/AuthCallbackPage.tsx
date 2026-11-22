@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
-import { Loader2, PiggyBank } from "lucide-react";
+import { Loader2 } from "lucide-react";
+import AuthCard from "@/components/common/AuthCard";
 import { supabase } from "@/lib/supabase";
 import { useAuthStore } from "@/stores/authStore";
 import { acceptInvite } from "@/api/invites";
@@ -90,18 +91,13 @@ export default function AuthCallbackPage() {
 
   useEffect(() => {
     if (state === "success") {
-      const timer = setTimeout(() => navigate("/"), REDIRECT_DELAY_MS);
+      const timer = setTimeout(() => navigate(ROUTES.dashboard), REDIRECT_DELAY_MS);
       return () => clearTimeout(timer);
     }
   }, [state, navigate]);
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-950 px-4">
-      <div className="w-full max-w-sm bg-white dark:bg-gray-900 rounded-2xl shadow-xs border border-gray-200 dark:border-gray-700 p-8 text-center">
-        <div className="flex items-center gap-2 mb-6 justify-center">
-          <PiggyBank className="text-primary-600 dark:text-primary-400" size={28} />
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-50">Nestlio</h1>
-        </div>
+    <AuthCard className="text-center">
 
         {state === "checking" && (
           <div className="flex flex-col items-center gap-3" role="status" aria-label="로딩 중">
@@ -130,7 +126,6 @@ export default function AuthCallbackPage() {
             </Link>
           </div>
         )}
-      </div>
-    </div>
+    </AuthCard>
   );
 }
